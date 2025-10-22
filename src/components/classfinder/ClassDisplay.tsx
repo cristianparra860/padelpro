@@ -47,6 +47,7 @@ interface ClassDisplayProps {
   dateStripDates: Date[];
   onViewPrefChange: (date: Date, pref: ViewPreference, type: 'class' | 'match' | 'event', eventId?: string) => void;
   showPointsBonus: boolean; // New prop for visibility
+  selectedPlayerCounts: Set<number>; // New prop for player count filter
 }
 
 const ITEMS_PER_PAGE = 9;
@@ -55,7 +56,7 @@ const ClassDisplay: React.FC<ClassDisplayProps> = ({
     currentUser, onBookingSuccess, filterByClubId, filterByGratisOnly, filterByLiberadasOnly, onDeactivateGratisFilter,
     selectedDate, onDateChange, timeSlotFilter, selectedLevelsSheet: selectedLevelsFromParent, sortBy,
     filterAlsoConfirmedClasses, filterByFavoriteInstructors, viewPreference, proposalView, refreshKey,
-    allClasses, isLoading, dateStripIndicators, dateStripDates, onViewPrefChange, showPointsBonus
+    allClasses, isLoading, dateStripIndicators, dateStripDates, onViewPrefChange, showPointsBonus, selectedPlayerCounts
 }) => {
     const { toast } = useToast();
     const router = useRouter();
@@ -137,40 +138,19 @@ const ClassDisplay: React.FC<ClassDisplayProps> = ({
                 });
             }
             
-            if (viewPreference === 'myInscriptions') {
-                workingClasses = workingClasses.filter(cls => 
-                    (cls.bookedPlayers || []).some(p => p.userId === currentUser.id) && !isSlotEffectivelyCompleted(cls).completed
-                );
-            } else if (viewPreference === 'myConfirmed') {
-                workingClasses = workingClasses.filter(cls => {
-                    const isUserInSlot = (cls.bookedPlayers || []).some(p => p.userId === currentUser.id);
-                    if (!isUserInSlot) return false;
-                    
-                    const { completed } = isSlotEffectivelyCompleted(cls);
-                    return completed;
-                });
-            } else if (viewPreference === 'withPlayers') {
+            // Filtrar según la preferencia de vista
+            if (viewPreference === 'withBookings') {
+                // Mostrar solo clases que tienen al menos un usuario inscrito
+                console.log('🔍 Filtrando por "Con Usuarios"...');
+                console.log('📋 Clases antes del filtro:', workingClasses.length);
                 workingClasses = workingClasses.filter(cls => {
                     const hasPlayers = (cls.bookedPlayers || []).length > 0;
-                    const { completed } = isSlotEffectivelyCompleted(cls);
-                    return hasPlayers && !completed;
+                    console.log(`   Clase ${cls.id?.substring(0, 8)}: ${hasPlayers ? '✅ Tiene jugadores' : '❌ Sin jugadores'} (${(cls.bookedPlayers || []).length} inscritos)`);
+                    return hasPlayers;
                 });
-            } else if (viewPreference === 'completed') {
-                workingClasses = workingClasses.filter(cls => {
-                    const { completed } = isSlotEffectivelyCompleted(cls);
-                    return completed;
-                });
-            } else { 
-                 if (!filterAlsoConfirmedClasses) {
-                    workingClasses = workingClasses.filter(cls => {
-                         const { completed } = isSlotEffectivelyCompleted(cls);
-                         if (completed) {
-                             return isSlotGratisAndAvailable(cls);
-                         }
-                         return true;
-                    });
-                }
+                console.log('📋 Clases después del filtro:', workingClasses.length);
             }
+            // Si viewPreference === 'all', no aplicamos filtro adicional (mostrar todas)
         }
         
         // Apply favorites filter across all branches, if active
@@ -279,7 +259,7 @@ const ClassDisplay: React.FC<ClassDisplayProps> = ({
 
     const handleBackToAvailable = () => {
         const newSearchParams = new URLSearchParams(searchParams.toString());
-        newSearchParams.set('viewPref', 'normal');
+        newSearchParams.set('viewPref', 'all');
         router.replace(`${pathname}?${newSearchParams.toString()}`, { scroll: false });
     };
 
@@ -354,24 +334,20 @@ const ClassDisplay: React.FC<ClassDisplayProps> = ({
                     <div className="text-center py-16">
                         <SearchX className="h-20 w-20 text-muted-foreground mx-auto mb-6 opacity-50" />
                          <h2 className="text-2xl font-semibold text-foreground mb-3">
-                            {viewPreference === 'myInscriptions' ? "No tienes inscripciones" : 
-                             viewPreference === 'myConfirmed' ? "Aquí no tienes reservas hechas" : 
-                             viewPreference === 'completed' ? "No hay clases completas" : 
+                            {viewPreference === 'withBookings' ? "No hay clases con usuarios inscritos" :
                              "No se encontraron clases"}
                         </h2>
                         <p className="text-muted-foreground max-w-md mx-auto">
-                             {viewPreference === 'myInscriptions' ? "No estás apuntado/a a ninguna clase para este día." :
-                             viewPreference === 'myConfirmed' ? "No tienes clases confirmadas para este día." :
-                             viewPreference === 'completed' ? "No hay clases completas que mostrar para este día." :
+                             {viewPreference === 'withBookings' ? "No hay clases con usuarios inscritos para este día." :
                              filterByLiberadasOnly ? "No hay plazas liberadas en clases confirmadas por ahora." : 
                              "Prueba a cambiar las fechas o ajusta los filtros."}
                         </p>
-                         {(viewPreference === 'myInscriptions' || viewPreference === 'myConfirmed' || viewPreference === 'completed') && (
+                         {viewPreference === 'withBookings' && (
                             <Button onClick={handleBackToAvailable} className="mt-4">
-                                <Eye className="mr-2 h-4 w-4"/> Ver Disponibles
+                                <Eye className="mr-2 h-4 w-4"/> Ver Todas
                             </Button>
                         )}
-                        {viewPreference === 'normal' && (
+                        {viewPreference === 'all' && (
                             <Button onClick={handleNextAvailableClick} className="mt-4">
                                 Próximo día con clases <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
@@ -383,7 +359,13 @@ const ClassDisplay: React.FC<ClassDisplayProps> = ({
                         <div className="space-y-4 max-w-[350px] mx-auto md:max-w-none md:mx-0 md:space-y-0 md:grid md:grid-cols-[repeat(auto-fill,minmax(350px,1fr))] md:gap-6">
                             {displayedClasses.map((classData) => (
                                 <div key={classData.id} className="w-full">
-                                    <ClassCard classData={classData} currentUser={currentUser} onBookingSuccess={handleClassBookingSuccess} showPointsBonus={showPointsBonus} />
+                                    <ClassCard 
+                                        classData={classData} 
+                                        currentUser={currentUser} 
+                                        onBookingSuccess={handleClassBookingSuccess} 
+                                        showPointsBonus={showPointsBonus}
+                                        allowedPlayerCounts={Array.from(selectedPlayerCounts)}
+                                    />
                                 </div>
                             ))}
                         </div>

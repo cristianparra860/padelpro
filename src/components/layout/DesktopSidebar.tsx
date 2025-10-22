@@ -9,7 +9,7 @@ import type { User, Club, TimeOfDayFilterType, MatchPadelLevel, ActivityViewType
 import { timeSlotFilterOptions } from '@/types';
 import {
     Activity, Users, Gift, Clock, BarChartHorizontal, Heart,
-    Briefcase, LogOut, Building, CalendarDays, Eye, ClipboardList, CheckCircle, LogIn, PartyPopper, ShoppingBag, Star, Sparkles, Plus, Calendar, User as UserIcon, Wallet, Trophy, Database
+    Briefcase, LogOut, Building, CalendarDays, Eye, ClipboardList, CheckCircle, LogIn, PartyPopper, Star, Sparkles, Plus, Calendar, User as UserIcon, Wallet, Trophy, Database
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,7 @@ import LevelFilterDialog from '../classfinder/LevelFilterDialog';
 import TimeOfDayFilterDialog from '../classfinder/TimeOfDayFilterDialog';
 import ViewOptionsDialog from '@/components/classfinder/ViewOptionsDialog';
 import ManageFavoriteInstructorsDialog from '@/components/schedule/ManageFavoriteInstructorsDialog';
+import PlayerCountFilterDialog from '@/components/classfinder/PlayerCountFilterDialog';
 interface DesktopSidebarProps {
     currentUser: User | null;
     clubInfo: Club | null;
@@ -29,15 +30,17 @@ interface DesktopSidebarProps {
     isActivitiesPage: boolean;
     activeView: ActivityViewType;
     timeSlotFilter: TimeOfDayFilterType;
-    selectedLevel: MatchPadelLevel | 'all';
     viewPreference: ViewPreference;
     filterByFavorites: boolean;
     showPointsBonus: boolean;
+    selectedPlayerCounts: Set<number>;
     handleTimeFilterChange: (value: TimeOfDayFilterType) => void;
-    handleLevelChange: (value: MatchPadelLevel | 'all') => void;
     handleViewPrefChange: (pref: ViewPreference, type: ActivityViewType) => void;
     handleTogglePointsBonus: () => void;
     handleApplyFavorites: (ids: string[]) => void;
+    handleTogglePlayerCount: (count: number) => void;
+    handleSelectAllPlayerCounts: () => void;
+    handleDeselectAllPlayerCounts: () => void;
     updateUrlFilter: (key: string, value: string | boolean | null) => void;
 }
 const hexToRgba = (hex: string, alpha: number) => {
@@ -54,26 +57,33 @@ const hexToRgba = (hex: string, alpha: number) => {
 };
 const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
     currentUser, clubInfo, onProfessionalAccessClick, onLogoutClick, onMobileFiltersClick,
-    isActivitiesPage, activeView, timeSlotFilter, selectedLevel, viewPreference,
-    filterByFavorites, showPointsBonus, handleTimeFilterChange, handleLevelChange,
-    handleViewPrefChange, handleTogglePointsBonus, handleApplyFavorites, updateUrlFilter
+    isActivitiesPage, activeView, timeSlotFilter, viewPreference,
+    filterByFavorites, showPointsBonus, selectedPlayerCounts, handleTimeFilterChange,
+    handleViewPrefChange, handleTogglePointsBonus, handleApplyFavorites, handleTogglePlayerCount,
+    handleSelectAllPlayerCounts, handleDeselectAllPlayerCounts, updateUrlFilter
 }) => {
     const pathname = usePathname();
     const router = useRouter();
     const [isManageFavoritesOpen, setIsManageFavoritesOpen] = useState(false);
-    const [isLevelFilterOpen, setIsLevelFilterOpen] = useState(false);
     const [isTimeFilterOpen, setIsTimeFilterOpen] = useState(false);
     const [isViewOptionsOpen, setIsViewOptionsOpen] = useState(false);
-    const levelFilterLabel = selectedLevel === 'all' ? 'Niveles' : selectedLevel === 'abierto' ? 'Nivel Abierto' : `${selectedLevel}`;
+    const [isPlayerCountOpen, setIsPlayerCountOpen] = useState(false);
+    
     const timeFilterLabel = timeSlotFilter === 'all'
         ? 'Horarios'
         : timeSlotFilterOptions.find(o => o.value === timeSlotFilter)?.label.replace(/ \([^)]+\)/, '') || 'Horarios';
+    
+    const playerCountLabel = useMemo(() => {
+        if (selectedPlayerCounts.size === 0) return 'Jugadores';
+        if (selectedPlayerCounts.size === 4) return 'Jugadores';
+        const counts = Array.from(selectedPlayerCounts).sort().join(', ');
+        return `Jugadores (${counts})`;
+    }, [selectedPlayerCounts]);
+    
     const viewPreferenceLabel = useMemo(() => {
         switch (viewPreference) {
-            case 'myInscriptions': return 'Mis Inscripciones';
-            case 'myConfirmed': return 'Mis Reservas';
-            case 'withPlayers': return 'En Juego';
-            case 'completed': return 'Completas';
+            case 'withBookings': return 'Con Usuarios';
+            case 'all': return 'Todas';
             default: return 'Ocupación';
         }
     }, [viewPreference]);
@@ -82,12 +92,11 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
         // They can disable the filter by clearing all selections.
         setIsManageFavoritesOpen(true);
     };
-    const isMatchProEnabled = clubInfo?.isMatchProEnabled ?? false;
     const isClassesEnabled = clubInfo?.showClassesTabOnFrontend ?? true;
     const isMatchesEnabled = clubInfo?.showMatchesTabOnFrontend ?? true;
     const isMatchDayEnabled = clubInfo?.isMatchDayEnabled ?? false;
     const isStoreEnabled = clubInfo?.isStoreEnabled ?? true;
-    const navItemCount = 1 + (isClassesEnabled ? 1 : 0) + (isMatchProEnabled ? 1 : 0) + (isMatchesEnabled ? 1 : 0) + (isMatchDayEnabled ? 1 : 0) + (isStoreEnabled ? 1 : 0);
+    const navItemCount = 1 + (isClassesEnabled ? 1 : 0) + (isMatchesEnabled ? 1 : 0) + (isMatchDayEnabled ? 1 : 0) + (isStoreEnabled ? 1 : 0);
     const navGridClass = `grid-cols-${navItemCount}`;
     const renderLoginPrompt = () => (
       <aside className="hidden md:block w-72 p-4">
@@ -142,24 +151,14 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                     <Separator />
                     <div className="p-1 space-y-3">
                                                 <Link href="/dashboard" className="w-full"><Button variant={pathname.startsWith('/dashboard') || pathname.startsWith('/schedule') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><ClipboardList className="mr-3 h-5 w-5" /> Agenda</Button></Link>
-                                                <Link href="/my-bookings-simple" className="w-full"><Button variant={pathname.startsWith('/my-bookings-simple') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Calendar className="mr-3 h-5 w-5" /> Mis Reservas</Button></Link>
                                                 {isClassesEnabled && (
                                                     <Link href="/activities?view=clases" className="w-full"><Button variant={isActivitiesPage && activeView === 'clases' ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Activity className="mr-3 h-5 w-5" /> Clases</Button></Link>
-                                                )}
-                                                {isMatchProEnabled && (
-                                                    <Link href="/activities?view=matchpro" className="w-full"><Button variant={isActivitiesPage && activeView === 'matchpro' ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Trophy className="mr-3 h-5 w-5" /> Partidas fijas</Button></Link>
-                                                )}
-                                                {isMatchesEnabled && (
-                                                    <Link href="/activities?view=partidas" className="w-full"><Button variant={isActivitiesPage && activeView === 'partidas' ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Users className="mr-3 h-5 w-5" /> Partidas</Button></Link>
                                                 )}
                                                 {isMatchDayEnabled && (
                                                     <Link href="/match-day" className="w-full"><Button variant={pathname.startsWith('/match-day') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><PartyPopper className="mr-3 h-5 w-5" /> Match-Day</Button></Link>
                                                 )}
-                                                {isStoreEnabled && (
-                                                    <Link href="/store" className="w-full"><Button variant={pathname.startsWith('/store') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><ShoppingBag className="mr-3 h-5 w-5" /> Tienda</Button></Link>
-                                                )}
-                                                <Link href="/admin" className="w-full"><Button variant={pathname.startsWith('/admin') && !pathname.startsWith('/admin/database') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Building className="mr-3 h-5 w-5" /> Acceso Club</Button></Link>
                                                 <Link href="/admin/database" className="w-full"><Button variant={pathname.startsWith('/admin/database') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Database className="mr-3 h-5 w-5" /> Database Admin</Button></Link>
+                                                <Link href="/admin/calendar" className="w-full"><Button variant={pathname.startsWith('/admin/calendar') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Calendar className="mr-3 h-5 w-5" /> Calendario Club</Button></Link>
                     </div>
                     {isActivitiesPage && (
                         <>
@@ -167,18 +166,28 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                             <div className="space-y-1 p-1">
                                 <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase">Filtros</h3>
                                 <Button variant="ghost" style={timeSlotFilter === 'all' ? inactiveFilterShadowStyle : {}} className={cn("w-full justify-start text-sm h-10 rounded-full", timeSlotFilter !== 'all' && activeFilterClasses)} onClick={() => setIsTimeFilterOpen(true)}><Clock className="mr-3 h-4 w-4" /> {timeFilterLabel}</Button>
-                                <Button variant="ghost" style={selectedLevel === 'all' ? inactiveFilterShadowStyle : {}} className={cn("w-full justify-start text-sm h-10 rounded-full", selectedLevel !== 'all' && activeFilterClasses)} onClick={() => setIsLevelFilterOpen(true)}><BarChartHorizontal className="mr-3 h-4 w-4" /> {levelFilterLabel}</Button>
                                 <Button variant="ghost" style={viewPreference === 'normal' ? inactiveFilterShadowStyle : {}} className={cn("w-full justify-start text-sm h-10 rounded-full", viewPreference !== 'normal' && activeFilterClasses)} onClick={() => setIsViewOptionsOpen(true)}><Eye className="mr-3 h-4 w-4" /> {viewPreferenceLabel}</Button>
                                 {activeView === 'clases' && (
-                                    <Button
-                                        variant="ghost"
-                                        style={!filterByFavorites ? inactiveFilterShadowStyle : {}}
-                                        className={cn("w-full justify-start text-sm h-10 rounded-full", filterByFavorites && activeFilterClasses)}
-                                        onClick={handleFavoritesClick}
-                                    >
-                                        <Heart className={cn("mr-3 h-4 w-4", filterByFavorites && "fill-current text-destructive")} />
-                                        {`Favoritos${currentUser?.favoriteInstructorIds && currentUser.favoriteInstructorIds.length > 0 ? ` (${currentUser.favoriteInstructorIds.length})` : ''}`}
-                                    </Button>
+                                    <>
+                                        <Button
+                                            variant="ghost"
+                                            style={(selectedPlayerCounts.size === 0 || selectedPlayerCounts.size === 4) ? inactiveFilterShadowStyle : {}}
+                                            className={cn("w-full justify-start text-sm h-10 rounded-full", (selectedPlayerCounts.size > 0 && selectedPlayerCounts.size < 4) && activeFilterClasses)}
+                                            onClick={() => setIsPlayerCountOpen(true)}
+                                        >
+                                            <Users className="mr-3 h-4 w-4" />
+                                            {playerCountLabel}
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            style={!filterByFavorites ? inactiveFilterShadowStyle : {}}
+                                            className={cn("w-full justify-start text-sm h-10 rounded-full", filterByFavorites && activeFilterClasses)}
+                                            onClick={handleFavoritesClick}
+                                        >
+                                            <Heart className={cn("mr-3 h-4 w-4", filterByFavorites && "fill-current text-destructive")} />
+                                            {`Favoritos${currentUser?.favoriteInstructorIds && currentUser.favoriteInstructorIds.length > 0 ? ` (${currentUser.favoriteInstructorIds.length})` : ''}`}
+                                        </Button>
+                                    </>
                                 )}
                                 <Button variant="ghost" style={!showPointsBonus ? inactiveFilterShadowStyle : {}} className={cn("w-full justify-start text-sm h-10 rounded-full", showPointsBonus && activeFilterClasses)} onClick={handleTogglePointsBonus}><Sparkles className="mr-3 h-4 w-4 text-amber-500" /> + Puntos</Button>
                             </div>
@@ -190,9 +199,16 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                     </div>
                 </div>
                 <ManageFavoriteInstructorsDialog isOpen={isManageFavoritesOpen} onOpenChange={setIsManageFavoritesOpen} currentUser={currentUser} onApplyFavorites={handleApplyFavorites} />
-                <LevelFilterDialog isOpen={isLevelFilterOpen} onOpenChange={setIsLevelFilterOpen} currentValue={selectedLevel} onSelect={handleLevelChange} clubId={clubInfo.id} />
                 <TimeOfDayFilterDialog isOpen={isTimeFilterOpen} onOpenChange={setIsTimeFilterOpen} currentValue={timeSlotFilter} onSelect={handleTimeFilterChange} />
                 <ViewOptionsDialog isOpen={isViewOptionsOpen} onOpenChange={setIsViewOptionsOpen} viewPreference={viewPreference} onViewPreferenceChange={(pref) => handleViewPrefChange(pref, activeView as ActivityViewType)} />
+                <PlayerCountFilterDialog 
+                    isOpen={isPlayerCountOpen} 
+                    onOpenChange={setIsPlayerCountOpen} 
+                    selectedCounts={selectedPlayerCounts}
+                    onToggleCount={handleTogglePlayerCount}
+                    onSelectAll={handleSelectAllPlayerCounts}
+                    onDeselectAll={handleDeselectAllPlayerCounts}
+                />
             </aside>
         </>
     );

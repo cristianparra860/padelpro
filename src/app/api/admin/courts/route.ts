@@ -31,7 +31,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { clubId, number, name, capacity = 4, isActive = true } = body;
+    const { clubId, number, name, isActive = true } = body;
+
+    console.log('📝 Creating court:', { clubId, number, name, isActive });
 
     if (!clubId || !number || !name) {
       return NextResponse.json(
@@ -40,21 +42,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Verificar si ya existe una pista con ese número en el club
+    const existingCourt = await prisma.court.findFirst({
+      where: {
+        clubId,
+        number: parseInt(number)
+      }
+    });
+
+    if (existingCourt) {
+      return NextResponse.json(
+        { error: `Ya existe una pista con el número ${number} en este club` },
+        { status: 409 }
+      );
+    }
+
     const court = await prisma.court.create({
       data: {
         clubId,
         number: parseInt(number),
         name,
-        capacity: parseInt(capacity),
         isActive
       }
     });
 
+    console.log('✅ Court created successfully:', court.id);
     return NextResponse.json(court);
   } catch (error) {
-    console.error('Error creating court:', error);
+    console.error('❌ Error creating court:', error);
     return NextResponse.json(
-      { error: 'Failed to create court' },
+      { 
+        error: 'Failed to create court',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }

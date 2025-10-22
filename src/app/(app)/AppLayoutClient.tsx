@@ -106,15 +106,15 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
             isOpen={isMobileFiltersOpen}
             onOpenChange={setIsMobileFiltersOpen}
             timeSlotFilter={activityFilters.timeSlotFilter}
-            selectedLevel={activityFilters.selectedLevel}
             viewPreference={activityFilters.viewPreference}
             filterByFavorites={activityFilters.filterByFavorites}
             showPointsBonus={activityFilters.showPointsBonus}
+            selectedPlayerCounts={activityFilters.selectedPlayerCounts}
             onTimeFilterChange={activityFilters.handleTimeFilterChange}
-            onLevelChange={activityFilters.handleLevelChange}
             onViewPreferenceChange={(pref) => activityFilters.handleViewPrefChange(pref, activityFilters.activeView as ActivityViewType)}
             onFavoritesClick={() => activityFilters.updateUrlFilter('favorites', !activityFilters.filterByFavorites)}
             onTogglePointsBonus={activityFilters.handleTogglePointsBonus}
+            onTogglePlayerCount={activityFilters.handleTogglePlayerCount}
             onClearFilters={activityFilters.clearAllFilters}
         />
     </>

@@ -14,6 +14,7 @@ import { fetchProductsByClub, getMockCurrentUser, reserveProductWithCredit, perf
 import type { Product, User } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, ShoppingBag, Sparkles, Clock, Package, PackageCheck, PackageX, BadgePercent, Euro } from 'lucide-react';
+const SHOW_EURO_BALANCE = false;
 import { cn } from '@/lib/utils';
 
 const CountdownTimer = () => {
@@ -248,7 +249,7 @@ export default function StorePage() {
             } else {
                 toast({
                     title: `¡Reserva confirmada por ${reservationFee.toFixed(0)}€!`,
-                    description: `La fianza de ${reservationFee.toFixed(0)}€ se descuenta del precio final. Saldo actual: ${result.newBalance.toFixed(2)}€`,
+                    description: `La fianza de ${reservationFee.toFixed(0)}€ se descuenta del precio final.` + (SHOW_EURO_BALANCE ? ` Saldo actual: ${result.newBalance.toFixed(2)}€` : ''),
                     className: 'bg-primary text-primary-foreground',
                 });
                 // Trigger a re-fetch of user data or update context if available
@@ -345,15 +346,24 @@ export default function StorePage() {
                     </div>
                     {currentUser && (
                         <div className="space-y-2">
-                            <div className="flex items-center justify-between text-sm text-muted-foreground">
-                                <span>Saldo actual</span>
-                                <span>{(currentUser.credit ?? 0).toFixed(2)}€</span>
-                            </div>
-                            {((currentUser.credit ?? 0) < reservationFee) && (
-                                <div className="text-sm rounded-md border border-destructive/40 bg-destructive/10 text-destructive px-3 py-2">
-                                    Saldo insuficiente. Te faltan {(reservationFee - (currentUser.credit ?? 0)).toFixed(2)}€. 
-                                    <Link href="/dashboard?openAddCredit=1" className="underline ml-1">Recargar saldo</Link>
+                            {SHOW_EURO_BALANCE && (
+                                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                                    <span>Saldo actual</span>
+                                    <span>{(currentUser.credit ?? 0).toFixed(2)}€</span>
                                 </div>
+                            )}
+                            {((currentUser.credit ?? 0) < reservationFee) && (
+                                SHOW_EURO_BALANCE ? (
+                                    <div className="text-sm rounded-md border border-destructive/40 bg-destructive/10 text-destructive px-3 py-2">
+                                        Saldo insuficiente. Te faltan {(reservationFee - (currentUser.credit ?? 0)).toFixed(2)}€. 
+                                        <Link href="/dashboard?openAddCredit=1" className="underline ml-1">Recargar saldo</Link>
+                                    </div>
+                                ) : (
+                                    <div className="text-sm rounded-md border border-destructive/40 bg-destructive/10 text-destructive px-3 py-2">
+                                        Saldo insuficiente. Recarga saldo para continuar.
+                                        <Link href="/dashboard" className="underline ml-1">Ir al panel</Link>
+                                    </div>
+                                )
                             )}
                         </div>
                     )}

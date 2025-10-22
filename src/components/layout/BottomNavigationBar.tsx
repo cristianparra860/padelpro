@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { cn, getInitials } from '@/lib/utils';
-import { Home, Activity, Users, User as UserIconLucideProfile, ClipboardList, PartyPopper, ShoppingBag, SlidersHorizontal, Star, Trophy, Calendar, Zap, Building } from 'lucide-react';
+import { Home, Activity, Users, User as UserIconLucideProfile, ClipboardList, PartyPopper, SlidersHorizontal, Star, Trophy, Calendar, Zap, Building } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
     getMockCurrentUser,
@@ -176,14 +176,6 @@ export function BottomNavigationBar({ onMobileFiltersClick }: BottomNavigationBa
     
     const navItems = [
         {
-            key: 'partidas',
-            href: '/activities?view=partidas',
-            icon: Users,
-            label: 'Partidas',
-            isActive: pathname === '/activities' && searchParams.get('view') === 'partidas',
-            hidden: !currentUser || !(clubInfo?.showMatchesTabOnFrontend ?? true),
-        },
-        {
             key: 'clases',
             href: '/activities?view=clases',
             icon: ClipboardList,
@@ -205,30 +197,6 @@ export function BottomNavigationBar({ onMobileFiltersClick }: BottomNavigationBa
             icon: Calendar,
             label: 'Match Day',
             isActive: pathname === '/match-day' || pathname.startsWith('/match-day/'),
-            hidden: !currentUser,
-        },
-        {
-            key: 'partidas-fijas',
-            href: '/activities?view=matchpro',
-            icon: Zap,
-            label: 'P. Fijas',
-            isActive: pathname === '/activities' && searchParams.get('view') === 'matchpro',
-            hidden: !currentUser,
-        },
-        {
-            key: 'tienda',
-            href: '/store',
-            icon: ShoppingBag,
-            label: 'Tienda',
-            isActive: pathname === '/store' || pathname.startsWith('/store/'),
-            hidden: !currentUser || !(clubInfo?.isStoreEnabled ?? true),
-        },
-        {
-            key: 'admin',
-            href: '/admin',
-            icon: Building,
-            label: 'Acceso Club',
-            isActive: pathname === '/admin' || pathname.startsWith('/admin/'),
             hidden: !currentUser,
         },
     ];

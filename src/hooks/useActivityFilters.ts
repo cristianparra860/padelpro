@@ -19,9 +19,8 @@ export function useActivityFilters(
 
   // --- Filter State (driven by URL params) ---
   const timeSlotFilter = (searchParams.get('time') as TimeOfDayFilterType) || 'all';
-  const selectedLevel = (searchParams.get('level') as MatchPadelLevel | 'all') || 'all';
   const filterByFavorites = searchParams.get('favorites') === 'true';
-  const viewPreference = (searchParams.get('viewPref') as ViewPreference) || 'normal';
+  const viewPreference = (searchParams.get('viewPref') as ViewPreference) || 'all';
   const matchShareCode = searchParams.get('code');
   const matchIdFilter = searchParams.get('matchId');
   const filterByGratisOnly = searchParams.get('filter') === 'gratis';
@@ -29,6 +28,13 @@ export function useActivityFilters(
   const filterByPuntosOnly = searchParams.get('filter') === 'puntos';
   const filterByProOnly = searchParams.get('filter') === 'pro';
   const showPointsBonus = searchParams.get('showPoints') === 'true';
+  
+  // --- Player Count Filter State ---
+  const playerCountsParam = searchParams.get('players');
+  const selectedPlayerCounts = useMemo(() => {
+    if (!playerCountsParam) return new Set([1, 2, 3, 4]); // All by default
+    return new Set(playerCountsParam.split(',').map(Number).filter(n => n >= 1 && n <= 4));
+  }, [playerCountsParam]);
 
 
   // --- Local State ---
@@ -40,7 +46,7 @@ export function useActivityFilters(
 
   // --- NEW: Centralized state for date strip indicators ---
   const [dateStripIndicators, setDateStripIndicators] = useState<Record<string, UserActivityStatusForDay>>({});
-  const dateStripDates = useMemo(() => Array.from({ length: 15 }, (_, i) => addDays(startOfDay(new Date()), i)), []);
+  const dateStripDates = useMemo(() => Array.from({ length: 30 }, (_, i) => addDays(startOfDay(new Date()), i)), []);
   
   const triggerRefresh = useCallback(() => {
     setRefreshKey(prev => prev + 1);
@@ -55,13 +61,39 @@ export function useActivityFilters(
 
       for (const date of dateStripDates) {
         const dateKey = format(date, 'yyyy-MM-dd');
-        const statusResult = await getUserActivityStatusForDay(currentUser.id, date);
-        const anticipationPoints = differenceInDays(date, today);
-
-        newIndicators[dateKey] = {
-          ...statusResult,
-          anticipationPoints: Math.max(0, anticipationPoints)
-        };
+        
+        try {
+          // Intentar obtener datos reales de la API primero
+          const response = await fetch(`/api/user-activity-status?userId=${currentUser.id}&date=${dateKey}`);
+          if (response.ok) {
+            const statusResult = await response.json();
+            const anticipationPoints = differenceInDays(date, today);
+            
+            newIndicators[dateKey] = {
+              ...statusResult,
+              anticipationPoints: Math.max(0, anticipationPoints)
+            };
+          } else {
+            // Fallback a datos mock si falla la API
+            const statusResult = await getUserActivityStatusForDay(currentUser.id, date);
+            const anticipationPoints = differenceInDays(date, today);
+            
+            newIndicators[dateKey] = {
+              ...statusResult,
+              anticipationPoints: Math.max(0, anticipationPoints)
+            };
+          }
+        } catch (error) {
+          console.warn('⚠️ Error fetching activity status, using mock data:', error);
+          // Fallback a datos mock en caso de error
+          const statusResult = await getUserActivityStatusForDay(currentUser.id, date);
+          const anticipationPoints = differenceInDays(date, today);
+          
+          newIndicators[dateKey] = {
+            ...statusResult,
+            anticipationPoints: Math.max(0, anticipationPoints)
+          };
+        }
       }
       setDateStripIndicators(newIndicators);
     };
@@ -108,7 +140,6 @@ export function useActivityFilters(
 
   // --- Event Handlers ---
   const handleTimeFilterChange = (value: TimeOfDayFilterType) => updateUrlFilter('time', value);
-  const handleLevelChange = (value: MatchPadelLevel | 'all') => updateUrlFilter('level', value);
   
   const handleDateChange = useCallback((date: Date) => {
       setSelectedDate(startOfDay(date));
@@ -164,19 +195,6 @@ export function useActivityFilters(
 
   // --- Effects to Sync State with URL/User ---
   useEffect(() => {
-    const clubLevelRanges = currentUser && (currentUser as any).club?.levelRanges; // A bit of a hack to check for club data
-    if (!currentUser?.level && !clubLevelRanges && !searchParams.has('level')) {
-        updateUrlFilter('level', 'all'); // Default to all if no user level and no ranges
-    } else if (currentUser?.level && !searchParams.has('level') && clubLevelRanges) {
-        const userRange = clubLevelRanges.find((r: any) => parseFloat(currentUser.level!) >= parseFloat(r.min) && parseFloat(currentUser.level!) <= parseFloat(r.max));
-        updateUrlFilter('level', userRange ? userRange.name : 'all');
-    } else if (!searchParams.has('level')) {
-        updateUrlFilter('level', 'all');
-    }
-  }, [currentUser, searchParams, updateUrlFilter]);
-
-
-  useEffect(() => {
     const dateParam = searchParams.get('date');
     if (filterByGratisOnly || filterByLiberadasOnly || filterByPuntosOnly || matchIdFilter || matchShareCode) {
       setSelectedDate(null);
@@ -192,13 +210,40 @@ export function useActivityFilters(
     }
   }, [searchParams, filterByGratisOnly, filterByLiberadasOnly, filterByPuntosOnly, matchIdFilter, matchShareCode, selectedDate]);
 
+  // --- Player Count Filter Handlers ---
+  const handleTogglePlayerCount = useCallback((count: number) => {
+    const newCounts = new Set(selectedPlayerCounts);
+    if (newCounts.has(count)) {
+      newCounts.delete(count);
+    } else {
+      newCounts.add(count);
+    }
+    
+    const countsArray = Array.from(newCounts).sort();
+    if (countsArray.length === 4) {
+      // All selected, remove param
+      updateUrlFilter('players', null);
+    } else if (countsArray.length === 0) {
+      // None selected, reset to all
+      updateUrlFilter('players', null);
+    } else {
+      updateUrlFilter('players', countsArray.join(','));
+    }
+  }, [selectedPlayerCounts, updateUrlFilter]);
+
+  const handleSelectAllPlayerCounts = useCallback(() => {
+    updateUrlFilter('players', null); // Null means all selected
+  }, [updateUrlFilter]);
+
+  const handleDeselectAllPlayerCounts = useCallback(() => {
+    updateUrlFilter('players', ''); // Empty means none selected, will reset to all
+  }, [updateUrlFilter]);
 
   return {
     activeView,
     selectedDate,
     setSelectedDate,
     timeSlotFilter,
-    selectedLevel,
     filterByFavorites,
     viewPreference,
     proposalView: 'join', 
@@ -212,15 +257,18 @@ export function useActivityFilters(
     dateStripIndicators, 
     dateStripDates,      
     refreshKey,
-    showPointsBonus, // Expose new state
+    showPointsBonus,
+    selectedPlayerCounts,
     handleTimeFilterChange,
-    handleLevelChange,
     handleApplyFavorites,
     handleDateChange,
     handleViewPrefChange,
     clearAllFilters,
     triggerRefresh,
-    handleTogglePointsBonus, // Expose new handler
-    updateUrlFilter, // Expose the raw update function
+    handleTogglePointsBonus,
+    handleTogglePlayerCount,
+    handleSelectAllPlayerCounts,
+    handleDeselectAllPlayerCounts,
+    updateUrlFilter,
   };
 }

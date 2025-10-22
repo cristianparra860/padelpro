@@ -114,8 +114,5 @@ export async function POST() {
     return NextResponse.json(
       { error: 'Failed to create infrastructure data', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
-    );
-  } finally {
-    await prisma.$disconnect();
-  }
+    );  }
 }

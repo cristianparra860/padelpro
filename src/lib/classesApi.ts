@@ -25,6 +25,17 @@ export interface TimeSlot {
   instructorProfilePicture?: string;
   courtNumber?: number;
   bookedPlayers: number;
+  bookings?: Array<{
+    id: string;
+    userId: string;
+    groupSize: number;
+    status: string;
+    userName?: string;
+    profilePictureUrl?: string;
+    userLevel?: string;
+    userGender?: string;
+    createdAt?: string;
+  }>;
 }
 
 export interface Booking {
@@ -58,11 +69,15 @@ export class ClassesApi {
     clubId?: string;
     date?: string;
     instructorId?: string;
+    userLevel?: string;
+    userGender?: string;
   } = {}): Promise<TimeSlot[]> {
     const params = new URLSearchParams();
     if (options.clubId) params.append('clubId', options.clubId);
     if (options.date) params.append('date', options.date);
     if (options.instructorId) params.append('instructorId', options.instructorId);
+    if (options.userLevel) params.append('userLevel', options.userLevel);
+    if (options.userGender) params.append('userGender', options.userGender);
     
     const response = await fetch(`${this.baseUrl}/timeslots?${params}`);
     if (!response.ok) {

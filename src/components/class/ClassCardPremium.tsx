@@ -23,12 +23,14 @@ interface ClassCardPremiumProps {
     };
     currentUser: User | null;
     onBookingSuccess: () => void;
+    allowedPlayerCounts?: number[];
 }
 
 const ClassCardPremium: React.FC<ClassCardPremiumProps> = ({ 
     classData, 
     currentUser, 
-    onBookingSuccess 
+    onBookingSuccess,
+    allowedPlayerCounts = [1, 2, 3, 4]
 }) => {
     const { toast } = useToast();
     const [isBooking, setIsBooking] = useState(false);
@@ -229,9 +231,9 @@ const ClassCardPremium: React.FC<ClassCardPremiumProps> = ({
             <div className="px-4 pb-4 space-y-2">
                 <p className="text-sm text-gray-600 font-medium mb-3">Inscripciones:</p>
                 
-                {/* 4 espacios individuales para inscripciones */}
+                {/* Espacios individuales filtrados según opciones permitidas */}
                 <div className="space-y-2">
-                    {[1, 2, 3, 4].map((spotNumber) => {
+                    {[1, 2, 3, 4].filter(spotNumber => allowedPlayerCounts.includes(spotNumber)).map((spotNumber) => {
                         const isOccupied = spotNumber <= classData.bookedPlayers;
                         const isCurrentUserSpot = isOccupied; // Simplificado por ahora
                         const pricePerPerson = totalPrice / 4; // Precio dividido entre 4 siempre

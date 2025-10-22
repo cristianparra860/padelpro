@@ -71,8 +71,5 @@ export async function DELETE(
     return NextResponse.json(
       { error: 'Error interno del servidor al cancelar la reserva' },
       { status: 500 }
-    );
-  } finally {
-    await prisma.$disconnect();
-  }
+    );  }
 }

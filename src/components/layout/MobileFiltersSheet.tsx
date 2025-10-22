@@ -15,15 +15,15 @@ interface MobileFiltersSheetProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   timeSlotFilter: TimeOfDayFilterType;
-  selectedLevel: MatchPadelLevel | 'all';
   viewPreference: ViewPreference;
   filterByFavorites: boolean;
   showPointsBonus: boolean;
+  selectedPlayerCounts: Set<number>;
   onTimeFilterChange: (value: TimeOfDayFilterType) => void;
-  onLevelChange: (value: MatchPadelLevel | 'all') => void;
   onViewPreferenceChange: (value: ViewPreference) => void;
   onFavoritesClick: () => void;
   onTogglePointsBonus: () => void;
+  onTogglePlayerCount: (count: number) => void;
   onClearFilters: () => void;
 }
 
@@ -48,15 +48,15 @@ export function MobileFiltersSheet({
     isOpen,
     onOpenChange,
     timeSlotFilter,
-    selectedLevel,
     viewPreference,
     filterByFavorites,
     showPointsBonus,
+    selectedPlayerCounts,
     onTimeFilterChange,
-    onLevelChange,
     onViewPreferenceChange,
     onFavoritesClick,
     onTogglePointsBonus,
+    onTogglePlayerCount,
     onClearFilters,
 }: MobileFiltersSheetProps) {
 
@@ -84,22 +84,26 @@ export function MobileFiltersSheet({
                     </div>
 
                     <div>
-                        <h4 className="font-semibold mb-2 text-sm text-muted-foreground">Nivel</h4>
-                        <div className="grid grid-cols-2 gap-2">
-                            {levelRanges.map(range => {
-                                const valueToSelect = range.name === 'Todos' ? 'all' : range.name;
-                                const isSelected = selectedLevel === valueToSelect;
+                        <h4 className="font-semibold mb-2 text-sm text-muted-foreground">Número de Jugadores</h4>
+                        <div className="grid grid-cols-4 gap-2">
+                            {[1, 2, 3, 4].map((count) => {
+                                const isActive = selectedPlayerCounts.has(count);
                                 return (
-                                    <Button 
-                                        key={range.name}
-                                        variant={isSelected ? 'secondary' : 'outline'}
-                                        onClick={() => onLevelChange(valueToSelect as MatchPadelLevel | 'all')}
-                                        className={cn("h-auto py-2 flex flex-col text-xs text-center shadow-inner", isSelected && 'border-primary bg-sidebar')}
+                                    <Button
+                                        key={count}
+                                        variant={isActive ? "secondary" : "outline"}
+                                        onClick={() => onTogglePlayerCount(count)}
+                                        className={cn(
+                                            "h-auto py-3 flex flex-col items-center gap-1 shadow-inner",
+                                            isActive && 'border-primary bg-sidebar'
+                                        )}
                                     >
-                                        <span className="font-bold">{range.name}</span>
-                                        {range.min !== 'all' && <span className="font-normal opacity-80">{range.min}-{range.max}</span>}
+                                        <span className="text-xl">
+                                            {count === 1 ? '👤' : count === 2 ? '👥' : count === 3 ? '👨‍👨‍👦' : '👨‍👩‍👧‍👦'}
+                                        </span>
+                                        <span className="text-sm font-bold">{count}</span>
                                     </Button>
-                                )
+                                );
                             })}
                         </div>
                     </div>
@@ -108,10 +112,8 @@ export function MobileFiltersSheet({
                         <div>
                             <h4 className="font-semibold mb-2 text-sm text-muted-foreground">Vista</h4>
                             <div className="space-y-1">
-                                <Button variant={viewPreference === 'normal' ? 'secondary' : 'outline'} onClick={() => onViewPreferenceChange('normal')} className={cn("h-auto w-full py-2 justify-start font-semibold shadow-inner", viewPreference === 'normal' && "border-primary bg-sidebar")}><Eye className="mr-2 h-4 w-4"/> Disponibles</Button>
-                                <Button variant={viewPreference === 'withPlayers' ? "secondary" : "outline"} onClick={() => onViewPreferenceChange('withPlayers')} className={cn("h-auto w-full py-2 justify-start font-semibold shadow-inner", viewPreference === 'withPlayers' && 'border-primary bg-sidebar text-primary')}><Users className="mr-2 h-4 w-4" /> En Juego</Button>
-                                <Button variant={viewPreference === 'myInscriptions' ? 'secondary' : 'outline'} onClick={() => onViewPreferenceChange('myInscriptions')} className={cn("h-auto w-full py-2 justify-start font-semibold shadow-inner", viewPreference === 'myInscriptions' && "border-primary bg-sidebar")}><ClipboardList className="mr-2 h-4 w-4"/> Inscripciones</Button>
-                                <Button variant={viewPreference === 'myConfirmed' ? 'secondary' : 'outline'} onClick={() => onViewPreferenceChange('myConfirmed')} className={cn("h-auto w-full py-2 justify-start font-semibold shadow-inner", viewPreference === 'myConfirmed' && "border-primary bg-sidebar")}><CheckCircle className="mr-2 h-4 w-4"/> Reservas</Button>
+                                <Button variant={viewPreference === 'withBookings' ? "secondary" : "outline"} onClick={() => onViewPreferenceChange('withBookings')} className={cn("h-auto w-full py-2 justify-start font-semibold shadow-inner", viewPreference === 'withBookings' && 'border-primary bg-sidebar')}><Users className="mr-2 h-4 w-4" /> Con Usuarios</Button>
+                                <Button variant={viewPreference === 'all' ? "secondary" : "outline"} onClick={() => onViewPreferenceChange('all')} className={cn("h-auto w-full py-2 justify-start font-semibold shadow-inner", viewPreference === 'all' && 'border-primary bg-sidebar')}><ClipboardList className="mr-2 h-4 w-4" /> Todas</Button>
                             </div>
                         </div>
                         <div>

@@ -2,24 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { ClassesApi, TimeSlot as ApiTimeSlot } from '@/lib/classesApi';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import SimpleApiClassCard from './SimpleApiClassCard';
-import ClassCardPremium from './ClassCardPremium';
 import ClassCardReal from './ClassCardReal'; // Usar ClassCardReal con funcionalidad simplificada
-import type { User, TimeSlot } from '@/types';
+import type { User, TimeSlot, TimeOfDayFilterType } from '@/types';
 
 interface ClassesDisplayProps {
   selectedDate: Date;
   clubId?: string;
   currentUser?: User | null;
   onBookingSuccess?: () => void;
+  timeSlotFilter?: TimeOfDayFilterType;
+  selectedPlayerCounts?: number[];
+  viewPreference?: 'withBookings' | 'all' | 'myConfirmed';
 }
 
-export function ClassesDisplay({ selectedDate, clubId = 'club-1', currentUser, onBookingSuccess }: ClassesDisplayProps) {
+export function ClassesDisplay({ selectedDate, clubId = 'club-1', currentUser, onBookingSuccess, timeSlotFilter = 'all', selectedPlayerCounts = [1, 2, 3, 4], viewPreference = 'all' }: ClassesDisplayProps) {
   const [timeSlots, setTimeSlots] = useState<ApiTimeSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [designMode, setDesignMode] = useState<'original' | 'premium' | 'simple'>('original');
-
+  
   useEffect(() => {
     loadTimeSlots();
   }, [selectedDate, clubId]);
@@ -31,10 +31,14 @@ export function ClassesDisplay({ selectedDate, clubId = 'club-1', currentUser, o
       
       const dateString = format(selectedDate, 'yyyy-MM-dd');
       console.log('🔍 Loading slots for date:', dateString);
+      console.log('👤 User level for filtering:', currentUser?.level);
+      console.log('🚹🚺 User gender for filtering:', (currentUser as any)?.genderCategory);
       
       let slots = await ClassesApi.getTimeSlots({
         clubId,
-        date: dateString
+        date: dateString,
+        userLevel: currentUser?.level, // Pass user level for automatic filtering
+        userGender: (currentUser as any)?.genderCategory // Pass user gender for filtering
       });
       
       console.log('📥 API returned slots:', slots.length);
@@ -49,8 +53,94 @@ export function ClassesDisplay({ selectedDate, clubId = 'club-1', currentUser, o
     }
   };
 
+  // No filtramos las tarjetas, solo las opciones de inscripción dentro de cada tarjeta
+  const getFilteredSlots = () => {
+    let filtered = timeSlots;
+    
+    // Aplicar filtro de horarios
+    if (timeSlotFilter && timeSlotFilter !== 'all') {
+      filtered = filtered.filter(slot => {
+        const startTime = new Date(slot.start);
+        const hour = startTime.getHours();
+        
+        switch (timeSlotFilter) {
+          case 'morning': // Mañanas (8-13h)
+            return hour >= 8 && hour < 13;
+          case 'midday': // Mediodía (13-18h)
+            return hour >= 13 && hour < 18;
+          case 'evening': // Tardes (18-22h)
+            return hour >= 18 && hour < 22;
+          default:
+            return true;
+        }
+      });
+    }
+
+    // Filtro de vista (Con Usuarios / Todas / Confirmadas)
+    if (viewPreference === 'withBookings') {
+      console.log('🔍 Aplicando filtro "Con Usuarios"...');
+      console.log('📋 Clases antes del filtro:', filtered.length);
+      
+      filtered = filtered.filter((slot) => {
+        const hasBookings = slot.bookings && slot.bookings.length > 0;
+        const hasCourtAssigned = slot.courtNumber != null && slot.courtNumber > 0;
+        const bookingsCount = slot.bookings?.length || 0;
+        
+        console.log(`   🔍 Clase ${slot.id?.substring(0, 8)}:`, {
+          courtNumber: slot.courtNumber,
+          courtNumberType: typeof slot.courtNumber,
+          hasCourtAssigned,
+          hasBookings,
+          bookingsCount
+        });
+        
+        // Mostrar solo clases CON reservas pero SIN pista asignada
+        const shouldShow = hasBookings && !hasCourtAssigned;
+        
+        console.log(`   → ${shouldShow ? '✅ INCLUIR' : '❌ EXCLUIR'} - Tiene ${bookingsCount} reservas, pista: ${slot.courtNumber || 'null/undefined'}`);
+        return shouldShow;
+      });
+      
+      console.log('📋 Clases después del filtro:', filtered.length);
+    }
+
+    // Filtro "Confirmadas": Clases que tienen pista asignada
+    if (viewPreference === 'myConfirmed') {
+      console.log('🔍 Aplicando filtro "Confirmadas"...');
+      console.log('📋 Clases antes del filtro:', filtered.length);
+      
+      filtered = filtered.filter((slot) => {
+        const hasCourtAssigned = slot.courtNumber != null && slot.courtNumber > 0;
+        
+        console.log(`   Clase ${slot.id?.substring(0, 8)}: ${hasCourtAssigned ? '✅ Pista asignada' : '❌ Sin pista'} (pista: ${slot.courtNumber || 'N/A'})`);
+        
+        return hasCourtAssigned;
+      });
+      
+      console.log('📋 Clases después del filtro:', filtered.length);
+    }
+
+    // "Todas": No aplicar ningún filtro adicional, mostrar todo
+    // (Los filtros de fecha, hora y jugadores ya se aplicaron arriba)
+    
+    console.log(`⏰ Time filter: ${timeSlotFilter} - ${timeSlots.length} slots → ${filtered.length} slots`);
+    return filtered;
+  };
+
   // Convertir API TimeSlot al formato que espera ClassCard original
   const convertApiSlotToClassCard = (apiSlot: ApiTimeSlot): TimeSlot => {
+    // Convertir bookings del API al formato que espera ClassCardReal
+    const bookings = (apiSlot.bookings || []).map((b: any) => ({
+      userId: b.userId,
+      groupSize: b.groupSize,
+      status: b.status || 'CONFIRMED', // Asegurar que siempre haya un status válido
+      name: b.name || b.userName || 'Usuario',
+      profilePictureUrl: b.profilePictureUrl, // ✅ FIX: Usar profilePictureUrl del API
+      userLevel: b.userLevel,
+      userGender: b.userGender,
+      createdAt: b.createdAt,
+    }));
+
     return {
       id: apiSlot.id,
       clubId: apiSlot.clubId,
@@ -62,9 +152,10 @@ export function ClassesDisplay({ selectedDate, clubId = 'club-1', currentUser, o
       durationMinutes: 90,
       level: 'abierto' as const, // Simplificado por ahora
       category: 'abierta' as const, // Simplificado por ahora
+      genderCategory: apiSlot.genderCategory, // AGREGADO: Pasar la categoría de género desde el API
       maxPlayers: apiSlot.maxPlayers || 4,
       status: 'forming' as const,
-      bookedPlayers: [], // Las reservas reales se manejan por API
+      bookedPlayers: bookings, // Pasar las reservas reales del API
       courtNumber: apiSlot.courtNumber,
       totalPrice: apiSlot.totalPrice,
       designatedGratisSpotPlaceholderIndexForOption: undefined,
@@ -105,167 +196,88 @@ export function ClassesDisplay({ selectedDate, clubId = 'club-1', currentUser, o
   }
 
   // Procesar las clases de la API
-  const processedSlots = timeSlots.map((apiSlot) => {
+  const filteredSlots = getFilteredSlots();
+  const processedSlots = filteredSlots.map((apiSlot) => {
     try {
-      // Para el diseño original, convertir a TimeSlot
+      // Convertir a TimeSlot
       const timeSlotFormat = convertApiSlotToClassCard(apiSlot);
-      
-      // Para otros diseños, mantener formato simple
-      const maxPlayers = apiSlot.maxPlayers || 4;
-      const bookedPlayers = apiSlot.bookedPlayers || 0;
-      const availableSpots = maxPlayers - bookedPlayers;
-      
-      const simpleFormat = {
-        ...apiSlot,
-        availableSpots,
-        price: apiSlot.totalPrice ? (apiSlot.totalPrice / maxPlayers) : 8.75
-      };
-      
-      return { timeSlotFormat, simpleFormat };
+      return timeSlotFormat;
     } catch (error) {
       console.error(`❌ Error procesando slot ${apiSlot.id}:`, error);
       return null;
     }
-  }).filter((slot): slot is NonNullable<typeof slot> => slot !== null);
+  }).filter((slot): slot is TimeSlot => slot !== null);
 
   console.log(`🎯 Processed ${processedSlots.length} slots successfully`);
 
+  // Obtener el nombre del filtro activo para mostrar
+  const getTimeFilterLabel = () => {
+    switch (timeSlotFilter) {
+      case 'morning': return 'Mañanas (8-13h)';
+      case 'midday': return 'Mediodía (13-18h)';
+      case 'evening': return 'Tardes (18-22h)';
+      default: return null;
+    }
+  };
+
+  const timeFilterLabel = getTimeFilterLabel();
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h3 className="text-lg font-semibold text-blue-700 mb-1">
-            Sistema de Clases - Integración Directa con Base de Datos
-          </h3>
-          <p className="text-sm text-blue-600">
-            ClassCard original conectado directamente a APIs reales (sin adaptadores)
+      {/* Mensaje de filtro de horarios activo */}
+      {timeFilterLabel && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <p className="text-sm text-blue-800 flex items-center gap-2">
+            <span>⏰</span>
+            <span>
+              <strong>Filtro de horario activo:</strong> {timeFilterLabel} • Mostrando {processedSlots.length} {processedSlots.length === 1 ? 'clase' : 'clases'}
+            </span>
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex bg-gray-100 rounded-lg p-1">
-            <button
-              onClick={() => setDesignMode('original')}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                designMode === 'original' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              Original
-            </button>
-            <button
-              onClick={() => setDesignMode('premium')}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                designMode === 'premium' 
-                  ? 'bg-purple-600 text-white' 
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              Premium
-            </button>
-            <button
-              onClick={() => setDesignMode('simple')}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                designMode === 'simple' 
-                  ? 'bg-green-600 text-white' 
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              Simple
-            </button>
-          </div>
-          <span className="text-sm text-gray-500 bg-white px-3 py-1 rounded-full border">
-            {timeSlots.length} clases encontradas → {processedSlots.length} tarjetas
-          </span>
-        </div>
-      </div>
+      )}
 
-      {/* Debug Info */}
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-        <h4 className="font-semibold text-yellow-800 mb-2">🔍 Información del Sistema</h4>
-        <div className="text-sm text-yellow-700 space-y-1">
-          <p><strong>API Slots:</strong> {timeSlots.length}</p>
-          <p><strong>Processed Slots:</strong> {processedSlots.length}</p>
-          <p><strong>Selected Date:</strong> {format(selectedDate, 'yyyy-MM-dd')}</p>
-          <p><strong>Fecha seleccionada:</strong> {format(selectedDate, 'dd/MM/yyyy', { locale: es })}</p>
-          {timeSlots.length > 0 && (
-            <p><strong>Primera clase:</strong> {timeSlots[0]?.id} - {timeSlots[0]?.instructorName}</p>
-          )}
+      {/* Mensaje si no hay clases después de los filtros */}
+      {processedSlots.length === 0 && timeSlots.length > 0 && (
+        <div className="p-6 text-center bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="text-amber-800 font-medium">
+            {viewPreference === 'withBookings' 
+              ? '👥 No hay clases con usuarios inscritos' 
+              : viewPreference === 'myConfirmed'
+              ? '✅ No tienes clases confirmadas'
+              : '⏰ No hay clases en el horario seleccionado'}
+          </p>
+          <p className="text-sm text-amber-700 mt-2">
+            {viewPreference === 'withBookings' 
+              ? `Hay ${timeSlots.length} ${timeSlots.length === 1 ? 'clase disponible' : 'clases disponibles'} en total. Cambia a "Todas" para verlas.`
+              : viewPreference === 'myConfirmed'
+              ? 'No tienes ninguna reserva confirmada para este día. Reserva una clase para verla aquí.'
+              : `Hay ${timeSlots.length} ${timeSlots.length === 1 ? 'clase disponible' : 'clases disponibles'} en otros horarios. Cambia el filtro de horarios para verlas.`
+            }
+          </p>
         </div>
-      </div>
-
-      {/* Grid responsivo */}
-      <div className="w-full">
-        {designMode === 'original' ? (
-          /* Diseño Original - ClassCard completo */
+      )}
+      
+      {/* Grid de tarjetas de clases */}
+      {processedSlots.length > 0 && (
+        <div className="w-full">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {processedSlots.map((slot) => (
-              <div key={slot.timeSlotFormat.id} className="flex justify-center">
+              <div key={slot.id} className="flex justify-center">
                 <ClassCardReal
-                  classData={slot.timeSlotFormat}
+                  classData={slot}
                   currentUser={currentUser || null}
                   onBookingSuccess={() => {
                     loadTimeSlots(); // Recargar datos después de una reserva
                     onBookingSuccess?.();
                   }}
                   showPointsBonus={true}
+                  allowedPlayerCounts={selectedPlayerCounts}
                 />
               </div>
             ))}
           </div>
-        ) : designMode === 'premium' ? (
-          /* Diseño Premium - Grid de tarjetas */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {processedSlots.map((slot) => (
-              <div key={slot.simpleFormat.id} className="flex justify-center">
-                <ClassCardPremium
-                  classData={slot.simpleFormat}
-                  currentUser={currentUser || null}
-                  onBookingSuccess={() => {
-                    loadTimeSlots(); // Recargar datos después de una reserva
-                    onBookingSuccess?.();
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-        ) : (
-          /* Diseño Simple */
-          <>
-            {/* Móvil: Stack vertical */}
-            <div className="md:hidden space-y-4 max-w-[350px] mx-auto">
-              {processedSlots.map((slot) => (
-                <div key={slot.simpleFormat.id} className="w-full">
-                  <SimpleApiClassCard
-                    classData={slot.simpleFormat}
-                    currentUser={currentUser || null}
-                    onBookingSuccess={() => {
-                      loadTimeSlots(); // Recargar datos después de una reserva
-                      onBookingSuccess?.();
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-            
-            {/* Desktop: Flex wrap optimizado para alta densidad */}
-            <div className="hidden md:flex flex-wrap gap-2">
-              {processedSlots.map((slot) => (
-                <div key={slot.simpleFormat.id} className="flex-none w-[300px]">
-                  <SimpleApiClassCard
-                    classData={slot.simpleFormat}
-                    currentUser={currentUser || null}
-                    onBookingSuccess={() => {
-                      loadTimeSlots(); // Recargar datos después de una reserva
-                      onBookingSuccess?.();
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

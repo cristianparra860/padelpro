@@ -1,5 +1,6 @@
 // src/app/(app)/dashboard/page.tsx
 "use client";
+export const dynamic = 'force-dynamic';
 
 import React, { Suspense, useEffect, useState, useCallback } from 'react';
 import { getMockCurrentUser, setGlobalCurrentUser, updateUserLevel, updateUserGenderCategory } from '@/lib/mockData';
@@ -29,6 +30,8 @@ import EditLevelDialog from '@/components/user/EditLevelDialog';
 
 
 function DashboardPageContent() {
+    // Feature flag to show/hide Euro balance related UI
+    const SHOW_EURO_BALANCE = true;
     const {
         user,
         name, setName, isEditingName, setIsEditingName, handleNameChange, handleSaveName,
@@ -104,77 +107,89 @@ function DashboardPageContent() {
     const hasPendingPoints = (user.pendingBonusPoints ?? 0) > 0;
 
     return (
-        <div className="flex-1 space-y-8 p-4 md:p-6 lg:p-8">
-            <header className="mb-6">
-                <h1 className="text-3xl font-bold text-foreground">
+        <div className="flex-1 space-y-4 sm:space-y-6 lg:space-y-8 p-3 sm:p-4 md:p-6 lg:p-8">
+            <header className="mb-4 sm:mb-6">
+                <h1 className="text-2xl sm:text-3xl font-bold text-foreground break-words">
                     Tu Agenda, {user.name}
                 </h1>
-                <p className="text-muted-foreground">Aquí tienes un resumen de tu actividad y saldo.</p>
+                <p className="text-sm sm:text-base text-muted-foreground mt-1">Aquí tienes un resumen de tu actividad y saldo.</p>
             </header>
             
-            <main className="space-y-8">
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <main className="space-y-4 sm:space-y-6 lg:space-y-8">
+               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                    {SHOW_EURO_BALANCE && (
+                        <Card className="shadow-md">
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-base sm:text-lg flex items-center text-green-700">
+                                    <Wallet className="mr-2 sm:mr-2.5 h-4 w-4 sm:h-5 sm:w-5" />
+                                    Tu Saldo
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                <div className="text-3xl sm:text-4xl font-bold" style={{ color: '#2563eb' }} data-ui="balance-blue">
+                                    {availableCredit.toFixed(2)}€
+                                </div>
+                                <div className="flex items-center gap-1 sm:gap-2 text-xs text-muted-foreground">
+                                    <div className="flex-1 p-1.5 sm:p-2 bg-muted rounded-md text-center">
+                                        <p className="flex items-center justify-center gap-1"><PiggyBank className="h-3 w-3"/> Total</p>
+                                        <p className="font-semibold text-foreground text-xs sm:text-sm">{(user.credit ?? 0).toFixed(2)}€</p>
+                                    </div>
+                                    <div className="flex-1 p-1.5 sm:p-2 bg-muted rounded-md text-center">
+                                        <p className="flex items-center justify-center gap-1"><Lock className="h-3 w-3"/> Bloqueado</p>
+                                        <p className="font-semibold text-foreground text-xs sm:text-sm">{(user.blockedCredit ?? 0).toFixed(2)}€</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 pt-2">
+                                    <Button variant="default" size="sm" onClick={() => setIsAddCreditDialogOpen(true)} className="flex-1 bg-green-600 hover:bg-green-700 text-xs sm:text-sm">
+                                        <PlusCircle className="mr-1 sm:mr-1.5 h-3 w-3 sm:h-4 sm:w-4" />
+                                        <span className="hidden xs:inline">Añadir</span>
+                                        <span className="xs:hidden">+</span>
+                                    </Button>
+                                    <Button variant="outline" size="sm" onClick={() => setIsCreditMovementsDialogOpen(true)} className="flex-1 text-xs sm:text-sm">
+                                        <History className="mr-1 h-3 w-3 sm:h-3.5 sm:w-3.5" /> 
+                                        <span className="hidden xs:inline">Movimientos</span>
+                                        <span className="xs:hidden">Hist</span>
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
                     <Card className="shadow-md">
                         <CardHeader className="pb-3">
-                            <CardTitle className="text-lg flex items-center text-green-700">
-                                <Wallet className="mr-2.5 h-5 w-5" />
-                                Tu Saldo
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                            <div className="text-4xl font-bold text-foreground">{availableCredit.toFixed(2)}€</div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                <div className="flex-1 p-2 bg-muted rounded-md text-center">
-                                    <p className="flex items-center justify-center gap-1"><PiggyBank className="h-3 w-3"/> Total</p>
-                                    <p className="font-semibold text-foreground">{(user.credit ?? 0).toFixed(2)}€</p>
-                                </div>
-                                <div className="flex-1 p-2 bg-muted rounded-md text-center">
-                                    <p className="flex items-center justify-center gap-1"><Lock className="h-3 w-3"/> Bloqueado</p>
-                                    <p className="font-semibold text-foreground">{(user.blockedCredit ?? 0).toFixed(2)}€</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2 pt-2">
-                                <Button variant="default" size="sm" onClick={() => setIsAddCreditDialogOpen(true)} className="flex-1 bg-green-600 hover:bg-green-700">
-                                <PlusCircle className="mr-1.5 h-4 w-4" />
-                                Añadir
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => setIsCreditMovementsDialogOpen(true)} className="flex-1">
-                                <History className="mr-1 h-3.5 w-3.5" /> Movimientos
-                            </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card className="shadow-md">
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-lg flex items-center text-amber-600">
-                                <Star className="mr-2.5 h-5 w-5" />
+                            <CardTitle className="text-base sm:text-lg flex items-center text-amber-600">
+                                <Star className="mr-2 sm:mr-2.5 h-4 w-4 sm:h-5 sm:w-5" />
                                 Tus Puntos
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-3">
-                             <div className="text-4xl font-bold text-foreground">{availablePoints.toFixed(0)}</div>
-                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                 <div className="flex-1 p-2 bg-muted rounded-md text-center">
+                             <div className="text-3xl sm:text-4xl font-bold text-foreground">{availablePoints.toFixed(0)}</div>
+                             <div className="flex items-center gap-1 sm:gap-2 text-xs text-muted-foreground">
+                                 <div className="flex-1 p-1.5 sm:p-2 bg-muted rounded-md text-center">
                                      <p className="flex items-center justify-center gap-1"><PiggyBank className="h-3 w-3"/> Total</p>
-                                     <p className="font-semibold text-foreground">{(user.loyaltyPoints ?? 0).toFixed(0)}</p>
+                                     <p className="font-semibold text-foreground text-xs sm:text-sm">{(user.loyaltyPoints ?? 0).toFixed(0)}</p>
                                  </div>
-                                 <div className="flex-1 p-2 bg-muted rounded-md text-center">
+                                 <div className="flex-1 p-1.5 sm:p-2 bg-muted rounded-md text-center">
                                      <p className="flex items-center justify-center gap-1"><Lock className="h-3 w-3"/> Bloqueados</p>
-                                     <p className="font-semibold text-foreground">{(user.blockedLoyaltyPoints ?? 0).toFixed(0)}</p>
+                                     <p className="font-semibold text-foreground text-xs sm:text-sm">{(user.blockedLoyaltyPoints ?? 0).toFixed(0)}</p>
                                  </div>
-                                  <div className="flex-1 p-2 bg-muted rounded-md text-center">
+                                  <div className="flex-1 p-1.5 sm:p-2 bg-muted rounded-md text-center">
                                      <p className="flex items-center justify-center gap-1"><Sparkles className="h-3 w-3"/> Pendientes</p>
-                                     <p className="font-semibold text-foreground">{(user.pendingBonusPoints ?? 0).toFixed(0)}</p>
+                                     <p className="font-semibold text-foreground text-xs sm:text-sm">{(user.pendingBonusPoints ?? 0).toFixed(0)}</p>
                                  </div>
                              </div>
                              <div className="flex items-center gap-2 pt-2">
-                                 <Button variant="default" size="sm" onClick={() => setIsConvertBalanceDialogOpen(true)} className="flex-1 bg-amber-500 hover:bg-amber-600">
-                                 <Repeat className="mr-1.5 h-4 w-4" />
-                                 Convertir
-                             </Button>
-                             <Button variant="outline" size="sm" onClick={() => setIsPointMovementsDialogOpen(true)} className="flex-1">
-                                 <History className="mr-1 h-3.5 w-3.5" /> Movimientos
-                             </Button>
+                                {SHOW_EURO_BALANCE && (
+                                    <Button variant="default" size="sm" onClick={() => setIsConvertBalanceDialogOpen(true)} className="flex-1 bg-amber-500 hover:bg-amber-600 text-xs sm:text-sm">
+                                        <Repeat className="mr-1 sm:mr-1.5 h-3 w-3 sm:h-4 sm:w-4" />
+                                        <span className="hidden xs:inline">Convertir</span>
+                                        <span className="xs:hidden">Conv</span>
+                                    </Button>
+                                )}
+                                <Button variant="outline" size="sm" onClick={() => setIsPointMovementsDialogOpen(true)} className="flex-1 text-xs sm:text-sm">
+                                    <History className="mr-1 h-3 w-3 sm:h-3.5 sm:w-3.5" /> 
+                                    <span className="hidden xs:inline">Movimientos</span>
+                                    <span className="xs:hidden">Hist</span>
+                                </Button>
                              </div>
                          </CardContent>
                     </Card>
@@ -194,28 +209,34 @@ function DashboardPageContent() {
                     onBookingActionSuccess={handleDataChange} 
                 />
             </main>
-             <CreditMovementsDialog
-                isOpen={isCreditMovementsDialogOpen}
-                onOpenChange={setIsCreditMovementsDialogOpen}
-                currentUser={user}
-            />
+            {SHOW_EURO_BALANCE && (
+                <CreditMovementsDialog
+                    isOpen={isCreditMovementsDialogOpen}
+                    onOpenChange={setIsCreditMovementsDialogOpen}
+                    currentUser={user}
+                />
+            )}
             <PointMovementsDialog
                 isOpen={isPointMovementsDialogOpen}
                 onOpenChange={setIsPointMovementsDialogOpen}
                 currentUser={user}
             />
-            <AddCreditDialog
-                isOpen={isAddCreditDialogOpen}
-                onOpenChange={setIsAddCreditDialogOpen}
-                userId={user.id}
-                onCreditAdded={handleCreditAdded}
-            />
-            <ConvertBalanceDialog
-                isOpen={isConvertBalanceDialogOpen}
-                onOpenChange={setIsConvertBalanceDialogOpen}
-                currentUser={user}
-                onConversionSuccess={handleConversionSuccess}
-            />
+            {SHOW_EURO_BALANCE && (
+                <AddCreditDialog
+                    isOpen={isAddCreditDialogOpen}
+                    onOpenChange={setIsAddCreditDialogOpen}
+                    userId={user.id}
+                    onCreditAdded={handleCreditAdded}
+                />
+            )}
+            {SHOW_EURO_BALANCE && (
+                <ConvertBalanceDialog
+                    isOpen={isConvertBalanceDialogOpen}
+                    onOpenChange={setIsConvertBalanceDialogOpen}
+                    currentUser={user}
+                    onConversionSuccess={handleConversionSuccess}
+                />
+            )}
         </div>
     );
 }
@@ -223,7 +244,7 @@ function DashboardPageContent() {
 
 export default function DashboardPage() {
     return (
-        <Suspense fallback={<PageSkeleton />}>
+        <Suspense fallback={<div className="p-6">Cargando…</div>}>
             <DashboardPageContent />
         </Suspense>
     );

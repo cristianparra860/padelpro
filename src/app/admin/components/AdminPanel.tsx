@@ -6,7 +6,7 @@ import AddInstructorForm from '../../add-instructor/components/AddInstructorForm
 import InstructorList from './InstructorList';
 import EditInstructorDialog from './EditInstructorDialog';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { UserPlus, List, Settings, CalendarDays, Shield, HardHat, Activity, BarChartHorizontal, Loader2, PlayCircle, CalendarPlus as CalendarPlusIcon, LogOut, KeyRound, Star, Network, Trophy, ArrowLeft, ClockIcon as ClockIconLucide, ClipboardList, Tag, PartyPopper, ShoppingBag, Sparkles, AlertTriangle, Palette } from 'lucide-react';
+import { UserPlus, List, Settings, CalendarDays, Shield, HardHat, Activity, BarChartHorizontal, Loader2, PlayCircle, CalendarPlus as CalendarPlusIcon, LogOut, KeyRound, Star, Network, Trophy, ArrowLeft, ClockIcon as ClockIconLucide, ClipboardList, Tag, PartyPopper, Sparkles, AlertTriangle, Palette } from 'lucide-react';
 import { fetchInstructors, updateClub, fetchPadelCourtsByClub, getMockStudents, fetchPointTransactions, addInstructor, deleteInstructor, updateInstructor as updateInstructorMock } from '@/lib/mockData';
 import CourtBookingManagement from './CourtBookingManagement';
 import ManageCourtsPanel from './ManageCourtsPanel';
@@ -29,7 +29,6 @@ import StudentPointBalancesTable from './StudentPointBalancesTable';
 import ManageMatchesPanel from './ManageMatchesPanel';
 import ManageCourtRatesPanel from './ManageCourtRatesPanel';
 import ManageMatchDayPanel from './ManageMatchDayPanel';
-import ManageShopPanel from './ManageShopPanel';
 import ManagePointBookingSlots from './ManagePointBookingSlots';
 import ManageCancellationPenaltiesForm from './ManageCancellationPenaltiesForm';
 import BookingSimulator from './BookingSimulator';
@@ -181,7 +180,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ adminClub }) => {
             props.loading ? <Skeleton className="h-[400px] w-full" /> : <OpenMatchFormForAdmin club={props.club} clubPadelCourts={props.clubPadelCourts} onMatchOpened={props.onActivityAdded} />
         )},
         { value: "manageMatchDay", label: "Gestionar Match-Day", icon: PartyPopper, componentFactory: (props) => <ManageMatchDayPanel club={props.club} onEventCreated={props.onEventCreated} />, contentDescription: "Configura y gestiona los eventos sociales de Match-Day." },
-        { value: "manageShop", label: "Tienda", icon: ShoppingBag, componentFactory: (props) => <ManageShopPanel club={props.club} onClubSettingsUpdated={props.onClubSettingsUpdated} />, contentDescription: "Gestiona los productos disponibles para la venta en tu club." },
         { value: "manageMatches", label: "Gestionar Partidas", icon: Trophy, componentFactory: (props) => <ManageMatchesPanel clubId={props.club.id} /> },
         { value: "courtBookings", label: "Reservas Pistas", icon: CalendarDays, componentFactory: (props) => <CourtBookingManagement clubId={props.club.id} key={`courtbooking-${refreshKey}`} /> },
         { value: "activityCalendar", label: "Calendario Actividad", icon: ClipboardList, contentDescription: `Visualiza las actividades (clases/partidas con inscritos) por rangos de nivel en ${currentAdminClub.name}.`, componentFactory: (props) => <ClubActivityCalendar club={props.club} refreshKey={refreshKey} /> },

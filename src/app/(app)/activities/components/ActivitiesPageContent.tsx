@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import ClassDisplay from '@/components/classfinder/ClassDisplay';
 import MatchDisplay from '@/components/classfinder/MatchDisplay';
-import MatchProDisplay from '@/components/classfinder/MatchProDisplay';
 import { ClassesDisplay } from '@/components/class/ClassesDisplay';
 import OpenGroupClasses from '@/components/class/OpenGroupClasses';
 import { getMockTimeSlots, fetchMatches, fetchMatchDayEventsForDate, createMatchesForDay, getMockClubs } from '@/lib/mockData';
@@ -64,12 +63,8 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
     useEffect(() => {
         if (!currentClub) return;
         const isClassesEnabled = currentClub.showClassesTabOnFrontend ?? true;
-        const isMatchesEnabled = currentClub.showMatchesTabOnFrontend ?? true;
-        const isMatchProEnabled = currentClub.isMatchProEnabled ?? false;
-        if ((activityFilters.activeView === 'clases' && !isClassesEnabled) ||
-            (activityFilters.activeView === 'partidas' && !isMatchesEnabled) ||
-            (activityFilters.activeView === 'matchpro' && !isMatchProEnabled)) {
-            const fallback: ActivityViewType = isClassesEnabled ? 'clases' : (isMatchesEnabled ? 'partidas' : (isMatchProEnabled ? 'matchpro' : 'clases'));
+        if (activityFilters.activeView === 'clases' && !isClassesEnabled) {
+            const fallback: ActivityViewType = 'clases';
             if (activityFilters.activeView !== fallback) {
                 toast({ title: 'Sección deshabilitada', description: 'Esta actividad no está disponible en tu club.', variant: 'default' });
                 activityFilters.handleViewPrefChange(activityFilters.viewPreference, fallback);
@@ -198,9 +193,9 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
     
 
     // Helper to map dialog types to ActivityViewType used in URL/state
-    const toActivityViewType = (t: 'class' | 'match' | 'clases' | 'partidas'): ActivityViewType => {
+    const toActivityViewType = (t: 'class' | 'match' | 'clases'): ActivityViewType => {
         if (t === 'class') return 'clases';
-        if (t === 'match') return 'partidas';
+        if (t === 'match') return 'matchpro'; // Redirigir matches a matchpro
         return t as ActivityViewType;
     };
 
@@ -208,12 +203,12 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
     const onViewPrefChange = (
         date: Date,
         pref: any,
-        types: ('class' | 'match' | 'event')[] | 'class' | 'match' | 'clases' | 'partidas',
+        types: ('class' | 'match' | 'event')[] | 'class' | 'match' | 'clases',
         eventId?: string
     ) => {
         const arr = Array.isArray(types) ? types : [types];
-        // Normalize any 'clases'/'partidas' inputs into 'class'/'match' for internal branching
-        const normalized = arr.map((t) => (t === 'clases' ? 'class' : t === 'partidas' ? 'match' : t)) as ('class'|'match'|'event')[];
+        // Normalize any 'clases' inputs into 'class' for internal branching
+        const normalized = arr.map((t) => (t === 'clases' ? 'class' : t)) as ('class'|'match'|'event')[];
         const relevantTypes = normalized.filter(t => t !== 'event') as ('class' | 'match')[];
 
         if (relevantTypes.length > 1) {
@@ -239,7 +234,7 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
             if (eventId) router.push(`/match-day/${eventId}`);
             return;
         }
-        const mapped: ActivityViewType = type === 'class' ? 'clases' : 'partidas';
+        const mapped: ActivityViewType = type === 'class' ? 'clases' : 'matchpro';
         handleViewPrefChange(pref, mapped, date);
     };
     
@@ -296,6 +291,9 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
                                 clubId={currentClub?.id || "club-1"}
                                 currentUser={currentUser}
                                 onBookingSuccess={triggerRefresh}
+                                timeSlotFilter={activityFilters.timeSlotFilter}
+                                selectedPlayerCounts={Array.from(activityFilters.selectedPlayerCounts)}
+                                viewPreference={activityFilters.viewPreference as 'withBookings' | 'all' | 'myConfirmed'}
                             />
                         ) : (
                             <ClassDisplay
@@ -336,33 +334,6 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
                             currentUserId={currentUser?.id || 'user-1'}
                         />
                     </div>
-                );
-            case 'partidas':
-                 return <MatchDisplay
-                            {...restOfFilters}
-                            currentUser={currentUser}
-                            onBookingSuccess={handleBookingSuccess}
-                            selectedDate={selectedDate}
-                            onDateChange={handleDateChange}
-                            allMatches={allMatches}
-                            isLoading={isInitialLoading}
-                            matchDayEvents={matchDayEvents}
-                            dateStripIndicators={dateStripIndicators}
-                            dateStripDates={dateStripDates}
-                            onViewPrefChange={onViewPrefChangeCompat}
-                            sortBy={'time'}
-                            filterAlsoConfirmedMatches={false}
-                            proposalView={'join'}
-                            showPointsBonus={showPointsBonus}
-                        />;
-            case 'matchpro':
-                return (
-                    <MatchProDisplay
-                        currentUser={currentUser}
-                        onBookingSuccess={handleBookingSuccess}
-                        selectedDate={selectedDate}
-                        onDateChange={handleDateChange}
-                    />
                 );
             default:
                 return null;

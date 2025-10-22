@@ -143,8 +143,5 @@ export async function GET(request: Request) {
     return NextResponse.json(
       { message: 'Error interno del servidor', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
-    );
-  } finally {
-    await prisma.$disconnect();
-  }
+    );  }
 }

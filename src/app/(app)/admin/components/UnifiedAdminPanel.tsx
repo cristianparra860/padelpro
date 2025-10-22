@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import ClubCalendar from '@/components/admin/ClubCalendar';
 import { 
   Building2, 
   Users, 
@@ -249,11 +250,7 @@ const ClubAdminView: React.FC<{
         </TabsContent>
 
         <TabsContent value="schedule" className="space-y-4">
-          <div className="text-center py-12">
-            <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Gestión de Horarios</h3>
-            <p className="text-muted-foreground">Panel de horarios en desarrollo...</p>
-          </div>
+          <ClubCalendar clubId={club.id} />
         </TabsContent>
 
         <TabsContent value="settings" className="space-y-4">

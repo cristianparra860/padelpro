@@ -23,6 +23,7 @@ enum AdminRole {
 }
 
 enum UserPreference {
+
   NORMAL
   QUIET
   SOCIAL
@@ -68,6 +69,8 @@ model User {
   visibility        UserVisibility @default(PUBLIC)
   bio               String?
   credits           Int             @default(0)
+  genderCategory    String?         // masculino, femenino, mixto
+  preferredGameType String?         // clases, partidas, mixto
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
@@ -83,89 +86,76 @@ model Admin {
   id          String    @id @default(cuid())
   email       String    @unique
   name        String
-  role        AdminRole @default(CLUB_ADMIN)
+  role      AdminRole @default(CLUB_ADMIN)
   phone       String?
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  // Relaciones
+  clubs       Club[]
+
   @@map("Admin")
 }
 
 model Club {
-  id               String     @id @default(cuid())
-  name             String
-  address          String?
-  phone            String?
-  email            String?
-  description      String?
-  pricePerHour     Float      @default(35.0)
-  openingTime      String     @default("08:00")
-  closingTime      String     @default("22:00")
-  isActive         Boolean    @default(true)
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  id          String   @id @default(cuid())
+  name        String
+  address     String
+  phone       String?
+  email       String?
+  website     String?
+  description String?
+  admin       Admin?   @relation(fields: [adminId], references: [id])
+  adminId     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relaciones
-  courts       Court[]
-  instructors  Instructor[]
-  timeSlots    TimeSlot[]
-  users        User[]
+  users      User[]
+  courts     Court[]
+  matches    Match[]
+  timeSlots  TimeSlot[]
+  instructors Instructor[]
+  schedules  ClubSchedule[]
 
   @@map("Club")
 }
 
 model Court {
-  id          String   @id @default(cuid())
-  club        Club     @relation(fields: [clubId], references: [id])
-  clubId      String
-  name        String
-  number      Int
-  isActive    Boolean  @default(true)
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  number    Int
+  name      String?
+  capacity  Int      @default(4)
+  club      Club     @relation(fields: [clubId], references: [id])
+  clubId    String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relaciones
   matches   Match[]
   timeSlots TimeSlot[]
+  schedule  CourtSchedule[] // Calendario de ocupación de esta pista
 
   @@unique([clubId, number])
   @@map("Court")
 }
 
-model Instructor {
-  id                String   @id @default(cuid())
-  user              User     @relation(fields: [userId], references: [id])
-  userId            String   @unique
-  club              Club     @relation(fields: [clubId], references: [id])
-  clubId            String
-  hourlyRate        Float    @default(25.0)
-  bio               String?
-  yearsExperience   Int      @default(0)
-  specialties       String? // JSON array of specialties
-  isActive          Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  // Relaciones
-  timeSlots TimeSlot[]
-
-  @@map("Instructor")
-}
-
 model Match {
-  id          String        @id @default(cuid())
-  court       Court         @relation(fields: [courtId], references: [id])
+  id          String      @id @default(cuid())
+  club        Club        @relation(fields: [clubId], references: [id])
+  clubId      String
+  court       Court       @relation(fields: [courtId], references: [id])
   courtId     String
   startTime   DateTime
   endTime     DateTime
   type        MatchType     @default(CASUAL)
   status      MatchStatus   @default(SCHEDULED)
-  isPrivate   Boolean       @default(false)
+  isPrivate   Boolean     @default(false)
   description String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
   // Relaciones
   players MatchPlayer[]
@@ -174,15 +164,40 @@ model Match {
 }
 
 model MatchPlayer {
-  id       String @id @default(cuid())
-  user     User   @relation(fields: [userId], references: [id])
-  userId   String
-  match    Match  @relation(fields: [matchId], references: [id])
+  id       String  @id @default(cuid())
+  match    Match   @relation(fields: [matchId], references: [id])
   matchId  String
-  position Int    @default(1) // 1-4 para padel
+  user     User    @relation(fields: [userId], references: [id])
+  userId   String
+  position String?
+  score    Int?
 
   @@unique([matchId, userId])
   @@map("MatchPlayer")
+}
+
+model Instructor {
+  id                String   @id @default(cuid())
+  user              User     @relation(fields: [userId], references: [id])
+  userId            String   @unique
+  name              String
+  specialties       String?
+  experience        String?
+  profilePictureUrl String?
+  hourlyRate        Float?
+  club              Club     @relation(fields: [clubId], references: [id])
+  clubId            String
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relaciones
+  timeSlots TimeSlot[]
+  availability InstructorAvailability[]
+  restrictions InstructorRestriction[]
+  schedule InstructorSchedule[] // Calendario de ocupación del instructor
+
+  @@map("Instructor")
 }
 
 model TimeSlot {
@@ -191,6 +206,7 @@ model TimeSlot {
   clubId       String
   court        Court?   @relation(fields: [courtId], references: [id])
   courtId      String?
+  courtNumber  Int?     // Número de pista asignada (1-4) cuando la clase se confirma
   instructor   Instructor? @relation(fields: [instructorId], references: [id])
   instructorId String?
   start        DateTime
@@ -199,6 +215,7 @@ model TimeSlot {
   totalPrice   Float
   level        String
   category     String
+  genderCategory String? // masculino, femenino, mixto - categoría de la clase
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -221,4 +238,88 @@ model Booking {
 
   @@unique([userId, timeSlotId, groupSize])
   @@map("Booking")
+}
+
+// Horarios de funcionamiento del club
+model ClubSchedule {
+  id           String   @id @default(cuid())
+  club         Club     @relation(fields: [clubId], references: [id])
+  clubId       String
+  dayOfWeek    Int      // 0=Domingo, 1=Lunes, 2=Martes, etc.
+  openTime     String   // Formato "HH:MM" (ej: "08:00")
+  closeTime    String   // Formato "HH:MM" (ej: "22:00")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([clubId, dayOfWeek])
+  @@map("ClubSchedule")
+}
+
+// Disponibilidad de instructores
+model InstructorAvailability {
+  id           String     @id @default(cuid())
+  instructor   Instructor @relation(fields: [instructorId], references: [id])
+  instructorId String
+  dayOfWeek    Int        // 0=Domingo, 1=Lunes, 2=Martes, etc.
+  startTime    String     // Formato "HH:MM" (ej: "09:00")
+  endTime      String     // Formato "HH:MM" (ej: "18:00")
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([instructorId, dayOfWeek, startTime])
+  @@map("InstructorAvailability")
+}
+
+// Restricciones específicas de fechas para instructores
+model InstructorRestriction {
+  id           String     @id @default(cuid())
+  instructor   Instructor @relation(fields: [instructorId], references: [id])
+  instructorId String
+  date         DateTime   // Fecha específica de restricción
+  startTime    String?    // Hora de inicio de restricción (opcional, null = todo el día)
+  endTime      String?    // Hora de fin de restricción (opcional, null = todo el día)
+  reason       String?    // Motivo de la restricción
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@map("InstructorRestriction")
+}
+
+// Ocupación de pistas en tiempo real (calendario de pistas)
+model CourtSchedule {
+  id          String   @id @default(cuid())
+  court       Court    @relation(fields: [courtId], references: [id])
+  courtId     String
+  date        DateTime // Fecha del bloqueo
+  startTime   DateTime // Hora de inicio completa
+  endTime     DateTime // Hora de fin completa
+  isOccupied  Boolean  @default(false) // true = ocupada, false = disponible
+  timeSlotId  String?  // Referencia a la clase que ocupa esta pista (opcional)
+  reason      String?  // Motivo del bloqueo (clase, mantenimiento, evento, etc.)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([courtId, startTime])
+  @@map("CourtSchedule")
+}
+
+// Ocupación de instructores en tiempo real (calendario de instructores)
+model InstructorSchedule {
+  id           String     @id @default(cuid())
+  instructor   Instructor @relation(fields: [instructorId], references: [id])
+  instructorId String
+  date         DateTime   // Fecha del bloqueo
+  startTime    DateTime   // Hora de inicio completa
+  endTime      DateTime   // Hora de fin completa
+  isOccupied   Boolean    @default(false) // true = ocupado, false = disponible
+  timeSlotId   String?    // Referencia a la clase que tiene el instructor (opcional)
+  reason       String?    // Motivo del bloqueo (clase, reunión, descanso, etc.)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([instructorId, startTime])
+  @@map("InstructorSchedule")
 }

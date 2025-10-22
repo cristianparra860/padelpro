@@ -8,13 +8,15 @@ export async function GET(request: NextRequest) {
   try {
     // Por simplicidad, devolver siempre el usuario de prueba
     // En un sistema real, esto vendría de cookies/JWT
-    const userId = 'user-alex-test';
+    // Usar el ID real del usuario Alex García de la base de datos
+    const userId = 'alex-user-id';
     
     const user = await prisma.user.findUnique({
       where: { id: userId }
     });
 
     if (!user) {
+      console.error('❌ Usuario no encontrado:', userId);
       return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
     }
 
@@ -42,8 +44,5 @@ export async function GET(request: NextRequest) {
     console.error('Error en /api/me:', error);
     return NextResponse.json({ 
       error: 'Error interno del servidor' 
-    }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
-  }
+    }, { status: 500 });  }
 }

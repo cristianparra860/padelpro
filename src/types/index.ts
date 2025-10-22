@@ -75,9 +75,9 @@ export const timeSlotFilterOptions: { value: TimeOfDayFilterType, label: string 
     { value: 'evening', label: 'Tardes (18-22h)' },
 ];
 
-export type ViewPreference = 'normal' | 'myInscriptions' | 'myConfirmed' | 'withPlayers' | 'completed';
+export type ViewPreference = 'normal' | 'myInscriptions' | 'myConfirmed' | 'withPlayers' | 'completed' | 'withBookings' | 'all';
 
-export type ActivityViewType = 'clases' | 'grupos' | 'partidas' | 'matchpro';
+export type ActivityViewType = 'clases' | 'grupos';
 
 // --- Interfaces & Rich Types ---
 
@@ -251,8 +251,19 @@ export interface TimeSlot {
     courtNumber?: number;
     level: ClassPadelLevel;
     category: PadelCategoryForSlot;
+    genderCategory?: string; // AGREGADO: Categoría de género (masculino/femenino/mixto)
     status: 'pre_registration' | 'forming' | 'confirmed' | 'confirmed_private' | 'cancelled';
-    bookedPlayers: { userId: string, name?: string, isSimulated?: boolean, profilePictureUrl?: string, groupSize: 1 | 2 | 3 | 4 }[];
+    bookedPlayers: { 
+        userId: string; 
+        name?: string; 
+        isSimulated?: boolean; 
+        profilePictureUrl?: string; 
+        groupSize: 1 | 2 | 3 | 4;
+        status: 'PENDING' | 'CONFIRMED' | 'CANCELLED'; // Requerido
+        userLevel?: string;
+        userGender?: string;
+        createdAt?: string;
+    }[];
     designatedGratisSpotPlaceholderIndexForOption?: { [key in 1 | 2 | 3 | 4]?: number | null };
     organizerId?: string;
     privateShareCode?: string;

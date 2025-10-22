@@ -31,12 +31,10 @@ const ActiveFiltersDisplay: React.FC<ActiveFiltersDisplayProps> = ({
 
   const getViewPreferenceLabel = (pref: ViewPreference): string => {
     switch (pref) {
-      case 'myInscriptions':
-        return 'Mis Inscripciones';
-      case 'myConfirmed':
-        return 'Mis Reservas';
-      case 'withPlayers':
-        return 'En Juego';
+      case 'withBookings':
+        return 'Con Usuarios';
+      case 'all':
+        return 'Todas';
       default:
         return '';
     }

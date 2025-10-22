@@ -12,7 +12,7 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Eye, ListFilter, ClipboardList, CheckCircle, Users } from 'lucide-react';
+import { Eye, ListFilter, ClipboardList, CheckCircle, Users, UserCheck, List } from 'lucide-react';
 import type { ViewPreference } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -25,11 +25,9 @@ interface ViewOptionsDialogProps {
 }
 
 const viewOptions: { value: ViewPreference, label: string, icon: React.ElementType }[] = [
-    { value: 'normal', label: 'Disponibles', icon: Eye },
-    { value: 'withPlayers', label: 'En Juego', icon: Users },
-    { value: 'completed', label: 'Completas', icon: CheckCircle },
-    { value: 'myInscriptions', label: 'Mis Inscripciones', icon: ClipboardList },
-    { value: 'myConfirmed', label: 'Mis Reservas', icon: CheckCircle },
+    { value: 'withBookings', label: 'Con Usuarios', icon: Users },
+    { value: 'myConfirmed', label: 'Confirmadas', icon: CheckCircle },
+    { value: 'all', label: 'Todas', icon: List },
 ];
 
 
@@ -51,13 +49,13 @@ const ViewOptionsDialog: React.FC<ViewOptionsDialogProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center">
             <ListFilter className="mr-2 h-5 w-5 text-primary" />
-            Filtrar por Ocupación
+            Filtrar Clases
           </DialogTitle>
           <DialogDescription>
-            Elige qué tipo de actividades quieres ver.
+            Con Usuarios: Clases con alumnos sin pista asignada. Confirmadas: Clases con pista asignada.
           </DialogDescription>
         </DialogHeader>
-        <div className="py-4 grid grid-cols-2 gap-3">
+        <div className="py-4 grid grid-cols-3 gap-3">
           {viewOptions.map(option => {
               const Icon = option.icon;
               return (

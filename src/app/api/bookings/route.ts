@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 export async function GET(request: NextRequest) {
   try {
@@ -51,8 +49,6 @@ export async function GET(request: NextRequest) {
       { error: 'Failed to fetch bookings' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
@@ -128,10 +124,129 @@ export async function POST(request: NextRequest) {
       VALUES (${bookingId}, ${userId}, ${timeSlotId}, ${groupSize}, 'CONFIRMED', datetime('now'), datetime('now'))
     `;
 
+    // ==========================================
+    // SISTEMA DE "CARRERA" (RACE SYSTEM)
+    // ==========================================
+    // Cada opción de grupo (1, 2, 3, o 4 jugadores) compite independientemente
+    // La primera opción que se completa gana y se le asigna pista
+    
+    console.log('🏁 RACE SYSTEM: Checking if any group option is complete...');
+    console.log('   New booking:', { userId, groupSize, timeSlotId });
+
+    // Verificar si esta clase ya tiene pista asignada (ya se completó una opción)
+    if (slot.courtNumber) {
+      console.log('   ⚠️ Class already has court assigned:', slot.courtNumber);
+      console.log('   This slot already completed, but allowing booking anyway');
+      return NextResponse.json({ 
+        success: true, 
+        bookingId,
+        message: 'Booking created (class already completed with another option)',
+        classComplete: true,
+        courtAssigned: slot.courtNumber
+      });
+    }
+
+    // Obtener TODAS las reservas del timeSlot agrupadas por groupSize
+    const allBookingsRaw = await prisma.$queryRaw`
+      SELECT groupSize, COUNT(*) as count
+      FROM Booking
+      WHERE timeSlotId = ${timeSlotId}
+      AND status = 'CONFIRMED'
+      GROUP BY groupSize
+    ` as any[];
+
+    console.log('   📊 Current bookings by group size:', allBookingsRaw);
+
+    // Verificar cada opción de grupo para ver si se completó
+    let completedOption = null;
+    
+    for (const group of allBookingsRaw) {
+      const size = group.groupSize;
+      const count = Number(group.count);
+      
+      console.log(`   Checking option ${size} players: ${count} booking(s)`);
+      
+      // Una opción se completa cuando hay al menos 1 reserva de ese groupSize
+      // Porque cada reserva ya representa el número completo de jugadores
+      // Ejemplo: 1 reserva de groupSize=1 → clase de 1 jugador completa
+      // Ejemplo: 1 reserva de groupSize=4 → clase de 4 jugadores completa
+      if (count >= 1) {
+        completedOption = { groupSize: size, count };
+        console.log(`   ✅ WINNER! Option for ${size} player(s) is COMPLETE!`);
+        break;
+      }
+    }
+
+    // Si alguna opción se completó, asignar pista
+    if (completedOption) {
+      console.log('🎾 Assigning court to completed class...');
+      console.log('   Winning option:', completedOption);
+      
+      // Buscar todas las pistas del club
+      const allCourts = await prisma.$queryRaw`
+        SELECT c.id, c.number
+        FROM Court c
+        WHERE c.clubId = ${slot.clubId}
+        ORDER BY c.number
+      ` as any[];
+
+      console.log('   🏢 Total courts in club:', allCourts.length);
+
+      if (allCourts.length > 0) {
+        // Buscar pistas ocupadas en ese horario
+        const occupiedCourts = await prisma.$queryRaw`
+          SELECT ts.courtNumber
+          FROM TimeSlot ts
+          WHERE ts.clubId = ${slot.clubId}
+          AND ts.courtNumber IS NOT NULL
+          AND ts.start = ${slot.start}
+          AND ts.id != ${timeSlotId}
+        ` as any[];
+
+        const occupiedNumbers = occupiedCourts.map((c: any) => c.courtNumber);
+        console.log('   🚫 Occupied courts at this time:', occupiedNumbers);
+
+        // Encontrar primera pista disponible
+        const availableCourt = allCourts.find(c => !occupiedNumbers.includes(c.number));
+
+        if (availableCourt) {
+          console.log('   ✅ Assigning court:', availableCourt.number);
+          
+          // Asignar la pista al TimeSlot
+          await prisma.$executeRaw`
+            UPDATE TimeSlot 
+            SET courtNumber = ${availableCourt.number}, 
+                courtId = ${availableCourt.id},
+                updatedAt = datetime('now')
+            WHERE id = ${timeSlotId}
+          `;
+
+          console.log('   🎉 Court assigned successfully! Court number:', availableCourt.number);
+          console.log('   📝 Note: Other group options should now be cancelled/hidden in frontend');
+          
+          return NextResponse.json({ 
+            success: true, 
+            bookingId,
+            message: 'Booking created and court assigned!',
+            classComplete: true,
+            courtAssigned: availableCourt.number,
+            winningOption: completedOption.groupSize
+          });
+        } else {
+          console.log('   ⚠️ No available courts found - all occupied');
+        }
+      } else {
+        console.log('   ⚠️ No courts found in this club');
+      }
+    } else {
+      console.log('   ℹ️ No group option is complete yet. Race continues...');
+    }
+
     return NextResponse.json({ 
       success: true, 
       bookingId,
-      message: 'Booking created successfully' 
+      message: 'Booking created successfully',
+      classComplete: false
     });
 
   } catch (error) {
@@ -144,7 +259,5 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }

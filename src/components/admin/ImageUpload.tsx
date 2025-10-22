@@ -58,9 +58,13 @@ export function ImageUpload({
 
       const data = await response.json();
       
+      console.log('✅ Image uploaded successfully:', data.url);
+      
       // Actualizar preview y notificar al componente padre
       setPreviewUrl(data.url);
       onImageChange(data.url);
+      
+      console.log('📸 Image URL passed to parent component:', data.url);
 
     } catch (error) {
       console.error('Error uploading image:', error);

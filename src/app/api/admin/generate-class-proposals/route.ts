@@ -140,10 +140,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       error: 'Error interno del servidor al generar propuestas de clases',
       details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
-  }
+    }, { status: 500 });  }
 }
 
 // Endpoint para generar automáticamente para los próximos días
@@ -269,8 +266,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ 
       error: 'Error interno del servidor',
       details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
-  }
+    }, { status: 500 });  }
 }

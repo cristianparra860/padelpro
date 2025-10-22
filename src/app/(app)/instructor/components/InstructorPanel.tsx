@@ -221,6 +221,10 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
         <Card>
            <CardHeader>
              <CardTitle className="flex items-center text-lg"><Wallet className="mr-2 h-5 w-5 text-primary" /> Añadir Crédito a Alumnos</CardTitle>
+             <CardDescription>
+               Añade saldo a tus alumnos cuando te paguen en efectivo. El crédito se reflejará inmediatamente en su cuenta 
+               para que puedan reservar clases en la plataforma.
+             </CardDescription>
            </CardHeader>
            <CardContent>
              <div className="flex justify-end mb-2">

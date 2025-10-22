@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { EditableCell } from '@/components/admin/EditableCell';
 import { ImageUpload } from '@/components/admin/ImageUpload';
+import ClubCalendar from '@/components/admin/ClubCalendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -182,7 +183,7 @@ export default function DatabaseAdminPanel() {
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [selectedClubForFilter, setSelectedClubForFilter] = useState<string>('all'); // Nuevo selector de club independiente
   const [mounted, setMounted] = useState(false);
-  const [bookingsFilter, setBookingsFilter] = useState<'all' | 'confirmed' | 'pending'>('pending');
+  const [bookingsFilter, setBookingsFilter] = useState<'all' | 'confirmed' | 'pending' | 'past'>('pending');
   const [autoGenerateEnabled, setAutoGenerateEnabled] = useState<boolean>(false);
   
   // Estados para edición
@@ -260,13 +261,19 @@ export default function DatabaseAdminPanel() {
     isActive: true
   });
 
+  // Estados para añadir crédito
+  const [creditUserId, setCreditUserId] = useState<string>('');
+  const [creditAmount, setCreditAmount] = useState<string>('');
+  const [creditConcept, setCreditConcept] = useState<string>('Recarga de saldo');
+
   // Update newCourt clubId when profile changes
   useEffect(() => {
     const filteredData = getFilteredData();
-    if (filteredData.restrictToClub && newCourt.clubId === '') {
-      setNewCourt(prev => ({ ...prev, clubId: filteredData.restrictToClub }));
+    // Siempre actualizar el clubId cuando hay restricción de club
+    if (filteredData.restrictToClub) {
+      setNewCourt(prev => ({ ...prev, clubId: filteredData.restrictToClub || '' }));
     }
-  }, [selectedProfile, selectedUserId]); // Removido clubs para evitar re-renders
+  }, [selectedProfile, selectedUserId, clubs]); // Añadido clubs para detectar cambios
 
   // Sincronizar selectedClubId con selectedClubForFilter solo cuando cambia el filtro
   useEffect(() => {
@@ -421,6 +428,29 @@ export default function DatabaseAdminPanel() {
 
   const handleUserChange = (userId: string) => {
     setSelectedUserId(userId);
+    
+    // Auto-seleccionar el club del usuario cuando no sea super admin
+    if (selectedProfile !== 'super-admin' && userId) {
+      if (selectedProfile === 'club-admin') {
+        // Buscar el club del admin
+        const adminClub = clubs.find(club => club.adminId === userId);
+        if (adminClub) {
+          setSelectedClubForFilter(adminClub.id);
+        }
+      } else if (selectedProfile === 'instructor') {
+        // Buscar el club del instructor
+        const instructor = instructors.find(inst => inst.id === userId);
+        if (instructor?.clubId) {
+          setSelectedClubForFilter(instructor.clubId);
+        }
+      } else if (selectedProfile === 'client') {
+        // Buscar el club del cliente
+        const user = users.find(u => u.id === userId);
+        if (user?.clubId) {
+          setSelectedClubForFilter(user.clubId);
+        }
+      }
+    }
   };
 
   // Function to get available users based on selected profile
@@ -601,6 +631,20 @@ export default function DatabaseAdminPanel() {
     return courts;
   };
 
+  // Function to get future classes (upcoming)
+  const getFutureTimeSlots = () => {
+    const now = new Date();
+    const filtered = getFilteredTimeSlots();
+    return filtered.filter(slot => new Date(slot.start) >= now);
+  };
+
+  // Function to get past classes
+  const getPastTimeSlots = () => {
+    const now = new Date();
+    const filtered = getFilteredTimeSlots();
+    return filtered.filter(slot => new Date(slot.start) < now);
+  };
+
   // Function to get available clubs for creation forms based on profile
   const getAvailableClubsForCreation = () => {
     const filteredData = getFilteredData();
@@ -666,6 +710,80 @@ export default function DatabaseAdminPanel() {
     return clubs;
   };
 
+  // Función para añadir crédito a un usuario
+  const handleAddCredit = async () => {
+    if (!creditUserId || !creditAmount) {
+      toast({
+        title: 'Error',
+        description: 'Por favor selecciona un usuario y especifica una cantidad',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const amount = parseFloat(creditAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: 'Error',
+        description: 'La cantidad debe ser un número positivo',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const user = users.find(u => u.id === creditUserId);
+      
+      console.log('💰 Añadiendo crédito:', {
+        userId: creditUserId,
+        userName: user?.name,
+        amount: amount
+      });
+
+      // Hacer petición a la API para actualizar el crédito
+      const response = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: creditUserId,
+          action: 'addCredit',
+          amount: amount,
+          concept: creditConcept
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al añadir crédito');
+      }
+
+      const result = await response.json();
+      
+      toast({
+        title: '💰 ¡Crédito Añadido!',
+        description: `Se han añadido ${amount.toFixed(2)}€ a ${user?.name || 'el usuario'}. Nuevo saldo: ${result.newBalance.toFixed(2)}€`,
+        className: 'bg-green-600 text-white border-green-700',
+      });
+      
+      // Limpiar formulario
+      setCreditUserId('');
+      setCreditAmount('');
+      setCreditConcept('Recarga de saldo');
+      
+      // Recargar datos
+      loadData();
+    } catch (error) {
+      console.error('Error añadiendo crédito:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Ocurrió un error al añadir el crédito',
+        variant: 'destructive',
+      });
+    }
+  };
+
   // Function to get available tabs based on profile
   const getAvailableTabs = () => {
     const userBookingCount = getUserBookingCount();
@@ -679,7 +797,8 @@ export default function DatabaseAdminPanel() {
           { id: 'courts', label: '🏟️ Pistas', show: true },
           { id: 'instructors', label: `👨‍🏫 Instructors (${getFilteredInstructors().length})`, show: true },
           { id: 'users', label: `👥 Users (${users.length})`, show: true },
-          { id: 'timeslots', label: `📅 Classes (${timeSlots.length})`, show: true },
+          { id: 'timeslots', label: `📅 Clases Futuras (${getFutureTimeSlots().length})`, show: true },
+          { id: 'past-timeslots', label: `📜 Clases Pasadas (${getPastTimeSlots().length})`, show: true },
           { id: 'bookings', label: `📋 Bookings (${bookings.length})`, show: true },
           { id: 'calendar', label: '📅 Calendario', show: true },
           { id: 'settings', label: '⚙️ Config', show: true }
@@ -689,13 +808,15 @@ export default function DatabaseAdminPanel() {
         const filteredTimeSlots = getFilteredTimeSlots();
         const filteredBookings = getFilteredBookings();
         const filteredInstructors = getFilteredInstructors();
+        const filteredUsers = getAvailableUsers();
         
         return [
           { id: 'overview', label: '📊 Dashboard', show: true },
           { id: 'courts', label: `🏟️ Pistas (${filteredCourts.length})`, show: true },
           { id: 'instructors', label: `👨‍🏫 Instructors (${filteredInstructors.length})`, show: true },
-          { id: 'users', label: `👥 Users (${users.length})`, show: true },
-          { id: 'timeslots', label: `📅 Classes (${filteredTimeSlots.length})`, show: true },
+          { id: 'users', label: `👥 Users (${filteredUsers.length})`, show: true },
+          { id: 'timeslots', label: `📅 Clases Futuras (${getFutureTimeSlots().length})`, show: true },
+          { id: 'past-timeslots', label: `📜 Clases Pasadas (${getPastTimeSlots().length})`, show: true },
           { id: 'bookings', label: `📋 Bookings (${filteredBookings.length})`, show: true },
           { id: 'calendar', label: '📅 Calendario', show: true },
           { id: 'rates', label: '💰 Tarifas', show: true },
@@ -707,16 +828,19 @@ export default function DatabaseAdminPanel() {
           { id: 'manageClasses', label: '📚 Gestionar Clases', show: true },
           { id: 'addCredits', label: '💳 Añadir Crédito', show: true },
           { id: 'instructorPreferences', label: '⚙️ Preferencias y Tarifas', show: true },
-          { id: 'timeslots', label: `📅 Mis Classes (${getFilteredTimeSlots().length})`, show: true },
+          { id: 'timeslots', label: `📅 Mis Clases Futuras (${getFutureTimeSlots().length})`, show: true },
+          { id: 'past-timeslots', label: `📜 Mis Clases Pasadas (${getPastTimeSlots().length})`, show: true },
           { id: 'user-bookings', label: `📋 Mis Reservas (${userBookingCount})`, show: true },
           { id: 'instructors', label: `👨‍🏫 Instructors (${getFilteredInstructors().length})`, show: true },
-          { id: 'user-calendar', label: '📅 Mi Calendario', show: true }
+          { id: 'user-calendar', label: '📅 Mi Calendario', show: true },
+          { id: 'calendar', label: '🏛️ Calendario Club', show: true }
         ];
       case 'client':
         return [
           { id: 'overview', label: '📊 Mi Panel', show: true },
           { id: 'user-bookings', label: `📋 Mis Reservas (${userBookingCount})`, show: true },
-          { id: 'user-balance', label: '💰 Mi Saldo', show: true }
+          { id: 'user-balance', label: '💰 Mi Saldo', show: true },
+          { id: 'calendar', label: '🏛️ Calendario Club', show: true }
         ];
       default:
         return [];
@@ -725,45 +849,114 @@ export default function DatabaseAdminPanel() {
 
   // Función para filtrar bookings según el criterio seleccionado
   const getFilteredBookingsByStatus = () => {
+    const now = new Date();
     let filteredData = bookingsForCards;
+    
+    // Debug: log datos
+    console.log('🔍 bookingsForCards:', bookingsForCards.length);
+    console.log('🔍 Primera booking:', bookingsForCards[0]);
+    console.log('🔍 Filtro actual:', bookingsFilter);
     
     // Filtrar por usuario si es necesario
     if ((selectedProfile === 'client' || selectedProfile === 'instructor') && selectedUserId) {
       filteredData = bookingsForCards.filter(booking => booking.userId === selectedUserId);
+      console.log('🔍 Bookings filtradas por usuario:', filteredData.length);
     }
     
     // Aplicar filtros adicionales
     switch (bookingsFilter) {
       case 'all':
+        // Mostrar todas las reservas
+        console.log('✅ Retornando TODAS las bookings:', filteredData.length);
         return filteredData;
+        
       case 'confirmed':
-        // Reservas confirmadas: clases que han alcanzado su capacidad máxima
-        return filteredData.filter(booking => {
-          let actualMaxPlayers;
-          if (booking.groupSize === 1 && booking.timeSlot?.totalPlayers === 1) {
-            actualMaxPlayers = 1; // Clase individual completa
-          } else {
-            actualMaxPlayers = booking.timeSlot?.maxPlayers || 4;
-          }
-          const currentPlayers = booking.timeSlot?.totalPlayers || 0;
-          return currentPlayers >= actualMaxPlayers;
-        });
+        // Reservas confirmadas: simplemente filtrar por estado CONFIRMED
+        const confirmed = filteredData.filter(booking => booking.status === 'CONFIRMED');
+        console.log('✅ Retornando bookings CONFIRMADAS:', confirmed.length);
+        return confirmed;
+        
       case 'pending':
-        // Reservas pendientes: clases que no han alcanzado su capacidad máxima
-        return filteredData.filter(booking => {
-          let actualMaxPlayers;
-          if (booking.groupSize === 1 && booking.timeSlot?.totalPlayers === 1) {
-            actualMaxPlayers = 1; // Clase individual completa
-          } else {
-            actualMaxPlayers = booking.timeSlot?.maxPlayers || 4;
-          }
-          const currentPlayers = booking.timeSlot?.totalPlayers || 0;
-          return currentPlayers < actualMaxPlayers;
+        // Reservas pendientes
+        const pending = filteredData.filter(booking => 
+          booking.status === 'PENDING' && 
+          (!booking.timeSlot?.start || new Date(booking.timeSlot.start) >= now)
+        );
+        console.log('✅ Retornando bookings PENDIENTES:', pending.length);
+        return pending;
+        
+      case 'past':
+        // Reservas de clases que ya pasaron
+        const past = filteredData.filter(booking => {
+          if (!booking.timeSlot?.start) return false;
+          return new Date(booking.timeSlot.start) < now;
+        }).sort((a, b) => {
+          // Ordenar de más reciente a más antigua
+          const dateA = a.timeSlot?.start ? new Date(a.timeSlot.start).getTime() : 0;
+          const dateB = b.timeSlot?.start ? new Date(b.timeSlot.start).getTime() : 0;
+          return dateB - dateA;
         });
+        console.log('✅ Retornando clases PASADAS:', past.length);
+        return past;
+        
       default:
+        console.log('✅ Retornando bookings por defecto:', filteredData.length);
         return filteredData;
     }
   };
+
+  // Funciones memoizadas para contadores (optimización de rendimiento)
+  const bookingCounters = useMemo(() => {
+    if (!selectedUserId) return { all: 0, confirmed: 0, pending: 0, past: 0 };
+    
+    const userBookings = bookingsForCards.filter(b => b.userId === selectedUserId);
+    const now = new Date();
+    
+    let confirmed = 0;
+    let pending = 0;
+    let past = 0;
+    
+    userBookings.forEach(b => {
+      // Verificar si es pasada
+      if (b.timeSlot?.start && new Date(b.timeSlot.start) < now) {
+        past++;
+        return;
+      }
+      
+      // Verificar si tiene pista asignada
+      const classBookings = bookingsForCards.filter(
+        cb => cb.timeSlotId === b.timeSlotId && cb.status !== 'CANCELLED'
+      );
+      
+      let hasCourtAssigned = false;
+      for (const modalitySize of [1, 2, 3, 4]) {
+        const modalityBookings = classBookings.filter(
+          mb => mb.groupSize === modalitySize
+        );
+        
+        if (modalityBookings.length >= modalitySize) {
+          const confirmedBookings = modalityBookings.filter(mb => mb.status === 'CONFIRMED');
+          if (confirmedBookings.length > 0 && modalityBookings.some(mb => mb.id === b.id)) {
+            hasCourtAssigned = true;
+            break;
+          }
+        }
+      }
+      
+      if (hasCourtAssigned) {
+        confirmed++;
+      } else {
+        pending++;
+      }
+    });
+    
+    return {
+      all: userBookings.length,
+      confirmed,
+      pending,
+      past
+    };
+  }, [bookingsForCards, selectedUserId]);
 
   const createUser = async () => {
     try {
@@ -1128,18 +1321,26 @@ export default function DatabaseAdminPanel() {
     console.log('🔍 Opening edit dialog for instructor:', instructor);
     setEditingInstructor({
       id: instructor.id,
+      userId: instructor.userId,
+      profilePictureUrl: instructor.profilePictureUrl || null,
       specialties: instructor.specialties || '',
       experience: instructor.yearsExperience ? `${instructor.yearsExperience}-${instructor.yearsExperience + 2} años` : '',
       hourlyRate: instructor.hourlyRate || 30,
       bio: instructor.bio || '',
       isActive: instructor.isActive
     });
-    console.log('🔍 Setting dialog open to true');
+    console.log('🔍 Setting dialog open to true with profilePictureUrl:', instructor.profilePictureUrl);
     setIsEditInstructorDialogOpen(true);
   };
 
   const updateInstructor = async () => {
     try {
+      console.log('📤 Updating instructor with data:', {
+        id: editingInstructor.id,
+        userId: editingInstructor.userId,
+        profilePictureUrl: editingInstructor.profilePictureUrl
+      });
+      
       const response = await fetch('/api/admin/instructors', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -1151,13 +1352,16 @@ export default function DatabaseAdminPanel() {
       });
 
       if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Instructor updated successfully:', result);
+        
         toast({
           title: 'Success',
           description: 'Instructor updated successfully'
         });
         setEditingInstructor(null);
         setIsEditInstructorDialogOpen(false);
-        loadData();
+        await loadData();
       } else {
         const error = await response.json();
         throw new Error(error.error);
@@ -1437,8 +1641,8 @@ export default function DatabaseAdminPanel() {
               </h2>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Selector de Perfil */}
-            <div className="space-y-2">
+                {/* Selector de Perfil */}
+                <div className="space-y-2">
               <Label htmlFor="profile-selector" className="text-sm font-medium">
                 👤 Tipo de Perfil:
               </Label>
@@ -1455,8 +1659,8 @@ export default function DatabaseAdminPanel() {
               </Select>
             </div>
 
-            {/* Selector de Club */}
-            <div className="space-y-2">
+                {/* Selector de Club */}
+                <div className="space-y-2">
               <Label htmlFor="club-filter-selector" className="text-sm font-medium">
                 🏢 Club:
               </Label>
@@ -1465,8 +1669,8 @@ export default function DatabaseAdminPanel() {
                   <SelectValue placeholder="Selecciona un club" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">🌍 Todos los Clubs</SelectItem>
-                  {clubs.map((club) => (
+                  {selectedProfile === 'super-admin' && <SelectItem value="all">🌍 Todos los Clubs</SelectItem>}
+                  {getFilteredClubs().map((club) => (
                     <SelectItem key={club.id} value={club.id}>
                       <div className="flex flex-col">
                         <span className="font-medium">{club.name}</span>
@@ -1480,8 +1684,8 @@ export default function DatabaseAdminPanel() {
               </Select>
             </div>
 
-            {/* Selector de Usuario */}
-            <div className="space-y-2">
+                {/* Selector de Usuario */}
+                <div className="space-y-2">
               <Label htmlFor="user-selector" className="text-sm font-medium">
                 👥 Usuario:
               </Label>
@@ -1545,11 +1749,11 @@ export default function DatabaseAdminPanel() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          </div>
+                </div>
+              </div>
 
-          {/* Información del acceso actual */}
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              {/* Información del acceso actual */}
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="text-sm space-y-1">
               <div>
                 <strong>Perfil de acceso:</strong> {' '}
@@ -1619,7 +1823,7 @@ export default function DatabaseAdminPanel() {
                   })()}
                 </div>
               )}
-                </div>
+            </div>
               </div>
             </div>
           </CardContent>
@@ -1720,9 +1924,9 @@ export default function DatabaseAdminPanel() {
                     <Users className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{users.length}</div>
+                    <div className="text-2xl font-bold">{getAvailableUsers().length}</div>
                     <p className="text-xs text-muted-foreground">
-                      All users in the system
+                      Users in this club
                     </p>
                   </CardContent>
                 </Card>
@@ -2075,7 +2279,7 @@ export default function DatabaseAdminPanel() {
                           : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
                       }`}
                     >
-                      📋 Todas las Reservas ({getFilteredBookingsByStatus().length})
+                      📋 Todas las Reservas ({bookingCounters.all})
                     </button>
                     <button
                       onClick={() => setBookingsFilter('confirmed')}
@@ -2085,17 +2289,7 @@ export default function DatabaseAdminPanel() {
                           : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
                       }`}
                     >
-                      ✅ Reservas Confirmadas ({bookingsForCards.filter(b => {
-                        if (b.userId !== selectedUserId) return false;
-                        let actualMaxPlayers;
-                        if (b.groupSize === 1 && b.timeSlot?.totalPlayers === 1) {
-                          actualMaxPlayers = 1;
-                        } else {
-                          actualMaxPlayers = b.timeSlot?.maxPlayers || 4;
-                        }
-                        const currentPlayers = b.timeSlot?.totalPlayers || 0;
-                        return currentPlayers >= actualMaxPlayers;
-                      }).length})
+                      ✅ Reservas Confirmadas ({bookingCounters.confirmed})
                     </button>
                     <button
                       onClick={() => setBookingsFilter('pending')}
@@ -2105,17 +2299,17 @@ export default function DatabaseAdminPanel() {
                           : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
                       }`}
                     >
-                      ⏳ Reservas Pendientes ({bookingsForCards.filter(b => {
-                        if (b.userId !== selectedUserId) return false;
-                        let actualMaxPlayers;
-                        if (b.groupSize === 1 && b.timeSlot?.totalPlayers === 1) {
-                          actualMaxPlayers = 1;
-                        } else {
-                          actualMaxPlayers = b.timeSlot?.maxPlayers || 4;
-                        }
-                        const currentPlayers = b.timeSlot?.totalPlayers || 0;
-                        return currentPlayers < actualMaxPlayers;
-                      }).length})
+                      ⏳ Reservas Pendientes ({bookingCounters.pending})
+                    </button>
+                    <button
+                      onClick={() => setBookingsFilter('past')}
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                        bookingsFilter === 'past'
+                          ? 'bg-white shadow-sm text-gray-900'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                      }`}
+                    >
+                      📜 Clases Pasadas ({bookingCounters.past})
                     </button>
                   </div>
                 </div>
@@ -2131,9 +2325,12 @@ export default function DatabaseAdminPanel() {
                   </div>
                 ) : (
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {getFilteredBookingsByStatus().map((booking) => (
-                      <AdminBookingCard key={booking.id} booking={booking} />
-                    ))}
+                    {getFilteredBookingsByStatus().map((booking) => {
+                      console.log('🎯 Renderizando booking:', booking);
+                      return (
+                        <AdminBookingCard key={booking.id} booking={booking} />
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>
@@ -2469,7 +2666,12 @@ export default function DatabaseAdminPanel() {
               <div className="space-y-4 max-w-md">
                 <div>
                   <Label htmlFor="creditUser">Seleccionar Usuario</Label>
-                  <select id="creditUser" className="w-full p-2 border rounded">
+                  <select 
+                    id="creditUser" 
+                    className="w-full p-2 border rounded"
+                    value={creditUserId}
+                    onChange={(e) => setCreditUserId(e.target.value)}
+                  >
                     <option value="">Seleccionar usuario...</option>
                     {users.filter(user => user.role === 'PLAYER').map((user) => (
                       <option key={user.id} value={user.id}>{user.name} ({user.email})</option>
@@ -2485,6 +2687,8 @@ export default function DatabaseAdminPanel() {
                     step="0.01"
                     className="w-full p-2 border rounded"
                     placeholder="25.00"
+                    value={creditAmount}
+                    onChange={(e) => setCreditAmount(e.target.value)}
                   />
                 </div>
                 <div>
@@ -2494,9 +2698,15 @@ export default function DatabaseAdminPanel() {
                     type="text"
                     className="w-full p-2 border rounded"
                     placeholder="Recarga de saldo"
+                    value={creditConcept}
+                    onChange={(e) => setCreditConcept(e.target.value)}
                   />
                 </div>
-                <Button className="w-full">
+                <Button 
+                  className="w-full"
+                  onClick={handleAddCredit}
+                  disabled={!creditUserId || !creditAmount}
+                >
                   <Euro className="mr-2 h-4 w-4" />
                   Añadir Crédito
                 </Button>
@@ -3688,6 +3898,62 @@ export default function DatabaseAdminPanel() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="past-timeslots" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Clock className="mr-2 h-5 w-5" />
+                📜 Historial de Clases Pasadas
+              </CardTitle>
+              <CardDescription>
+                Consulta las clases que ya se han realizado
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">📋 Clases Realizadas ({getPastTimeSlots().length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {getPastTimeSlots()
+                      .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
+                      .map((slot) => (
+                        <div key={slot.id} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
+                          <div className="flex items-center space-x-3">
+                            <Clock className="h-5 w-5 text-gray-400" />
+                            <div>
+                              <div className="font-medium">
+                                {new Date(slot.start).toLocaleDateString()} - {new Date(slot.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} a {new Date(slot.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                {slot.category} • {slot.level} • {slot.maxPlayers} jugadores máx • €{slot.totalPrice}
+                                {slot.instructorName && ` • Instructor: ${slot.instructorName}`}
+                              </div>
+                              {slot.courtNumber && (
+                                <div className="text-xs text-blue-600">
+                                  Pista {slot.courtNumber}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <Badge variant="secondary" className="bg-gray-300">
+                            {slot.category}
+                          </Badge>
+                        </div>
+                      ))}
+                    {getPastTimeSlots().length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        No hay clases pasadas registradas
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="bookings" className="space-y-4">
           <Card>
             <CardHeader>
@@ -3797,13 +4063,19 @@ export default function DatabaseAdminPanel() {
                             id="courtClub"
                             value={newCourt.clubId}
                             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setNewCourt({...newCourt, clubId: e.target.value})}
-                            className="w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                            disabled={selectedProfile !== 'super-admin'}
                           >
                             <option value="">Seleccionar club</option>
                             {getAvailableClubsForCreation().map((club) => (
                               <option key={club.id} value={club.id}>{club.name}</option>
                             ))}
                           </select>
+                          {selectedProfile !== 'super-admin' && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              ℹ️ Solo puedes crear pistas para tu club asignado
+                            </p>
+                          )}
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="courtNumber">Número *</Label>
@@ -3913,24 +4185,7 @@ export default function DatabaseAdminPanel() {
         </TabsContent>
 
         <TabsContent value="calendar" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <CalendarDays className="mr-2 h-5 w-5" />
-                📅 Calendario de Actividades
-              </CardTitle>
-              <CardDescription>
-                Vista general de clases y partidas programadas
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center text-gray-500 py-8">
-                <CalendarDays className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                <p className="text-lg mb-2">Calendario de Actividades</p>
-                <p className="text-sm">Esta funcionalidad estará disponible próximamente</p>
-              </div>
-            </CardContent>
-          </Card>
+          <ClubCalendar clubId={selectedClubId !== 'all' ? selectedClubId : 'club-1'} />
         </TabsContent>
 
         <TabsContent value="rates" className="space-y-4">
@@ -3973,8 +4228,8 @@ export default function DatabaseAdminPanel() {
               </div>
             </CardContent>
           </Card>
-              </TabsContent>
-            </Tabs>
+        </TabsContent>
+      </Tabs>
           </CardContent>
         </Card>
       </div>
