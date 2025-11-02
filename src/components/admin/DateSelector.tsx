@@ -75,98 +75,62 @@ export default function DateSelector({
   };
 
   return (
-    <div className="relative w-full bg-white border rounded-lg shadow-sm">
-      <div className="flex items-center">
-        {/* Botón Scroll Izquierda */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="absolute left-0 z-10 h-full rounded-none bg-gradient-to-r from-white to-transparent px-2"
-          onClick={() => scroll('left')}
-          disabled={!canScrollLeft}
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </Button>
+    <div className="relative w-full bg-white border rounded-lg shadow-sm p-3">
+      {/* Grid de fechas - ocupa todo el ancho */}
+      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${daysToShow}, minmax(0, 1fr))` }}>
+        {dates.map((date, index) => {
+          const selected = isSelected(date);
+          const today = isToday(date);
+          const dayName = getDayName(date);
+          const dayNumber = date.getDate();
+          const monthName = getMonthName(date);
 
-        {/* Contenedor de fechas con scroll */}
-        <div
-          ref={scrollRef}
-          className="flex gap-2 overflow-x-auto scrollbar-hide px-12 py-3"
-          onScroll={updateScrollButtons}
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-        >
-          {dates.map((date, index) => {
-            const selected = isSelected(date);
-            const today = isToday(date);
-            const dayName = getDayName(date);
-            const dayNumber = date.getDate();
-            const monthName = getMonthName(date);
+          return (
+            <button
+              key={index}
+              onClick={() => handleDateClick(date)}
+              className={`
+                flex flex-col items-center justify-center px-2 py-3 rounded-lg
+                transition-all duration-200 cursor-pointer border-2
+                ${selected 
+                  ? 'bg-blue-500 text-white border-blue-600 shadow-md scale-105' 
+                  : today
+                  ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+                }
+              `}
+            >
+              {/* Día de la semana */}
+              <span className={`text-xs font-semibold mb-1 ${
+                selected ? 'text-white' : today ? 'text-blue-600' : 'text-gray-500'
+              }`}>
+                {dayName}
+              </span>
 
-            return (
-              <button
-                key={index}
-                onClick={() => handleDateClick(date)}
-                className={`
-                  flex flex-col items-center justify-center min-w-[60px] px-3 py-2 rounded-lg
-                  transition-all duration-200 cursor-pointer border-2
-                  ${selected 
-                    ? 'bg-blue-500 text-white border-blue-600 shadow-md' 
-                    : today
-                    ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
-                  }
-                `}
-              >
-                {/* Día de la semana */}
-                <span className={`text-xs font-semibold mb-1 ${
-                  selected ? 'text-white' : today ? 'text-blue-600' : 'text-gray-500'
-                }`}>
-                  {dayName}
+              {/* Número del día */}
+              <span className={`text-2xl font-bold ${
+                selected ? 'text-white' : today ? 'text-blue-700' : 'text-gray-900'
+              }`}>
+                {dayNumber}
+              </span>
+
+              {/* Mes */}
+              <span className={`text-xs mt-1 ${
+                selected ? 'text-blue-100' : today ? 'text-blue-600' : 'text-gray-500'
+              }`}>
+                {monthName}
+              </span>
+
+              {/* Indicador "HOY" */}
+              {today && !selected && (
+                <span className="text-[9px] font-bold text-blue-600 mt-1">
+                  HOY
                 </span>
-
-                {/* Número del día */}
-                <span className={`text-2xl font-bold ${
-                  selected ? 'text-white' : today ? 'text-blue-700' : 'text-gray-900'
-                }`}>
-                  {dayNumber}
-                </span>
-
-                {/* Mes */}
-                <span className={`text-xs mt-1 ${
-                  selected ? 'text-blue-100' : today ? 'text-blue-600' : 'text-gray-500'
-                }`}>
-                  {monthName}
-                </span>
-
-                {/* Indicador "HOY" */}
-                {today && !selected && (
-                  <span className="text-[9px] font-bold text-blue-600 mt-1">
-                    HOY
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Botón Scroll Derecha */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="absolute right-0 z-10 h-full rounded-none bg-gradient-to-l from-white to-transparent px-2"
-          onClick={() => scroll('right')}
-          disabled={!canScrollRight}
-        >
-          <ChevronRight className="h-5 w-5" />
-        </Button>
+              )}
+            </button>
+          );
+        })}
       </div>
-
-      {/* CSS para ocultar scrollbar */}
-      <style jsx>{`
-        .scrollbar-hide::-webkit-scrollbar {
-          display: none;
-        }
-      `}</style>
     </div>
   );
 }

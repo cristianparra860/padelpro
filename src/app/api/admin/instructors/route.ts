@@ -19,15 +19,15 @@ export async function GET(request: NextRequest) {
           i.userId,
           i.clubId,
           i.hourlyRate,
-          i.bio,
-          i.yearsExperience,
+          i.name as instructorName,
+          i.experience,
           i.specialties,
           i.isActive,
+          i.profilePictureUrl,
           i.createdAt,
           i.updatedAt,
           u.name,
           u.email,
-          u.profilePictureUrl,
           c.name as clubName
         FROM Instructor i
         LEFT JOIN User u ON i.userId = u.id
@@ -42,15 +42,15 @@ export async function GET(request: NextRequest) {
           i.userId,
           i.clubId,
           i.hourlyRate,
-          i.bio,
-          i.yearsExperience,
+          i.name as instructorName,
+          i.experience,
           i.specialties,
           i.isActive,
+          i.profilePictureUrl,
           i.createdAt,
           i.updatedAt,
           u.name,
           u.email,
-          u.profilePictureUrl,
           c.name as clubName
         FROM Instructor i
         LEFT JOIN User u ON i.userId = u.id
@@ -105,14 +105,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convertir experiencia de texto a número
-    let yearsExperience = 0;
-    if (experience) {
-      if (experience.includes('1-2')) yearsExperience = 1;
-      else if (experience.includes('3-5')) yearsExperience = 3;
-      else if (experience.includes('5-10')) yearsExperience = 5;
-      else if (experience.includes('10')) yearsExperience = 10;
-    }
+    // Convertir experiencia de texto a formato de texto
+    let experienceText = experience || 'Sin especificar';
 
     // Generate a unique ID
     const instructorId = `instructor-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -122,14 +116,18 @@ export async function POST(request: NextRequest) {
       userId,
       clubId,
       specialties,
-      yearsExperience,
+      experience: experienceText,
       hourlyRate: 30.0
     });
 
+    // Get user name to use as instructor name
+    const users = await prisma.$queryRaw`SELECT name FROM User WHERE id = ${userId}`;
+    const userName = users.length > 0 ? users[0].name : 'Sin nombre';
+
     // Use raw SQL to create instructor
     await prisma.$executeRaw`
-      INSERT INTO Instructor (id, userId, clubId, specialties, yearsExperience, hourlyRate, isActive, createdAt, updatedAt)
-      VALUES (${instructorId}, ${userId}, ${clubId}, ${specialties || ''}, ${yearsExperience}, 30.0, 1, datetime('now'), datetime('now'))
+      INSERT INTO Instructor (id, userId, clubId, name, specialties, experience, hourlyRate, isActive, createdAt, updatedAt)
+      VALUES (${instructorId}, ${userId}, ${clubId}, ${userName}, ${specialties || ''}, ${experienceText}, 30.0, 1, datetime('now'), datetime('now'))
     `;
     
     // Get the created instructor using raw SQL
@@ -155,7 +153,7 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     console.log('📋 Received instructor update data:', body);
     
-    const { id, specialties, experience, hourlyRate, bio, isActive, profilePictureUrl, userId } = body;
+    const { id, specialties, experience, hourlyRate, isActive, profilePictureUrl, userId } = body;
 
     if (!id) {
       console.log('❌ Missing instructor ID');
@@ -165,21 +163,14 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Convertir experiencia de texto a número
-    let yearsExperience = 0;
-    if (experience) {
-      if (experience.includes('1-2')) yearsExperience = 1;
-      else if (experience.includes('3-5')) yearsExperience = 3;
-      else if (experience.includes('5-10')) yearsExperience = 5;
-      else if (experience.includes('10')) yearsExperience = 10;
-    }
+    // Convertir experiencia a formato de texto
+    let experienceText = experience || 'Sin especificar';
 
     console.log('🔍 Updating instructor with data:', {
       id,
       specialties,
-      yearsExperience,
+      experience: experienceText,
       hourlyRate: hourlyRate || 30.0,
-      bio: bio || null,
       isActive: isActive !== undefined ? isActive : true,
       profilePictureUrl: profilePictureUrl || null
     });
@@ -188,15 +179,20 @@ export async function PUT(request: NextRequest) {
     await prisma.$executeRaw`
       UPDATE Instructor 
       SET specialties = ${specialties || ''}, 
-          yearsExperience = ${yearsExperience}, 
+          experience = ${experienceText}, 
           hourlyRate = ${hourlyRate || 30.0},
-          bio = ${bio || null},
+          profilePictureUrl = ${profilePictureUrl || null},
           isActive = ${isActive !== undefined ? (isActive ? 1 : 0) : 1},
           updatedAt = datetime('now')
       WHERE id = ${id}
     `;
     
-    // Si se proporciona una foto de perfil y el userId, actualizar también el usuario
+    // Si se proporciona una foto de perfil y el userId, actualizar también en Instructor y User
+    if (profilePictureUrl !== undefined) {
+      console.log('🖼️ Updating profile picture in Instructor table');
+      // Ya se actualizó en el UPDATE anterior
+    }
+    
     if (profilePictureUrl !== undefined && userId) {
       console.log('🖼️ Updating user profile picture:', { userId, profilePictureUrl });
       await prisma.$executeRaw`
@@ -210,9 +206,8 @@ export async function PUT(request: NextRequest) {
     const updatedInstructors = await prisma.$queryRaw`
       SELECT 
         i.*,
-        u.name,
-        u.email,
-        u.profilePictureUrl
+        u.name as userName,
+        u.email
       FROM Instructor i
       LEFT JOIN User u ON i.userId = u.id
       WHERE i.id = ${id}

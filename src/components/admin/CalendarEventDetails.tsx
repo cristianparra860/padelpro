@@ -87,10 +87,11 @@ export default function CalendarEventDetails({
             {event.title}
           </DialogTitle>
           <DialogDescription>
-            <Badge variant="outline" className="mt-2">
-              {getEventTypeLabel(event.type)}
-            </Badge>
+            Detalles del evento
           </DialogDescription>
+          <Badge variant="outline" className="mt-2 w-fit">
+            {getEventTypeLabel(event.type)}
+          </Badge>
         </DialogHeader>
 
         <div className="space-y-4 py-4">

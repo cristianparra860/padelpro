@@ -153,11 +153,19 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
       endDate.setHours(23, 59, 59, 999); // Final del día
       
       const response = await fetch(
-        `/api/admin/calendar?clubId=${clubId}&startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`
+        `/api/admin/calendar?clubId=${clubId}&startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`,
+        { cache: 'no-store' }
       );
       
       if (response.ok) {
         const data = await response.json();
+        console.log('📊 Calendar data received:', {
+          instructors: data.instructors?.length,
+          courts: data.courts?.length,
+          proposedClasses: data.proposedClasses?.length,
+          confirmedClasses: data.confirmedClasses?.length,
+          events: data.events?.length
+        });
         setCalendarData(data);
       }
     } catch (error) {
@@ -538,12 +546,12 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
         </div>
       )}
 
-      {/* Selector de Fecha Lineal - Reducido 50% */}
-      <div className="scale-[0.5] origin-top-left w-[200%]">
+      {/* Selector de Fecha Lineal - Ancho completo */}
+      <div className="w-full">
         <DateSelector 
           selectedDate={currentDate}
           onDateChange={setCurrentDate}
-          daysToShow={30}
+          daysToShow={15}
         />
       </div>
 
@@ -818,6 +826,7 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
             <ClassCardWrapper 
               classId={selectedClassId}
               onClose={() => setShowClassCard(false)}
+              onBookingSuccess={loadCalendarData}
             />
           )}
         </DialogContent>
@@ -827,7 +836,7 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
 }
 
 // Componente wrapper para cargar la clase y mostrar el ClassCard
-function ClassCardWrapper({ classId, onClose }: { classId: string; onClose: () => void }) {
+function ClassCardWrapper({ classId, onClose, onBookingSuccess }: { classId: string; onClose: () => void; onBookingSuccess?: () => void }) {
   const [classData, setClassData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -846,6 +855,13 @@ function ClassCardWrapper({ classId, onClose }: { classId: string; onClose: () =
     loadClassData();
   }, [classId]);
 
+  const handleBookingSuccess = () => {
+    onClose();
+    if (onBookingSuccess) {
+      onBookingSuccess();
+    }
+  };
+
   if (loading) {
     return <div className="p-8 text-center">Cargando clase...</div>;
   }
@@ -858,7 +874,7 @@ function ClassCardWrapper({ classId, onClose }: { classId: string; onClose: () =
     <ClassCard
       classData={classData}
       currentUser={null}
-      onBookingSuccess={onClose}
+      onBookingSuccess={handleBookingSuccess}
       showPointsBonus={false}
     />
   );
