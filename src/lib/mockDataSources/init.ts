@@ -170,12 +170,12 @@ export function performInitialization() {
   // --- Initialize Users ---
   const initialUserDatabase: import('@/types').UserDB[] = [
     {
-      id: 'alex-user-id', // Real database ID for Alex García
-      name: 'Alex García',
-      email: 'alex.garcia@email.com',
+      id: 'cmhkwi8so0001tggo0bwojrjy', // Real database ID for Alex García
+      name: 'Alex Garcia',
+      email: 'alex@example.com', // Synced with real database
       hashedPassword: 'hashed_password123',
       level: '4.0' as import('@/types').MatchPadelLevel,
-      credit: 125.50,
+      credit: 1098.14, // Synced with real database (€1098.14)
       blockedCredit: 0,
       loyaltyPoints: 50,
       pendingBonusPoints: 0,
@@ -185,7 +185,7 @@ export function performInitialization() {
       profilePictureUrl: 'https://randomuser.me/api/portraits/men/32.jpg',
       genderCategory: 'masculino',
       createdAt: new Date(),
-      clubId: 'club-1', // Use real club ID
+      clubId: 'padel-estrella-madrid', // Real club ID from database
     },
      { id: 'user-2', name: 'Beatriz López', email: 'beatriz.lopez@email.com', hashedPassword: 'hashed_password123', level: '3.5' as import('@/types').MatchPadelLevel, credit: 80.00, loyaltyPoints: 450, profilePictureUrl: 'https://randomuser.me/api/portraits/women/44.jpg', genderCategory: 'femenino', createdAt: new Date(), clubId: 'club-1', },
      { id: 'user-3', name: 'Carlos Fernández', email: 'carlos.fernandez@email.com', hashedPassword: 'hashed_password123', level: '4.5' as import('@/types').MatchPadelLevel, credit: 25.00, loyaltyPoints: 800, profilePictureUrl: 'https://randomuser.me/api/portraits/men/45.jpg', genderCategory: 'masculino', createdAt: new Date(), clubId: 'club-1', },

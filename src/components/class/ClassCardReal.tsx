@@ -41,6 +41,18 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   allowedPlayerCounts = [1, 2, 3, 4] // Por defecto, permitir todas las opciones
 }) => {
   const { toast } = useToast();
+  
+  console.log(`🎴 ClassCardReal ${classData.id}: allowedPlayerCounts recibido =`, allowedPlayerCounts);
+  
+  // 🔍 Si no hay opciones de jugadores permitidas, no renderizar la tarjeta
+  const availableOptions = [1, 2, 3, 4].filter(count => allowedPlayerCounts.includes(count));
+  console.log(`🎴 ClassCardReal ${classData.id}: availableOptions calculado =`, availableOptions);
+  
+  if (availableOptions.length === 0) {
+    console.log(`🚫 ClassCardReal ${classData.id}: OCULTANDO tarjeta (sin opciones disponibles)`);
+    return null; // Ocultar completamente la tarjeta
+  }
+  
   // Usar bookings que ya vienen en classData en lugar de cargarlos
   const [bookings, setBookings] = useState<Booking[]>(
     Array.isArray((classData as any).bookings) ? (classData as any).bookings : 
@@ -55,7 +67,9 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     const bookingsData = (classData as any).bookings || classData.bookedPlayers;
     console.log('🔄 useEffect - classData completo:', classData);
     console.log('🔄 useEffect - bookingsData:', bookingsData);
-    if (Array.isArray(bookingsData)) {
+    
+    // Verificar que bookingsData existe y es un array
+    if (bookingsData && Array.isArray(bookingsData)) {
       console.log('📋 Usando bookings de classData:', bookingsData.length);
       if (bookingsData.length > 0) {
         console.log('🖼️ Primer booking completo:', JSON.stringify(bookingsData[0], null, 2));
@@ -63,7 +77,8 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
       }
       setBookings(bookingsData);
     } else {
-      console.warn('⚠️ bookingsData NO es un array:', bookingsData, typeof bookingsData);
+      console.warn('⚠️ bookingsData NO es un array o es undefined:', bookingsData, typeof bookingsData);
+      setBookings([]); // Establecer array vacío por defecto
     }
   }, [(classData as any).bookings, classData.bookedPlayers]);
 
@@ -145,22 +160,41 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          userId: 'user-alex-test',
+          userId: currentUser?.id || userId,
           timeSlotId: classData.id,
         })
       });
 
       if (response.ok) {
+        const data = await response.json();
+        
+        // 🔄 Notificar a TODAS las páginas abiertas que se canceló una reserva
+        localStorage.setItem('bookingCancelled', JSON.stringify({
+          timeSlotId: classData.id,
+          userId: currentUser?.id || userId,
+          timestamp: Date.now()
+        }));
+        
         toast({
           title: "¡Reserva cancelada!",
-          description: "Tu reserva ha sido cancelada exitosamente.",
+          description: "Redirigiendo al calendario...",
           className: "bg-orange-600 text-white"
         });
-        onBookingSuccess(); // Recargar lista completa desde el padre
+        
+        // 🔄 Si estamos en el dashboard, redirigir al calendario CON RECARGA FORZADA
+        if (window.location.pathname.includes('/dashboard')) {
+          setTimeout(() => {
+            // Usar replace para forzar recarga completa sin caché
+            window.location.replace('/activities?refresh=' + Date.now());
+          }, 500);
+        } else {
+          onBookingSuccess(); // Recargar lista completa desde el padre
+        }
       } else {
+        const errorData = await response.json();
         toast({
           title: "Error al cancelar",
-          description: "No se pudo cancelar la reserva",
+          description: errorData.error || "No se pudo cancelar la reserva",
           variant: "destructive"
         });
       }
@@ -406,7 +440,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   const levelInfo = getDynamicLevel();
 
   return (
-    <div className="bg-white rounded-2xl shadow-[0_8px_16px_rgba(0,0,0,0.3)] border border-gray-100 overflow-hidden w-full max-w-[380px] min-w-[320px] mx-auto">
+    <div className="bg-white rounded-2xl shadow-[0_8px_16px_rgba(0,0,0,0.3)] border border-gray-100 overflow-hidden w-full max-w-[304px] min-w-[256px] mx-auto scale-[0.80]">
       {/* Header with Instructor Info */}
       <div className="px-3 pt-2 pb-1">
         <div className="flex items-center justify-between mb-1">
@@ -535,7 +569,11 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                 </div>
               </div>
               
-              <button className="text-gray-400 hover:text-gray-600 transition-colors">
+              <button 
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Compartir clase"
+                title="Compartir clase"
+              >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
                 </svg>
@@ -553,6 +591,14 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
             ? bookings.filter(b => b.status !== 'CANCELLED' && b.groupSize === players) 
             : [];
           
+          // Verificar si esta modalidad está confirmada (tiene pista asignada)
+          const isThisModalityConfirmed = courtAssignment.isAssigned && 
+            modalityBookings.length >= players && 
+            modalityBookings.some(b => b.status === 'CONFIRMED');
+          
+          // Verificar si OTRA modalidad está confirmada
+          const isAnotherModalityConfirmed = courtAssignment.isAssigned && !isThisModalityConfirmed;
+          
           // Debug log para mostrar el filtrado
           if (bookings.length > 0) {
             console.log(`🎯 Clase ${classData.id.substring(0, 8)}: Modalidad ${players} jugadores`);
@@ -569,8 +615,23 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           return (
             <div 
               key={players} 
-              className="flex items-center justify-between gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded-lg transition-colors"
-              onClick={() => handleBook(players)}
+              className={cn(
+                "flex items-center justify-between gap-2 p-1 rounded-lg transition-colors",
+                isAnotherModalityConfirmed 
+                  ? "opacity-40 cursor-not-allowed bg-gray-100" 
+                  : "cursor-pointer hover:bg-gray-50"
+              )}
+              onClick={() => {
+                if (!isAnotherModalityConfirmed) {
+                  handleBook(players);
+                } else {
+                  toast({
+                    title: "Clase Confirmada",
+                    description: "Esta clase ya está confirmada con otra modalidad de jugadores",
+                    variant: "default"
+                  });
+                }
+              }}
             >
               {/* Player Circles */}
               <div className="flex items-center gap-1 flex-shrink-0">
@@ -589,12 +650,19 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                   return (
                     <div key={index} className="flex flex-col items-center gap-1">
                       <div
-                        className={`w-12 h-12 rounded-full border-2 flex items-center justify-center text-lg font-bold transition-all shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${
+                        className={cn(
+                          "w-12 h-12 rounded-full border-2 flex items-center justify-center text-lg font-bold transition-all shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]",
                           isOccupied 
                             ? 'border-green-500 bg-white' 
-                            : 'border-dashed border-green-400 bg-white text-green-400'
-                        } ${isCurrentUser ? 'ring-2 ring-blue-400 ring-offset-1' : ''}`}
-                        title={isOccupied ? booking.name : 'Disponible'}
+                            : 'border-dashed border-green-400 bg-white text-green-400',
+                          isCurrentUser && 'ring-2 ring-blue-400 ring-offset-1',
+                          isAnotherModalityConfirmed && 'grayscale opacity-50'
+                        )}
+                        title={
+                          isAnotherModalityConfirmed 
+                            ? 'Opción bloqueada - Otra modalidad confirmada'
+                            : isOccupied ? booking.name : 'Disponible'
+                        }
                       >
                         {isOccupied ? (
                           (() => {
@@ -648,8 +716,8 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                 })}
               </div>
               
-              {/* Price */}
-              <div className="text-right flex-shrink-0 ml-auto">
+              {/* Price - Desglosado */}
+              <div className="text-right flex-shrink-0 ml-auto mr-2">
                 <div className="text-lg font-bold text-gray-900">
                   € {pricePerPerson.toFixed(2)}
                 </div>
@@ -659,7 +727,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         })}
       </div>
 
-      {/* Available Courts */}
+      {/* Available Courts - Indicadores de disponibilidad de pistas */}
       <div className="px-3 py-1.5 bg-gray-50 border-t border-gray-100">
         <div className="text-center">
           {courtAssignment.isAssigned ? (
@@ -667,17 +735,121 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
               <div className="text-xs text-gray-600 mb-1">Pista asignada:</div>
               <div className="flex items-center justify-center gap-1">
                 <span className="font-semibold text-gray-900 text-sm">Pista {courtAssignment.courtNumber}</span>
-                <div className="w-5 h-3 bg-blue-500 rounded-sm ml-1"></div>
+                <svg 
+                  className="ml-1" 
+                  width="20" 
+                  height="12" 
+                  viewBox="0 0 60 40" 
+                  fill="none" 
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <rect x="2" y="2" width="56" height="36" rx="4" fill="#86BC24" stroke="#6B9B1E" strokeWidth="2"/>
+                  <line x1="30" y1="2" x2="30" y2="38" stroke="#FFFFFF" strokeWidth="1.5" strokeDasharray="3 3"/>
+                  <line x1="4" y1="20" x2="56" y2="20" stroke="#FFFFFF" strokeWidth="1" opacity="0.5"/>
+                </svg>
               </div>
             </>
           ) : (
             <>
-              <div className="text-xs text-gray-600 mb-1">Esperando jugadores:</div>
-              <div className="flex items-center justify-center gap-1">
-                <span className="font-semibold text-gray-900 text-sm">Pista sin asignar</span>
-                {[1, 2, 3, 4].map((court) => (
-                  <div key={court} className="w-5 h-3 bg-gray-300 rounded-sm ml-0.5"></div>
-                ))}
+              <div className="text-[10px] text-gray-500 text-center mb-1">
+                Disponibilidad de pistas
+              </div>
+              <div className="flex items-center justify-center gap-2">
+                {(() => {
+                  // Debug log
+                  if (typeof window !== 'undefined') {
+                    console.log('🏟️ ClassCard DEBUG:');
+                    console.log('  - classData completo:', classData);
+                    console.log('  - courtsAvailability:', (classData as any).courtsAvailability);
+                    console.log('  - tipo:', typeof (classData as any).courtsAvailability);
+                    console.log('  - es Array?:', Array.isArray((classData as any).courtsAvailability));
+                    console.log('  - availableCourtsCount:', (classData as any).availableCourtsCount);
+                  }
+                  
+                  const courts = (classData as any).courtsAvailability;
+                  
+                  if (!courts) {
+                    console.warn('⚠️ courtsAvailability es null/undefined');
+                    return false;
+                  }
+                  
+                  if (!Array.isArray(courts)) {
+                    console.warn('⚠️ courtsAvailability NO es un array:', courts);
+                    return false;
+                  }
+                  
+                  if (courts.length === 0) {
+                    console.warn('⚠️ courtsAvailability es un array vacío');
+                    return false;
+                  }
+                  
+                  console.log('✅ courtsAvailability válido con', courts.length, 'pistas');
+                  return true;
+                })() ? (
+                  (classData as any).courtsAvailability.map((court: any) => {
+                    const fillColor = court.status === 'available' 
+                      ? '#10B981'  // Verde - disponible
+                      : court.status === 'occupied'
+                      ? '#EF4444'  // Rojo - ocupada
+                      : '#9CA3AF'; // Gris - no disponible
+                    
+                    const strokeColor = court.status === 'available'
+                      ? '#059669'
+                      : court.status === 'occupied'
+                      ? '#DC2626'
+                      : '#6B7280';
+                    
+                    const statusText = court.status === 'available'
+                      ? 'Disponible'
+                      : court.status === 'occupied'
+                      ? 'Ocupada'
+                      : 'No disponible';
+                    
+                    return (
+                      <div key={court.courtId} className="relative group flex flex-col items-center" title={`Pista ${court.courtNumber}: ${statusText}`}>
+                        <svg 
+                          className="transition-transform hover:scale-110 shadow-inner-custom" 
+                          width="40" 
+                          height="24" 
+                          viewBox="0 0 60 40" 
+                          fill="none" 
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <defs>
+                            <filter id={`innerShadow-${court.courtId}`} x="-50%" y="-50%" width="200%" height="200%">
+                              <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur"/>
+                              <feOffset in="blur" dx="0" dy="1" result="offsetBlur"/>
+                              <feFlood floodColor="#000000" floodOpacity="0.25" result="offsetColor"/>
+                              <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur"/>
+                              <feComposite in="SourceGraphic" in2="offsetBlur" operator="over"/>
+                            </filter>
+                          </defs>
+                          <rect x="2" y="2" width="56" height="36" rx="4" fill={fillColor} stroke={strokeColor} strokeWidth="2" filter={`url(#innerShadow-${court.courtId})`}/>
+                          <line x1="30" y1="2" x2="30" y2="38" stroke="#FFFFFF" strokeWidth="1.5" strokeDasharray="3 3"/>
+                          <line x1="4" y1="20" x2="56" y2="20" stroke="#FFFFFF" strokeWidth="1" opacity="0.5"/>
+                        </svg>
+                        
+                        {/* 🔴 X ROJA para pistas ocupadas */}
+                        {court.status === 'occupied' && (
+                          <div className="text-red-600 font-bold text-xs leading-none mt-0.5">✕</div>
+                        )}
+                        
+                        {/* 🟢 LIBRE para pistas disponibles */}
+                        {court.status === 'available' && (
+                          <div className="text-green-600 font-semibold text-[9px] leading-none mt-0.5">LIBRE</div>
+                        )}
+                        
+                        {/* Tooltip */}
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                          Pista {court.courtNumber}: {statusText}
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  // Fallback si no hay datos de disponibilidad
+                  <span className="text-xs text-gray-500">Cargando disponibilidad...</span>
+                )}
               </div>
             </>
           )}
@@ -687,4 +859,18 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   );
 };
 
-export default ClassCardReal;
+// ✅ PERFORMANCE: Memoizar para evitar re-renders cuando otras tarjetas cambien
+// NOTA: Comparamos bookings para detectar cambios tras reservar
+export default React.memo(ClassCardReal, (prevProps, nextProps) => {
+  // Re-renderizar si cambia CUALQUIERA de estos valores
+  const classIdChanged = prevProps.classData.id !== nextProps.classData.id;
+  const userChanged = prevProps.currentUser?.id !== nextProps.currentUser?.id;
+  const bookedPlayersChanged = JSON.stringify(prevProps.classData.bookedPlayers) !== JSON.stringify(nextProps.classData.bookedPlayers);
+  const bookingsChanged = JSON.stringify((prevProps.classData as any).bookings) !== JSON.stringify((nextProps.classData as any).bookings);
+  const courtNumberChanged = prevProps.classData.courtNumber !== nextProps.classData.courtNumber;
+  
+  // Si algo cambió, NO bloquear el re-render (retornar false)
+  const shouldBlock = !classIdChanged && !userChanged && !bookedPlayersChanged && !bookingsChanged && !courtNumberChanged;
+  
+  return shouldBlock;
+});

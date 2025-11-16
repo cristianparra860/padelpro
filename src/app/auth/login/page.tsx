@@ -70,7 +70,7 @@ export default function StudentLoginPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" placeholder="student@example.com" defaultValue="alex.garcia@email.com" />
+                  <Input id="email" type="email" placeholder="student@example.com" defaultValue="alex@example.com" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Contraseña</Label>

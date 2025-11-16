@@ -19,7 +19,6 @@ import { Label } from '@/components/ui/label';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Loader2, Euro } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { addCreditToStudent } from '@/lib/mockData';
 
 interface AddCreditDialogProps {
   isOpen: boolean;
@@ -53,17 +52,40 @@ const AddCreditDialog: React.FC<AddCreditDialogProps> = ({
   const onSubmit = (values: FormData) => {
     startTransition(async () => {
       try {
-        const result = await addCreditToStudent(userId, values.amount);
-        if ('error' in result) {
-          toast({ title: 'Error al Añadir Saldo', description: result.error, variant: 'destructive' });
-        } else {
-          onCreditAdded(result.newBalance);
-          onOpenChange(false); // Close dialog on success
-          form.reset({ amount: 20 });
+        const response = await fetch(`/api/users/${userId}/credit/add`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ amount: values.amount }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          toast({ 
+            title: 'Error al Añadir Saldo', 
+            description: result.error || 'No se pudo añadir el saldo', 
+            variant: 'destructive' 
+          });
+          return;
         }
+
+        onCreditAdded(result.newBalance);
+        onOpenChange(false);
+        form.reset({ amount: 20 });
+        
+        toast({
+          title: '✅ Saldo Añadido',
+          description: `Añadidos ${values.amount}€ a tu cuenta. Nuevo saldo: ${result.newBalance.toFixed(2)}€`,
+        });
       } catch (error) {
         console.error("Error adding credit:", error);
-        toast({ title: 'Error Inesperado', description: 'No se pudo añadir el saldo.', variant: 'destructive' });
+        toast({ 
+          title: 'Error Inesperado', 
+          description: 'No se pudo añadir el saldo.', 
+          variant: 'destructive' 
+        });
       }
     });
   };

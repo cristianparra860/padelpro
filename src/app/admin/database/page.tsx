@@ -59,7 +59,8 @@ import {
   Settings2,
   ToggleLeft,
   Euro,
-  Save
+  Save,
+  Pencil
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
@@ -226,6 +227,22 @@ export default function DatabaseAdminPanel() {
     adminId: ''
   });
 
+  const [clubSettings, setClubSettings] = useState<{[key: string]: any}>({});
+
+  // Estado para franjas horarias de precios
+  const [priceSlots, setPriceSlots] = useState<{[clubId: string]: any[]}>({});
+  const [newPriceSlot, setNewPriceSlot] = useState({
+    clubId: '',
+    name: '',
+    startTime: '09:00',
+    endTime: '12:00',
+    price: 10,
+    daysOfWeek: [1, 2, 3, 4, 5], // Lunes a Viernes por defecto
+    priority: 0
+  });
+  const [editingPriceSlot, setEditingPriceSlot] = useState<any>(null);
+  const [isPriceSlotDialogOpen, setIsPriceSlotDialogOpen] = useState(false);
+
   const [newInstructor, setNewInstructor] = useState({
     userId: '',
     clubId: '',
@@ -300,76 +317,98 @@ export default function DatabaseAdminPanel() {
       const usersResponse = await fetch(`/api/admin/users${clubParam}`);
       if (usersResponse.ok && isMountedRef.current) {
         const usersData = await usersResponse.json();
-        setUsers(usersData);
+        if (isMountedRef.current) setUsers(usersData);
       }
 
       // Cargar timeslots  
       const timeSlotsResponse = await fetch(`/api/admin/timeslots${clubParam}`);
-      if (timeSlotsResponse.ok) {
+      if (timeSlotsResponse.ok && isMountedRef.current) {
         const timeSlotsData = await timeSlotsResponse.json();
-        setTimeSlots(timeSlotsData);
+        if (isMountedRef.current) setTimeSlots(timeSlotsData);
       }
 
       // Cargar bookings
       const bookingsResponse = await fetch(`/api/admin/bookings${clubParam}`);
-      if (bookingsResponse.ok) {
+      if (bookingsResponse.ok && isMountedRef.current) {
         const bookingsData = await bookingsResponse.json();
         
-        // Para las tarjetas AdminBookingCard (estructura anidada)
-        setBookingsForCards(bookingsData);
-        
-        // Para el resto del componente (estructura plana para compatibilidad)
-        const flatBookings = bookingsData.map((booking: BookingWithTimeSlot) => ({
-          id: booking.id,
-          userId: booking.userId,
-          timeSlotId: booking.timeSlot.id,
-          groupSize: booking.groupSize,
-          status: booking.status,
-          createdAt: booking.createdAt,
-          userName: booking.user.name,
-          userLevel: 'intermedio', // Fallback
-          userGender: null,
-          start: booking.timeSlot.start,
-          end: booking.timeSlot.end,
-          maxPlayers: booking.timeSlot.maxPlayers,
-          totalPrice: booking.timeSlot.totalPrice,
-          classLevel: booking.timeSlot.level,
-          classCategory: booking.timeSlot.category,
-          instructorName: booking.timeSlot.instructor.name,
-          instructorProfilePicture: booking.timeSlot.instructor.profilePictureUrl || null,
-          courtNumber: booking.timeSlot.court.number,
-          bookedPlayers: booking.timeSlot.totalPlayers
-        }));
-        
-        setBookings(flatBookings);
+        if (isMountedRef.current) {
+          // Para las tarjetas AdminBookingCard (estructura anidada)
+          setBookingsForCards(bookingsData);
+          
+          // Para el resto del componente (estructura plana para compatibilidad)
+          const flatBookings = bookingsData.map((booking: BookingWithTimeSlot) => ({
+            id: booking.id,
+            userId: booking.userId,
+            timeSlotId: booking.timeSlot.id,
+            groupSize: booking.groupSize,
+            status: booking.status,
+            createdAt: booking.createdAt,
+            userName: booking.user.name,
+            userLevel: 'intermedio', // Fallback
+            userGender: null,
+            start: booking.timeSlot.start,
+            end: booking.timeSlot.end,
+            maxPlayers: booking.timeSlot.maxPlayers,
+            totalPrice: booking.timeSlot.totalPrice,
+            classLevel: booking.timeSlot.level,
+            classCategory: booking.timeSlot.category,
+            instructorName: booking.timeSlot.instructor.name,
+            instructorProfilePicture: booking.timeSlot.instructor.profilePictureUrl || null,
+            courtNumber: booking.timeSlot.court.number,
+            bookedPlayers: booking.timeSlot.totalPlayers
+          }));
+          
+          setBookings(flatBookings);
+        }
       }
 
       // Cargar administradores - filtrar según el club seleccionado
       const adminsResponse = await fetch(`/api/admin/admins${clubParam}`);
-      if (adminsResponse.ok) {
+      if (adminsResponse.ok && isMountedRef.current) {
         const adminsData = await adminsResponse.json();
-        setAdmins(adminsData);
+        if (isMountedRef.current) setAdmins(adminsData);
       }
 
       // Cargar clubes (siempre cargar todos para el selector)
       const clubsResponse = await fetch('/api/admin/clubs');
-      if (clubsResponse.ok) {
+      console.log('🔍 Clubs response status:', clubsResponse.ok, clubsResponse.status);
+      if (clubsResponse.ok && isMountedRef.current) {
         const clubsData = await clubsResponse.json();
-        setClubs(clubsData);
+        console.log('🔍 Clubs data received:', clubsData.length, clubsData);
+        if (isMountedRef.current) setClubs(clubsData);
+      } else {
+        console.error('❌ Failed to load clubs:', clubsResponse.status);
       }
 
       // Cargar instructores
       const instructorsResponse = await fetch(`/api/admin/instructors${clubParam}`);
-      if (instructorsResponse.ok) {
+      if (instructorsResponse.ok && isMountedRef.current) {
         const instructorsData = await instructorsResponse.json();
-        setInstructors(instructorsData);
+        if (isMountedRef.current) setInstructors(instructorsData);
       }
 
       // Cargar pistas
       const courtsResponse = await fetch(`/api/admin/courts${clubParam}`);
-      if (courtsResponse.ok) {
+      if (courtsResponse.ok && isMountedRef.current) {
         const courtsData = await courtsResponse.json();
-        setCourts(courtsData);
+        if (isMountedRef.current) setCourts(courtsData);
+      }
+
+      // Cargar franjas horarias de precios para cada club (usar clubsData ya cargado)
+      if (clubs.length > 0 && isMountedRef.current) {
+        const priceSlotsData: {[clubId: string]: any[]} = {};
+        
+        for (const club of clubs) {
+          const priceSlotsResponse = await fetch(`/api/admin/clubs/${club.id}/price-slots`);
+          if (priceSlotsResponse.ok && isMountedRef.current) {
+            priceSlotsData[club.id] = await priceSlotsResponse.json();
+          } else {
+            priceSlotsData[club.id] = [];
+          }
+        }
+        
+        if (isMountedRef.current) setPriceSlots(priceSlotsData);
       }
 
       // Cargar partidas
@@ -710,6 +749,23 @@ export default function DatabaseAdminPanel() {
     return clubs;
   };
 
+  // Function to get filtered users based on profile and club
+  const getFilteredUsers = () => {
+    const filteredData = getFilteredData();
+    if (filteredData.restrictToClub) {
+      return users.filter(user => {
+        // Filter by club if user has clubId
+        if (user.clubId) {
+          return user.clubId === filteredData.restrictToClub;
+        }
+        // If user doesn't have clubId, check if they are associated through other means
+        // For now, exclude users without clubId when filtering by club
+        return false;
+      });
+    }
+    return users;
+  };
+
   // Función para añadir crédito a un usuario
   const handleAddCredit = async () => {
     if (!creditUserId || !creditAmount) {
@@ -796,7 +852,7 @@ export default function DatabaseAdminPanel() {
           { id: 'clubs', label: `🏢 Clubs (${clubs.length})`, show: true },
           { id: 'courts', label: '🏟️ Pistas', show: true },
           { id: 'instructors', label: `👨‍🏫 Instructors (${getFilteredInstructors().length})`, show: true },
-          { id: 'users', label: `👥 Users (${users.length})`, show: true },
+          { id: 'users', label: `👥 Users (${getFilteredUsers().length})`, show: true },
           { id: 'timeslots', label: `📅 Clases Futuras (${getFutureTimeSlots().length})`, show: true },
           { id: 'past-timeslots', label: `📜 Clases Pasadas (${getPastTimeSlots().length})`, show: true },
           { id: 'bookings', label: `📋 Bookings (${bookings.length})`, show: true },
@@ -808,13 +864,13 @@ export default function DatabaseAdminPanel() {
         const filteredTimeSlots = getFilteredTimeSlots();
         const filteredBookings = getFilteredBookings();
         const filteredInstructors = getFilteredInstructors();
-        const filteredUsers = getAvailableUsers();
+        const filteredUsersForClub = getFilteredUsers();
         
         return [
           { id: 'overview', label: '📊 Dashboard', show: true },
           { id: 'courts', label: `🏟️ Pistas (${filteredCourts.length})`, show: true },
           { id: 'instructors', label: `👨‍🏫 Instructors (${filteredInstructors.length})`, show: true },
-          { id: 'users', label: `👥 Users (${filteredUsers.length})`, show: true },
+          { id: 'users', label: `👥 Users (${filteredUsersForClub.length})`, show: true },
           { id: 'timeslots', label: `📅 Clases Futuras (${getFutureTimeSlots().length})`, show: true },
           { id: 'past-timeslots', label: `📜 Clases Pasadas (${getPastTimeSlots().length})`, show: true },
           { id: 'bookings', label: `📋 Bookings (${filteredBookings.length})`, show: true },
@@ -1273,6 +1329,125 @@ export default function DatabaseAdminPanel() {
     }
   };
 
+  const updateClubSettings = async (clubId: string, settings: any) => {
+    try {
+      const response = await fetch(`/api/admin/clubs/${clubId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+      });
+
+      if (response.ok) {
+        toast({
+          title: 'Éxito',
+          description: 'Configuración actualizada correctamente'
+        });
+        loadData();
+      } else {
+        const error = await response.json();
+        throw new Error(error.error);
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Error actualizando configuración',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  // Funciones para gestionar franjas horarias
+  const createPriceSlot = async () => {
+    try {
+      const response = await fetch(`/api/admin/clubs/${newPriceSlot.clubId}/price-slots`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newPriceSlot)
+      });
+
+      if (response.ok) {
+        toast({
+          title: 'Éxito',
+          description: 'Franja horaria creada correctamente'
+        });
+        setNewPriceSlot({
+          clubId: '',
+          name: '',
+          startTime: '09:00',
+          endTime: '12:00',
+          price: 10,
+          daysOfWeek: [1, 2, 3, 4, 5],
+          priority: 0
+        });
+        setIsPriceSlotDialogOpen(false);
+        loadData();
+      } else {
+        const error = await response.json();
+        throw new Error(error.error);
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Error creando franja horaria',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const updatePriceSlot = async (slotId: string, clubId: string, data: any) => {
+    try {
+      const response = await fetch(`/api/admin/clubs/${clubId}/price-slots/${slotId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      if (response.ok) {
+        toast({
+          title: 'Éxito',
+          description: 'Franja horaria actualizada correctamente'
+        });
+        setEditingPriceSlot(null);
+        setIsPriceSlotDialogOpen(false);
+        loadData();
+      } else {
+        const error = await response.json();
+        throw new Error(error.error);
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Error actualizando franja horaria',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const deletePriceSlot = async (slotId: string, clubId: string) => {
+    try {
+      const response = await fetch(`/api/admin/clubs/${clubId}/price-slots/${slotId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        toast({
+          title: 'Éxito',
+          description: 'Franja horaria eliminada correctamente'
+        });
+        loadData();
+      } else {
+        const error = await response.json();
+        throw new Error(error.error);
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Error eliminando franja horaria',
+        variant: 'destructive'
+      });
+    }
+  };
+
   const createInstructor = async () => {
     try {
       const response = await fetch('/api/admin/instructors', {
@@ -1670,14 +1845,10 @@ export default function DatabaseAdminPanel() {
                 </SelectTrigger>
                 <SelectContent>
                   {selectedProfile === 'super-admin' && <SelectItem value="all">🌍 Todos los Clubs</SelectItem>}
-                  {getFilteredClubs().map((club) => (
+                  {console.log('🔍 Clubs disponibles:', clubs.length, clubs)}
+                  {clubs.map((club) => (
                     <SelectItem key={club.id} value={club.id}>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{club.name}</span>
-                        {club.address && (
-                          <span className="text-xs text-gray-500">📍 {club.address}</span>
-                        )}
-                      </div>
+                      🏢 {club.name} - {club.address}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -2213,6 +2384,21 @@ export default function DatabaseAdminPanel() {
                                   </select>
                                 </div>
                                 <div className="space-y-2">
+                                  <Label className="text-sm font-medium">Género *</Label>
+                                  <select
+                                    value={editedProfileData.gender || ''}
+                                    onChange={(e) => setEditedProfileData({...editedProfileData, gender: e.target.value})}
+                                    className="w-full p-3 border rounded-lg text-lg"
+                                  >
+                                    <option value="">Selecciona tu género</option>
+                                    <option value="masculino">Masculino</option>
+                                    <option value="femenino">Femenino</option>
+                                  </select>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Define tu género para poder unirte a clases de chicos, chicas o mixtas
+                                  </p>
+                                </div>
+                                <div className="space-y-2">
                                   <Label className="text-sm font-medium">Teléfono</Label>
                                   <Input
                                     type="tel"
@@ -2350,24 +2536,49 @@ export default function DatabaseAdminPanel() {
         <TabsContent value="user-balance" className="space-y-4">
           {selectedUserId ? (
             <div className="space-y-4">
-              {/* Card de Saldo Actual */}
-              <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center">
-                        <span className="text-2xl">💰</span>
-                      </div>
-                      <div>
-                        <div className="text-sm text-gray-600">Saldo Actual</div>
-                        <div className="text-3xl font-bold text-green-700">
-                          € {users.find(u => u.id === selectedUserId)?.credits?.toFixed(2) || '0.00'}
+              {/* Cards de Saldo y Puntos */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Card de Saldo Actual */}
+                <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center">
+                          <span className="text-2xl">💰</span>
                         </div>
-                      </div>
-                    </span>
-                  </CardTitle>
-                </CardHeader>
-              </Card>
+                        <div>
+                          <div className="text-sm text-gray-600">Saldo Actual</div>
+                          <div className="text-3xl font-bold text-green-700">
+                            € {users.find(u => u.id === selectedUserId)?.credits?.toFixed(2) || '0.00'}
+                          </div>
+                        </div>
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                </Card>
+
+                {/* Card de Puntos */}
+                <Card className="bg-gradient-to-br from-purple-50 to-violet-50 border-purple-200">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <div className="w-12 h-12 rounded-full bg-purple-500 flex items-center justify-center">
+                          <span className="text-2xl">🎁</span>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-600">Puntos Acumulados</div>
+                          <div className="text-3xl font-bold text-purple-700">
+                            {users.find(u => u.id === selectedUserId)?.points || 0} pts
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            Por cancelaciones (1€ = 1 punto)
+                          </div>
+                        </div>
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                </Card>
+              </div>
 
               {/* Card de Historial de Movimientos */}
               <Card>
@@ -3579,7 +3790,7 @@ export default function DatabaseAdminPanel() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.map((user) => (
+                  {getFilteredUsers().map((user) => (
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">
                         <EditableCell
@@ -4185,7 +4396,7 @@ export default function DatabaseAdminPanel() {
         </TabsContent>
 
         <TabsContent value="calendar" className="space-y-4">
-          <ClubCalendar clubId={selectedClubId !== 'all' ? selectedClubId : 'club-1'} />
+          <ClubCalendar clubId={selectedClubId !== 'all' ? selectedClubId : 'padel-estrella-madrid'} />
         </TabsContent>
 
         <TabsContent value="rates" className="space-y-4">
@@ -4214,18 +4425,323 @@ export default function DatabaseAdminPanel() {
             <CardHeader>
               <CardTitle className="flex items-center">
                 <Settings className="mr-2 h-5 w-5" />
-                ⚙️ Configuración del Sistema
+                ⚙️ Configuración del Club
               </CardTitle>
               <CardDescription>
-                Ajustes generales y configuración avanzada
+                Configuración general del club y datos de contacto
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center text-gray-500 py-8">
-                <Settings className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                <p className="text-lg mb-2">Configuración del Sistema</p>
-                <p className="text-sm">Esta funcionalidad estará disponible próximamente</p>
-              </div>
+              {getFilteredClubs().length > 0 ? (
+                <div className="space-y-6">
+                  {getFilteredClubs().map((club) => {
+                    // Inicializar settings si no existen
+                    if (!clubSettings[club.id]) {
+                      setClubSettings(prev => ({
+                        ...prev,
+                        [club.id]: {
+                          name: club.name,
+                          email: club.email || '',
+                          phone: club.phone || '',
+                          address: club.address || '',
+                          logo: club.logo || '',
+                          description: club.description || '',
+                          courtRentalPrice: (club as any).courtRentalPrice || 10,
+                          openingTime: '08:00',
+                          closingTime: '22:00'
+                        }
+                      }));
+                    }
+
+                    const settings = clubSettings[club.id] || {
+                      name: club.name,
+                      email: club.email || '',
+                      phone: club.phone || '',
+                      address: club.address || '',
+                      logo: club.logo || '',
+                      description: club.description || '',
+                      courtRentalPrice: (club as any).courtRentalPrice || 10,
+                      openingTime: '08:00',
+                      closingTime: '22:00'
+                    };
+
+                    return (
+                      <div key={club.id} className="border rounded-lg p-6">
+                        <h3 className="text-lg font-semibold mb-4">
+                          🏢 {club.name}
+                        </h3>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {/* Nombre del Club */}
+                          <div className="space-y-2">
+                            <Label htmlFor={`club-name-${club.id}`}>Nombre del Club</Label>
+                            <Input
+                              id={`club-name-${club.id}`}
+                              value={settings.name}
+                              placeholder="Nombre del club"
+                              onChange={(e) => {
+                                setClubSettings(prev => ({
+                                  ...prev,
+                                  [club.id]: { ...settings, name: e.target.value }
+                                }));
+                              }}
+                            />
+                          </div>
+
+                          {/* Email de Contacto */}
+                          <div className="space-y-2">
+                            <Label htmlFor={`club-email-${club.id}`}>Email de Contacto</Label>
+                            <Input
+                              id={`club-email-${club.id}`}
+                              type="email"
+                              value={settings.email}
+                              placeholder="contacto@club.com"
+                              onChange={(e) => {
+                                setClubSettings(prev => ({
+                                  ...prev,
+                                  [club.id]: { ...settings, email: e.target.value }
+                                }));
+                              }}
+                            />
+                          </div>
+
+                          {/* Teléfono */}
+                          <div className="space-y-2">
+                            <Label htmlFor={`club-phone-${club.id}`}>Teléfono</Label>
+                            <Input
+                              id={`club-phone-${club.id}`}
+                              type="tel"
+                              value={settings.phone}
+                              placeholder="+34 XXX XXX XXX"
+                              onChange={(e) => {
+                                setClubSettings(prev => ({
+                                  ...prev,
+                                  [club.id]: { ...settings, phone: e.target.value }
+                                }));
+                              }}
+                            />
+                          </div>
+
+                          {/* Dirección */}
+                          <div className="space-y-2">
+                            <Label htmlFor={`club-address-${club.id}`}>Dirección</Label>
+                            <Input
+                              id={`club-address-${club.id}`}
+                              value={settings.address}
+                              placeholder="Calle, número, ciudad"
+                              onChange={(e) => {
+                                setClubSettings(prev => ({
+                                  ...prev,
+                                  [club.id]: { ...settings, address: e.target.value }
+                                }));
+                              }}
+                            />
+                          </div>
+
+                          {/* Horario de Apertura */}
+                          <div className="space-y-2">
+                            <Label htmlFor={`club-opening-${club.id}`}>Hora de Apertura</Label>
+                            <Input
+                              id={`club-opening-${club.id}`}
+                              type="time"
+                              value={settings.openingTime}
+                              onChange={(e) => {
+                                setClubSettings(prev => ({
+                                  ...prev,
+                                  [club.id]: { ...settings, openingTime: e.target.value }
+                                }));
+                              }}
+                            />
+                          </div>
+
+                          {/* Horario de Cierre */}
+                          <div className="space-y-2">
+                            <Label htmlFor={`club-closing-${club.id}`}>Hora de Cierre</Label>
+                            <Input
+                              id={`club-closing-${club.id}`}
+                              type="time"
+                              value={settings.closingTime}
+                              onChange={(e) => {
+                                setClubSettings(prev => ({
+                                  ...prev,
+                                  [club.id]: { ...settings, closingTime: e.target.value }
+                                }));
+                              }}
+                            />
+                          </div>
+
+                          {/* Tarifa de Alquiler de Pista */}
+                          <div className="space-y-2 md:col-span-2">
+                            <Label htmlFor={`club-court-price-${club.id}`}>
+                              💰 Tarifa de Alquiler de Pista por Defecto (€/hora)
+                            </Label>
+                            <div className="flex gap-2 items-center">
+                              <Input
+                                id={`club-court-price-${club.id}`}
+                                type="number"
+                                step="0.5"
+                                min="0"
+                                value={settings.courtRentalPrice}
+                                placeholder="10.00"
+                                onChange={(e) => {
+                                  setClubSettings(prev => ({
+                                    ...prev,
+                                    [club.id]: { ...settings, courtRentalPrice: parseFloat(e.target.value) || 0 }
+                                  }));
+                                }}
+                                className="max-w-32"
+                              />
+                              <span className="text-sm text-gray-500">
+                                Este precio se usa cuando no hay franjas horarias configuradas
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Franjas Horarias con Precios */}
+                          <div className="space-y-3 md:col-span-2">
+                            <div className="flex items-center justify-between">
+                              <Label>🕐 Franjas Horarias con Precios Personalizados</Label>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setNewPriceSlot({
+                                    clubId: club.id,
+                                    name: '',
+                                    startTime: '09:00',
+                                    endTime: '12:00',
+                                    price: 10,
+                                    daysOfWeek: [1, 2, 3, 4, 5],
+                                    priority: 0
+                                  });
+                                  setEditingPriceSlot(null);
+                                  setIsPriceSlotDialogOpen(true);
+                                }}
+                              >
+                                <Plus className="w-4 h-4 mr-2" />
+                                Añadir Franja
+                              </Button>
+                            </div>
+                            
+                            {priceSlots[club.id] && priceSlots[club.id].length > 0 ? (
+                              <div className="space-y-2">
+                                {priceSlots[club.id].map((slot: any) => {
+                                  const days = JSON.parse(slot.daysOfWeek) as number[];
+                                  const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+                                  const daysText = days.map(d => dayNames[d]).join(', ');
+                                  
+                                  return (
+                                    <div key={slot.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                                      <div className="flex-1">
+                                        <div className="font-medium text-sm">{slot.name}</div>
+                                        <div className="text-xs text-gray-600 mt-1">
+                                          {slot.startTime} - {slot.endTime} • {daysText}
+                                        </div>
+                                        <div className="text-sm font-semibold text-green-600 mt-1">
+                                          €{slot.price}/hora {slot.priority > 0 && `(Prioridad: ${slot.priority})`}
+                                        </div>
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() => {
+                                            setEditingPriceSlot({
+                                              ...slot,
+                                              daysOfWeek: JSON.parse(slot.daysOfWeek)
+                                            });
+                                            setIsPriceSlotDialogOpen(true);
+                                          }}
+                                        >
+                                          <Edit className="w-4 h-4" />
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() => {
+                                            if (confirm('¿Eliminar esta franja horaria?')) {
+                                              deletePriceSlot(slot.id, club.id);
+                                            }
+                                          }}
+                                        >
+                                          <Trash2 className="w-4 h-4 text-red-500" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-gray-500 italic p-3 bg-gray-50 rounded">
+                                No hay franjas horarias configuradas. Se usará el precio por defecto.
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Logo del Club */}
+                          <div className="space-y-2 md:col-span-2">
+                            <Label htmlFor={`club-logo-${club.id}`}>URL del Logo</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                id={`club-logo-${club.id}`}
+                                value={settings.logo}
+                                placeholder="https://ejemplo.com/logo.png"
+                                onChange={(e) => {
+                                  setClubSettings(prev => ({
+                                    ...prev,
+                                    [club.id]: { ...settings, logo: e.target.value }
+                                  }));
+                                }}
+                              />
+                              {settings.logo && (
+                                <div className="w-12 h-12 border rounded overflow-hidden flex-shrink-0">
+                                  <img 
+                                    src={settings.logo} 
+                                    alt="Logo del club" 
+                                    className="w-full h-full object-contain"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Descripción */}
+                          <div className="space-y-2 md:col-span-2">
+                            <Label htmlFor={`club-description-${club.id}`}>Descripción</Label>
+                            <textarea
+                              id={`club-description-${club.id}`}
+                              className="w-full min-h-[100px] px-3 py-2 border rounded-md"
+                              value={settings.description}
+                              placeholder="Descripción del club, servicios, instalaciones..."
+                              onChange={(e) => {
+                                setClubSettings(prev => ({
+                                  ...prev,
+                                  [club.id]: { ...settings, description: e.target.value }
+                                }));
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="mt-6 pt-6 border-t">
+                          <Button 
+                            className="w-full md:w-auto"
+                            onClick={() => updateClubSettings(club.id, settings)}
+                          >
+                            💾 Guardar Cambios
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center text-gray-500 py-8">
+                  <Settings className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg mb-2">No hay club seleccionado</p>
+                  <p className="text-sm">Selecciona un club para ver su configuración</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -4233,6 +4749,172 @@ export default function DatabaseAdminPanel() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Diálogo para Crear/Editar Franja Horaria */}
+      <Dialog open={isPriceSlotDialogOpen} onOpenChange={setIsPriceSlotDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {editingPriceSlot ? 'Editar Franja Horaria' : 'Nueva Franja Horaria'}
+            </DialogTitle>
+            <DialogDescription>
+              Configura el precio de alquiler de pista para una franja horaria específica
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Nombre de la franja */}
+            <div className="space-y-2">
+              <Label>Nombre de la Franja</Label>
+              <Input
+                placeholder="Ej: Horario Valle, Horario Punta, Fin de Semana"
+                value={editingPriceSlot?.name || newPriceSlot.name}
+                onChange={(e) => {
+                  if (editingPriceSlot) {
+                    setEditingPriceSlot({ ...editingPriceSlot, name: e.target.value });
+                  } else {
+                    setNewPriceSlot({ ...newPriceSlot, name: e.target.value });
+                  }
+                }}
+              />
+            </div>
+
+            {/* Horario */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Hora Inicio</Label>
+                <Input
+                  type="time"
+                  value={editingPriceSlot?.startTime || newPriceSlot.startTime}
+                  onChange={(e) => {
+                    if (editingPriceSlot) {
+                      setEditingPriceSlot({ ...editingPriceSlot, startTime: e.target.value });
+                    } else {
+                      setNewPriceSlot({ ...newPriceSlot, startTime: e.target.value });
+                    }
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Hora Fin</Label>
+                <Input
+                  type="time"
+                  value={editingPriceSlot?.endTime || newPriceSlot.endTime}
+                  onChange={(e) => {
+                    if (editingPriceSlot) {
+                      setEditingPriceSlot({ ...editingPriceSlot, endTime: e.target.value });
+                    } else {
+                      setNewPriceSlot({ ...newPriceSlot, endTime: e.target.value });
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Precio */}
+            <div className="space-y-2">
+              <Label>Precio por Hora (€)</Label>
+              <Input
+                type="number"
+                step="0.5"
+                min="0"
+                placeholder="10.00"
+                value={editingPriceSlot?.price || newPriceSlot.price}
+                onChange={(e) => {
+                  if (editingPriceSlot) {
+                    setEditingPriceSlot({ ...editingPriceSlot, price: parseFloat(e.target.value) || 0 });
+                  } else {
+                    setNewPriceSlot({ ...newPriceSlot, price: parseFloat(e.target.value) || 0 });
+                  }
+                }}
+              />
+            </div>
+
+            {/* Días de la semana */}
+            <div className="space-y-2">
+              <Label>Días de la Semana</Label>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: 1, label: 'Lun' },
+                  { value: 2, label: 'Mar' },
+                  { value: 3, label: 'Mié' },
+                  { value: 4, label: 'Jue' },
+                  { value: 5, label: 'Vie' },
+                  { value: 6, label: 'Sáb' },
+                  { value: 0, label: 'Dom' }
+                ].map(day => {
+                  const selectedDays = editingPriceSlot?.daysOfWeek || newPriceSlot.daysOfWeek;
+                  const isSelected = selectedDays.includes(day.value);
+                  
+                  return (
+                    <Button
+                      key={day.value}
+                      type="button"
+                      variant={isSelected ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => {
+                        const currentDays = editingPriceSlot?.daysOfWeek || newPriceSlot.daysOfWeek;
+                        const newDays = isSelected
+                          ? currentDays.filter((d: number) => d !== day.value)
+                          : [...currentDays, day.value];
+                        
+                        if (editingPriceSlot) {
+                          setEditingPriceSlot({ ...editingPriceSlot, daysOfWeek: newDays });
+                        } else {
+                          setNewPriceSlot({ ...newPriceSlot, daysOfWeek: newDays });
+                        }
+                      }}
+                    >
+                      {day.label}
+                    </Button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Selecciona los días en los que aplica esta franja horaria
+              </p>
+            </div>
+
+            {/* Prioridad */}
+            <div className="space-y-2">
+              <Label>Prioridad (opcional)</Label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="0"
+                value={editingPriceSlot?.priority || newPriceSlot.priority}
+                onChange={(e) => {
+                  if (editingPriceSlot) {
+                    setEditingPriceSlot({ ...editingPriceSlot, priority: parseInt(e.target.value) || 0 });
+                  } else {
+                    setNewPriceSlot({ ...newPriceSlot, priority: parseInt(e.target.value) || 0 });
+                  }
+                }}
+              />
+              <p className="text-xs text-gray-500">
+                Mayor prioridad se aplica primero si hay solapamiento (0 = menor prioridad)
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsPriceSlotDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                if (editingPriceSlot) {
+                  updatePriceSlot(editingPriceSlot.id, editingPriceSlot.clubId, editingPriceSlot);
+                } else {
+                  createPriceSlot();
+                }
+              }}
+            >
+              {editingPriceSlot ? 'Actualizar' : 'Crear'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

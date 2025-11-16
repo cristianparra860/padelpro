@@ -53,34 +53,7 @@ export function AiHelpButton({ onMobileFiltersClick }: AiHelpButtonProps) {
 
     return (
         <>
-            {/* Círculo de Agenda - lado derecho */}
-            <div className="fixed bottom-20 right-4 z-50 md:hidden flex flex-col items-center space-y-1">
-                <Link 
-                    href={buttonLink}
-                    className="bg-primary text-primary-foreground p-0 rounded-full shadow-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex items-center justify-center h-12 w-12"
-                    aria-label={buttonLabel}
-                    passHref
-                >
-                    {agendaButtonContent}
-                </Link>
-                <div className="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">
-                    {buttonLabel}
-                </div>
-            </div>
-
-            {/* Círculo de Filtros - lado izquierdo - MISMOS COLORES QUE AGENDA */}
-            <div className="fixed bottom-20 left-4 z-50 md:hidden flex flex-col items-center space-y-1">
-                <button 
-                    className="bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex items-center justify-center h-12 w-12"
-                    aria-label="Filtros"
-                    onClick={onMobileFiltersClick}
-                >
-                    <span className="text-white font-bold text-xl">F</span>
-                </button>
-                <div className="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">
-                    Filtros
-                </div>
-            </div>
+            {/* Botones flotantes eliminados - ahora están en la barra inferior */}
         </>
     );
 }

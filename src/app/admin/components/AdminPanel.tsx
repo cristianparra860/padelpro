@@ -181,7 +181,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ adminClub }) => {
         )},
         { value: "manageMatchDay", label: "Gestionar Match-Day", icon: PartyPopper, componentFactory: (props) => <ManageMatchDayPanel club={props.club} onEventCreated={props.onEventCreated} />, contentDescription: "Configura y gestiona los eventos sociales de Match-Day." },
         { value: "manageMatches", label: "Gestionar Partidas", icon: Trophy, componentFactory: (props) => <ManageMatchesPanel clubId={props.club.id} /> },
-        { value: "courtBookings", label: "Reservas Pistas", icon: CalendarDays, componentFactory: (props) => <CourtBookingManagement clubId={props.club.id} key={`courtbooking-${refreshKey}`} /> },
+        { value: "courtBookings", label: "Reservas Pistas", icon: CalendarDays, componentFactory: (props) => <CourtBookingManagement clubId={props.club.id} /> },
         { value: "activityCalendar", label: "Calendario Actividad", icon: ClipboardList, contentDescription: `Visualiza las actividades (clases/partidas con inscritos) por rangos de nivel en ${currentAdminClub.name}.`, componentFactory: (props) => <ClubActivityCalendar club={props.club} refreshKey={refreshKey} /> },
         { value: "cardStyles", label: "Estilos de Tarjetas", icon: Palette, componentFactory: (props) => <ManageCardStylesPanel club={props.club} onSettingsUpdated={props.onClubSettingsUpdated} />, contentDescription: "Personaliza el aspecto visual de las tarjetas de clases y partidas." },
         { value: "levelRanges", label: "Rangos Nivel", icon: Network, componentFactory: (props) => <ManageLevelRangesForm club={props.club} onRangesUpdated={props.onClubSettingsUpdated} /> },

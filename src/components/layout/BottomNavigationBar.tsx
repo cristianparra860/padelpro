@@ -176,6 +176,14 @@ export function BottomNavigationBar({ onMobileFiltersClick }: BottomNavigationBa
     
     const navItems = [
         {
+            key: 'filtros',
+            icon: SlidersHorizontal,
+            label: 'Filtros',
+            isActive: false,
+            hidden: true,
+            onClick: onMobileFiltersClick,
+        },
+        {
             key: 'clases',
             href: '/activities?view=clases',
             icon: ClipboardList,
@@ -183,12 +191,13 @@ export function BottomNavigationBar({ onMobileFiltersClick }: BottomNavigationBa
             isActive: pathname === '/activities' && searchParams.get('view') === 'clases',
             hidden: !currentUser,
         },
+        // 🆕 Calendario del Club (versión móvil)
         {
-            key: 'grupos',
-            href: '/activities?view=grupos',
-            icon: Users,
-            label: 'Grupos',
-            isActive: pathname === '/activities' && searchParams.get('view') === 'grupos',
+            key: 'calendario-club',
+            href: '/admin/calendar',
+            icon: Calendar,
+            label: 'Calendario',
+            isActive: pathname === '/admin/calendar',
             hidden: !currentUser,
         },
         {
@@ -198,6 +207,20 @@ export function BottomNavigationBar({ onMobileFiltersClick }: BottomNavigationBa
             label: 'Match Day',
             isActive: pathname === '/match-day' || pathname.startsWith('/match-day/'),
             hidden: !currentUser,
+        },
+        {
+            key: 'agenda',
+            href: '/dashboard',
+            icon: currentUser?.profilePictureUrl ? null : UserIconLucideProfile,
+            label: 'Agenda',
+            isActive: pathname === '/dashboard',
+            hidden: !currentUser,
+            renderCustomIcon: () => currentUser ? (
+                <Avatar className="h-5 w-5 mb-1">
+                    <AvatarImage src={currentUser.profilePictureUrl} alt={currentUser.name || 'avatar'} />
+                    <AvatarFallback className="text-xs">{getInitials(currentUser.name || '')}</AvatarFallback>
+                </Avatar>
+            ) : null,
         },
     ];
 
@@ -226,37 +249,43 @@ export function BottomNavigationBar({ onMobileFiltersClick }: BottomNavigationBa
     const visibleNavItemsCount = visibleNavItems.length;
     const itemWidthClass = visibleNavItemsCount > 0 ? `w-1/${visibleNavItemsCount}` : 'w-full';
 
-     if (!isClient) {
-        return (
-            <>
-                <div className="fixed bottom-0 left-0 right-0 h-16 bg-card border-t md:hidden" />
-            </>
-        );
-    }
-
-    // Show on all pages in mobile
+    // Hide on mobile (navigation moved to left sidebar)
     return (
         <>
-            {/* Bottom Navigation Bar */}
-            <nav className="fixed bottom-0 left-0 right-0 border-t border-border shadow-[0_-2px_10px_rgba(0,0,0,0.05)] z-30 md:hidden">
-                {/* Fondo con gradiente blanco sutil - permite ver los iconos claramente */}
-                <div className="absolute inset-0 bg-gradient-to-t from-white/90 via-white/60 via-white/30 via-white/10 to-white/5 backdrop-blur-sm"></div>
-                <div className="relative w-full px-2 h-16 flex items-center">
+            {/* Bottom Navigation Bar - Hidden on mobile, visible on desktop */}
+            <nav className="fixed bottom-0 left-0 right-0 z-30 hidden md:flex pb-safe">
+                {/* Fondo limpio */}
+                <div className="absolute inset-0 bg-white border-t border-gray-100"></div>
+                <div className="relative w-full px-4 py-2 flex items-center justify-around gap-2">
                     {visibleNavItems.map(item => {
                         const IconComponent = item.icon;
+                        const hasCustomIcon = 'renderCustomIcon' in item && item.renderCustomIcon;
+                        
                         const buttonContent = (
                             <>
-                                <div className="relative">
-                                    <IconComponent className={cn("h-4 w-4 mb-1", item.isActive && "text-primary")} />
+                                <div className={cn(
+                                    "w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 border-2",
+                                    item.isActive 
+                                        ? "bg-white border-green-500 shadow-[inset_0_2px_8px_rgba(34,197,94,0.3)]" 
+                                        : "bg-white border-gray-300 shadow-[inset_0_1px_4px_rgba(0,0,0,0.1)]"
+                                )}>
+                                    {hasCustomIcon ? (
+                                        (item as any).renderCustomIcon()
+                                    ) : IconComponent ? (
+                                        <IconComponent className={cn(
+                                            "h-4 w-4",
+                                            item.isActive ? "text-green-600" : "text-gray-400"
+                                        )} />
+                                    ) : null}
                                 </div>
-                                <span className={cn("text-[10px] leading-none", item.isActive ? "text-primary" : "text-muted-foreground")}>{item.label}</span>
+                                <span className={cn(
+                                    "text-[9px] leading-none font-medium mt-0.5",
+                                    item.isActive ? "text-green-600" : "text-gray-500"
+                                )}>{item.label}</span>
                             </>
                         );
 
-                        const className = cn(
-                            "flex flex-col items-center justify-center font-medium px-1 py-2 rounded-lg h-full transition-transform duration-200 ease-in-out flex-1",
-                            item.isActive && 'scale-105'
-                        );
+                        const className = "flex flex-col items-center justify-center transition-all duration-200";
 
                         if ('href' in item && item.href) {
                             return (
@@ -270,7 +299,6 @@ export function BottomNavigationBar({ onMobileFiltersClick }: BottomNavigationBa
                                 key={item.key}
                                 onClick={(item as any).onClick}
                                 className={className}
-                                aria-pressed={item.isActive}
                             >
                                 {buttonContent}
                             </button>

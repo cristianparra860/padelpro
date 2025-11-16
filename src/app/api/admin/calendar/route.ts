@@ -1,14 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const clubId = searchParams.get('clubId');
-    const startDate = searchParams.get('startDate') || new Date().toISOString();
-    const endDate = searchParams.get('endDate') || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    
+    // Si no se pasa startDate, usar hoy a las 00:00 en formato que SQLite entienda
+    let startDate = searchParams.get('startDate');
+    if (!startDate) {
+      // Obtener fecha de HOY en formato YYYY-MM-DD 00:00:00
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = (now.getMonth() + 1).toString().padStart(2, '0');
+      const day = now.getDate().toString().padStart(2, '0');
+      // Crear ISO string manualmente en UTC correspondiente a las 00:00 local
+      // Si estamos en UTC+1, las 00:00 local son 23:00 UTC del día anterior
+      const localMidnight = new Date(year, now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      startDate = localMidnight.toISOString();
+    }
+    
+    // Si no se pasa endDate, usar 30 días después  
+    let endDate = searchParams.get('endDate');
+    if (!endDate) {
+      const start = new Date(startDate);
+      const future = new Date(start.getTime() + 30 * 24 * 60 * 60 * 1000);
+      endDate = future.toISOString();
+    }
 
         console.log('📅 Step 1: Fetching calendar data:', {
       clubId,
@@ -48,33 +66,52 @@ export async function GET(request: NextRequest) {
 
     // 3. Obtener clases (TimeSlots) en el rango de fechas
     // USANDO SQL DIRECTO porque Prisma ORM tiene problemas con DateTime en SQLite
-    // SQLite guarda fechas como integers (timestamps en milisegundos)
     const adjustedStartDate = new Date(startDate);
-    adjustedStartDate.setHours(0, 0, 0, 0);
     const adjustedEndDate = new Date(endDate);
     adjustedEndDate.setDate(adjustedEndDate.getDate() + 1);
     adjustedEndDate.setHours(23, 59, 59, 999);
     
-    // Convertir a timestamps para comparación con integers en SQLite
-    const startTimestamp = adjustedStartDate.getTime();
-    const endTimestamp = adjustedEndDate.getTime();
+    // SQLite guarda fechas como TEXT (ISO strings), así que comparamos como strings
+    const startISO = adjustedStartDate.toISOString();
+    const endISO = adjustedEndDate.toISOString();
     
+    console.log('🔍 Querying TimeSlots between:', startISO, 'and', endISO);
+    console.log('   startDate original:', startDate);
+    console.log('   adjustedStartDate:', adjustedStartDate);
+    console.log('   startISO:', startISO);
+    
+    // 🔧 FIX: SQLite almacena fechas como objetos, no como strings
+    // Obtener TODAS las clases y filtrar en JavaScript
     const classesRaw = await prisma.$queryRaw`
       SELECT 
         id, start, end, maxPlayers, totalPrice, level, category, 
         courtId, courtNumber, instructorId, clubId
       FROM TimeSlot
-      WHERE start >= ${startTimestamp}
-        AND start <= ${endTimestamp}
       ORDER BY start ASC
     ` as any[];
 
-    console.log('🔍 SQL Query returned:', classesRaw.length, 'classes');
-    console.log('   With courtId=null:', classesRaw.filter((c: any) => c.courtId === null).length);
-    console.log('   With courtId!=null:', classesRaw.filter((c: any) => c.courtId !== null).length);
+    console.log('🔍 SQL Query returned:', classesRaw.length, 'total classes');
+    
+    // Filtrar por rango de fechas en JavaScript
+    const startTime = adjustedStartDate.getTime();
+    const endTime = adjustedEndDate.getTime();
+    
+    const classesInRange = classesRaw.filter((c: any) => {
+      const classTime = new Date(c.start).getTime();
+      return classTime >= startTime && classTime <= endTime;
+    });
+    
+    console.log('🔍 Classes in date range:', classesInRange.length);
+    if (classesInRange.length > 0) {
+      const firstSlot = classesInRange[0];
+      const firstDate = new Date(firstSlot.start);
+      console.log('   First slot:', firstDate.toLocaleString('es-ES'));
+    }
+    console.log('   With courtId=null:', classesInRange.filter((c: any) => c.courtId === null).length);
+    console.log('   With courtId!=null:', classesInRange.filter((c: any) => c.courtId !== null).length);
 
     // Obtener datos de instructor y bookings por separado
-    const classes = await Promise.all(classesRaw.map(async (timeSlot: any) => {
+    const classes = await Promise.all(classesInRange.map(async (timeSlot: any) => {
       const [instructor, bookings] = await Promise.all([
         timeSlot.instructorId ? prisma.instructor.findUnique({
           where: { id: timeSlot.instructorId },
@@ -90,7 +127,9 @@ export async function GET(request: NextRequest) {
         prisma.booking.findMany({
           where: { 
             timeSlotId: timeSlot.id,
-            status: 'CONFIRMED'
+            status: { 
+              in: ['PENDING', 'CONFIRMED'] // Excluir CANCELLED
+            }
           },
           include: {
             user: {

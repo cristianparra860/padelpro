@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       id: club.id,
       name: club.name,
       location: club.address,
-      logoUrl: null,
+      logoUrl: club.logo || null,
       showClassesTabOnFrontend: true,
       showMatchesTabOnFrontend: true,
       isMatchDayEnabled: false,

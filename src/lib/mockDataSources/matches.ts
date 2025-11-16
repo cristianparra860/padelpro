@@ -19,7 +19,13 @@ import { calculateActivityPrice } from './clubs';
 
 export const fetchMatches = async (clubId?: string): Promise<Match[]> => {
     await new Promise(resolve => setTimeout(resolve, config.MINIMAL_DELAY));
-    // Migration removed - no longer needed
+    
+    // 🚫 DESHABILITADO: No devolver matches mock - solo devolver array vacío
+    // Cuando se implemente API real de matches, reemplazar esto con fetch a /api/matches
+    console.log('⚠️ fetchMatches llamado - devolviendo array vacío (no hay API real de matches aún)');
+    return [];
+    
+    /* CÓDIGO MOCK DESHABILITADO
     let matchesToReturn = JSON.parse(JSON.stringify(state.getMockMatches())) as Match[];
     if (clubId) {
         matchesToReturn = matchesToReturn.filter(match => match.clubId === clubId);
@@ -29,7 +35,7 @@ export const fetchMatches = async (clubId?: string): Promise<Match[]> => {
         startTime: new Date(match.startTime),
         endTime: new Date(match.endTime),
         level: match.level || matchPadelLevels[0],
-        category: match.category || 'abierta', // Default to 'abierta'
+        category: match.category || 'abierta',
     isFixedMatch: match.isFixedMatch === true,
     fixedSchedule: (match as any).fixedSchedule,
         bookedPlayers: (match.bookedPlayers || [])
@@ -47,9 +53,9 @@ export const fetchMatches = async (clubId?: string): Promise<Match[]> => {
         status: match.status || 'forming',
         organizerId: match.organizerId,
         privateShareCode: match.privateShareCode,
-    // ...existing code...
         durationMinutes: match.durationMinutes || 90,
     }));
+    */
 };
 
 export const bookMatch = async (

@@ -50,7 +50,8 @@ export type PointTransactionType =
     | 'devolucion_cancelacion_anticipada'
     | 'bonificacion_preinscripcion'
     | 'compra_tienda'
-    | 'conversion_saldo';
+    | 'conversion_saldo'
+    | 'compensation';
 
 export type ProductCategory = 'pala' | 'pelotas' | 'ropa' | 'accesorios';
 export const productCategories: { value: ProductCategory, label: string }[] = [
@@ -99,6 +100,9 @@ export interface User {
     email?: string;
     level?: MatchPadelLevel;
     credit?: number;
+    credits?: number; // Alias para compatibilidad con Prisma
+    points?: number; // Puntos por cancelaciones
+    phone?: string; // Teléfono del usuario
     blockedCredit?: number;
     loyaltyPoints?: number;
     blockedLoyaltyPoints?: number;
@@ -264,11 +268,20 @@ export interface TimeSlot {
         userGender?: string;
         createdAt?: string;
     }[];
+    // 🏟️ Disponibilidad de pistas en tiempo real
+    courtsAvailability?: Array<{
+        courtNumber: number;
+        courtId: string;
+        status: 'available' | 'occupied' | 'unavailable';
+    }>;
+    availableCourtsCount?: number; // Número de pistas disponibles (para filtrado rápido)
     designatedGratisSpotPlaceholderIndexForOption?: { [key in 1 | 2 | 3 | 4]?: number | null };
     organizerId?: string;
     privateShareCode?: string;
     confirmedPrivateSize?: 1 | 2 | 3 | 4;
     totalPrice?: number;
+    instructorPrice?: number; // AGREGADO: Precio por hora del instructor
+    courtRentalPrice?: number; // AGREGADO: Precio por hora de alquiler de pista
     promotionEndTime?: Date;
 }
 

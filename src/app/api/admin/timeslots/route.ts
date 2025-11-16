@@ -1,24 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 
-const prisma = new PrismaClient();
+// Disable caching for this API route
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const clubId = searchParams.get('clubId');
 
-    // Construir el filtro basado en clubId
-    const where = clubId ? { clubId } : {};
+    // Use raw SQL to handle both text and integer date formats
+    let query = 'SELECT * FROM TimeSlot WHERE 1=1';
+    const params: any[] = [];
+    
+    if (clubId) {
+      query += ' AND clubId = ?';
+      params.push(clubId);
+    }
+    
+    query += ' ORDER BY start ASC';
+    
+    const timeSlots = await prisma.$queryRawUnsafe(query, ...params) as any[];
+    
+    // Fetch related data for each timeslot
+    const timeSlotsWithRelations = await Promise.all(
+      timeSlots.map(async (slot) => {
+        const court = slot.courtId ? await prisma.court.findUnique({ where: { id: slot.courtId } }) : null;
+        const instructor = slot.instructorId ? await prisma.instructor.findUnique({ where: { id: slot.instructorId } }) : null;
+        const bookings = await prisma.booking.findMany({
+          where: {
+            timeSlotId: slot.id,
+            status: { in: ['CONFIRMED', 'PENDING'] }
+          },
+          include: { user: true }
+        });
+        
+        return {
+          ...slot,
+          court,
+          instructor,
+          bookings
+        };
+      })
+    );
 
-    const timeSlots = await prisma.timeSlot.findMany({
-      where,
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
-
-    return NextResponse.json(timeSlots);
+    return NextResponse.json(timeSlotsWithRelations);
   } catch (error) {
     console.error('Error fetching time slots:', error);
     return NextResponse.json(

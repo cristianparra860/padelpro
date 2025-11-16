@@ -19,6 +19,7 @@ export interface TimeSlot {
   totalPrice?: number;
   level?: string;
   category?: string;
+  genderCategory?: string; // Categoría de género: masculino, femenino, mixto
   createdAt: string;
   updatedAt: string;
   instructorName?: string;
@@ -36,6 +37,13 @@ export interface TimeSlot {
     userGender?: string;
     createdAt?: string;
   }>;
+  // 🏟️ Nuevos campos para disponibilidad de pistas
+  courtsAvailability?: Array<{
+    courtNumber: number;
+    courtId: string;
+    status: 'available' | 'occupied' | 'unavailable';
+  }>;
+  availableCourtsCount?: number;
 }
 
 export interface Booking {
@@ -71,15 +79,29 @@ export class ClassesApi {
     instructorId?: string;
     userLevel?: string;
     userGender?: string;
-  } = {}): Promise<TimeSlot[]> {
+    timeSlotFilter?: string; // 🕐 morning, midday, evening, all
+    page?: number;
+    limit?: number;
+  } = {}): Promise<{ slots: TimeSlot[]; pagination: { page: number; limit: number; totalSlots: number; totalPages: number; hasMore: boolean } }> {
     const params = new URLSearchParams();
     if (options.clubId) params.append('clubId', options.clubId);
     if (options.date) params.append('date', options.date);
     if (options.instructorId) params.append('instructorId', options.instructorId);
     if (options.userLevel) params.append('userLevel', options.userLevel);
     if (options.userGender) params.append('userGender', options.userGender);
+    if (options.timeSlotFilter) params.append('timeSlotFilter', options.timeSlotFilter); // 🕐 Pasar filtro de horario
+    if (options.page) params.append('page', options.page.toString());
+    if (options.limit) params.append('limit', options.limit.toString());
     
-    const response = await fetch(`${this.baseUrl}/timeslots?${params}`);
+    // Agregar timestamp para romper caché del navegador
+    params.append('_t', Date.now().toString());
+    
+    const response = await fetch(`${this.baseUrl}/timeslots?${params}`, {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache'
+      }
+    });
     if (!response.ok) {
       throw new Error('Failed to fetch time slots');
     }

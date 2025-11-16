@@ -33,6 +33,20 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
     
     const activityFilters = useActivityFilters(currentUser, onCurrentUserUpdate);
     
+    // 🔄 Detectar parámetro de refresh en la URL para forzar recarga
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('refresh')) {
+                console.log('🔄 Parámetro refresh detectado - Forzando recarga de datos');
+                // Limpiar el parámetro de la URL sin recargar
+                window.history.replaceState({}, '', '/activities');
+                // Forzar recarga incrementando el refreshKey
+                activityFilters.triggerRefresh();
+            }
+        }
+    }, [activityFilters]);
+    
     const {
         activeView,
         selectedDate,
@@ -42,6 +56,8 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
         dateStripDates,
         showPointsBonus,
         handleViewPrefChange,
+        handleTimeFilterChange,
+        handleInstructorChange,
         ...restOfFilters
     } = activityFilters;
     
@@ -78,15 +94,9 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
             setIsInitialLoading(true);
             try {
                 const matches = await fetchMatches(currentClub.id);
-                // Generate proposals first, then append fetched matches so fetched overwrite proposals on duplicate ids
-                let combinedMatches: Match[] = [];
-                for (let i = 0; i < 7; i++) {
-                    const date = addDays(new Date(), i);
-                    combinedMatches = [...combinedMatches, ...createMatchesForDay(currentClub, date)];
-                }
-                combinedMatches = [...combinedMatches, ...matches];
-                const uniqueMatches = Array.from(new Map(combinedMatches.map(item => [item['id'], item])).values());
-                setAllMatches(uniqueMatches);
+                // SOLO usar matches reales de la API - NO GENERAR MOCK
+                console.log('📋 Usando SOLO matches reales:', matches.length);
+                setAllMatches(matches);
             } catch (error) {
                 console.error("Error refreshing matches after booking", error);
             } finally {
@@ -132,52 +142,62 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
                 let existingMatches: Match[] = [];
 
                 if (club) {
-                    const [allSlots, fetchedMatches] = await Promise.all([
-                        // Usar datos reales de la API en lugar de mock
-                        fetch(`/api/timeslots?clubId=${club.id}`)
+                    // Solo cargar timeslots (clases) desde la API
+                    try {
+                        const allSlots = await fetch(`/api/timeslots?clubId=${club.id}`)
                             .then(async res => {
                                 if (!res.ok) {
+                                    const errorText = await res.text();
                                     console.error('❌ Error fetching timeslots:', res.status, res.statusText);
-                                    throw new Error(`HTTP error! status: ${res.status}`);
+                                    console.error('❌ Detalle del error:', errorText);
+                                    throw new Error(`API Error ${res.status}: ${errorText}`);
                                 }
                                 const data = await res.json();
-                                console.log('✅ Timeslots cargados:', data.length);
-                                return data;
-                            })
-                            .catch(error => {
-                                console.error('❌ Error en fetch de timeslots:', error);
-                                return getMockTimeSlots();
-                            }),
-                        fetchMatches(club.id),
-                    ]);
-                    slots = Array.isArray(allSlots) ? allSlots.filter(s => s.clubId === club.id) : allSlots.filter(s => s.clubId === club.id);
-                    existingMatches = fetchedMatches;
+                                console.log('✅ Timeslots cargados desde API:', data.length);
+                                return data.slots || data;
+                            });
+                        
+                        slots = Array.isArray(allSlots) ? allSlots.filter(s => s.clubId === club.id) : allSlots.filter(s => s.clubId === club.id);
+                    } catch (timeslotError) {
+                        console.error('Error loading timeslots:', timeslotError);
+                        // No mostrar toast si es solo error de timeslots, continuar con array vacío
+                        slots = [];
+                    }
+                    
+                    // Solo cargar matches si están habilitados en el club
+                    if (club.matchesEnabled !== false) {
+                        try {
+                            existingMatches = await fetchMatches(club.id);
+                            console.log('🎾 Matches cargados:', existingMatches.length);
+                        } catch (matchError) {
+                            console.error('Error loading matches:', matchError);
+                            // No mostrar toast si es solo error de matches
+                            existingMatches = [];
+                        }
+                    } else {
+                        console.log('🚫 Matches deshabilitados para este club');
+                    }
+                    
                     console.log('📊 Total slots filtrados para club:', slots.length);
                 }
 
                 setAllTimeSlots(slots);
                 
-                // Generate proposals first, then append fetched matches so fetched overwrite proposals on duplicate ids
-                let combinedMatches: Match[] = [];
-                if (club) {
-                    for (let i = 0; i < 7; i++) {
-                        const date = addDays(new Date(), i);
-                        combinedMatches = [...combinedMatches, ...createMatchesForDay(club, date)];
-                    }
-                }
-                combinedMatches = [...combinedMatches, ...existingMatches];
-                const uniqueMatches = Array.from(new Map(combinedMatches.map(item => [item['id'], item])).values());
-                setAllMatches(uniqueMatches);
+                // SOLO usar matches reales de la API - NO GENERAR MOCK DATA
+                console.log('📋 Usando SOLO matches reales de fetchMatches:', existingMatches.length);
+                setAllMatches(existingMatches);
 
             } catch (error) {
                 console.error("Error fetching initial data", error);
+                // Solo mostrar toast si es un error crítico (no pudo cargar clubs)
                 toast({ title: "Error", description: "No se pudieron cargar las actividades.", variant: "destructive" });
             } finally {
                 setIsInitialLoading(false);
             }
         };
         loadInitialData();
-    }, [activityFilters.refreshKey, toast]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activityFilters.refreshKey]);
 
     useEffect(() => {
         const fetchEventsForDate = async () => {
@@ -262,59 +282,20 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
             case 'clases':
                 return (
                     <div className="space-y-4">
-                        {/* Toggle para alternar entre sistemas de clases */}
-                        <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                            <div>
-                                <h3 className="font-semibold text-blue-900">
-                                    {useNewClassesSystem ? 'Sistema de Clases (Base de Datos)' : 'Sistema de Clases (Mock)'}
-                                </h3>
-                                <p className="text-sm text-blue-700">
-                                    {useNewClassesSystem 
-                                        ? 'Mostrando clases reales desde la base de datos con instructores y reservas'
-                                        : 'Mostrando clases del sistema mock original'
-                                    }
-                                </p>
-                            </div>
-                            <Button
-                                onClick={() => setUseNewClassesSystem(!useNewClassesSystem)}
-                                variant={useNewClassesSystem ? "default" : "outline"}
-                                className="ml-4"
-                            >
-                                {useNewClassesSystem ? 'Usar Mock' : 'Usar BD'}
-                            </Button>
-                        </div>
-
-                        {/* Renderizar el sistema correspondiente */}
-                        {useNewClassesSystem ? (
-                            <ClassesDisplay 
-                                selectedDate={selectedDate}
-                                clubId={currentClub?.id || "club-1"}
-                                currentUser={currentUser}
-                                onBookingSuccess={triggerRefresh}
-                                timeSlotFilter={activityFilters.timeSlotFilter}
-                                selectedPlayerCounts={Array.from(activityFilters.selectedPlayerCounts)}
-                                viewPreference={activityFilters.viewPreference as 'withBookings' | 'all' | 'myConfirmed'}
-                            />
-                        ) : (
-                            <ClassDisplay
-                                {...restOfFilters}
-                                currentUser={currentUser}
-                                onBookingSuccess={handleBookingSuccess}
-                                selectedDate={selectedDate}
-                                onDateChange={handleDateChange}
-                                filterByFavoriteInstructors={activityFilters.filterByFavorites}
-                                allClasses={preFilteredClasses}
-                                isLoading={isInitialLoading}
-                                dateStripIndicators={dateStripIndicators}
-                                dateStripDates={dateStripDates}
-                                onViewPrefChange={onViewPrefChangeCompat}
-                                selectedLevelsSheet={[]}
-                                sortBy={'time'}
-                                filterAlsoConfirmedClasses={false}
-                                proposalView={'join'}
-                                showPointsBonus={showPointsBonus}
-                            />
-                        )}
+                        <ClassesDisplay 
+                            selectedDate={selectedDate}
+                            clubId={currentClub?.id || "club-1"}
+                            currentUser={currentUser}
+                            onBookingSuccess={triggerRefresh}
+                            timeSlotFilter={activityFilters.timeSlotFilter}
+                            selectedPlayerCounts={Array.from(activityFilters.selectedPlayerCounts)}
+                            selectedInstructorIds={activityFilters.selectedInstructorIds}
+                            viewPreference={activityFilters.viewPreference as 'withBookings' | 'all' | 'myConfirmed'}
+                            externalRefreshKey={activityFilters.refreshKey}
+                            onTimeSlotFilterChange={handleTimeFilterChange}
+                            onInstructorIdsChange={handleInstructorChange}
+                            onViewPreferenceChange={(view) => handleViewPrefChange(view, 'clases')}
+                        />
                     </div>
                 );
             case 'grupos':
@@ -340,136 +321,113 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
         }
     };
 
+    // 🔄 Sincronización: Recargar cuando el usuario vuelve a esta página
+    useEffect(() => {
+        // Detectar cuando la página gana foco (usuario regresa desde otra página)
+        const handleFocus = () => {
+            console.log('🔄 Página enfocada - Refrescando datos...');
+            triggerRefresh();
+        };
+
+        // Detectar cambios de storage (cancelaciones en otras pestañas)
+        const handleStorageChange = (e: StorageEvent) => {
+            if (e.key === 'bookingCancelled' && e.newValue) {
+                console.log('🔄 Cancelación detectada desde otra pestaña - Refrescando...');
+                triggerRefresh();
+            }
+        };
+
+        // Detectar cuando la página se hace visible
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                console.log('🔄 Página visible - Refrescando datos...');
+                triggerRefresh();
+            }
+        };
+
+        window.addEventListener('focus', handleFocus);
+        window.addEventListener('storage', handleStorageChange);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        
+        return () => {
+            window.removeEventListener('focus', handleFocus);
+            window.removeEventListener('storage', handleStorageChange);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [triggerRefresh]);
+
     return (
         <>
-            {/* Calendario fijo solo para móvil - COMPLETAMENTE FIJO en la pantalla */}
-            <div className="fixed top-0 left-0 right-0 z-50 md:hidden">
-                {/* Fondo con gradiente blanco - más opaco arriba, 1% en la parte baja */}
-                <div className="absolute inset-0 bg-gradient-to-b from-white/100 via-white/70 via-white/50 via-white/[0.01] to-white/[0.01] backdrop-blur-sm"></div>
-                {/* Zona transparente para los pequeños indicadores */}
-                <div className="absolute bottom-0 left-0 right-0 h-12 bg-transparent"></div>
-                <div className="relative px-2 pt-1 pb-1">
-                    <ScrollArea className="w-full whitespace-nowrap">
-                        <div className="flex space-x-1 py-0.5">
-                            {dateStripDates.map(day => {
-                                const isSelected = selectedDate ? isSameDay(day, selectedDate) : false;
-                                const dateKey = format(day, 'yyyy-MM-dd');
-                                const indicators = dateStripIndicators[dateKey] || { activityStatus: 'none', hasEvent: false, anticipationPoints: 0 };
-                                
-                                return (
-                                <div key={day.toISOString()} className="flex flex-col items-center space-y-0.5 relative pt-2">
-                                    {indicators.anticipationPoints > 0 && showPointsBonus && (
-                                        <div
-                                        className="absolute top-0 left-1/2 -translate-x-1/2 z-10 flex h-auto items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-white shadow"
-                                        title={`+${indicators.anticipationPoints} puntos por reservar con antelación`}
-                                        >
-                                        <span className="text-[9px] font-bold">+{indicators.anticipationPoints}</span>
-                                        </div>
-                                    )}
-                                    <Button variant={isSelected ? "default" : "outline"} size="sm"
-                                        className={cn(
-                                            "h-auto px-1 py-0.5 flex flex-col items-center justify-center leading-tight shadow-sm w-9",
-                                            isSameDay(day, new Date()) && !isSelected && "border-primary text-primary font-semibold",
-                                            isSelected && "shadow-md"
-                                        )}
-                                        onClick={() => handleDateChange(day)}
-                                    >
-                                        <span className="font-bold text-[9px] uppercase">{format(day, "EEE", { locale: es }).slice(0, 3)}</span>
-                                        <span className="text-xs font-bold">{format(day, "d", { locale: es })}</span>
-                                        <span className="text-[8px] text-muted-foreground capitalize -mt-0.5">{format(day, "MMM", { locale: es }).slice(0,3)}</span>
-                                    </Button>
-
-                                    <div className="h-10 w-8 flex flex-col items-center justify-center relative space-y-0.5 bg-transparent">
-                                        <TooltipProvider delayDuration={150}>
-                                            {indicators.activityStatus === 'confirmed' && (
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <button
-                                                            onClick={() => onViewPrefChangeCompat(day, 'myConfirmed', indicators.activityTypes.includes('class') ? 'class' : 'match')}
-                                                            className="h-6 w-6 flex items-center justify-center bg-destructive text-destructive-foreground rounded-md font-bold text-xs leading-none cursor-pointer hover:scale-110 transition-transform"
-                                                        >
-                                                            R
-                                                        </button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent><p>Ver mis reservas</p></TooltipContent>
-                                                </Tooltip>
-                                            )}
-                                            {indicators.activityStatus === 'inscribed' && (
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        {indicators.activityTypes.includes('event') && indicators.eventId ? (
-                                                            <Link href={`/match-day/${indicators.eventId}`} passHref>
-                                                                <Button variant="ghost" size="icon" className="h-6 w-6 rounded-md bg-blue-500 text-white hover:bg-blue-600">I</Button>
-                                                            </Link>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() => onViewPrefChangeCompat(day, 'myInscriptions', indicators.activityTypes.includes('class') ? 'class' : 'match')}
-                                                                className="h-6 w-6 flex items-center justify-center bg-blue-500 text-white rounded-md font-bold text-xs leading-none cursor-pointer hover:scale-110 transition-transform"
-                                                            >
-                                                                I
-                                                            </button>
-                                                        )}
-                                                    </TooltipTrigger>
-                                                    <TooltipContent><p>Ver mis inscripciones</p></TooltipContent>
-                                                </Tooltip>
-                                            )}
-                                            {indicators.hasEvent && indicators.activityStatus === 'none' && (
-                                                <Tooltip><TooltipTrigger asChild><Link href={`/match-day/${indicators.eventId}`} passHref><Button variant="ghost" size="icon" className="h-6 w-6 rounded-md bg-primary/10 hover:bg-primary/20 animate-pulse-blue border border-primary/50"><Plus className="h-4 w-4 text-primary" /></Button></Link></TooltipTrigger><TooltipContent><p>¡Apúntate al Match-Day!</p></TooltipContent></Tooltip>
-                                            )}
-                                        </TooltipProvider>
-                                    </div>
-                                </div>
-                                );
-                            })}
-                        </div>
-                        <ScrollBar orientation="horizontal" className="h-1 mt-0.5" />
-                    </ScrollArea>
-                </div>
-            </div>
-
-            {/* Contenedor principal con padding-top para evitar que el calendario fijo oculte el contenido */}
+            {/* Contenedor principal */}
             <div className="flex-1 flex flex-col overflow-hidden">
-                <main className="flex-1 overflow-y-auto px-4 md:px-6 pb-20 md:pb-6 space-y-4 pt-[80px] md:pt-4">
-                    {/* Calendario para desktop */}
-                    <div className="hidden md:block -mt-4">
+                <main className="flex-1 overflow-y-auto px-2 md:px-6 pb-[70px] md:pb-6 space-y-2 md:space-y-4 md:pt-4">
+                    {/* Calendario para desktop - DISEÑO ARMONIZADO */}
+                    <div className="hidden md:block">
                         <ScrollArea className="w-full whitespace-nowrap">
-                            <div className="flex space-x-2 py-1">
+                            <div className="flex space-x-3 py-2">
                                 {dateStripDates.map(day => {
                                     const isSelected = selectedDate ? isSameDay(day, selectedDate) : false;
                                     const dateKey = format(day, 'yyyy-MM-dd');
                                     const indicators = dateStripIndicators[dateKey] || { activityStatus: 'none', hasEvent: false, anticipationPoints: 0 };
+                                    const isToday = isSameDay(day, new Date());
+                                    
+                                    // Estilo armonizado
+                                    let borderColor = 'border-gray-300';
+                                    let shadowStyle = 'shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)]';
+                                    let textColor = 'text-gray-600';
+                                    let dayTextColor = 'text-gray-900';
+                                    
+                                    if (isSelected) {
+                                        borderColor = 'border-green-500';
+                                        shadowStyle = 'shadow-[inset_0_2px_8px_rgba(34,197,94,0.3)]';
+                                        textColor = 'text-green-600';
+                                        dayTextColor = 'text-green-700';
+                                    } else if (isToday) {
+                                        borderColor = 'border-blue-300';
+                                        shadowStyle = 'shadow-[inset_0_1px_3px_rgba(59,130,246,0.15)]';
+                                        textColor = 'text-blue-500';
+                                        dayTextColor = 'text-blue-700';
+                                    }
                                     
                                     return (
-                                    <div key={day.toISOString()} className="flex flex-col items-center space-y-1 relative pt-4">
+                                    <div key={day.toISOString()} className="flex flex-col items-center space-y-2 relative">
                                         {indicators.anticipationPoints > 0 && showPointsBonus && (
                                             <div
-                                            className="absolute top-0 left-1/2 -translate-x-1/2 z-10 flex h-auto items-center justify-center rounded-full bg-amber-400 px-2 py-0.5 text-white shadow"
+                                            className="absolute -top-1 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center rounded-full bg-amber-400 px-2 py-0.5 text-white shadow-sm border border-amber-500"
                                             title={`+${indicators.anticipationPoints} puntos por reservar con antelación`}
                                             >
-                                            <span className="text-[10px] font-bold">+{indicators.anticipationPoints}</span>
+                                            <span className="text-[9px] font-bold">+{indicators.anticipationPoints}</span>
                                             </div>
                                         )}
-                                        <Button variant={isSelected ? "default" : "outline"} size="sm"
+                                        
+                                        <button
                                             className={cn(
-                                                "h-auto px-1.5 py-1 flex flex-col items-center justify-center leading-tight shadow-sm w-10",
-                                                isSameDay(day, new Date()) && !isSelected && "border-primary text-primary font-semibold",
-                                                isSelected && "shadow-md"
+                                                "flex flex-col items-center justify-center w-[60px] h-[60px] rounded-full",
+                                                "transition-all duration-200 cursor-pointer border-2 bg-white",
+                                                borderColor, shadowStyle,
+                                                isSelected ? 'scale-110 ring-2 ring-green-200' : 'hover:scale-105'
                                             )}
                                             onClick={() => handleDateChange(day)}
                                         >
-                                            <span className="font-bold text-[10px] uppercase">{format(day, "EEE", { locale: es }).slice(0, 3)}</span>
-                                            <span className="text-sm font-bold">{format(day, "d", { locale: es })}</span>
-                                            <span className="text-[9px] text-muted-foreground capitalize -mt-0.5">{format(day, "MMM", { locale: es }).slice(0,3)}</span>
-                                        </Button>
+                                            <span className={`font-bold text-[11px] uppercase ${textColor}`}>
+                                                {format(day, "EEE", { locale: es }).slice(0, 3)}
+                                            </span>
+                                            <span className={`text-2xl font-bold leading-none ${dayTextColor}`}>
+                                                {format(day, "d", { locale: es })}
+                                            </span>
+                                            <span className={`text-[10px] uppercase ${textColor}`}>
+                                                {format(day, "MMM", { locale: es }).slice(0,3)}
+                                            </span>
+                                        </button>
 
-                                        <div className="h-10 w-8 flex flex-col items-center justify-center relative space-y-0.5">
+                                        <div className="h-10 w-full flex flex-col items-center justify-center relative space-y-0.5">
                                             <TooltipProvider delayDuration={150}>
                                                 {indicators.activityStatus === 'confirmed' && (
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
                                                             <button
                                                                 onClick={() => onViewPrefChangeCompat(day, 'myConfirmed', indicators.activityTypes.includes('class') ? 'class' : 'match')}
-                                                                className="h-6 w-6 flex items-center justify-center bg-destructive text-destructive-foreground rounded-md font-bold text-xs leading-none cursor-pointer hover:scale-110 transition-transform"
+                                                                className="h-6 w-6 flex items-center justify-center bg-red-500 text-white rounded-full font-bold text-xs leading-none cursor-pointer hover:scale-110 transition-transform shadow-sm"
                                                             >
                                                                 R
                                                             </button>
@@ -482,12 +440,12 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
                                                         <TooltipTrigger asChild>
                                                             {indicators.activityTypes.includes('event') && indicators.eventId ? (
                                                                 <Link href={`/match-day/${indicators.eventId}`} passHref>
-                                                                    <Button variant="ghost" size="icon" className="h-6 w-6 rounded-md bg-blue-500 text-white hover:bg-blue-600">I</Button>
+                                                                    <button className="h-6 w-6 flex items-center justify-center bg-blue-500 text-white rounded-full font-bold text-xs leading-none cursor-pointer hover:scale-110 transition-transform shadow-sm">I</button>
                                                                 </Link>
                                                             ) : (
                                                                 <button
                                                                     onClick={() => onViewPrefChangeCompat(day, 'myInscriptions', indicators.activityTypes.includes('class') ? 'class' : 'match')}
-                                                                    className="h-6 w-6 flex items-center justify-center bg-blue-500 text-white rounded-md font-bold text-xs leading-none cursor-pointer hover:scale-110 transition-transform"
+                                                                    className="h-6 w-6 flex items-center justify-center bg-blue-500 text-white rounded-full font-bold text-xs leading-none cursor-pointer hover:scale-110 transition-transform shadow-sm"
                                                                 >
                                                                     I
                                                                 </button>
@@ -497,7 +455,7 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
                                                     </Tooltip>
                                                 )}
                                                 {indicators.hasEvent && indicators.activityStatus === 'none' && (
-                                                    <Tooltip><TooltipTrigger asChild><Link href={`/match-day/${indicators.eventId}`} passHref><Button variant="ghost" size="icon" className="h-6 w-6 rounded-md bg-primary/10 hover:bg-primary/20 animate-pulse-blue border border-primary/50"><Plus className="h-4 w-4 text-primary" /></Button></Link></TooltipTrigger><TooltipContent><p>¡Apúntate al Match-Day!</p></TooltipContent></Tooltip>
+                                                    <Tooltip><TooltipTrigger asChild><Link href={`/match-day/${indicators.eventId}`} passHref><button className="h-6 w-6 flex items-center justify-center bg-primary/10 hover:bg-primary/20 rounded-full animate-pulse-blue border border-primary/50 transition-transform hover:scale-110"><Plus className="h-4 w-4 text-primary" /></button></Link></TooltipTrigger><TooltipContent><p>¡Apúntate al Match-Day!</p></TooltipContent></Tooltip>
                                                 )}
                                             </TooltipProvider>
                                         </div>
@@ -507,6 +465,92 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
                             </div>
                             <ScrollBar orientation="horizontal" className="h-2 mt-1" />
                         </ScrollArea>
+                    </div>
+
+                    {/* Calendario para móvil - DISEÑO ARMONIZADO CON SOMBRA INVERSA */}
+                    <div className="block md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-100">
+                        <div className="overflow-x-auto scrollbar-hide">
+                            <div className="flex space-x-2 py-2 px-2 min-w-max">
+                                {dateStripDates.map(day => {
+                                    const isSelected = selectedDate ? isSameDay(day, selectedDate) : false;
+                                    const dateKey = format(day, 'yyyy-MM-dd');
+                                    const indicators = dateStripIndicators[dateKey] || { activityStatus: 'none', hasEvent: false, anticipationPoints: 0 };
+                                    const isToday = isSameDay(day, new Date());
+                                    
+                                    // Estilo armonizado con sombra inversa (igual que desktop pero más pequeño)
+                                    let borderColor = 'border-gray-300';
+                                    let shadowStyle = 'shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)]';
+                                    let textColor = 'text-gray-600';
+                                    let dayTextColor = 'text-gray-900';
+                                    
+                                    if (isSelected) {
+                                        borderColor = 'border-green-500';
+                                        shadowStyle = 'shadow-[inset_0_2px_6px_rgba(34,197,94,0.3)]';
+                                        textColor = 'text-green-600';
+                                        dayTextColor = 'text-green-700';
+                                    } else if (isToday) {
+                                        borderColor = 'border-blue-300';
+                                        shadowStyle = 'shadow-[inset_0_1px_3px_rgba(59,130,246,0.15)]';
+                                        textColor = 'text-blue-500';
+                                        dayTextColor = 'text-blue-700';
+                                    }
+                                    
+                                    return (
+                                    <div key={day.toISOString()} className="flex flex-col items-center space-y-1 relative flex-shrink-0">
+                                        {/* Indicador de puntos de anticipación - arriba izquierda */}
+                                        {indicators.anticipationPoints > 0 && showPointsBonus && (
+                                            <div
+                                                className="absolute -top-1 -left-1 z-10 flex items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-white shadow-sm border border-amber-500"
+                                                title={`+${indicators.anticipationPoints} puntos`}
+                                            >
+                                                <span className="text-[8px] font-bold">+{indicators.anticipationPoints}</span>
+                                            </div>
+                                        )}
+                                        
+                                        {/* Círculo indicador "R" (Reserva confirmada) - arriba derecha */}
+                                        {indicators.activityStatus === 'confirmed' && (
+                                            <button
+                                                onClick={() => onViewPrefChangeCompat(day, 'myConfirmed', indicators.activityTypes.includes('class') ? 'class' : 'match')}
+                                                className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-red-500 border-2 border-white flex items-center justify-center shadow-lg z-20 active:scale-90 transition-transform"
+                                            >
+                                                <span className="text-[9px] font-bold text-white leading-none">R</span>
+                                            </button>
+                                        )}
+                                        
+                                        {/* Círculo indicador "I" (Inscripción pendiente) - arriba derecha */}
+                                        {indicators.activityStatus === 'inscribed' && (
+                                            <button
+                                                onClick={() => onViewPrefChangeCompat(day, 'myInscribed', indicators.activityTypes.includes('class') ? 'class' : 'match')}
+                                                className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-green-500 border-2 border-white flex items-center justify-center shadow-lg z-20 active:scale-90 transition-transform"
+                                            >
+                                                <span className="text-[9px] font-bold text-white leading-none">I</span>
+                                            </button>
+                                        )}
+                                        
+                                        <button
+                                            className={cn(
+                                                "flex flex-col items-center justify-center w-[50px] h-[50px] rounded-full",
+                                                "transition-all duration-200 cursor-pointer border-2 bg-white",
+                                                borderColor, shadowStyle,
+                                                isSelected ? 'scale-105 ring-2 ring-green-200' : 'active:scale-95'
+                                            )}
+                                            onClick={() => handleDateChange(day)}
+                                        >
+                                            <span className={`font-bold text-[9px] uppercase ${textColor}`}>
+                                                {format(day, "EEE", { locale: es }).slice(0, 3)}
+                                            </span>
+                                            <span className={`text-xl font-bold leading-none ${dayTextColor}`}>
+                                                {format(day, "d", { locale: es })}
+                                            </span>
+                                            <span className={`text-[8px] uppercase ${textColor}`}>
+                                                {format(day, "MMM", { locale: es }).slice(0,3)}
+                                            </span>
+                                        </button>
+                                    </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
                     </div>
 
                     {renderContent()}

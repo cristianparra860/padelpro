@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { getCourtPriceForTime } from '@/lib/courtPricing';
 
 const prisma = new PrismaClient();
 
@@ -70,77 +71,115 @@ async function generateCardsForDay(date: string, clubId: string) {
   let createdCount = 0;
   let skippedCount = 0;
 
-  // Obtener instructor Carlos (el instructor profesional)
-  const instructor = await prisma.$queryRaw<Array<{id: string}>>`
-    SELECT id FROM Instructor WHERE id = 'instructor-carlos' AND isActive = 1 LIMIT 1
+  // Obtener TODOS los instructores activos
+  const instructors = await prisma.$queryRaw<Array<{id: string}>>`
+    SELECT id FROM Instructor WHERE isActive = 1
   `;
 
-  if (!instructor || instructor.length === 0) {
-    return { created: 0, skipped: 0, error: 'Instructor Carlos not available' };
+  if (!instructors || instructors.length === 0) {
+    return { created: 0, skipped: 0, error: 'No active instructors available' };
   }
 
-  const instructorId = instructor[0].id;
+  console.log(`📚 Generando propuestas para ${instructors.length} instructores`);
 
-  // Generar propuestas cada 30 minutos de 09:00 a 18:00
+  // Generar propuestas cada 30 minutos de 08:00 a 22:00
   const timeSlots: string[] = [];
-  for (let hour = 9; hour < 18; hour++) {
+  for (let hour = 8; hour < 22; hour++) {
     timeSlots.push(`${hour.toString().padStart(2, '0')}:00`);
     timeSlots.push(`${hour.toString().padStart(2, '0')}:30`);
   }
 
-  for (const startTime of timeSlots) {
-    const [hour, minute] = startTime.split(':').map(Number);
-    const endHour = minute === 30 ? hour + 1 : hour;
-    const endMinute = minute === 30 ? 30 : 0;
-    const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+  // Para cada instructor, generar propuestas en todos los horarios
+  for (const instructor of instructors) {
+    const instructorId = instructor.id;
+    console.log(`   👤 Generando para instructor ${instructorId}...`);
 
-    // Verificar disponibilidad
-    const availability = await checkAvailability(date, startTime, endTime);
+    for (const startTime of timeSlots) {
+      const [hour, minute] = startTime.split(':').map(Number);
+      // Todas las clases duran 60 minutos
+      let endHour = hour + 1;
+      let endMinute = minute;
+      
+      // Si la hora final es >= 24, ajustar (aunque no debería pasar con horario 09:00-18:00)
+      if (endHour >= 24) {
+        endHour = 23;
+        endMinute = 59;
+      }
+      
+      const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
 
-    if (!availability.hasAvailability) {
-      skippedCount++;
-      continue;
+      // Verificar disponibilidad
+      const availability = await checkAvailability(date, startTime, endTime);
+
+      if (!availability.hasAvailability) {
+        skippedCount++;
+        continue;
+      }
+
+      // Verificar si ya existe una propuesta para este instructor
+      const startDateTime = new Date(`${date}T${startTime}:00.000Z`);
+      const endDateTime = new Date(`${date}T${endTime}:00.000Z`);
+      
+      const existing = await prisma.$queryRaw<Array<{id: string}>>`
+        SELECT id FROM TimeSlot 
+        WHERE clubId = ${clubId}
+        AND instructorId = ${instructorId}
+        AND start = ${startDateTime.toISOString()}
+        AND courtId IS NULL
+      `;
+
+      if (existing && existing.length > 0) {
+        skippedCount++;
+        continue;
+      }
+
+      // Verificar si el instructor tiene una clase confirmada en este horario
+      // Una clase confirmada bloquea desde su inicio hasta su fin
+      const confirmedClass = await prisma.$queryRaw<Array<{id: string}>>`
+        SELECT id FROM TimeSlot
+        WHERE instructorId = ${instructorId}
+        AND courtId IS NOT NULL
+        AND start <= ${startDateTime.toISOString()}
+        AND end > ${startDateTime.toISOString()}
+      `;
+
+      if (confirmedClass && confirmedClass.length > 0) {
+        skippedCount++;
+        continue; // El instructor está ocupado en este horario
+      }
+
+      // CREAR TARJETA
+      const timeSlotId = `ts_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Calcular precio basado en franjas horarias
+      const courtPrice = await getCourtPriceForTime(clubId, startDateTime);
+      const instructorPrice = 15; // Precio por defecto del instructor
+      const totalPrice = instructorPrice + courtPrice;
+
+      await prisma.$executeRaw`
+        INSERT INTO TimeSlot (
+          id, clubId, instructorId, start, end,
+          maxPlayers, totalPrice, instructorPrice, courtRentalPrice, level, category, createdAt, updatedAt
+        )
+        VALUES (
+          ${timeSlotId},
+          ${clubId},
+          ${instructorId},
+          ${startDateTime.toISOString()},
+          ${endDateTime.toISOString()},
+          4,
+          ${totalPrice},
+          ${instructorPrice},
+          ${courtPrice},
+          'ABIERTO',
+          'ABIERTO',
+          datetime('now'),
+          datetime('now')
+        )
+      `;
+
+      createdCount++;
     }
-
-    // Verificar si ya existe
-    const startDateTime = new Date(`${date}T${startTime}:00.000Z`);
-    const existing = await prisma.$queryRaw<Array<{id: string}>>`
-      SELECT id FROM TimeSlot 
-      WHERE clubId = ${clubId}
-      AND start = ${startDateTime.toISOString()}
-      AND courtNumber IS NULL
-    `;
-
-    if (existing && existing.length > 0) {
-      skippedCount++;
-      continue;
-    }
-
-    // CREAR TARJETA
-    const endDateTime = new Date(`${date}T${endTime}:00.000Z`);
-    const timeSlotId = `ts_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-    await prisma.$executeRaw`
-      INSERT INTO TimeSlot (
-        id, clubId, instructorId, start, end,
-        maxPlayers, totalPrice, level, category, createdAt, updatedAt
-      )
-      VALUES (
-        ${timeSlotId},
-        ${clubId},
-        ${instructorId},
-        ${startDateTime.toISOString()},
-        ${endDateTime.toISOString()},
-        4,
-        25.0,
-        'ABIERTO',
-        'ABIERTO',
-        datetime('now'),
-        datetime('now')
-      )
-    `;
-
-    createdCount++;
   }
 
   return { created: createdCount, skipped: skippedCount };
@@ -154,7 +193,7 @@ export async function GET(request: Request) {
 
     console.log(`🤖 AUTO-GENERATOR: Generating cards for next ${days} days...`);
 
-    const clubId = 'club-1'; // Cambiar según tu configuración
+    const clubId = 'padel-estrella-madrid'; // Club principal (ID correcto)
     let totalCreated = 0;
     let totalSkipped = 0;
 

@@ -19,7 +19,6 @@ import { Label } from '@/components/ui/label';
 import { Form, FormControl, FormField, FormItem, FormMessage, FormDescription as FormFieldDescription } from '@/components/ui/form';
 import { Loader2, Euro, Repeat, Star, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { convertEurosToPoints } from '@/lib/mockData';
 import type { User } from '@/types';
 
 interface ConvertBalanceDialogProps {
@@ -48,7 +47,8 @@ const ConvertBalanceDialog: React.FC<ConvertBalanceDialogProps> = ({
 }) => {
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
-  const currentCredit = currentUser.credit ?? 0;
+  // Convertir céntimos a euros para mostrar correctamente
+  const currentCredit = ((currentUser.credits ?? currentUser.credit ?? 0) / 100);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -70,17 +70,43 @@ const ConvertBalanceDialog: React.FC<ConvertBalanceDialogProps> = ({
 
     startTransition(async () => {
       try {
-        const result = await convertEurosToPoints(currentUser.id, values.eurosToConvert, POINTS_PER_EURO);
-        if ('error' in result) {
-          toast({ title: 'Error en la Conversión', description: result.error, variant: 'destructive' });
-        } else {
-          onConversionSuccess(result.newCreditBalance, result.newLoyaltyPoints);
-          onOpenChange(false); // Close dialog on success
-          form.reset({ eurosToConvert: 10 });
+        const response = await fetch(`/api/users/${currentUser.id}/credit/convert`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            euros: values.eurosToConvert, 
+            pointsPerEuro: POINTS_PER_EURO 
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          toast({ 
+            title: 'Error en la Conversión', 
+            description: result.error || 'No se pudo completar la conversión', 
+            variant: 'destructive' 
+          });
+          return;
         }
+
+        onConversionSuccess(result.newCreditBalance, result.newLoyaltyPoints);
+        onOpenChange(false);
+        form.reset({ eurosToConvert: 10 });
+        
+        toast({
+          title: '✅ Conversión Exitosa',
+          description: `${values.eurosToConvert}€ convertidos a ${Math.floor(values.eurosToConvert * POINTS_PER_EURO)} puntos`,
+        });
       } catch (error) {
         console.error("Error converting balance:", error);
-        toast({ title: 'Error Inesperado', description: 'No se pudo completar la conversión.', variant: 'destructive' });
+        toast({ 
+          title: 'Error Inesperado', 
+          description: 'No se pudo completar la conversión.', 
+          variant: 'destructive' 
+        });
       }
     });
   };

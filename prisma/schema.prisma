@@ -62,15 +62,25 @@ model User {
   phone             String?
   level             String          @default("principiante")
   position          String?
+  gender            String?         // masculino, femenino
   club              Club            @relation(fields: [clubId], references: [id])
   clubId            String
   role              Role           @default(PLAYER)
   preference        UserPreference @default(NORMAL)
   visibility        UserVisibility @default(PUBLIC)
   bio               String?
-  credits           Int             @default(0)
+  credits           Int             @default(0)  // Saldo en euros (céntimos)
+  blockedCredits    Int             @default(0)  // Saldo bloqueado por inscripciones pendientes
+  points            Int             @default(0)  // Puntos acumulados por cancelaciones
   genderCategory    String?         // masculino, femenino, mixto
   preferredGameType String?         // clases, partidas, mixto
+  
+  // Preferencias de filtros guardadas
+  prefTimeSlot      String?         @default("all") // all, morning, midday, evening
+  prefViewType      String?         @default("all") // all, withBookings, myConfirmed
+  prefPlayerCounts  String?         @default("1,2,3,4") // CSV de números de jugadores preferidos
+  prefInstructorIds String?         // CSV de IDs de instructores preferidos
+  
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
@@ -78,6 +88,7 @@ model User {
   playerMatches     MatchPlayer[]
   instructorProfile Instructor?
   bookings          Booking[]
+  transactions      Transaction[]
 
   @@map("User")
 }
@@ -99,17 +110,19 @@ model Admin {
 }
 
 model Club {
-  id          String   @id @default(cuid())
-  name        String
-  address     String
-  phone       String?
-  email       String?
-  website     String?
-  description String?
-  admin       Admin?   @relation(fields: [adminId], references: [id])
-  adminId     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  name               String
+  address            String
+  phone              String?
+  email              String?
+  website            String?
+  logo               String?
+  description        String?
+  courtRentalPrice   Float    @default(10.0) // Precio por hora de alquiler de pista
+  admin              Admin?   @relation(fields: [adminId], references: [id])
+  adminId            String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   // Relaciones
   users      User[]
@@ -118,8 +131,27 @@ model Club {
   timeSlots  TimeSlot[]
   instructors Instructor[]
   schedules  ClubSchedule[]
+  priceSlots CourtPriceSlot[] // Franjas horarias con precios
 
   @@map("Club")
+}
+
+// Tabla para franjas horarias con precios diferentes
+model CourtPriceSlot {
+  id          String   @id @default(cuid())
+  club        Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  clubId      String
+  name        String   // Ej: "Horario Valle", "Horario Punta"
+  startTime   String   // Formato "HH:mm" ej: "09:00"
+  endTime     String   // Formato "HH:mm" ej: "12:00"
+  price       Float    // Precio por hora en esta franja
+  daysOfWeek  String   // JSON array de días: "[0,1,2,3,4]" (0=Domingo, 1=Lunes, etc)
+  isActive    Boolean  @default(true)
+  priority    Int      @default(0) // Mayor prioridad = se aplica primero si hay solapamiento
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("CourtPriceSlot")
 }
 
 model Court {
@@ -201,23 +233,26 @@ model Instructor {
 }
 
 model TimeSlot {
-  id           String   @id @default(cuid())
-  club         Club     @relation(fields: [clubId], references: [id])
-  clubId       String
-  court        Court?   @relation(fields: [courtId], references: [id])
-  courtId      String?
-  courtNumber  Int?     // Número de pista asignada (1-4) cuando la clase se confirma
-  instructor   Instructor? @relation(fields: [instructorId], references: [id])
-  instructorId String?
-  start        DateTime
-  end          DateTime
-  maxPlayers   Int      @default(4)
-  totalPrice   Float
-  level        String
-  category     String
-  genderCategory String? // masculino, femenino, mixto - categoría de la clase
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String   @id @default(cuid())
+  club              Club     @relation(fields: [clubId], references: [id])
+  clubId            String
+  court             Court?   @relation(fields: [courtId], references: [id])
+  courtId           String?
+  courtNumber       Int?     // Número de pista asignada (1-4) cuando la clase se confirma
+  instructor        Instructor? @relation(fields: [instructorId], references: [id])
+  instructorId      String?
+  start             DateTime
+  end               DateTime
+  maxPlayers        Int      @default(4)
+  instructorPrice   Float    @default(0) // Precio por hora del instructor
+  courtRentalPrice  Float    @default(0) // Precio por hora de alquiler de pista
+  totalPrice        Float    // Precio total (instructorPrice + courtRentalPrice)
+  level             String
+  category          String
+  genderCategory    String? // masculino, femenino, mixto - categoría de la clase
+  hasRecycledSlots  Boolean  @default(false) // Si tiene plazas recicladas (solo reservables con puntos)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   // Relaciones
   bookings Booking[]
@@ -226,15 +261,19 @@ model TimeSlot {
 }
 
 model Booking {
-  id         String        @id @default(cuid())
-  user       User          @relation(fields: [userId], references: [id])
-  userId     String
-  timeSlot   TimeSlot      @relation(fields: [timeSlotId], references: [id])
-  timeSlotId String
-  groupSize  Int           @default(1) // Número de jugadores que reserva (1, 2, 3, o 4)
-  status     BookingStatus @default(CONFIRMED)
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
+  id              String        @id @default(cuid())
+  user            User          @relation(fields: [userId], references: [id])
+  userId          String
+  timeSlot        TimeSlot      @relation(fields: [timeSlotId], references: [id])
+  timeSlotId      String
+  groupSize       Int           @default(1) // Número de jugadores que reserva (1, 2, 3, o 4)
+  status          BookingStatus @default(CONFIRMED)
+  paidWithPoints  Boolean       @default(false) // Si la reserva fue pagada con puntos
+  pointsUsed      Int           @default(0) // Cantidad de puntos usados
+  amountBlocked   Int           @default(0) // Cantidad bloqueada en céntimos
+  isRecycled      Boolean       @default(false) // Si es una plaza reciclada (solo reservable con puntos)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   @@unique([userId, timeSlotId, groupSize])
   @@map("Booking")
@@ -322,4 +361,22 @@ model InstructorSchedule {
 
   @@unique([instructorId, startTime])
   @@map("InstructorSchedule")
+}
+
+// Registro de movimientos de créditos y puntos
+model Transaction {
+  id          String   @id @default(cuid())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  type        String   // 'credit' o 'points'
+  action      String   // 'add', 'subtract', 'block', 'unblock', 'refund'
+  amount      Float    // Cantidad del movimiento
+  balance     Float    // Saldo después del movimiento
+  concept     String   // Descripción del movimiento
+  relatedId   String?  // ID relacionado (booking, match, etc.)
+  relatedType String?  // Tipo de entidad relacionada (booking, match, refund, etc.)
+  metadata    String?  // JSON con información adicional
+  createdAt   DateTime @default(now())
+
+  @@map("Transaction")
 }

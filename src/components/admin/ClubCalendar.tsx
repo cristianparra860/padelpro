@@ -75,7 +75,7 @@ interface CalendarData {
   };
 }
 
-export default function ClubCalendar({ clubId }: { clubId: string }) {
+export default function ClubCalendar({ clubId, currentUser }: { clubId: string; currentUser?: any }) {
   const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -86,6 +86,7 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
   const [showEventDetails, setShowEventDetails] = useState(false);
   const [showClassCard, setShowClassCard] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [userBookings, setUserBookings] = useState<any[]>([]); // 🆕 Bookings del usuario para colorear días
 
   const handleEventClick = (event: CalendarEvent) => {
     // Si es una clase confirmada, mostrar la tarjeta de usuario
@@ -129,17 +130,6 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
     await loadCalendarData(); // Recargar datos
   };
 
-  useEffect(() => {
-    loadCalendarData();
-    
-    // Auto-refresh cada 30 segundos para actualizar en tiempo real
-    const interval = setInterval(() => {
-      loadCalendarData();
-    }, 30000);
-    
-    return () => clearInterval(interval);
-  }, [clubId, currentDate]);
-
   const loadCalendarData = async () => {
     setLoading(true);
     try {
@@ -172,6 +162,45 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
       console.error('Error loading calendar:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCalendarData();
+    if (currentUser?.id) {
+      loadUserBookings(); // 🆕 Cargar bookings del usuario
+    }
+    
+    // Auto-refresh cada 30 segundos para actualizar en tiempo real
+    const interval = setInterval(() => {
+      loadCalendarData();
+      if (currentUser?.id) {
+        loadUserBookings();
+      }
+    }, 30000);
+    
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clubId, currentDate, currentUser?.id]); // loadCalendarData se recrea cada vez que cambia clubId o currentDate
+
+  // 🆕 Cargar bookings del usuario para colorear días en el calendario
+  const loadUserBookings = async () => {
+    if (!currentUser?.id) return;
+    
+    try {
+      const response = await fetch(`/api/users/${currentUser.id}/bookings`);
+      if (response.ok) {
+        const bookings = await response.json();
+        // Transformar para el DateSelector
+        const formattedBookings = bookings.map((b: any) => ({
+          timeSlotId: b.timeSlotId,
+          status: b.status,
+          date: b.timeSlot?.start || b.start || new Date()
+        }));
+        setUserBookings(formattedBookings);
+      }
+    } catch (error) {
+      console.error('Error cargando bookings del usuario:', error);
     }
   };
 
@@ -251,18 +280,13 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
 
   const getTimeSlots = () => {
     const slots = [];
-    for (let hour = 8; hour <= 22; hour++) {
+    for (let hour = 7; hour <= 22; hour++) {
       slots.push(`${hour.toString().padStart(2, '0')}:00`);
       slots.push(`${hour.toString().padStart(2, '0')}:30`);
     }
     return slots;
   };
 
-  // 🔍 VERIFICAR SI HAY 60 MINUTOS CONTINUOS DISPONIBLES
-  // Ejemplo: Si hay clase 12:00-13:00, entonces:
-  //   - 12:00 ❌ (ocupado)
-  //   - 12:30 ❌ (solo quedan 30 min hasta las 13:00, necesitamos 60)
-  //   - 13:00 ✅ (60 min completos disponibles)
   const hasFullHourAvailable = (instructorId: string, slotTime: string, slotDate: Date): boolean => {
     const [hourStr, minuteStr] = slotTime.split(':');
     const slotHour = parseInt(hourStr);
@@ -286,25 +310,20 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
       // Solo verificar el mismo día
       if (clsStart.toDateString() !== slotDate.toDateString()) return false;
       
-      // VERIFICAR SOLAPAMIENTO:
-      // Una clase solapa si:
-      // - La clase empieza ANTES de que termine nuestro slot (clsStart < slotEnd)
-      // - Y la clase termina DESPUÉS de que empiece nuestro slot (clsEnd > slotStart)
-      //
-      // Ejemplo: Clase 12:00-13:00, verificando slot 12:30
-      //   slotStart = 12:30, slotEnd = 13:30
-      //   clsStart (12:00) < slotEnd (13:30) ✓
-      //   clsEnd (13:00) > slotStart (12:30) ✓
-      //   = HAY SOLAPAMIENTO ❌ (12:30 NO disponible)
-      //
-      // Ejemplo: Clase 12:00-13:00, verificando slot 13:00
-      //   slotStart = 13:00, slotEnd = 14:00
-      //   clsStart (12:00) < slotEnd (14:00) ✓
-      //   clsEnd (13:00) > slotStart (13:00) ❌ (13:00 NO es > 13:00)
-      //   = NO HAY SOLAPAMIENTO ✅ (13:00 SÍ disponible)
-      const overlaps = clsStart < slotEnd && clsEnd > slotStart;
+      // REGLA: Bloquear solo los últimos 30 minutos antes de la clase
+      // Si la nueva clase empezaría exactamente 30min antes, bloquear
+      const timeDiff = clsStart.getTime() - slotStart.getTime();
+      const is30MinutesBefore = timeDiff === 30 * 60 * 1000;
       
-      return overlaps;
+      if (is30MinutesBefore) {
+        return true; // BLOQUEADO - No puede empezar 30min antes
+      }
+      
+      // REGLA: Bloquear si hay solapamiento DESPUÉS del inicio de la clase
+      // Permitir clases que terminen justo cuando empieza la otra (o antes)
+      const wouldOverlap = slotEnd > clsStart && slotStart < clsEnd;
+      
+      return wouldOverlap;
     });
 
     return !hasConflict;
@@ -338,11 +357,27 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="p-8">
-          <div className="flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-            <span className="ml-3">Cargando calendario...</span>
+      <div className="md:space-y-0 space-y-4">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-center">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <span className="ml-3 text-sm">Cargando calendario...</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Fallback si no hay datos
+  if (!calendarData) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="p-6 text-center text-sm text-muted-foreground">
+          No se pudieron cargar los datos del calendario.
+          <div className="mt-3">
+            <Button size="sm" variant="outline" onClick={loadCalendarData}>Reintentar</Button>
           </div>
         </CardContent>
       </Card>
@@ -354,8 +389,22 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
 
   return (
     <div className="space-y-6">
-      {/* Header con controles - DISEÑO MEJORADO */}
-      <Card className="bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 border-0 shadow-2xl overflow-hidden">
+      {/* 🔧 MODO MÓVIL: Barra compacta fija para navegación rápida - OCULTA */}
+      <div className="hidden">
+        <button onClick={() => navigateDate('prev')} className="px-2 py-1 text-white text-sm font-semibold bg-white/20 rounded hover:bg-white/30">◀</button>
+        <button onClick={() => setCurrentDate(new Date())} className="px-2 py-1 text-white text-sm font-semibold bg-white/20 rounded hover:bg-white/30">Hoy</button>
+        <button onClick={() => navigateDate('next')} className="px-2 py-1 text-white text-sm font-semibold bg-white/20 rounded hover:bg-white/30">▶</button>
+        <div className="flex-1 text-center text-white text-xs font-medium">
+          {currentDate.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}
+        </div>
+        <div className="flex gap-1">
+          {['day','week','month'].map(v => (
+            <button key={v} onClick={() => setView(v as any)} className={`px-2 py-1 rounded text-xs font-semibold ${view===v ? 'bg-white text-purple-600' : 'bg-white/20 text-white'} transition`}>{v === 'day' ? 'Día' : v === 'week' ? 'Semana' : 'Mes'}</button>
+          ))}
+        </div>
+      </div>
+      {/* Header con controles - DISEÑO MEJORADO - Oculto en móvil */}
+      <Card className="hidden md:block bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 border-0 shadow-2xl overflow-hidden">
         <CardHeader className="relative">
           {/* Fondo con efecto */}
           <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent" />
@@ -485,10 +534,10 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
         </CardHeader>
       </Card>
 
-      {/* Estadísticas rápidas - DISEÑO MEJORADO */}
+      {/* Estadísticas rápidas - Responsive: horizontal scroll en móvil - OCULTO EN MÓVIL */}
       {calendarData && (
-        <div className="grid grid-cols-4 gap-4">
-          <Card className="bg-gradient-to-br from-orange-500 to-orange-600 border-0 shadow-lg hover:shadow-xl transition-all hover:scale-105 cursor-pointer">
+        <div className="hidden md:grid md:grid-cols-4 gap-4">
+          <Card className="min-w-[280px] md:min-w-0 snap-center bg-gradient-to-br from-orange-500 to-orange-600 border-0 shadow-lg hover:shadow-xl transition-all hover:scale-105 cursor-pointer">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -502,7 +551,7 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
             </CardContent>
           </Card>
           
-          <Card className="bg-gradient-to-br from-green-500 to-green-600 border-0 shadow-lg hover:shadow-xl transition-all hover:scale-105 cursor-pointer">
+          <Card className="min-w-[280px] md:min-w-0 snap-center bg-gradient-to-br from-green-500 to-green-600 border-0 shadow-lg hover:shadow-xl transition-all hover:scale-105 cursor-pointer">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -516,7 +565,7 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
             </CardContent>
           </Card>
           
-          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg hover:shadow-xl transition-all hover:scale-105 cursor-pointer">
+          <Card className="min-w-[280px] md:min-w-0 snap-center bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg hover:shadow-xl transition-all hover:scale-105 cursor-pointer">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -545,13 +594,37 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
           </Card>
         </div>
       )}
+      {/* Versión móvil de estadísticas (scroll horizontal) - OCULTO */}
+      {calendarData && (
+        <div className="hidden">
+          <div className="flex gap-3 pb-1 w-max">
+            <div className="min-w-[150px] bg-orange-500 rounded-xl p-3 text-white shadow">
+              <div className="text-[10px] opacity-80">Propuestas</div>
+              <div className="text-2xl font-bold leading-none">{calendarData.summary.proposedClasses}</div>
+            </div>
+            <div className="min-w-[150px] bg-green-500 rounded-xl p-3 text-white shadow">
+              <div className="text-[10px] opacity-80">Confirmadas</div>
+              <div className="text-2xl font-bold leading-none">{calendarData.summary.confirmedClasses}</div>
+            </div>
+            <div className="min-w-[150px] bg-blue-500 rounded-xl p-3 text-white shadow">
+              <div className="text-[10px] opacity-80">Instructores</div>
+              <div className="text-2xl font-bold leading-none">{calendarData.summary.totalInstructors || 0}</div>
+            </div>
+            <div className="min-w-[150px] bg-purple-500 rounded-xl p-3 text-white shadow">
+              <div className="text-[10px] opacity-80">Pistas</div>
+              <div className="text-2xl font-bold leading-none">{calendarData.summary.totalCourts}</div>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Selector de Fecha Lineal - Ancho completo */}
-      <div className="w-full">
+      {/* Selector de Fecha Lineal - Ancho completo (ajuste móvil spacing) */}
+      <div className="w-full md:mt-0 mt-2">
         <DateSelector 
           selectedDate={currentDate}
           onDateChange={setCurrentDate}
-          daysToShow={15}
+          daysToShow={30}
+          userBookings={userBookings} // 🆕 Pasar bookings del usuario
         />
       </div>
 
@@ -602,17 +675,17 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
               })}
             </div>
           ) : (
-            // NUEVA VISTA: Basada en pistas con fila de propuestas - DISEÑO MEJORADO
-            <div className="flex flex-col overflow-x-auto">
+            // NUEVA VISTA: Basada en pistas con fila de propuestas - DISEÑO MEJORADO Y RESPONSIVE
+            <div className="flex flex-col overflow-x-auto md:overflow-x-visible md:rounded-lg md:border md:border-gray-200 -mx-4 md:mx-0">
               {/* Columna de horas (izquierda) */}
-              <div className="flex border-b-2 border-gray-300 min-w-max bg-gradient-to-r from-gray-100 to-gray-50 shadow-sm">
-                <div className="w-32 border-r-2 border-gray-300 bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center p-3 flex-shrink-0">
-                  <span className="text-sm font-bold text-white">⏰ Horarios</span>
+              <div className="flex border-b-2 border-gray-300 bg-gradient-to-r from-gray-100 to-gray-50 shadow-sm">
+                <div className="w-24 md:w-32 border-r-2 border-gray-300 bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center p-2 md:p-3 flex-shrink-0 sticky left-0 z-20 shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
+                  <span className="text-xs md:text-sm font-bold text-white">⏰ Horarios</span>
                 </div>
                 {/* Headers de slots de tiempo */}
-                <div className="flex">
+                <div className="flex min-w-max">
                   {timeSlots.map(time => (
-                    <div key={time} className="w-10 border-r text-center py-2 text-[9px] font-bold text-gray-700 flex-shrink-0 hover:bg-blue-50 transition-colors">
+                    <div key={time} className="w-12 md:w-10 border-r text-center py-2 text-[10px] md:text-[9px] font-bold text-gray-700 flex-shrink-0 hover:bg-blue-50 transition-colors">
                       {time}
                     </div>
                   ))}
@@ -621,28 +694,31 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
 
               {/* FILAS: Clases Propuestas por Instructor - DISEÑO MEJORADO */}
               {calendarData?.instructors.map(instructor => (
-                <div key={instructor.id} className="flex border-b bg-gradient-to-r from-orange-50 to-orange-100/50 min-w-max hover:from-orange-100 hover:to-orange-100 transition-colors">
-                  <div className="w-32 border-r flex items-center px-3 py-2 flex-shrink-0">
-                    <div className="flex items-center gap-2">
+                <div key={instructor.id} className="flex border-b bg-gradient-to-r from-orange-50 to-orange-100/50 hover:from-orange-100 hover:to-orange-100 transition-colors">
+                  <div className="w-24 md:w-32 border-r flex items-center px-2 md:px-3 py-2 flex-shrink-0 sticky left-0 bg-gradient-to-r from-orange-50 to-orange-100 z-20 shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
+                    <div className="flex items-center gap-1 md:gap-2">
                       {instructor.photo ? (
                         <img 
                           src={instructor.photo} 
                           alt={instructor.name}
-                          className="w-7 h-7 rounded-full object-cover border-2 border-orange-500 shadow-sm"
+                          className="w-6 md:w-7 h-6 md:h-7 rounded-full object-cover border-2 border-orange-500 shadow-sm flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-xs font-bold text-white shadow-sm">
+                        <div className="w-6 md:w-7 h-6 md:h-7 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-xs font-bold text-white shadow-sm flex-shrink-0">
                           {instructor.name.charAt(0)}
                         </div>
                       )}
                       <div className="min-w-0">
-                        <div className="text-xs font-bold text-orange-900 truncate">{instructor.name}</div>
-                        <div className="text-[9px] text-orange-600 font-medium">✨ Propuestas</div>
+                        <div className="text-[10px] md:text-xs font-bold text-orange-900 truncate">{instructor.name}</div>
+                        <div className="text-[8px] md:text-[9px] text-orange-600 font-medium">✨ Propuestas</div>
                       </div>
                     </div>
                   </div>
-                  <div className="flex">
+                  <div className="flex min-w-max">
                     {timeSlots.map((time, slotIndex) => {
+                      // 🔍 VERIFICAR SI ESTE SLOT TIENE 60 MINUTOS COMPLETOS DISPONIBLES
+                      const canStartClassHere = hasFullHourAvailable(instructor.id, time, currentDate);
+                      
                       // Buscar clases propuestas de ESTE instructor en este slot
                       const instructorClasses = (calendarData?.proposedClasses || []).filter(cls => {
                         const clsStart = new Date(cls.start);
@@ -658,15 +734,14 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
                         return isSameInstructor && isSameDay && isSameTime;
                       });
 
-                      // MOSTRAR TODAS LAS PROPUESTAS
-                      // Las propuestas solo desaparecen cuando se confirma una reserva
-                      // (eso se maneja en el backend al crear la reserva)
-                      const visibleClasses = instructorClasses;
+                      // ⚠️ SOLO MOSTRAR PROPUESTAS SI HAY 60 MINUTOS DISPONIBLES
+                      const visibleClasses = canStartClassHere ? instructorClasses : [];
 
                       return (
                         <div 
                           key={slotIndex} 
-                          className="w-10 h-10 border-r relative flex-shrink-0"
+                          className={`w-12 md:w-10 h-10 border-r relative flex-shrink-0 ${!canStartClassHere ? 'bg-red-50/30' : ''}`}
+                          title={!canStartClassHere ? '⚠️ No hay 60min disponibles' : ''}
                         >
                           {visibleClasses.length > 0 && (
                             <div className="absolute inset-0 p-0.5 overflow-hidden">
@@ -675,7 +750,7 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
                                   key={cls.id}
                                   className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded shadow-md cursor-pointer hover:shadow-lg hover:scale-105 transition-all h-full flex flex-col items-center justify-center border border-orange-400"
                                   onClick={() => handleEventClick(cls)}
-                                  title={`${cls.category || cls.level} - ${cls.playersCount}/${cls.maxPlayers} alumnos`}
+                                  title={`${cls.category || cls.level} - ${cls.playersCount}/${cls.maxPlayers} alumnos - ⏱️ 60min`}
                                 >
                                   <div className="text-[7px] font-bold truncate w-full text-center">✨{cls.category || cls.level}</div>
                                   <div className="text-[8px] font-bold truncate w-full text-center">
@@ -697,21 +772,21 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
                 </div>
               ))}
 
-              {/* FILAS: Pistas (1, 2, 3, 4...) - DISEÑO MEJORADO */}
+              {/* FILAS: Pistas (1, 2, 3, 4...) - DISEÑO MEJORADO Y RESPONSIVE */}
               {calendarData?.courts.map(court => (
-                <div key={court.id} className="flex border-b hover:bg-blue-50/30 min-w-max transition-colors">
-                  <div className="w-32 border-r flex items-center px-3 py-2 flex-shrink-0 bg-gradient-to-r from-gray-50 to-white">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-sm">
-                        <DoorOpen className="h-4 w-4 text-white" />
+                <div key={court.id} className="flex border-b hover:bg-blue-50/30 transition-colors">
+                  <div className="w-24 md:w-32 border-r flex items-center px-2 md:px-3 py-2 flex-shrink-0 bg-white sticky left-0 z-20 shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
+                    <div className="flex items-center gap-1 md:gap-2">
+                      <div className="p-1 md:p-1.5 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-sm flex-shrink-0">
+                        <DoorOpen className="h-3 md:h-4 w-3 md:w-4 text-white" />
                       </div>
-                      <div>
-                        <div className="text-xs font-bold text-gray-900">🎾 Pista {court.number}</div>
-                        <div className="text-[9px] text-gray-600 font-medium">{court.name}</div>
+                      <div className="min-w-0">
+                        <div className="text-[10px] md:text-xs font-bold text-gray-900">🎾 Pista {court.number}</div>
+                        <div className="text-[8px] md:text-[9px] text-gray-600 font-medium truncate">{court.name}</div>
                       </div>
                     </div>
                   </div>
-                  <div className="flex">
+                  <div className="flex min-w-max">
                     {timeSlots.map((time, slotIndex) => {
                       // Buscar clases confirmadas en esta pista, slot Y del día seleccionado
                       const confirmedInSlot = (calendarData?.confirmedClasses || []).filter(cls => {
@@ -725,6 +800,22 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
                         const isSameTime = clsStart.getHours() === slotHour && clsStart.getMinutes() === slotMinute;
                         
                         return cls.courtNumber === court.number && isSameDay && isSameTime;
+                      });
+
+                      // 🔍 VERIFICAR SI ESTE SLOT ESTÁ OCUPADO POR UNA CLASE DE 60MIN
+                      // Una clase que empieza 30min antes también ocupa este slot
+                      const slotDate = new Date(currentDate);
+                      const [hourStr, minuteStr] = time.split(':');
+                      slotDate.setHours(parseInt(hourStr), parseInt(minuteStr), 0, 0);
+                      
+                      const isOccupiedByPreviousClass = (calendarData?.confirmedClasses || []).some(cls => {
+                        if (cls.courtNumber !== court.number) return false;
+                        
+                        const clsStart = new Date(cls.start);
+                        const clsEnd = new Date(cls.end);
+                        
+                        // Verificar si este slot está DENTRO del rango de la clase
+                        return clsStart <= slotDate && slotDate < clsEnd;
                       });
 
                       // ⚠️ ADVERTENCIA: Detectar solapamientos
@@ -741,7 +832,11 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
                       const isPartOfClass = confirmedInSlot.length > 0;
 
                       return (
-                        <div key={slotIndex} className="w-10 h-10 border-r relative flex-shrink-0">
+                        <div 
+                          key={slotIndex} 
+                          className={`w-12 md:w-10 h-10 border-r relative flex-shrink-0 ${isOccupiedByPreviousClass && !isPartOfClass ? 'bg-green-100' : ''}`}
+                          title={isOccupiedByPreviousClass && !isPartOfClass ? '🔒 Ocupado por clase anterior (60min)' : ''}
+                        >
                           {confirmedInSlot.slice(0, 1).map(cls => { // 🛡️ SOLO MOSTRAR LA PRIMERA CLASE para evitar solapamientos visuales
                             // Solo renderizar en el primer slot (00 o 30 inicial)
                             const clsStart = new Date(cls.start);
@@ -750,16 +845,16 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
                             
                             if (!isStartSlot) return null;
 
-                            // Clase ocupa 2 slots (60min) = 80px (40px * 2)
+                            // Clase ocupa 2 slots (60min) = 96px móvil (48px * 2) o 80px desktop (40px * 2)
                             return (
                               <div
                                 key={cls.id}
                                 className="absolute left-0.5 top-0.5 bottom-0.5 bg-gradient-to-br from-green-500 to-green-600 text-white rounded-md shadow-lg cursor-pointer hover:shadow-xl hover:scale-[1.02] transition-all z-10 flex flex-col items-center justify-center border-2 border-green-400"
                                 style={{
-                                  width: '79px', // 2 slots: 40px * 2 - 1px border
+                                  width: 'calc(2 * (3rem - 1px))', // 2 slots móvil: 48px * 2 - border
                                 }}
                                 onClick={() => handleEventClick(cls)}
-                                title={`${cls.instructorName} - ${cls.category || cls.level} (${cls.playersCount}/${cls.maxPlayers})`}
+                                title={`${cls.instructorName} - ${cls.category || cls.level} (${cls.playersCount}/${cls.maxPlayers}) - ⏱️ 60min`}
                               >
                                 <div className="text-[8px] font-bold truncate w-full text-center">✅ {cls.category || cls.level}</div>
                                 <div className="text-[7px] truncate w-full text-center font-medium">👨‍🏫 {cls.instructorName}</div>
@@ -781,7 +876,7 @@ export default function ClubCalendar({ clubId }: { clubId: string }) {
       </Card>
 
       {/* Leyenda */}
-      <Card>
+      <Card className="hidden md:block">
         <CardContent className="p-4">
           <div className="flex items-center gap-6 text-sm">
             <span className="font-semibold">Leyenda:</span>

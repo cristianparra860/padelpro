@@ -7,6 +7,7 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { startOfDay, format, isSameDay, addDays, differenceInDays } from 'date-fns';
 import type { User, MatchPadelLevel, TimeOfDayFilterType, MatchDayEvent, UserActivityStatusForDay, ViewPreference, ActivityViewType } from '@/types';
 import { updateUserFavoriteInstructors, getUserActivityStatusForDay, fetchMatchDayEventsForDate } from '@/lib/mockData';
+import { useUserPreferences } from './useUserPreferences';
 
 export function useActivityFilters(
   currentUser: User | null,
@@ -16,11 +17,14 @@ export function useActivityFilters(
   const router = useRouter();
   const pathname = usePathname();
   const [refreshKey, setRefreshKey] = useState(0); // Internal refresh trigger
+  
+  // Cargar preferencias guardadas del usuario
+  const { preferences, updatePreferences, isLoading: isLoadingPreferences } = useUserPreferences(currentUser?.id);
 
-  // --- Filter State (driven by URL params) ---
-  const timeSlotFilter = (searchParams.get('time') as TimeOfDayFilterType) || 'all';
+  // --- Filter State (driven by URL params OR saved preferences) ---
+  const timeSlotFilter = (searchParams.get('time') as TimeOfDayFilterType) || preferences.timeSlotFilter;
   const filterByFavorites = searchParams.get('favorites') === 'true';
-  const viewPreference = (searchParams.get('viewPref') as ViewPreference) || 'all';
+  const viewPreference = (searchParams.get('viewPref') as ViewPreference) || preferences.viewPreference;
   const matchShareCode = searchParams.get('code');
   const matchIdFilter = searchParams.get('matchId');
   const filterByGratisOnly = searchParams.get('filter') === 'gratis';
@@ -29,12 +33,19 @@ export function useActivityFilters(
   const filterByProOnly = searchParams.get('filter') === 'pro';
   const showPointsBonus = searchParams.get('showPoints') === 'true';
   
-  // --- Player Count Filter State ---
+  // --- Player Count Filter State (con preferencias) ---
   const playerCountsParam = searchParams.get('players');
   const selectedPlayerCounts = useMemo(() => {
-    if (!playerCountsParam) return new Set([1, 2, 3, 4]); // All by default
+    if (!playerCountsParam) return new Set(preferences.playerCounts); // Usar preferencias guardadas
     return new Set(playerCountsParam.split(',').map(Number).filter(n => n >= 1 && n <= 4));
-  }, [playerCountsParam]);
+  }, [playerCountsParam, preferences.playerCounts]);
+
+  // --- Instructor Filter State (con preferencias) ---
+  const instructorsParam = searchParams.get('instructors');
+  const selectedInstructorIds = useMemo(() => {
+    if (!instructorsParam) return preferences.instructorIds; // Usar preferencias guardadas
+    return instructorsParam.split(',').filter(id => id.length > 0);
+  }, [instructorsParam, preferences.instructorIds]);
 
 
   // --- Local State ---
@@ -56,45 +67,77 @@ export function useActivityFilters(
     const fetchIndicators = async () => {
       if (!currentUser) return;
       const newIndicators: Record<string, UserActivityStatusForDay> = {};
-      const clubIdFromParams = searchParams.get('clubId');
       const today = startOfDay(new Date());
 
-      for (const date of dateStripDates) {
-        const dateKey = format(date, 'yyyy-MM-dd');
+      // Usar endpoint batch en lugar de múltiples peticiones
+      const startDate = format(dateStripDates[0], 'yyyy-MM-dd');
+      const endDate = format(dateStripDates[dateStripDates.length - 1], 'yyyy-MM-dd');
+      
+      try {
+        const response = await fetch(`/api/user-activity-batch?userId=${currentUser.id}&startDate=${startDate}&endDate=${endDate}`);
         
-        try {
-          // Intentar obtener datos reales de la API primero
-          const response = await fetch(`/api/user-activity-status?userId=${currentUser.id}&date=${dateKey}`);
-          if (response.ok) {
-            const statusResult = await response.json();
+        console.log('🔍 Respuesta de /api/user-activity-batch:', response.status);
+        
+        if (response.ok) {
+          const batchResult = await response.json();
+          console.log('✅ Datos recibidos de /api/user-activity-batch:', Object.keys(batchResult).length, 'días');
+          
+          // Procesar resultados batch
+          for (const date of dateStripDates) {
+            const dateKey = format(date, 'yyyy-MM-dd');
+            const statusResult = batchResult[dateKey];
             const anticipationPoints = differenceInDays(date, today);
             
-            newIndicators[dateKey] = {
-              ...statusResult,
-              anticipationPoints: Math.max(0, anticipationPoints)
-            };
-          } else {
-            // Fallback a datos mock si falla la API
-            const statusResult = await getUserActivityStatusForDay(currentUser.id, date);
+            if (statusResult) {
+              newIndicators[dateKey] = {
+                ...statusResult,
+                anticipationPoints: Math.max(0, anticipationPoints)
+              };
+            } else {
+              // Día sin datos
+              newIndicators[dateKey] = {
+                activityStatus: 'none',
+                activityTypes: [],
+                hasEvent: false,
+                anticipationPoints: Math.max(0, anticipationPoints),
+                bookingsCount: 0,
+                confirmedCount: 0
+              };
+            }
+          }
+        } else {
+          console.error('❌ API /user-activity-batch falló con status:', response.status);
+          // NO USAR FALLBACK A MOCK - mostrar indicadores vacíos
+          for (const date of dateStripDates) {
+            const dateKey = format(date, 'yyyy-MM-dd');
             const anticipationPoints = differenceInDays(date, today);
-            
             newIndicators[dateKey] = {
-              ...statusResult,
-              anticipationPoints: Math.max(0, anticipationPoints)
+              activityStatus: 'none',
+              activityTypes: [],
+              hasEvent: false,
+              anticipationPoints: Math.max(0, anticipationPoints),
+              bookingsCount: 0,
+              confirmedCount: 0
             };
           }
-        } catch (error) {
-          console.warn('⚠️ Error fetching activity status, using mock data:', error);
-          // Fallback a datos mock en caso de error
-          const statusResult = await getUserActivityStatusForDay(currentUser.id, date);
+        }
+      } catch (error) {
+        console.error('❌ Error fetching batch activity status:', error);
+        // NO USAR FALLBACK A MOCK - mostrar indicadores vacíos
+        for (const date of dateStripDates) {
+          const dateKey = format(date, 'yyyy-MM-dd');
           const anticipationPoints = differenceInDays(date, today);
-          
           newIndicators[dateKey] = {
-            ...statusResult,
-            anticipationPoints: Math.max(0, anticipationPoints)
+            activityStatus: 'none',
+            activityTypes: [],
+            hasEvent: false,
+            anticipationPoints: Math.max(0, anticipationPoints),
+            bookingsCount: 0,
+            confirmedCount: 0
           };
         }
       }
+      
       setDateStripIndicators(newIndicators);
     };
 
@@ -138,14 +181,18 @@ export function useActivityFilters(
     router.replace(`${pathname}?${newSearchParams.toString()}`, { scroll: false });
   }, [router, pathname, activeView]);
 
-  // --- Event Handlers ---
-  const handleTimeFilterChange = (value: TimeOfDayFilterType) => updateUrlFilter('time', value);
+  // --- Event Handlers (con guardado de preferencias) ---
+  const handleTimeFilterChange = (value: TimeOfDayFilterType) => {
+    updateUrlFilter('time', value);
+    // Guardar preferencia
+    updatePreferences({ timeSlotFilter: value });
+  };
   
   const handleDateChange = useCallback((date: Date) => {
       setSelectedDate(startOfDay(date));
       const newSearchParams = new URLSearchParams(searchParams.toString());
       newSearchParams.set('date', format(date, 'yyyy-MM-dd'));
-      newSearchParams.delete('viewPref'); 
+      // ✅ Mantener viewPref al cambiar de fecha (no borrar)
       router.replace(`${pathname}?${newSearchParams.toString()}`, { scroll: false });
   }, [router, pathname, searchParams]);
   
@@ -183,6 +230,9 @@ export function useActivityFilters(
       newSearchParams.delete('viewPref');
     }
     
+    // Guardar preferencia
+    updatePreferences({ viewPreference: pref });
+    
     if (date) {
         newSearchParams.set('date', format(date, 'yyyy-MM-dd'));
         setSelectedDate(startOfDay(date));
@@ -210,7 +260,7 @@ export function useActivityFilters(
     }
   }, [searchParams, filterByGratisOnly, filterByLiberadasOnly, filterByPuntosOnly, matchIdFilter, matchShareCode, selectedDate]);
 
-  // --- Player Count Filter Handlers ---
+  // --- Player Count Filter Handlers (con guardado de preferencias) ---
   const handleTogglePlayerCount = useCallback((count: number) => {
     const newCounts = new Set(selectedPlayerCounts);
     if (newCounts.has(count)) {
@@ -220,6 +270,10 @@ export function useActivityFilters(
     }
     
     const countsArray = Array.from(newCounts).sort();
+    
+    // Guardar preferencia
+    updatePreferences({ playerCounts: countsArray.length > 0 ? countsArray : [1, 2, 3, 4] });
+    
     if (countsArray.length === 4) {
       // All selected, remove param
       updateUrlFilter('players', null);
@@ -229,15 +283,28 @@ export function useActivityFilters(
     } else {
       updateUrlFilter('players', countsArray.join(','));
     }
-  }, [selectedPlayerCounts, updateUrlFilter]);
+  }, [selectedPlayerCounts, updateUrlFilter, updatePreferences]);
 
   const handleSelectAllPlayerCounts = useCallback(() => {
     updateUrlFilter('players', null); // Null means all selected
-  }, [updateUrlFilter]);
+    updatePreferences({ playerCounts: [1, 2, 3, 4] });
+  }, [updateUrlFilter, updatePreferences]);
 
   const handleDeselectAllPlayerCounts = useCallback(() => {
     updateUrlFilter('players', ''); // Empty means none selected, will reset to all
-  }, [updateUrlFilter]);
+  }, [updateUrlFilter, updatePreferences]);
+
+  const handleInstructorChange = useCallback((instructorIds: string[]) => {
+    // Guardar preferencia
+    updatePreferences({ instructorIds });
+    
+    if (instructorIds.length === 0) {
+      // None selected means all
+      updateUrlFilter('instructors', null);
+    } else {
+      updateUrlFilter('instructors', instructorIds.join(','));
+    }
+  }, [updateUrlFilter, updatePreferences]);
 
   return {
     activeView,
@@ -259,6 +326,7 @@ export function useActivityFilters(
     refreshKey,
     showPointsBonus,
     selectedPlayerCounts,
+    selectedInstructorIds,
     handleTimeFilterChange,
     handleApplyFavorites,
     handleDateChange,
@@ -269,6 +337,7 @@ export function useActivityFilters(
     handleTogglePlayerCount,
     handleSelectAllPlayerCounts,
     handleDeselectAllPlayerCounts,
+    handleInstructorChange,
     updateUrlFilter,
   };
 }

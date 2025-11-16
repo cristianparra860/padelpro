@@ -14,6 +14,7 @@ export async function GET() {
         address: true,
         phone: true,
         email: true,
+        logo: true,
         description: true
       }
     });

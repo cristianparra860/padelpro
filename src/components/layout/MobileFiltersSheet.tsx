@@ -5,11 +5,12 @@
 import React, { useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Heart, SlidersHorizontal, Eye, ClipboardList, CheckCircle, Sparkles, Star, Clock, BarChartHorizontal, X, Users } from 'lucide-react';
+import { Heart, SlidersHorizontal, Eye, ClipboardList, CheckCircle, Sparkles, Star, Clock, BarChartHorizontal, X, Users, UserCheck } from 'lucide-react';
 import { timeSlotFilterOptions } from '@/types';
 import type { TimeOfDayFilterType, MatchPadelLevel, ClubLevelRange, ViewPreference } from '@/types';
 import { cn } from '@/lib/utils';
 import { getMockClubs } from '@/lib/mockData';
+import { InstructorFilter } from '@/components/class/InstructorFilter';
 
 interface MobileFiltersSheetProps {
   isOpen: boolean;
@@ -19,12 +20,14 @@ interface MobileFiltersSheetProps {
   filterByFavorites: boolean;
   showPointsBonus: boolean;
   selectedPlayerCounts: Set<number>;
+  selectedInstructorIds: string[];
   onTimeFilterChange: (value: TimeOfDayFilterType) => void;
   onViewPreferenceChange: (value: ViewPreference) => void;
   onFavoritesClick: () => void;
   onTogglePointsBonus: () => void;
   onTogglePlayerCount: (count: number) => void;
   onClearFilters: () => void;
+  onInstructorChange: (instructorIds: string[]) => void;
 }
 
 const FilterButton: React.FC<{
@@ -52,12 +55,14 @@ export function MobileFiltersSheet({
     filterByFavorites,
     showPointsBonus,
     selectedPlayerCounts,
+    selectedInstructorIds,
     onTimeFilterChange,
     onViewPreferenceChange,
     onFavoritesClick,
     onTogglePointsBonus,
     onTogglePlayerCount,
     onClearFilters,
+    onInstructorChange,
 }: MobileFiltersSheetProps) {
 
     const club = getMockClubs()[0]; // Assuming single club for now
@@ -76,14 +81,59 @@ export function MobileFiltersSheet({
                     <div>
                         <h4 className="font-semibold mb-2 text-sm text-muted-foreground">Franja Horaria</h4>
                         <div className="grid grid-cols-4 gap-2">
-                            <Button variant={timeSlotFilter === 'all' ? "secondary" : "outline"} onClick={() => onTimeFilterChange('all')} className={cn("h-auto py-2 shadow-inner", timeSlotFilter === 'all' && 'border-primary bg-sidebar')}>Todos</Button>
-                            <Button variant={timeSlotFilter === 'morning' ? "secondary" : "outline"} onClick={() => onTimeFilterChange('morning')} className={cn("h-auto py-2 shadow-inner", timeSlotFilter === 'morning' && 'border-primary bg-sidebar')}>Mañanas</Button>
-                            <Button variant={timeSlotFilter === 'midday' ? "secondary" : "outline"} onClick={() => onTimeFilterChange('midday')} className={cn("h-auto py-2 shadow-inner", timeSlotFilter === 'midday' && 'border-primary bg-sidebar')}>Mediodía</Button>
-                            <Button variant={timeSlotFilter === 'evening' ? "secondary" : "outline"} onClick={() => onTimeFilterChange('evening')} className={cn("h-auto py-2 shadow-inner", timeSlotFilter === 'evening' && 'border-primary bg-sidebar')}>Tardes</Button>
+                            <Button 
+                                variant={timeSlotFilter === 'all' ? "default" : "outline"} 
+                                onClick={() => onTimeFilterChange('all')} 
+                                className={cn(
+                                    "h-auto py-2 font-semibold transition-all",
+                                    timeSlotFilter === 'all' 
+                                        ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md' 
+                                        : 'hover:bg-gray-100'
+                                )}
+                            >
+                                Todos
+                            </Button>
+                            <Button 
+                                variant={timeSlotFilter === 'morning' ? "default" : "outline"} 
+                                onClick={() => onTimeFilterChange('morning')} 
+                                className={cn(
+                                    "h-auto py-2 font-semibold transition-all",
+                                    timeSlotFilter === 'morning' 
+                                        ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md' 
+                                        : 'hover:bg-gray-100'
+                                )}
+                            >
+                                Mañanas
+                            </Button>
+                            <Button 
+                                variant={timeSlotFilter === 'midday' ? "default" : "outline"} 
+                                onClick={() => onTimeFilterChange('midday')} 
+                                className={cn(
+                                    "h-auto py-2 font-semibold transition-all",
+                                    timeSlotFilter === 'midday' 
+                                        ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md' 
+                                        : 'hover:bg-gray-100'
+                                )}
+                            >
+                                Mediodía
+                            </Button>
+                            <Button 
+                                variant={timeSlotFilter === 'evening' ? "default" : "outline"} 
+                                onClick={() => onTimeFilterChange('evening')} 
+                                className={cn(
+                                    "h-auto py-2 font-semibold transition-all",
+                                    timeSlotFilter === 'evening' 
+                                        ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md' 
+                                        : 'hover:bg-gray-100'
+                                )}
+                            >
+                                Tardes
+                            </Button>
                         </div>
                     </div>
 
-                    <div>
+                    {/* 🚫 FILTRO DE JUGADORES DESHABILITADO - Ahora se usa el filtro flotante */}
+                    {/* <div>
                         <h4 className="font-semibold mb-2 text-sm text-muted-foreground">Número de Jugadores</h4>
                         <div className="grid grid-cols-4 gap-2">
                             {[1, 2, 3, 4].map((count) => {
@@ -91,11 +141,13 @@ export function MobileFiltersSheet({
                                 return (
                                     <Button
                                         key={count}
-                                        variant={isActive ? "secondary" : "outline"}
+                                        variant={isActive ? "default" : "outline"}
                                         onClick={() => onTogglePlayerCount(count)}
                                         className={cn(
-                                            "h-auto py-3 flex flex-col items-center gap-1 shadow-inner",
-                                            isActive && 'border-primary bg-sidebar'
+                                            "h-auto py-3 flex flex-col items-center gap-1 font-semibold transition-all",
+                                            isActive 
+                                                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md' 
+                                                : 'hover:bg-gray-100'
                                         )}
                                     >
                                         <span className="text-xl">
@@ -106,25 +158,58 @@ export function MobileFiltersSheet({
                                 );
                             })}
                         </div>
-                    </div>
+                    </div> */}
 
                     <div className="grid grid-cols-2 gap-2">
                         <div>
                             <h4 className="font-semibold mb-2 text-sm text-muted-foreground">Vista</h4>
                             <div className="space-y-1">
-                                <Button variant={viewPreference === 'withBookings' ? "secondary" : "outline"} onClick={() => onViewPreferenceChange('withBookings')} className={cn("h-auto w-full py-2 justify-start font-semibold shadow-inner", viewPreference === 'withBookings' && 'border-primary bg-sidebar')}><Users className="mr-2 h-4 w-4" /> Con Usuarios</Button>
-                                <Button variant={viewPreference === 'all' ? "secondary" : "outline"} onClick={() => onViewPreferenceChange('all')} className={cn("h-auto w-full py-2 justify-start font-semibold shadow-inner", viewPreference === 'all' && 'border-primary bg-sidebar')}><ClipboardList className="mr-2 h-4 w-4" /> Todas</Button>
+                                <Button 
+                                    variant={viewPreference === 'withBookings' ? "default" : "outline"} 
+                                    onClick={() => onViewPreferenceChange('withBookings')} 
+                                    className={cn(
+                                        "h-auto w-full py-2 justify-start font-semibold transition-all",
+                                        viewPreference === 'withBookings' 
+                                            ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md' 
+                                            : 'hover:bg-gray-100'
+                                    )}
+                                >
+                                    <Users className="mr-2 h-4 w-4" /> Con Usuarios
+                                </Button>
+                                <Button 
+                                    variant={viewPreference === 'all' ? "default" : "outline"} 
+                                    onClick={() => onViewPreferenceChange('all')} 
+                                    className={cn(
+                                        "h-auto w-full py-2 justify-start font-semibold transition-all",
+                                        viewPreference === 'all' 
+                                            ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md' 
+                                            : 'hover:bg-gray-100'
+                                    )}
+                                >
+                                    <ClipboardList className="mr-2 h-4 w-4" /> Todas
+                                </Button>
                             </div>
                         </div>
                         <div>
                              <h4 className="font-semibold mb-2 text-sm text-muted-foreground">Preferencias</h4>
                              <div className="space-y-1">
-                                <Button variant={filterByFavorites ? 'secondary' : 'outline'} className={cn("w-full h-auto py-2 justify-start font-semibold shadow-inner", filterByFavorites && 'border-primary bg-sidebar')} onClick={onFavoritesClick}>
-                                    <Heart className={cn("mr-2 h-4 w-4", filterByFavorites && "fill-current text-destructive")} />
-                                    Favoritos
-                                </Button>
-                                <Button variant={showPointsBonus ? 'secondary' : 'outline'} className={cn("w-full h-auto py-2 justify-start font-semibold shadow-inner", showPointsBonus && 'border-primary bg-sidebar')} onClick={onTogglePointsBonus}>
-                                    <Sparkles className="mr-2 h-4 w-4 text-amber-500"/>
+                                <div className="w-full">
+                                    <InstructorFilter
+                                        selectedInstructorIds={selectedInstructorIds}
+                                        onInstructorChange={onInstructorChange}
+                                    />
+                                </div>
+                                <Button 
+                                    variant={showPointsBonus ? 'default' : 'outline'} 
+                                    className={cn(
+                                        "w-full h-auto py-2 justify-start font-semibold transition-all",
+                                        showPointsBonus 
+                                            ? 'bg-amber-600 text-white hover:bg-amber-700 shadow-md' 
+                                            : 'hover:bg-gray-100'
+                                    )} 
+                                    onClick={onTogglePointsBonus}
+                                >
+                                    <Sparkles className="mr-2 h-4 w-4"/>
                                     + Puntos
                                 </Button>
                              </div>

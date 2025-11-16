@@ -53,6 +53,48 @@ export async function DELETE(
     });
 
     console.log(`✅ Booking deleted successfully: ${bookingId}`);
+
+    // 🔍 VERIFICAR SI QUEDAN BOOKINGS ACTIVOS EN EL TIMESLOT
+    const remainingBookings = await prisma.booking.count({
+      where: {
+        timeSlotId: existingBooking.timeSlotId,
+        status: { in: ['PENDING', 'CONFIRMED'] }
+      }
+    });
+
+    console.log(`📊 Bookings activos restantes en TimeSlot: ${remainingBookings}`);
+
+    // 🔓 SI NO QUEDAN BOOKINGS, LIBERAR EL TIMESLOT
+    if (remainingBookings === 0) {
+      console.log('🔓 No quedan bookings activos - Liberando TimeSlot...');
+      
+      try {
+        // Limpiar courtId del TimeSlot
+        await prisma.timeSlot.update({
+          where: { id: existingBooking.timeSlotId },
+          data: {
+            courtId: null,
+            courtNumber: null,
+            genderCategory: null
+          }
+        });
+        console.log('✅ TimeSlot liberado (courtId limpiado)');
+
+        // Limpiar schedules
+        await prisma.courtSchedule.deleteMany({
+          where: { timeSlotId: existingBooking.timeSlotId }
+        });
+        
+        await prisma.instructorSchedule.deleteMany({
+          where: { timeSlotId: existingBooking.timeSlotId }
+        });
+        
+        console.log('✅ Schedules eliminados');
+      } catch (cleanupError) {
+        console.error('❌ Error limpiando TimeSlot:', cleanupError);
+      }
+    }
+
     console.log(`📋 Deleted booking details: User: ${existingBooking.user.name}, TimeSlot: ${existingBooking.timeSlotId}`);
 
     return NextResponse.json({

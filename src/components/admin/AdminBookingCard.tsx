@@ -399,7 +399,18 @@ const AdminBookingCard: React.FC<AdminBookingCardProps> = ({ booking }) => {
               <div className="text-xs text-gray-600 mb-1">Pista asignada:</div>
               <div className="flex items-center justify-center gap-1">
                 <span className="font-semibold text-gray-900 text-sm">Pista {courtAssignment.courtNumber}</span>
-                <div className="w-5 h-3 bg-blue-500 rounded-sm ml-1"></div>
+                <svg 
+                  className="ml-1" 
+                  width="20" 
+                  height="12" 
+                  viewBox="0 0 60 40" 
+                  fill="none" 
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <rect x="2" y="2" width="56" height="36" rx="4" fill="#86BC24" stroke="#6B9B1E" strokeWidth="2"/>
+                  <line x1="30" y1="2" x2="30" y2="38" stroke="#FFFFFF" strokeWidth="1.5" strokeDasharray="3 3"/>
+                  <line x1="4" y1="20" x2="56" y2="20" stroke="#FFFFFF" strokeWidth="1" opacity="0.5"/>
+                </svg>
               </div>
             </>
           ) : (
@@ -408,7 +419,19 @@ const AdminBookingCard: React.FC<AdminBookingCardProps> = ({ booking }) => {
               <div className="flex items-center justify-center gap-1">
                 <span className="font-semibold text-gray-900 text-sm">Pista sin asignar</span>
                 {[1, 2, 3, 4].map((court) => (
-                  <div key={court} className="w-5 h-3 bg-gray-300 rounded-sm ml-1"></div>
+                  <svg 
+                    key={court}
+                    className="ml-1" 
+                    width="20" 
+                    height="12" 
+                    viewBox="0 0 60 40" 
+                    fill="none" 
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <rect x="2" y="2" width="56" height="36" rx="4" fill="#D1D5DB" stroke="#9CA3AF" strokeWidth="2"/>
+                    <line x1="30" y1="2" x2="30" y2="38" stroke="#FFFFFF" strokeWidth="1.5" strokeDasharray="3 3"/>
+                    <line x1="4" y1="20" x2="56" y2="20" stroke="#FFFFFF" strokeWidth="1" opacity="0.3"/>
+                  </svg>
                 ))}
               </div>
             </>

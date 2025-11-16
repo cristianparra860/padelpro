@@ -13,6 +13,31 @@ export default function ActivitiesClientWrapper() {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [loadingUser, setLoadingUser] = useState(true);
 
+    // 🔥 LIMPIAR CACHÉ AL CARGAR LA PÁGINA
+    useEffect(() => {
+        console.log('🔥 ActivitiesClientWrapper montado - Limpiando caché...');
+        
+        // Limpiar caché del navegador
+        if (typeof window !== 'undefined' && 'caches' in window) {
+            caches.keys().then(names => {
+                names.forEach(name => {
+                    console.log('🗑️ Borrando caché:', name);
+                    caches.delete(name);
+                });
+            });
+        }
+        
+        // Verificar si necesitamos recargar por datos obsoletos
+        const needsReload = sessionStorage.getItem('needsReload');
+        if (needsReload === 'true') {
+            sessionStorage.removeItem('needsReload');
+            console.log('🔄 Recargando por datos obsoletos...');
+            setTimeout(() => window.location.reload(), 500);
+        }
+        
+        console.log('✅ Caché limpiado en ActivitiesClientWrapper');
+    }, []);
+
     useEffect(() => {
         const fetchUser = async () => {
             setLoadingUser(true);
