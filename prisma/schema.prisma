@@ -58,6 +58,7 @@ model User {
   id                String          @id @default(cuid())
   email             String          @unique
   name              String
+  password          String?         // Hash de la contraseña (opcional para migración)
   profilePictureUrl String?
   phone             String?
   level             String          @default("principiante")
@@ -275,7 +276,8 @@ model Booking {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  @@unique([userId, timeSlotId, groupSize])
+  // NOTA: No usamos @@unique porque SQLite no soporta partial indexes
+  // La validación de duplicados se hace en el código del endpoint
   @@map("Booking")
 }
 

@@ -1,16 +1,19 @@
 // src/app/api/register/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
+import * as bcrypt from 'bcryptjs';
 
 export async function POST(request: NextRequest) {
+  console.log('🔥 /api/register POST received');
   try {
     const body = await request.json();
     const { name, email, password, genderCategory, level } = body;
 
+    console.log('📝 Registro nuevo usuario:', { name, email, genderCategory, level });
+
     // Validación básica
     if (!name || !email || !password) {
+      console.error('❌ Validación falló: campos requeridos faltantes');
       return NextResponse.json(
         { error: 'Name, email, and password are required' },
         { status: 400 }
@@ -22,44 +25,49 @@ export async function POST(request: NextRequest) {
       SELECT id FROM User WHERE email = ${email}
     `;
 
+    console.log('🔍 Usuarios existentes con este email:', existingUsers);
+
     if (Array.isArray(existingUsers) && existingUsers.length > 0) {
+      console.error('❌ Email ya existe');
       return NextResponse.json(
         { error: 'User already exists with this email' },
         { status: 409 }
       );
     }
 
+    // Hash de la contraseña
+    const hashedPassword = await bcrypt.hash(password, 10);
+    console.log('🔐 Contraseña hasheada');
+
     // Generar un ID único
     const userId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    console.log('🆔 Creando usuario con ID:', userId);
 
-    // Crear el nuevo usuario usando raw SQL
-    await prisma.$executeRaw`
-      INSERT INTO User (
-        id, name, email, role, level, genderCategory, 
-        profilePictureUrl, credit, blockedCredit, loyaltyPoints, 
-        blockedLoyaltyPoints, pendingBonusPoints, 
-        createdAt, updatedAt, phone, position, clubId, 
-        preference, visibility, bio, preferredGameType
-      ) VALUES (
-        ${userId}, ${name}, ${email}, 'PLAYER', ${level || 'abierto'}, ${genderCategory || 'mixto'},
-        NULL, 0, 0.0, 0, 
-        0, 0, 
-        datetime('now'), datetime('now'), NULL, NULL, NULL,
-        'NORMAL', 'PUBLIC', NULL, NULL
-      )
-    `;
+    // Crear el nuevo usuario usando Prisma ORM (más seguro)
+    const newUser = await prisma.user.create({
+      data: {
+        id: userId,
+        name,
+        email,
+        password: hashedPassword,
+        clubId: 'padel-estrella-madrid', // Club por defecto
+        role: 'PLAYER',
+        level: level || 'principiante',
+        genderCategory: genderCategory || null,
+        credits: 0,
+        blockedCredits: 0,
+        points: 0,
+        preference: 'NORMAL',
+        visibility: 'PUBLIC'
+      }
+    });
 
-    // Obtener el usuario creado
-    const newUserRows = await prisma.$queryRaw`
-      SELECT id, name, email, role, level, genderCategory, createdAt
-      FROM User WHERE id = ${userId}
-    `;
-
-    const newUser = Array.isArray(newUserRows) ? newUserRows[0] : null;
-
-    if (!newUser) {
-      throw new Error('Failed to create user');
-    }
+    console.log('✅ Usuario creado exitosamente:', {
+      id: newUser.id,
+      email: newUser.email,
+      name: newUser.name
+    });
 
     return NextResponse.json({
       success: true,
@@ -76,7 +84,9 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
 
   } catch (error) {
-    console.error('Error creating user:', error);
+    console.error('💥 Error creating user:', error);
+    console.error('💥 Error stack:', error instanceof Error ? error.stack : 'No stack');
+    console.error('💥 Error message:', error instanceof Error ? error.message : String(error));
     
     // Manejo específico de errores de SQLite
     if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) {

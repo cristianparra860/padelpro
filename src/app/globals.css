@@ -95,4 +95,11 @@ body {
   .scrollbar-hide::-webkit-scrollbar {
     display: none;  /* Chrome, Safari y Opera */
   }
+  
+  /* Mejor experiencia de scroll táctil horizontal en móvil */
+  .touch-pan-x {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    overscroll-behavior-y: none;
+  }
 }

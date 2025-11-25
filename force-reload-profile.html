@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Forzar Recarga de Perfil</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 40px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: rgba(255,255,255,0.1);
+            padding: 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 600px;
+        }
+        h1 { margin-top: 0; font-size: 32px; }
+        .btn {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            margin: 10px;
+            transition: transform 0.2s;
+        }
+        .btn:hover { transform: scale(1.05); }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+            min-height: 60px;
+        }
+        .success { color: #4ade80; }
+        .error { color: #f87171; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Forzar Recarga de Foto de Perfil</h1>
+        <p>Este script limpiará la caché y recargará tu perfil</p>
+        
+        <button class="btn" onclick="clearAndReload()">🚀 Limpiar Caché y Recargar</button>
+        <button class="btn" onclick="openProfile()">📱 Abrir Perfil</button>
+        
+        <div class="status" id="status"></div>
+    </div>
+
+    <script>
+        const status = document.getElementById('status');
+        
+        function log(msg, isError = false) {
+            const p = document.createElement('p');
+            p.textContent = msg;
+            p.className = isError ? 'error' : 'success';
+            p.style.margin = '5px 0';
+            status.appendChild(p);
+        }
+        
+        function clearAndReload() {
+            status.innerHTML = '';
+            log('🔄 Limpiando caché...');
+            
+            // Limpiar localStorage pero mantener el token
+            const token = localStorage.getItem('auth_token');
+            localStorage.clear();
+            if (token) {
+                localStorage.setItem('auth_token', token);
+                log('✅ Token preservado');
+            }
+            
+            // Limpiar sessionStorage
+            sessionStorage.clear();
+            log('✅ SessionStorage limpiado');
+            
+            setTimeout(() => {
+                log('🌐 Abriendo perfil en nueva ventana...');
+                window.open('http://localhost:9002/profile', '_blank');
+                log('✅ Presiona Ctrl+Shift+R en la nueva ventana');
+            }, 1000);
+        }
+        
+        function openProfile() {
+            window.open('http://localhost:9002/profile', '_blank');
+        }
+        
+        // Auto-ejecutar al cargar
+        setTimeout(() => {
+            if (confirm('¿Quieres limpiar caché y recargar el perfil ahora?')) {
+                clearAndReload();
+            }
+        }, 500);
+    </script>
+</body>
+</html>

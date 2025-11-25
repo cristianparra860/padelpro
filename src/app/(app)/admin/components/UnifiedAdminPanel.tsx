@@ -21,7 +21,10 @@ import { getMockClubs } from '@/lib/mockData';
 import type { Club } from '@/types';
 
 // Importar componentes existentes
-import ManageCourtsPanel from './ManageCourtsPanel';
+import ManageCourtsPanelDB from './ManageCourtsPanelDB';
+import ManageCourtRatesPanelDB from './ManageCourtRatesPanelDB';
+import ManageUsersPanelDB from './ManageUsersPanelDB';
+import ManageInstructorsPanelDB from './ManageInstructorsPanelDB';
 
 interface UnifiedAdminPanelProps {
   currentLevel: 'super' | 'club';
@@ -230,35 +233,30 @@ const ClubAdminView: React.FC<{
         </TabsContent>
 
         <TabsContent value="courts" className="space-y-4">
-          <ManageCourtsPanel clubId={club.id} />
+          <ManageCourtsPanelDB clubId={club.id} />
         </TabsContent>
 
         <TabsContent value="instructors" className="space-y-4">
-          <div className="text-center py-12">
-            <GraduationCap className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Gestión de Instructores</h3>
-            <p className="text-muted-foreground">Panel de instructores en desarrollo...</p>
-          </div>
+          <ManageInstructorsPanelDB clubId={club.id} />
         </TabsContent>
 
         <TabsContent value="users" className="space-y-4">
-          <div className="text-center py-12">
-            <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Gestión de Usuarios</h3>
-            <p className="text-muted-foreground">Panel de usuarios en desarrollo...</p>
-          </div>
+          <ManageUsersPanelDB clubId={club.id} />
         </TabsContent>
 
         <TabsContent value="schedule" className="space-y-4">
-          <ClubCalendar clubId={club.id} />
+          <ClubCalendar clubId={club.id} viewMode="club" />
         </TabsContent>
 
         <TabsContent value="settings" className="space-y-4">
-          <div className="text-center py-12">
-            <Settings className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Configuración del Club</h3>
-            <p className="text-muted-foreground">Panel de configuración en desarrollo...</p>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Configuración del Club</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <ManageCourtRatesPanelDB clubId={club.id} />
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

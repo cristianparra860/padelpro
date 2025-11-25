@@ -60,6 +60,14 @@ export default function DateSelector({
     return null;
   };
 
+  // 🐛 Debug: Log cuando cambien los userBookings
+  React.useEffect(() => {
+    console.log('📅 DateSelector - userBookings:', userBookings?.length || 0);
+    if (userBookings && userBookings.length > 0) {
+      console.log('📊 Sample bookings:', userBookings.slice(0, 3));
+    }
+  }, [userBookings]);
+
   const updateScrollButtons = () => {
     if (scrollRef.current) {
       const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
@@ -108,9 +116,9 @@ export default function DateSelector({
   };
 
   return (
-    <div className="relative w-full bg-white rounded-lg p-3">
-      {/* Grid de fechas - ocupa todo el ancho */}
-      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+    <div className="relative w-full rounded-lg py-2 md:py-3">
+      {/* Grid de fechas - ocupa todo el ancho con scroll horizontal en móvil */}
+      <div className="flex justify-between py-2 px-1 overflow-x-auto scrollbar-hide touch-pan-x">
         {dates.map((date, index) => {
           const selected = isSelected(date);
           const today = isToday(date);
@@ -119,29 +127,17 @@ export default function DateSelector({
           const monthName = getMonthName(date);
           const bookingStatus = getDayBookingStatus(date); // 🆕 Obtener estado del día
 
-          // 🆕 Estilo armonizado: círculos blancos con borde verde
+          // 🆕 Estilo armonizado con el panel de clases
           let borderColor = 'border-gray-300';
-          let shadowStyle = 'shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)]';
-          let textColor = 'text-gray-600';
-          let dayTextColor = 'text-gray-900';
+          let shadowStyle = 'shadow-[inset_0_1px_3px_rgba(0,0,0,0.05)]';
+          let textColor = 'text-gray-500';
+          let dayTextColor = 'text-gray-800';
           
           if (selected) {
             borderColor = 'border-green-500';
             shadowStyle = 'shadow-[inset_0_2px_8px_rgba(34,197,94,0.3)]';
             textColor = 'text-green-600';
             dayTextColor = 'text-green-700';
-          } else if (bookingStatus === 'confirmed') {
-            // 🔴 DÍA CON RESERVA CONFIRMADA - borde rojo
-            borderColor = 'border-red-400';
-            shadowStyle = 'shadow-[inset_0_1px_4px_rgba(239,68,68,0.2)]';
-            textColor = 'text-red-600';
-            dayTextColor = 'text-red-700';
-          } else if (bookingStatus === 'pending') {
-            // 🔵 DÍA CON INSCRIPCIÓN PENDIENTE - borde azul
-            borderColor = 'border-blue-400';
-            shadowStyle = 'shadow-[inset_0_1px_4px_rgba(59,130,246,0.2)]';
-            textColor = 'text-blue-600';
-            dayTextColor = 'text-blue-700';
           } else if (today) {
             borderColor = 'border-blue-300';
             shadowStyle = 'shadow-[inset_0_1px_3px_rgba(59,130,246,0.15)]';
@@ -150,39 +146,47 @@ export default function DateSelector({
           }
 
           return (
-            <button
-              key={index}
-              onClick={() => handleDateClick(date)}
-              className={`
-                flex flex-col items-center justify-center min-w-[64px] rounded-full
-                transition-all duration-200 cursor-pointer border-2 bg-white
-                ${borderColor} ${shadowStyle}
-                ${selected ? 'scale-110 ring-2 ring-green-200' : 'hover:scale-105'}
-                relative px-3 py-2
-              `}
-            >
-              {/* 🆕 Indicador visual en la esquina superior */}
-              {!selected && bookingStatus && (
-                <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${
-                  bookingStatus === 'confirmed' ? 'bg-red-500' : 'bg-blue-500'
-                }`} />
-              )}
+            <div key={index} className="flex flex-col items-center space-y-0.5 flex-shrink-0">
+              <button
+                onClick={() => handleDateClick(date)}
+                className={`
+                  flex flex-col items-center justify-center w-[42px] h-[50px] rounded-lg
+                  transition-all duration-200 cursor-pointer border-2 bg-white
+                  ${borderColor} ${shadowStyle}
+                  ${selected ? 'scale-110 ring-2 ring-green-200' : 'hover:scale-105'}
+                `}
+              >
+                {/* Día de la semana */}
+                <span className={`text-[9px] font-bold uppercase ${textColor}`}>
+                  {dayName}
+                </span>
 
-              {/* Día de la semana */}
-              <span className={`text-[9px] font-bold uppercase ${textColor}`}>
-                {dayName}
-              </span>
+                {/* Número del día - GRANDE */}
+                <span className={`text-lg font-bold leading-none ${dayTextColor}`}>
+                  {dayNumber}
+                </span>
 
-              {/* Número del día - GRANDE */}
-              <span className={`text-xl font-bold leading-tight ${dayTextColor}`}>
-                {dayNumber}
-              </span>
+                {/* Mes */}
+                <span className={`text-[8px] uppercase ${textColor}`}>
+                  {monthName}
+                </span>
+              </button>
 
-              {/* Mes */}
-              <span className={`text-[8px] uppercase ${textColor}`}>
-                {monthName}
-              </span>
-            </button>
+              {/* 🆕 Indicador circular R o I DEBAJO del círculo de fecha */}
+              <div className="h-4 w-full flex items-center justify-center">
+                {bookingStatus && (
+                  <button
+                    className={`h-4 w-4 flex items-center justify-center text-white rounded-full font-bold text-[8px] leading-none shadow-sm transition-transform hover:scale-110 ${
+                      bookingStatus === 'confirmed' 
+                        ? 'bg-red-500' 
+                        : 'bg-blue-500'
+                    }`}
+                  >
+                    {bookingStatus === 'confirmed' ? 'R' : 'I'}
+                  </button>
+                )}
+              </div>
+            </div>
           );
         })}
       </div>

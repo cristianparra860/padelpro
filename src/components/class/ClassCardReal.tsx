@@ -122,7 +122,10 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           description: `Has reservado una plaza para ${groupSize} jugador${groupSize > 1 ? 'es' : ''}.`,
           className: "bg-green-600 text-white"
         });
-        onBookingSuccess(); // Recargar lista completa desde el padre
+        // Pequeño delay para asegurar que la BD se actualice antes de refrescar
+        setTimeout(() => {
+          onBookingSuccess(); // Recargar lista completa desde el padre y actualizar calendario
+        }, 100);
       } else {
         const error = await response.json();
         
@@ -188,7 +191,10 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
             window.location.replace('/activities?refresh=' + Date.now());
           }, 500);
         } else {
-          onBookingSuccess(); // Recargar lista completa desde el padre
+          // Pequeño delay para asegurar que la BD se actualice antes de refrescar
+          setTimeout(() => {
+            onBookingSuccess(); // Recargar lista completa desde el padre y actualizar calendario
+          }, 100);
         }
       } else {
         const errorData = await response.json();
@@ -294,7 +300,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     return colors[category?.toLowerCase() || ''] || 'text-gray-700 border-gray-200 bg-gray-100';
   };
 
-  const pricePerPerson = (classData.totalPrice || 35) / 4;
+  const pricePerPerson = (classData.totalPrice || 25) / 4; // Precio en euros
   const instructorRating = 4.8; // Mock rating
   const CategoryIcon = getCategoryIcon(classData.category);
 
@@ -610,7 +616,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           const bookedUsers = modalityBookings.slice(0, players);
           
           const isUserBookedForOption = isUserBooked(players);
-          const pricePerPerson = (classData.totalPrice || 55) / players;
+          const pricePerPerson = (classData.totalPrice || 25) / players; // Precio en euros
           
           return (
             <div 

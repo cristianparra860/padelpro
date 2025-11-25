@@ -22,12 +22,13 @@ import PersonalMatches from '@/components/schedule/PersonalMatches';
 import PersonalMatchDay from '@/components/schedule/PersonalMatchDay';
 import UserBookings from '@/components/user/UserBookings';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
-import { Wallet, Star, History, Repeat, PlusCircle, PiggyBank, Lock, Sparkles } from 'lucide-react';
+import { Wallet, Star, History, Repeat, PlusCircle, PiggyBank, Lock, Sparkles, CalendarDays, User } from 'lucide-react';
 import CreditMovementsDialog from '@/components/user/CreditMovementsDialog';
 import PointMovementsDialog from '@/components/user/PointMovementsDialog';
 import AddCreditDialog from '@/components/user/AddCreditDialog';
 import ConvertBalanceDialog from '@/components/user/ConvertBalanceDialog';
 import EditLevelDialog from '@/components/user/EditLevelDialog';
+import Link from 'next/link';
 
 
 function DashboardPageContent() {
@@ -66,7 +67,29 @@ function DashboardPageContent() {
         const loadUser = async () => {
             try {
                 console.log('🔄 Cargando usuario desde API...');
-                const response = await fetch('/api/users/current');
+                
+                // Obtener token del localStorage
+                const token = localStorage.getItem('auth_token');
+                
+                const headers: HeadersInit = {
+                    'Content-Type': 'application/json'
+                };
+                
+                // Si hay token, agregarlo al header
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                
+                const response = await fetch('/api/users/current', { headers });
+                
+                if (response.status === 401) {
+                    // No autenticado, redirigir al login
+                    console.log('❌ Usuario no autenticado, redirigiendo al login');
+                    localStorage.removeItem('auth_token');
+                    router.push('/');
+                    return;
+                }
+                
                 if (response.ok) {
                     const userData = await response.json();
                     console.log('✅ Usuario cargado desde API:', {
@@ -90,7 +113,21 @@ function DashboardPageContent() {
         loadUser();
         // ✅ REMOVED: Auto-refresh every 5 seconds (was causing performance issues)
         // Solo recarga cuando refreshKey cambie (tras bookings, añadir créditos, etc.)
-    }, [refreshKey]);    useEffect(() => {
+    }, [refreshKey, router]);
+
+    // Escuchar cambios de usuario desde otros componentes/páginas
+    useEffect(() => {
+        const handleUserUpdate = (e: Event) => {
+            const customEvent = e as CustomEvent;
+            console.log('🔔 Usuario actualizado detectado:', customEvent.detail);
+            setUser(customEvent.detail);
+        };
+
+        window.addEventListener('userUpdated', handleUserUpdate);
+        return () => window.removeEventListener('userUpdated', handleUserUpdate);
+    }, []);
+
+    useEffect(() => {
         setIsClient(true);
         const checkUser = async () => {
             if (!user && !isLoadingUser) {
@@ -166,44 +203,73 @@ function DashboardPageContent() {
     return (
         <div className="flex-1 space-y-2 sm:space-y-6 lg:space-y-8 p-2 sm:p-4 md:p-6 lg:p-8">
             <header className="mb-2 sm:mb-6">
-                <h1 className="text-2xl sm:text-3xl font-bold text-foreground break-words">
-                    Tu Agenda, {user.name}
-                </h1>
-                <p className="text-sm sm:text-base text-muted-foreground mt-0.5">Aquí tienes un resumen de tu actividad y saldo.</p>
+                {/* Barra superior con gradiente */}
+                <div className="rounded-lg p-4 sm:p-6 mb-4" style={{
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                }}>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        {/* Título y nombre del usuario */}
+                        <div className="flex items-center gap-3">
+                            <CalendarDays className="h-8 w-8 text-white" />
+                            <div>
+                                <h1 className="text-xl sm:text-2xl font-bold text-white">
+                                    Tu Agenda
+                                </h1>
+                                <p className="text-sm text-white/90">{user.name}</p>
+                            </div>
+                        </div>
+
+                        {/* Botones de acción */}
+                        <div className="flex gap-2">
+                            <Link href="/profile" className="flex-1 sm:flex-initial">
+                                <Button variant="secondary" className="w-full sm:w-auto bg-white/20 hover:bg-white/30 text-white border-white/30">
+                                    <User className="mr-2 h-4 w-4" />
+                                    Mis Datos
+                                </Button>
+                            </Link>
+                            <Link href="/admin/calendar" className="flex-1 sm:flex-initial">
+                                <Button variant="secondary" className="w-full sm:w-auto bg-white/20 hover:bg-white/30 text-white border-white/30">
+                                    <CalendarDays className="mr-2 h-4 w-4" />
+                                    Calendario Club
+                                </Button>
+                            </Link>
+                        </div>
+                    </div>
+                </div>
             </header>
             
             <main className="space-y-2 sm:space-y-6 lg:space-y-8">
-               <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-6">
+               <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-4">
                     {SHOW_EURO_BALANCE && (
                         <Card className="shadow-md">
-                            <CardHeader className="pb-2 pt-3 px-3 sm:pb-3 sm:pt-6 sm:px-6">
-                                <CardTitle className="text-base sm:text-lg flex items-center text-green-700">
-                                    <Wallet className="mr-2 sm:mr-2.5 h-4 w-4 sm:h-5 sm:w-5" />
+                            <CardHeader className="pb-1 pt-2 px-3 sm:pb-1.5 sm:pt-3 sm:px-4">
+                                <CardTitle className="text-sm sm:text-base flex items-center text-green-700">
+                                    <Wallet className="mr-1.5 h-4 w-4" />
                                     Tu Saldo
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-2 px-3 pb-3 sm:space-y-3 sm:px-6 sm:pb-6">
-                                <div className="text-3xl sm:text-4xl font-bold" style={{ color: '#2563eb' }} data-ui="balance-blue">
+                            <CardContent className="space-y-1.5 px-3 pb-2 sm:space-y-2 sm:px-4 sm:pb-3">
+                                <div className="text-xl sm:text-2xl font-bold" style={{ color: '#2563eb' }} data-ui="balance-blue">
                                     {availableCredit.toFixed(2)}€
                                 </div>
-                                <div className="flex items-center gap-1 sm:gap-2 text-xs text-muted-foreground">
-                                    <div className="flex-1 p-1.5 sm:p-2 bg-muted rounded-md text-center">
-                                        <p className="flex items-center justify-center gap-1"><PiggyBank className="h-3 w-3"/> Total</p>
-                                        <p className="font-semibold text-foreground text-xs sm:text-sm">{creditInEuros.toFixed(2)}€</p>
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                    <div className="flex-1 p-1 bg-muted rounded text-center">
+                                        <p className="flex items-center justify-center gap-0.5 text-[10px]"><PiggyBank className="h-2.5 w-2.5"/> Total</p>
+                                        <p className="font-semibold text-foreground text-xs">{creditInEuros.toFixed(2)}€</p>
                                     </div>
-                                    <div className="flex-1 p-1.5 sm:p-2 bg-muted rounded-md text-center">
-                                        <p className="flex items-center justify-center gap-1"><Lock className="h-3 w-3"/> Bloqueado</p>
-                                        <p className="font-semibold text-foreground text-xs sm:text-sm">{blockedCreditInEuros.toFixed(2)}€</p>
+                                    <div className="flex-1 p-1 bg-muted rounded text-center">
+                                        <p className="flex items-center justify-center gap-0.5 text-[10px]"><Lock className="h-2.5 w-2.5"/> Bloq.</p>
+                                        <p className="font-semibold text-foreground text-xs">{blockedCreditInEuros.toFixed(2)}€</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-2 pt-1 sm:pt-2">
-                                    <Button variant="default" size="sm" onClick={() => setIsAddCreditDialogOpen(true)} className="flex-1 bg-green-600 hover:bg-green-700 text-xs sm:text-sm">
-                                        <PlusCircle className="mr-1 sm:mr-1.5 h-3 w-3 sm:h-4 sm:w-4" />
+                                <div className="flex items-center gap-1.5 pt-0.5">
+                                    <Button variant="default" size="sm" onClick={() => setIsAddCreditDialogOpen(true)} className="flex-1 bg-green-600 hover:bg-green-700 text-xs h-7">
+                                        <PlusCircle className="mr-0.5 h-3 w-3" />
                                         <span className="hidden xs:inline">Añadir</span>
                                         <span className="xs:hidden">+</span>
                                     </Button>
-                                    <Button variant="outline" size="sm" onClick={() => setIsCreditMovementsDialogOpen(true)} className="flex-1 text-xs sm:text-sm">
-                                        <History className="mr-1 h-3 w-3 sm:h-3.5 sm:w-3.5" /> 
+                                    <Button variant="outline" size="sm" onClick={() => setIsCreditMovementsDialogOpen(true)} className="flex-1 text-xs h-7">
+                                        <History className="mr-0.5 h-3 w-3" /> 
                                         <span className="hidden xs:inline">Movimientos</span>
                                         <span className="xs:hidden">Hist</span>
                                     </Button>
@@ -212,38 +278,38 @@ function DashboardPageContent() {
                         </Card>
                     )}
                     <Card className="shadow-md">
-                        <CardHeader className="pb-2 pt-3 px-3 sm:pb-3 sm:pt-6 sm:px-6">
-                            <CardTitle className="text-base sm:text-lg flex items-center text-amber-600">
-                                <Star className="mr-2 sm:mr-2.5 h-4 w-4 sm:h-5 sm:w-5" />
+                        <CardHeader className="pb-1 pt-2 px-3 sm:pb-1.5 sm:pt-3 sm:px-4">
+                            <CardTitle className="text-sm sm:text-base flex items-center text-amber-600">
+                                <Star className="mr-1.5 h-4 w-4" />
                                 Tus Puntos
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-2 px-3 pb-3 sm:space-y-3 sm:px-6 sm:pb-6">
-                             <div className="text-3xl sm:text-4xl font-bold text-foreground">{availablePoints.toFixed(0)}</div>
-                             <div className="flex items-center gap-1 sm:gap-2 text-xs text-muted-foreground">
-                                 <div className="flex-1 p-1.5 sm:p-2 bg-muted rounded-md text-center">
-                                     <p className="flex items-center justify-center gap-1"><PiggyBank className="h-3 w-3"/> Total</p>
-                                     <p className="font-semibold text-foreground text-xs sm:text-sm">{(user.points ?? user.loyaltyPoints ?? 0).toFixed(0)}</p>
+                        <CardContent className="space-y-1.5 px-3 pb-2 sm:space-y-2 sm:px-4 sm:pb-3">
+                             <div className="text-xl sm:text-2xl font-bold text-foreground">{availablePoints.toFixed(0)}</div>
+                             <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                 <div className="flex-1 p-1 bg-muted rounded text-center">
+                                     <p className="flex items-center justify-center gap-0.5 text-[10px]"><PiggyBank className="h-2.5 w-2.5"/> Total</p>
+                                     <p className="font-semibold text-foreground text-xs">{(user.points ?? user.loyaltyPoints ?? 0).toFixed(0)}</p>
                                  </div>
-                                 <div className="flex-1 p-1.5 sm:p-2 bg-muted rounded-md text-center">
-                                     <p className="flex items-center justify-center gap-1"><Lock className="h-3 w-3"/> Bloqueados</p>
-                                     <p className="font-semibold text-foreground text-xs sm:text-sm">{(user.blockedLoyaltyPoints ?? 0).toFixed(0)}</p>
+                                 <div className="flex-1 p-1 bg-muted rounded text-center">
+                                     <p className="flex items-center justify-center gap-0.5 text-[10px]"><Lock className="h-2.5 w-2.5"/> Bloq.</p>
+                                     <p className="font-semibold text-foreground text-xs">{(user.blockedLoyaltyPoints ?? 0).toFixed(0)}</p>
                                  </div>
-                                  <div className="flex-1 p-1.5 sm:p-2 bg-muted rounded-md text-center">
-                                     <p className="flex items-center justify-center gap-1"><Sparkles className="h-3 w-3"/> Pendientes</p>
-                                     <p className="font-semibold text-foreground text-xs sm:text-sm">{(user.pendingBonusPoints ?? 0).toFixed(0)}</p>
+                                  <div className="flex-1 p-1 bg-muted rounded text-center">
+                                     <p className="flex items-center justify-center gap-0.5 text-[10px]"><Sparkles className="h-2.5 w-2.5"/> Pend.</p>
+                                     <p className="font-semibold text-foreground text-xs">{(user.pendingBonusPoints ?? 0).toFixed(0)}</p>
                                  </div>
                              </div>
-                             <div className="flex items-center gap-2 pt-1 sm:pt-2">
+                             <div className="flex items-center gap-1.5 pt-0.5">
                                 {SHOW_EURO_BALANCE && (
-                                    <Button variant="default" size="sm" onClick={() => setIsConvertBalanceDialogOpen(true)} className="flex-1 bg-amber-500 hover:bg-amber-600 text-xs sm:text-sm">
-                                        <Repeat className="mr-1 sm:mr-1.5 h-3 w-3 sm:h-4 sm:w-4" />
+                                    <Button variant="default" size="sm" onClick={() => setIsConvertBalanceDialogOpen(true)} className="flex-1 bg-amber-500 hover:bg-amber-600 text-xs h-7">
+                                        <Repeat className="mr-0.5 h-3 w-3" />
                                         <span className="hidden xs:inline">Convertir</span>
                                         <span className="xs:hidden">Conv</span>
                                     </Button>
                                 )}
-                                <Button variant="outline" size="sm" onClick={() => setIsPointMovementsDialogOpen(true)} className="flex-1 text-xs sm:text-sm">
-                                    <History className="mr-1 h-3 w-3 sm:h-3.5 sm:w-3.5" /> 
+                                <Button variant="outline" size="sm" onClick={() => setIsPointMovementsDialogOpen(true)} className="flex-1 text-xs h-7">
+                                    <History className="mr-0.5 h-3 w-3" /> 
                                     <span className="hidden xs:inline">Movimientos</span>
                                     <span className="xs:hidden">Hist</span>
                                 </Button>

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Debug Frontend - Foto de Perfil</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+        .log { margin: 5px 0; padding: 8px; border-left: 3px solid #007acc; background: #252526; }
+        .success { border-color: #4ec9b0; }
+        .error { border-color: #f48771; }
+        .warning { border-color: #dcdcaa; }
+        button { padding: 12px 24px; margin: 10px 5px; background: #007acc; color: white; border: none; cursor: pointer; font-size: 14px; }
+        button:hover { background: #005a9e; }
+        #output { margin-top: 20px; }
+        .section { margin: 20px 0; padding: 15px; background: #252526; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug Frontend - Foto de Perfil</h1>
+    
+    <div class="section">
+        <h2>Paso 1: Verificar Token</h2>
+        <button onclick="checkToken()">🔑 Verificar Token</button>
+        <button onclick="doLogin()">🔐 Hacer Login</button>
+    </div>
+    
+    <div class="section">
+        <h2>Paso 2: Cargar Usuario</h2>
+        <button onclick="loadUser()">👤 Cargar Usuario desde API</button>
+    </div>
+    
+    <div class="section">
+        <h2>Paso 3: Verificar Foto</h2>
+        <button onclick="checkPhoto()">📸 Verificar Foto en Respuesta</button>
+    </div>
+    
+    <div class="section">
+        <h2>Paso 4: Test Completo</h2>
+        <button onclick="fullTest()">🚀 Ejecutar Test Completo</button>
+    </div>
+    
+    <div id="output"></div>
+
+    <script>
+        const output = document.getElementById('output');
+        let currentUser = null;
+        
+        function log(message, type = 'log') {
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.textContent = message;
+            output.appendChild(div);
+            console.log(message);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function clear() {
+            output.innerHTML = '';
+        }
+
+        async function checkToken() {
+            clear();
+            log('🔍 Verificando token en localStorage...', 'log');
+            
+            const token = localStorage.getItem('auth_token');
+            if (token) {
+                log('✅ Token encontrado', 'success');
+                log('   Longitud: ' + token.length + ' caracteres', 'log');
+                log('   Inicio: ' + token.substring(0, 30) + '...', 'log');
+            } else {
+                log('❌ No hay token. Debes hacer login.', 'error');
+            }
+        }
+
+        async function doLogin() {
+            clear();
+            log('🔐 Haciendo login...', 'log');
+            
+            try {
+                const response = await fetch('http://localhost:9002/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: 'cristian.parra@padelpro.com',
+                        password: 'password123'
+                    })
+                });
+                
+                if (!response.ok) {
+                    log('❌ Login fallido: ' + response.status, 'error');
+                    return;
+                }
+                
+                const data = await response.json();
+                localStorage.setItem('auth_token', data.token);
+                currentUser = data.user;
+                
+                log('✅ Login exitoso', 'success');
+                log('   Usuario: ' + data.user.name, 'success');
+                log('   Token guardado en localStorage', 'success');
+                log('   Tiene foto: ' + (!!data.user.profilePictureUrl ? 'SÍ' : 'NO'), data.user.profilePictureUrl ? 'success' : 'warning');
+                
+            } catch (error) {
+                log('❌ Error: ' + error.message, 'error');
+            }
+        }
+
+        async function loadUser() {
+            clear();
+            log('👤 Cargando usuario desde API...', 'log');
+            
+            const token = localStorage.getItem('auth_token');
+            if (!token) {
+                log('❌ No hay token. Haz login primero.', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('http://localhost:9002/api/users/current', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!response.ok) {
+                    log('❌ Error: ' + response.status, 'error');
+                    return;
+                }
+                
+                const user = await response.json();
+                currentUser = user;
+                
+                log('✅ Usuario cargado', 'success');
+                log('   Nombre: ' + user.name, 'log');
+                log('   Email: ' + user.email, 'log');
+                log('   ID: ' + user.id, 'log');
+                log('   Tiene profilePictureUrl: ' + (!!user.profilePictureUrl ? 'SÍ' : 'NO'), user.profilePictureUrl ? 'success' : 'error');
+                
+                if (user.profilePictureUrl) {
+                    log('   Es base64: ' + (user.profilePictureUrl.startsWith('data:image') ? 'SÍ' : 'NO'), 'log');
+                    log('   Tamaño: ' + Math.round(user.profilePictureUrl.length / 1024) + ' KB', 'log');
+                    log('   Primeros 50 chars: ' + user.profilePictureUrl.substring(0, 50) + '...', 'log');
+                }
+                
+            } catch (error) {
+                log('❌ Error: ' + error.message, 'error');
+            }
+        }
+
+        async function checkPhoto() {
+            clear();
+            log('📸 Verificando foto...', 'log');
+            
+            if (!currentUser) {
+                log('❌ No hay usuario cargado. Ejecuta "Cargar Usuario" primero.', 'error');
+                return;
+            }
+            
+            if (!currentUser.profilePictureUrl) {
+                log('❌ El usuario NO tiene profilePictureUrl', 'error');
+                log('', 'log');
+                log('🔧 Esto significa que:', 'warning');
+                log('   - El backend NO está devolviendo la foto', 'warning');
+                log('   - O la foto NO está en la base de datos', 'warning');
+                return;
+            }
+            
+            log('✅ Usuario tiene profilePictureUrl', 'success');
+            log('   Es base64: ' + (currentUser.profilePictureUrl.startsWith('data:image') ? 'SÍ' : 'NO'), 'log');
+            log('   Tamaño: ' + Math.round(currentUser.profilePictureUrl.length / 1024) + ' KB', 'log');
+            log('', 'log');
+            log('🖼️ Creando imagen de prueba...', 'log');
+            
+            const img = document.createElement('img');
+            img.src = currentUser.profilePictureUrl;
+            img.style.width = '100px';
+            img.style.height = '100px';
+            img.style.border = '2px solid #4ec9b0';
+            img.style.marginTop = '10px';
+            
+            img.onload = () => {
+                log('✅ La imagen se cargó correctamente en el navegador', 'success');
+                output.appendChild(img);
+                log('', 'log');
+                log('🎯 CONCLUSIÓN:', 'success');
+                log('   El backend funciona perfectamente', 'success');
+                log('   La foto está en base64 y es válida', 'success');
+                log('   El problema está en el componente React de /profile', 'warning');
+            };
+            
+            img.onerror = () => {
+                log('❌ Error cargando la imagen', 'error');
+                log('   La foto en base64 puede estar corrupta', 'error');
+            };
+        }
+
+        async function fullTest() {
+            clear();
+            log('🚀 EJECUTANDO TEST COMPLETO...', 'log');
+            log('', 'log');
+            
+            await checkToken();
+            await new Promise(r => setTimeout(r, 500));
+            
+            log('', 'log');
+            if (!localStorage.getItem('auth_token')) {
+                await doLogin();
+                await new Promise(r => setTimeout(r, 500));
+            }
+            
+            log('', 'log');
+            await loadUser();
+            await new Promise(r => setTimeout(r, 500));
+            
+            log('', 'log');
+            await checkPhoto();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Upload Foto de Perfil</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+        .log { margin: 5px 0; padding: 5px; border-left: 3px solid #007acc; }
+        .success { border-color: #4ec9b0; color: #4ec9b0; }
+        .error { border-color: #f48771; color: #f48771; }
+        .info { border-color: #dcdcaa; color: #dcdcaa; }
+        button { padding: 10px 20px; margin: 10px 0; background: #007acc; color: white; border: none; cursor: pointer; }
+        button:hover { background: #005a9e; }
+        #output { margin-top: 20px; }
+        input { margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test de Subida de Foto de Perfil</h1>
+    <p>Este test simula el proceso completo de subida de foto</p>
+    
+    <div>
+        <input type="file" id="photoInput" accept="image/*">
+        <button onclick="testUpload()">📤 Subir Foto</button>
+    </div>
+    
+    <div id="output"></div>
+
+    <script>
+        const output = document.getElementById('output');
+        
+        function log(message, type = 'log') {
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.textContent = message;
+            output.appendChild(div);
+            console.log(message);
+        }
+
+        async function testUpload() {
+            output.innerHTML = '';
+            log('🚀 Iniciando test de subida...', 'info');
+            
+            const fileInput = document.getElementById('photoInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                log('❌ No se seleccionó ningún archivo', 'error');
+                return;
+            }
+            
+            log(`📁 Archivo: ${file.name} (${Math.round(file.size / 1024)} KB)`, 'info');
+            
+            // 1. Verificar token
+            const token = localStorage.getItem('auth_token');
+            if (!token) {
+                log('❌ No hay token de autenticación. Haz login primero en http://localhost:9002', 'error');
+                return;
+            }
+            log('🔑 Token encontrado', 'success');
+            
+            // 2. Obtener usuario actual
+            log('👤 Obteniendo usuario actual...', 'info');
+            const userRes = await fetch('http://localhost:9002/api/users/current', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            if (!userRes.ok) {
+                log('❌ Error obteniendo usuario: ' + userRes.status, 'error');
+                return;
+            }
+            
+            const userData = await userRes.json();
+            const user = userData.user || userData;
+            log(`✅ Usuario: ${user.name} (${user.id})`, 'success');
+            
+            // 3. Leer archivo
+            log('📖 Leyendo archivo...', 'info');
+            const reader = new FileReader();
+            
+            reader.onloadend = async () => {
+                const originalDataUrl = reader.result;
+                log(`✅ Archivo leído: ${Math.round(originalDataUrl.length / 1024)} KB`, 'success');
+                
+                // 4. Comprimir imagen
+                log('🖼️ Comprimiendo imagen...', 'info');
+                const img = new Image();
+                
+                img.onload = async () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    log(`   Dimensiones originales: ${width}x${height}`, 'info');
+                    
+                    const maxSize = 400;
+                    if (width > maxSize || height > maxSize) {
+                        if (width > height) {
+                            height = (height / width) * maxSize;
+                            width = maxSize;
+                        } else {
+                            width = (width / height) * maxSize;
+                            height = maxSize;
+                        }
+                    }
+                    
+                    log(`   Dimensiones finales: ${Math.round(width)}x${Math.round(height)}`, 'info');
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                    const originalKB = Math.round(originalDataUrl.length / 1024);
+                    const compressedKB = Math.round(compressedDataUrl.length / 1024);
+                    const reduction = Math.round((1 - compressedDataUrl.length / originalDataUrl.length) * 100);
+                    
+                    log(`✅ Compresión: ${originalKB} KB → ${compressedKB} KB (${reduction}% reducción)`, 'success');
+                    
+                    // 5. Subir a API
+                    log('📤 Subiendo a servidor...', 'info');
+                    const uploadRes = await fetch(`http://localhost:9002/api/users/${user.id}/profile-picture`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ profilePictureUrl: compressedDataUrl })
+                    });
+                    
+                    if (uploadRes.ok) {
+                        const result = await uploadRes.json();
+                        log('✅ FOTO SUBIDA CORRECTAMENTE', 'success');
+                        log(`   Usuario: ${result.user.name}`, 'success');
+                        log(`   Foto en DB: ${result.user.profilePictureUrl ? 'SÍ' : 'NO'}`, 'success');
+                        log(`   Es base64: ${result.user.profilePictureUrl?.startsWith('data:image') ? 'SÍ' : 'NO'}`, 'success');
+                        log('', 'info');
+                        log('🎉 ¡TODO FUNCIONÓ! Recarga /profile para ver la foto', 'success');
+                    } else {
+                        const error = await uploadRes.json();
+                        log(`❌ Error ${uploadRes.status}: ${error.error}`, 'error');
+                        log(`   Detalles: ${error.details || 'N/A'}`, 'error');
+                    }
+                };
+                
+                img.onerror = () => {
+                    log('❌ Error cargando imagen en memoria', 'error');
+                };
+                
+                img.src = originalDataUrl;
+            };
+            
+            reader.onerror = () => {
+                log('❌ Error leyendo archivo', 'error');
+            };
+            
+            reader.readAsDataURL(file);
+        }
+    </script>
+</body>
+</html>

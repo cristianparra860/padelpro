@@ -17,8 +17,8 @@ export async function POST(
       );
     }
 
-    // Convertir euros a céntimos
-    const amountInCents = Math.round(amount * 100);
+    // Los créditos se almacenan en euros directamente
+    const amountInEuros = Number(amount);
 
     // Buscar el usuario
     const user = await prisma.user.findUnique({
@@ -37,18 +37,17 @@ export async function POST(
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
-        credits: (user.credits || 0) + amountInCents
+        credits: (user.credits || 0) + amountInEuros
       },
       select: { credits: true }
     });
 
-    // Convertir de nuevo a euros para la respuesta
-    const newBalanceInEuros = (updatedUser.credits || 0) / 100;
+    const newBalance = updatedUser.credits || 0;
 
-    console.log(`✅ Añadidos ${amount}€ al usuario ${userId}. Nuevo saldo: ${newBalanceInEuros}€`);
+    console.log(`✅ Añadidos ${amount}€ al usuario ${userId}. Nuevo saldo: ${newBalance}€`);
 
     return NextResponse.json({
-      newBalance: newBalanceInEuros
+      newBalance
     });
 
   } catch (error) {

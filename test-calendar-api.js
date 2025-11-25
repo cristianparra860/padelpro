@@ -1,1 +1,55 @@
-﻿const fetch = require('node-fetch'); async function test() { const today = new Date(); today.setHours(0,0,0,0); const sDate = today.toISOString(); const eDate = new Date(today); eDate.setDate(eDate.getDate()+1); const eISO = eDate.toISOString(); const clubRes = await fetch('http://localhost:9002/api/clubs'); const clubs = await clubRes.json(); const clubId = clubs[0]?.id; console.log('Club:', clubId); const calUrl = http://localhost:9002/api/admin/calendar?clubId=test-calendar-api.js{clubId}&startDate=test-calendar-api.js{sDate}&endDate=test-calendar-api.js{eISO}; const calRes = await fetch(calUrl); const calData = await calRes.json(); console.log('\nCalendar API:'); console.log('  Confirmadas:', calData.confirmedClasses?.length); console.log('  Propuestas:', calData.proposedClasses?.length); if(calData.confirmedClasses) calData.confirmedClasses.forEach(c => console.log('  -', new Date(c.start).toLocaleTimeString(), 'Pista', c.courtNumber, c.instructorName)); const tDate = today.toISOString().split('T')[0]; const tUrl = http://localhost:9002/api/timeslots?clubId=test-calendar-api.js{clubId}&date=test-calendar-api.js{tDate}; const tRes = await fetch(tUrl); const tData = await tRes.json(); const conf = tData.filter(s => s.courtId); console.log('\nTimeslots API:'); console.log('  Confirmadas:', conf.length); console.log('  Propuestas:', tData.length - conf.length); if(conf.length) conf.forEach(c => console.log('  -', new Date(c.start).toLocaleTimeString(), 'Pista', c.courtNumber, c.instructorName)); } test();
+﻿// Test del API del calendario para Dec 17
+const url = 'http://localhost:9002/api/admin/calendar?clubId=padel-estrella-madrid&month=12&year=2025';
+
+try {
+  const response = await fetch(url);
+  const data = await response.json();
+  
+  // Filtrar solo dic 17
+  const dec17 = data.filter(cls => {
+    const date = new Date(cls.start);
+    return date.getDate() === 17 && date.getMonth() === 11; // Diciembre = 11
+  });
+  
+  console.log(`=== DIC 17: Total clases en respuesta API: ${dec17.length} ===\n`);
+  
+  // Agrupar por hora
+  const byHour = {};
+  dec17.forEach(cls => {
+    const date = new Date(cls.start);
+    const hour = date.getHours() + ':' + date.getMinutes().toString().padStart(2, '0');
+    byHour[hour] = (byHour[hour] || 0) + 1;
+  });
+  
+  const hours = Object.keys(byHour).sort((a, b) => {
+    const [ha, ma] = a.split(':').map(Number);
+    const [hb, mb] = b.split(':').map(Number);
+    return (ha * 60 + ma) - (hb * 60 + mb);
+  });
+  
+  console.log('Clases por hora (local):');
+  hours.forEach(hour => {
+    console.log(`  ${hour}: ${byHour[hour]} clases`);
+  });
+  
+  // Buscar clases después de 21:30
+  const late = dec17.filter(cls => {
+    const date = new Date(cls.start);
+    const hour = date.getHours();
+    const min = date.getMinutes();
+    return hour > 21 || (hour === 21 && min > 30);
+  });
+  
+  if (late.length > 0) {
+    console.log(`\n  CLASES FUERA DE HORARIO: ${late.length}`);
+    late.forEach(cls => {
+      const date = new Date(cls.start);
+      console.log(`  ${date.toLocaleString('es-ES')} - ${cls.instructorName} - Players: ${cls.playersCount}`);
+    });
+  } else {
+    console.log('\n No hay clases fuera de horario (todas antes de 22:00)');
+  }
+  
+} catch (error) {
+  console.error('Error:', error.message);
+}

@@ -7,19 +7,43 @@ const prisma = new PrismaClient();
 /**
  * 🤖 API ENDPOINT: Generador automático de tarjetas
  * 
- * GET /api/cron/generate-cards?days=7
+ * GET /api/cron/generate-cards?daysRange=30
+ * GET /api/cron/generate-cards?targetDay=30 (legacy)
  * 
- * Genera propuestas de clases verificando disponibilidad de pistas e instructores.
+ * Genera propuestas de clases para los próximos N días.
+ * - daysRange: Genera para todos los días en el rango [0, N] (recomendado)
+ * - targetDay: Genera solo para un día específico (comportamiento legacy)
+ * 
+ * Por defecto genera para los próximos 30 días.
+ * 
+ * Verifica disponibilidad de pistas e instructores.
  * Puede ser llamado por:
- * - Vercel Cron Jobs
+ * - Vercel Cron Jobs (cada día a las 00:00 UTC)
  * - GitHub Actions
  * - Servicio externo (cron-job.org, etc.)
+ * - Manualmente para desarrollo local
  */
 
 // Verificar disponibilidad de pistas e instructores
-async function checkAvailability(date: string, startTime: string, endTime: string) {
+async function checkAvailability(date: string, startTime: string, endTime: string, specificInstructorId?: string) {
   const startDateTime = new Date(`${date}T${startTime}:00.000Z`);
   const endDateTime = new Date(`${date}T${endTime}:00.000Z`);
+  
+  // Contar total de pistas activas
+  const totalCourts = await prisma.$queryRaw<Array<{count: number}>>`
+    SELECT COUNT(*) as count FROM Court WHERE isActive = 1
+  `;
+
+  const totalCourtsCount = Number(totalCourts[0]?.count || 0);
+
+  // Si no hay pistas, no hay disponibilidad
+  if (totalCourtsCount === 0) {
+    return {
+      hasAvailability: false,
+      availableCourts: 0,
+      reason: 'No active courts'
+    };
+  }
   
   // Verificar pistas ocupadas
   const occupiedCourts = await prisma.$queryRaw<Array<{courtId: string}>>`
@@ -34,35 +58,44 @@ async function checkAvailability(date: string, startTime: string, endTime: strin
     )
   `;
 
-  const totalCourts = await prisma.$queryRaw<Array<{count: number}>>`
-    SELECT COUNT(*) as count FROM Court WHERE isActive = 1
-  `;
-  const availableCourts = Number(totalCourts[0]?.count || 0) - occupiedCourts.length;
+  const availableCourts = totalCourtsCount - occupiedCourts.length;
 
-  // Verificar instructores ocupados
-  const occupiedInstructors = await prisma.$queryRaw<Array<{instructorId: string}>>`
-    SELECT DISTINCT instructorId 
-    FROM InstructorSchedule
-    WHERE date = ${date}
-    AND isOccupied = 1
-    AND (
-      (startTime <= ${startDateTime.toISOString()} AND endTime > ${startDateTime.toISOString()})
-      OR (startTime < ${endDateTime.toISOString()} AND endTime >= ${endDateTime.toISOString()})
-      OR (startTime >= ${startDateTime.toISOString()} AND endTime <= ${endDateTime.toISOString()})
-    )
-  `;
+  if (availableCourts === 0) {
+    return {
+      hasAvailability: false,
+      availableCourts: 0,
+      reason: 'All courts occupied'
+    };
+  }
 
-  const totalInstructors = await prisma.$queryRaw<Array<{count: number}>>`
-    SELECT COUNT(*) as count FROM Instructor WHERE isActive = 1
-  `;
-  const availableInstructors = Number(totalInstructors[0]?.count || 0) - occupiedInstructors.length;
+  // Si se especifica un instructor, verificar solo ese instructor
+  if (specificInstructorId) {
+    const instructorOccupied = await prisma.$queryRaw<Array<{instructorId: string}>>`
+      SELECT instructorId 
+      FROM InstructorSchedule
+      WHERE date = ${date}
+      AND instructorId = ${specificInstructorId}
+      AND isOccupied = 1
+      AND (
+        (startTime <= ${startDateTime.toISOString()} AND endTime > ${startDateTime.toISOString()})
+        OR (startTime < ${endDateTime.toISOString()} AND endTime >= ${endDateTime.toISOString()})
+        OR (startTime >= ${startDateTime.toISOString()} AND endTime <= ${endDateTime.toISOString()})
+      )
+    `;
+
+    if (instructorOccupied.length > 0) {
+      return {
+        hasAvailability: false,
+        availableCourts,
+        reason: 'Instructor occupied'
+      };
+    }
+  }
 
   return {
-    hasAvailability: availableCourts > 0 && availableInstructors > 0,
+    hasAvailability: true,
     availableCourts,
-    availableInstructors,
-    totalCourts: Number(totalCourts[0]?.count || 0),
-    totalInstructors: Number(totalInstructors[0]?.count || 0)
+    reason: 'Available'
   };
 }
 
@@ -82,9 +115,9 @@ async function generateCardsForDay(date: string, clubId: string) {
 
   console.log(`📚 Generando propuestas para ${instructors.length} instructores`);
 
-  // Generar propuestas cada 30 minutos de 08:00 a 22:00
+  // Generar propuestas cada 30 minutos de 06:00 a 21:00 UTC (07:00-22:00 hora local España)
   const timeSlots: string[] = [];
-  for (let hour = 8; hour < 22; hour++) {
+  for (let hour = 6; hour < 21; hour++) {
     timeSlots.push(`${hour.toString().padStart(2, '0')}:00`);
     timeSlots.push(`${hour.toString().padStart(2, '0')}:30`);
   }
@@ -92,7 +125,9 @@ async function generateCardsForDay(date: string, clubId: string) {
   // Para cada instructor, generar propuestas en todos los horarios
   for (const instructor of instructors) {
     const instructorId = instructor.id;
-    console.log(`   👤 Generando para instructor ${instructorId}...`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`   👤 Generando para instructor ${instructorId}...`);
+    }
 
     for (const startTime of timeSlots) {
       const [hour, minute] = startTime.split(':').map(Number);
@@ -108,10 +143,13 @@ async function generateCardsForDay(date: string, clubId: string) {
       
       const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
 
-      // Verificar disponibilidad
-      const availability = await checkAvailability(date, startTime, endTime);
+      // Verificar disponibilidad del instructor específico
+      const availability = await checkAvailability(date, startTime, endTime, instructorId);
 
       if (!availability.hasAvailability) {
+        if (skippedCount < 1) {
+          console.log(`   ⏭️  SKIP Example: ${startTime} for ${instructorId} - ${availability.reason}`);
+        }
         skippedCount++;
         continue;
       }
@@ -188,34 +226,76 @@ async function generateCardsForDay(date: string, clubId: string) {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const daysParam = searchParams.get('days') || '7';
-    const days = parseInt(daysParam);
-
-    console.log(`🤖 AUTO-GENERATOR: Generating cards for next ${days} days...`);
+    const targetDayParam = searchParams.get('targetDay');
+    const daysRangeParam = searchParams.get('daysRange') || '30'; // Por defecto 30 días
+    const daysRange = parseInt(daysRangeParam);
 
     const clubId = 'padel-estrella-madrid'; // Club principal (ID correcto)
+
+    // Si se especifica targetDay, generar solo ese día (comportamiento legacy)
+    if (targetDayParam) {
+      const targetDay = parseInt(targetDayParam);
+      console.log(`🤖 AUTO-GENERATOR: Generating cards for day +${targetDay}...`);
+
+      const today = new Date();
+      const targetDate = new Date(today);
+      targetDate.setDate(targetDate.getDate() + targetDay);
+      const dateStr = targetDate.toISOString().split('T')[0];
+
+      console.log(`   📅 Target date: ${dateStr} (${targetDay} days from now)`);
+
+      const result = await generateCardsForDay(dateStr, clubId);
+      console.log(`   ✅ ${dateStr}: ${result.created} created, ${result.skipped} skipped`);
+
+      return NextResponse.json({
+        success: true,
+        message: `Cards generated successfully for ${dateStr} (+${targetDay} days)`,
+        created: result.created,
+        skipped: result.skipped,
+        targetDate: dateStr,
+        daysAhead: targetDay
+      });
+    }
+
+    // Nuevo comportamiento: generar para un rango completo de días
+    console.log(`🤖 AUTO-GENERATOR: Generating cards for next ${daysRange} days...`);
+    
+    const results = [];
     let totalCreated = 0;
     let totalSkipped = 0;
 
-    const today = new Date();
-    for (let dayOffset = 0; dayOffset < days; dayOffset++) {
+    for (let day = 0; day <= daysRange; day++) {
+      const today = new Date();
       const targetDate = new Date(today);
-      targetDate.setDate(targetDate.getDate() + dayOffset);
+      targetDate.setDate(targetDate.getDate() + day);
       const dateStr = targetDate.toISOString().split('T')[0];
 
       const result = await generateCardsForDay(dateStr, clubId);
+      
+      if (result.created > 0 || day === 0 || day === daysRange) {
+        console.log(`   📅 ${dateStr} (+${day}): ${result.created} created, ${result.skipped} skipped`);
+      }
+
       totalCreated += result.created;
       totalSkipped += result.skipped;
-
-      console.log(`   ${dateStr}: ${result.created} created, ${result.skipped} skipped`);
+      
+      results.push({
+        date: dateStr,
+        daysAhead: day,
+        created: result.created,
+        skipped: result.skipped
+      });
     }
+
+    console.log(`   ✅ TOTAL: ${totalCreated} created, ${totalSkipped} skipped across ${daysRange + 1} days`);
 
     return NextResponse.json({
       success: true,
-      message: `Cards generated successfully for ${days} days`,
-      created: totalCreated,
-      skipped: totalSkipped,
-      days: days
+      message: `Cards generated successfully for ${daysRange + 1} days`,
+      totalCreated,
+      totalSkipped,
+      daysRange,
+      results
     });
 
   } catch (error) {

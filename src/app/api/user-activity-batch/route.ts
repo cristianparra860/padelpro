@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
         b.userId,
         ts.start,
         ts.end,
-        ts.courtNumber
+        ts.courtId
       FROM Booking b
       JOIN TimeSlot ts ON b.timeSlotId = ts.id
       WHERE b.userId = ${userId}
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
       userId: string;
       start: number | bigint;
       end: number | bigint;
-      courtNumber: number | null;
+      courtId: string | null;
     }>;
 
     console.log('📚 Total bookings found:', classBookings.length);
@@ -95,8 +95,8 @@ export async function GET(request: NextRequest) {
       const dateKey = currentDate.toISOString().substring(0, 10);
       
       const bookings = bookingsByDate[dateKey] || [];
-      const confirmedCount = bookings.filter(b => b.courtNumber !== null).length;
-      const pendingCount = bookings.filter(b => b.courtNumber === null).length;
+      const confirmedCount = bookings.filter(b => b.courtId !== null).length;
+      const pendingCount = bookings.filter(b => b.courtId === null).length;
       
       // Determinar el estado: confirmado tiene prioridad sobre inscrito
       let activityStatus = 'none';

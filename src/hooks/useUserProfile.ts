@@ -21,6 +21,14 @@ export function useUserProfile(initialUser: UserType | null) {
   const { toast } = useToast();
 
   useEffect(() => {
+    console.log('🔄 useUserProfile useEffect ejecutado:', {
+      hasInitialUser: !!initialUser,
+      userName: initialUser?.name,
+      hasProfilePictureUrl: !!initialUser?.profilePictureUrl,
+      profilePictureUrlLength: initialUser?.profilePictureUrl?.length,
+      profilePictureUrlPreview: initialUser?.profilePictureUrl?.substring(0, 60)
+    });
+    
     if (initialUser) {
       setUser(initialUser);
       setName(initialUser.name || '');
@@ -28,8 +36,13 @@ export function useUserProfile(initialUser: UserType | null) {
       setSelectedLevel(initialUser.level);
       setSelectedGenderCategory(initialUser.genderCategory);
       setProfilePicUrl(initialUser.profilePictureUrl || null);
+      
+      console.log('✅ Estados actualizados en useUserProfile:', {
+        profilePicUrl: !!initialUser.profilePictureUrl,
+        userProfilePictureUrl: !!initialUser.profilePictureUrl
+      });
     }
-  }, [initialUser]);
+  }, [initialUser, initialUser?.profilePictureUrl]); // Escuchar cambios en profilePictureUrl también
 
   const handleNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setName(event.target.value);
@@ -37,15 +50,45 @@ export function useUserProfile(initialUser: UserType | null) {
 
   const handleSaveName = useCallback(async () => {
     if (!user) return;
-    setIsEditingName(false);
-    setUser(prev => prev ? { ...prev, name } : null);
-    const currentGlobalUser = getMockCurrentUser();
-    if (currentGlobalUser && currentGlobalUser.id === user.id) {
-        setGlobalCurrentUser({ ...currentGlobalUser, name });
-    }
+    
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        toast({ title: "Error", description: "No estás autenticado", variant: "destructive" });
+        return;
+      }
 
-    await new Promise(resolve => setTimeout(resolve, 300));
-    toast({ title: "Nombre Actualizado", description: `Tu nombre se ha cambiado a ${name}.` });
+      const response = await fetch(`/api/users/${user.id}/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const updatedUser = data.user;
+        
+        setIsEditingName(false);
+        setUser(updatedUser);
+        setGlobalCurrentUser(updatedUser);
+        
+        // Disparar evento personalizado para actualizar otros componentes
+        window.dispatchEvent(new CustomEvent('userUpdated', { detail: updatedUser }));
+        
+        toast({ title: "Nombre Actualizado", description: `Tu nombre se ha cambiado a ${name}.` });
+      } else {
+        const error = await response.json();
+        toast({ title: "Error", description: error.error || "No se pudo actualizar el nombre", variant: "destructive" });
+        setName(user.name || ''); // Revertir cambio
+      }
+    } catch (error) {
+      console.error('Error updating name:', error);
+      toast({ title: "Error", description: "Error al actualizar el nombre", variant: "destructive" });
+      setName(user.name || ''); // Revertir cambio
+    }
   }, [user, name, toast]);
 
   const handleEmailChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,15 +101,45 @@ export function useUserProfile(initialUser: UserType | null) {
       toast({ title: "Error", description: "Por favor, introduce un email válido.", variant: "destructive" });
       return;
     }
-    setIsEditingEmail(false);
-    setUser(prev => prev ? { ...prev, email } : null);
-    const currentGlobalUser = getMockCurrentUser();
-    if (currentGlobalUser && currentGlobalUser.id === user.id) {
-        setGlobalCurrentUser({ ...currentGlobalUser, email });
-    }
+    
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        toast({ title: "Error", description: "No estás autenticado", variant: "destructive" });
+        return;
+      }
 
-    await new Promise(resolve => setTimeout(resolve, 300));
-    toast({ title: "Email Actualizado", description: `Tu email se ha cambiado a ${email}.` });
+      const response = await fetch(`/api/users/${user.id}/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ email })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const updatedUser = data.user;
+        
+        setIsEditingEmail(false);
+        setUser(updatedUser);
+        setGlobalCurrentUser(updatedUser);
+        
+        // Disparar evento personalizado para actualizar otros componentes
+        window.dispatchEvent(new CustomEvent('userUpdated', { detail: updatedUser }));
+        
+        toast({ title: "Email Actualizado", description: `Tu email se ha cambiado a ${email}.` });
+      } else {
+        const error = await response.json();
+        toast({ title: "Error", description: error.error || "No se pudo actualizar el email", variant: "destructive" });
+        setEmail(user.email || ''); // Revertir cambio
+      }
+    } catch (error) {
+      console.error('Error updating email:', error);
+      toast({ title: "Error", description: "Error al actualizar el email", variant: "destructive" });
+      setEmail(user.email || ''); // Revertir cambio
+    }
   }, [user, email, toast]);
 
   const handleLevelChange = (value: MatchPadelLevel) => {
@@ -133,25 +206,138 @@ export function useUserProfile(initialUser: UserType | null) {
   };
 
   const handlePhotoChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('📸 handlePhotoChange llamado');
     const file = event.target.files?.[0];
+    console.log('📁 Archivo seleccionado:', file ? `${file.name} (${Math.round(file.size / 1024)} KB)` : 'ninguno');
+    
     if (file && user) {
+      console.log('👤 Usuario actual:', user.id, user.name);
+      
       if (!file.type.startsWith('image/')) {
+        console.log('❌ No es una imagen:', file.type);
         toast({ title: "Error", description: "Por favor, selecciona un archivo de imagen.", variant: "destructive" });
         return;
       }
+      
+      console.log('✅ Archivo válido, iniciando lectura...');
       const reader = new FileReader();
       reader.onloadend = async () => {
-        const newPhotoDataUrl = reader.result as string;
-        setProfilePicUrl(newPhotoDataUrl);
-        setUser(prev => prev ? { ...prev, profilePictureUrl: newPhotoDataUrl } : null);
-        const currentGlobalUser = getMockCurrentUser();
-        if (currentGlobalUser && currentGlobalUser.id === user.id) {
-            setGlobalCurrentUser({ ...currentGlobalUser, profilePictureUrl: newPhotoDataUrl });
+        try {
+          console.log('📖 Archivo leído correctamente');
+          const originalDataUrl = reader.result as string;
+          
+          // Comprimir la imagen
+          const img = new Image();
+          img.onload = async () => {
+            console.log('🖼️ Imagen cargada en memoria, iniciando compresión...');
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            
+            // Redimensionar si es muy grande (máximo 400x400)
+            const maxSize = 400;
+            if (width > maxSize || height > maxSize) {
+              if (width > height) {
+                height = (height / width) * maxSize;
+                width = maxSize;
+              } else {
+                width = (width / height) * maxSize;
+                height = maxSize;
+              }
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx?.drawImage(img, 0, 0, width, height);
+            
+            // Convertir a base64 con calidad reducida
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+            
+            console.log('📊 Compresión completada:');
+            console.log('   Original:', Math.round(originalDataUrl.length / 1024), 'KB');
+            console.log('   Comprimido:', Math.round(compressedDataUrl.length / 1024), 'KB');
+            console.log('   Reducción:', Math.round((1 - compressedDataUrl.length / originalDataUrl.length) * 100), '%');
+            
+            // Guardar en la base de datos
+            const token = localStorage.getItem('auth_token');
+            console.log('🔑 Token:', token ? 'Presente' : 'FALTA');
+            console.log('📤 Enviando a API...');
+            
+            const response = await fetch(`/api/users/${user.id}/profile-picture`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ profilePictureUrl: compressedDataUrl })
+            });
+
+            if (response.ok) {
+              const responseData = await response.json();
+              const updatedUser = responseData.user;
+              
+              console.log('✅ Respuesta exitosa del servidor');
+              console.log('👤 Usuario actualizado:', {
+                id: updatedUser.id,
+                name: updatedUser.name,
+                hasProfilePic: !!updatedUser.profilePictureUrl,
+                picSize: updatedUser.profilePictureUrl ? Math.round(updatedUser.profilePictureUrl.length / 1024) + ' KB' : 'N/A',
+                isBase64: updatedUser.profilePictureUrl?.startsWith('data:image') ? 'SÍ' : 'NO'
+              });
+              
+              console.log('🔄 Actualizando estado local...');
+              // Actualizar estado local inmediatamente con la imagen comprimida
+              setProfilePicUrl(compressedDataUrl);
+              console.log('   profilePicUrl actualizado');
+              
+              setUser(prev => prev ? { ...prev, profilePictureUrl: compressedDataUrl } : null);
+              console.log('   user actualizado');
+              
+              // Actualizar también en estado global
+              if (updatedUser) {
+                setGlobalCurrentUser(updatedUser);
+                console.log('   globalCurrentUser actualizado');
+              }
+              
+              console.log('✅ FOTO DE PERFIL ACTUALIZADA COMPLETAMENTE');
+              
+              toast({ 
+                title: "✅ Foto Actualizada", 
+                description: "Tu foto de perfil ha sido actualizada correctamente." 
+              });
+            } else {
+              console.log('❌ Error en respuesta del servidor:', response.status);
+              const errorData = await response.json();
+              console.error('📋 Detalles del error:', errorData);
+              toast({ 
+                title: "Error", 
+                description: `No se pudo guardar: ${errorData.details || errorData.error}`, 
+                variant: "destructive" 
+              });
+            }
+          };
+          
+          img.onerror = () => {
+            toast({ title: "Error", description: "No se pudo cargar la imagen.", variant: "destructive" });
+          };
+          
+          img.src = originalDataUrl;
+          
+        } catch (error) {
+          console.error('Error processing image:', error);
+          toast({ 
+            title: "Error", 
+            description: "Error al procesar la imagen.", 
+            variant: "destructive" 
+          });
         }
-        
-        await new Promise(resolve => setTimeout(resolve, 500));
-        toast({ title: "Foto Actualizada", description: "Tu foto de perfil ha sido actualizada." });
       };
+      
+      reader.onerror = () => {
+        toast({ title: "Error", description: "Error al leer el archivo.", variant: "destructive" });
+      };
+      
       reader.readAsDataURL(file);
     }
   }, [user, toast]);

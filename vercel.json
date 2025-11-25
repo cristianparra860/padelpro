@@ -9,8 +9,9 @@
   },
   "crons": [
     {
-      "path": "/api/cron/generate-cards?days=7",
-      "schedule": "0 0 * * *"
+      "path": "/api/cron/generate-cards?daysRange=30",
+      "schedule": "0 0 * * *",
+      "description": "Genera automáticamente las clases de los próximos 30 días cada día a las 00:00 UTC"
     }
   ]
 }

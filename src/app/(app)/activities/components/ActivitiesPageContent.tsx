@@ -21,6 +21,7 @@ import ActivityTypeSelectionDialog from './ActivityTypeSelectionDialog';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Plus } from 'lucide-react';
 import { useActivityFilters } from '@/hooks/useActivityFilters';
+import DateSelector from '@/components/admin/DateSelector';
 
 interface ActivitiesPageContentProps {
     currentUser: User | null;
@@ -30,9 +31,32 @@ interface ActivitiesPageContentProps {
 export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate }: ActivitiesPageContentProps) {
     const router = useRouter();
     const { toast } = useToast();
+    const [userBookings, setUserBookings] = useState<any[]>([]);
     
     const activityFilters = useActivityFilters(currentUser, onCurrentUserUpdate);
     
+    // Cargar bookings del usuario para los indicadores
+    useEffect(() => {
+        const loadUserBookings = async () => {
+            if (!currentUser?.id) return;
+            try {
+                const response = await fetch(`/api/users/${currentUser.id}/bookings`);
+                if (response.ok) {
+                    const bookings = await response.json();
+                    const formattedBookings = bookings.map((b: any) => ({
+                        timeSlotId: b.timeSlotId,
+                        status: b.status,
+                        date: b.timeSlot?.start || b.start || new Date()
+                    }));
+                    setUserBookings(formattedBookings);
+                }
+            } catch (error) {
+                console.error('❌ Error cargando bookings:', error);
+            }
+        };
+        loadUserBookings();
+    }, [currentUser, activityFilters.refreshKey]);
+
     // 🔄 Detectar parámetro de refresh en la URL para forzar recarga
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -361,196 +385,24 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
             {/* Contenedor principal */}
             <div className="flex-1 flex flex-col overflow-hidden">
                 <main className="flex-1 overflow-y-auto px-2 md:px-6 pb-[70px] md:pb-6 space-y-2 md:space-y-4 md:pt-4">
-                    {/* Calendario para desktop - DISEÑO ARMONIZADO */}
+                    {/* Calendario unificado - usa el mismo componente que ClubCalendar */}
                     <div className="hidden md:block">
-                        <ScrollArea className="w-full whitespace-nowrap">
-                            <div className="flex space-x-3 py-2">
-                                {dateStripDates.map(day => {
-                                    const isSelected = selectedDate ? isSameDay(day, selectedDate) : false;
-                                    const dateKey = format(day, 'yyyy-MM-dd');
-                                    const indicators = dateStripIndicators[dateKey] || { activityStatus: 'none', hasEvent: false, anticipationPoints: 0 };
-                                    const isToday = isSameDay(day, new Date());
-                                    
-                                    // Estilo armonizado
-                                    let borderColor = 'border-gray-300';
-                                    let shadowStyle = 'shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)]';
-                                    let textColor = 'text-gray-600';
-                                    let dayTextColor = 'text-gray-900';
-                                    
-                                    if (isSelected) {
-                                        borderColor = 'border-green-500';
-                                        shadowStyle = 'shadow-[inset_0_2px_8px_rgba(34,197,94,0.3)]';
-                                        textColor = 'text-green-600';
-                                        dayTextColor = 'text-green-700';
-                                    } else if (isToday) {
-                                        borderColor = 'border-blue-300';
-                                        shadowStyle = 'shadow-[inset_0_1px_3px_rgba(59,130,246,0.15)]';
-                                        textColor = 'text-blue-500';
-                                        dayTextColor = 'text-blue-700';
-                                    }
-                                    
-                                    return (
-                                    <div key={day.toISOString()} className="flex flex-col items-center space-y-2 relative">
-                                        {indicators.anticipationPoints > 0 && showPointsBonus && (
-                                            <div
-                                            className="absolute -top-1 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center rounded-full bg-amber-400 px-2 py-0.5 text-white shadow-sm border border-amber-500"
-                                            title={`+${indicators.anticipationPoints} puntos por reservar con antelación`}
-                                            >
-                                            <span className="text-[9px] font-bold">+{indicators.anticipationPoints}</span>
-                                            </div>
-                                        )}
-                                        
-                                        <button
-                                            className={cn(
-                                                "flex flex-col items-center justify-center w-[60px] h-[60px] rounded-full",
-                                                "transition-all duration-200 cursor-pointer border-2 bg-white",
-                                                borderColor, shadowStyle,
-                                                isSelected ? 'scale-110 ring-2 ring-green-200' : 'hover:scale-105'
-                                            )}
-                                            onClick={() => handleDateChange(day)}
-                                        >
-                                            <span className={`font-bold text-[11px] uppercase ${textColor}`}>
-                                                {format(day, "EEE", { locale: es }).slice(0, 3)}
-                                            </span>
-                                            <span className={`text-2xl font-bold leading-none ${dayTextColor}`}>
-                                                {format(day, "d", { locale: es })}
-                                            </span>
-                                            <span className={`text-[10px] uppercase ${textColor}`}>
-                                                {format(day, "MMM", { locale: es }).slice(0,3)}
-                                            </span>
-                                        </button>
-
-                                        <div className="h-10 w-full flex flex-col items-center justify-center relative space-y-0.5">
-                                            <TooltipProvider delayDuration={150}>
-                                                {indicators.activityStatus === 'confirmed' && (
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <button
-                                                                onClick={() => onViewPrefChangeCompat(day, 'myConfirmed', indicators.activityTypes.includes('class') ? 'class' : 'match')}
-                                                                className="h-6 w-6 flex items-center justify-center bg-red-500 text-white rounded-full font-bold text-xs leading-none cursor-pointer hover:scale-110 transition-transform shadow-sm"
-                                                            >
-                                                                R
-                                                            </button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent><p>Ver mis reservas</p></TooltipContent>
-                                                    </Tooltip>
-                                                )}
-                                                {indicators.activityStatus === 'inscribed' && (
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            {indicators.activityTypes.includes('event') && indicators.eventId ? (
-                                                                <Link href={`/match-day/${indicators.eventId}`} passHref>
-                                                                    <button className="h-6 w-6 flex items-center justify-center bg-blue-500 text-white rounded-full font-bold text-xs leading-none cursor-pointer hover:scale-110 transition-transform shadow-sm">I</button>
-                                                                </Link>
-                                                            ) : (
-                                                                <button
-                                                                    onClick={() => onViewPrefChangeCompat(day, 'myInscriptions', indicators.activityTypes.includes('class') ? 'class' : 'match')}
-                                                                    className="h-6 w-6 flex items-center justify-center bg-blue-500 text-white rounded-full font-bold text-xs leading-none cursor-pointer hover:scale-110 transition-transform shadow-sm"
-                                                                >
-                                                                    I
-                                                                </button>
-                                                            )}
-                                                        </TooltipTrigger>
-                                                        <TooltipContent><p>Ver mis inscripciones</p></TooltipContent>
-                                                    </Tooltip>
-                                                )}
-                                                {indicators.hasEvent && indicators.activityStatus === 'none' && (
-                                                    <Tooltip><TooltipTrigger asChild><Link href={`/match-day/${indicators.eventId}`} passHref><button className="h-6 w-6 flex items-center justify-center bg-primary/10 hover:bg-primary/20 rounded-full animate-pulse-blue border border-primary/50 transition-transform hover:scale-110"><Plus className="h-4 w-4 text-primary" /></button></Link></TooltipTrigger><TooltipContent><p>¡Apúntate al Match-Day!</p></TooltipContent></Tooltip>
-                                                )}
-                                            </TooltipProvider>
-                                        </div>
-                                    </div>
-                                    );
-                                })}
-                            </div>
-                            <ScrollBar orientation="horizontal" className="h-2 mt-1" />
-                        </ScrollArea>
+                        <DateSelector
+                            selectedDate={selectedDate}
+                            onDateChange={handleDateChange}
+                            daysToShow={30}
+                            userBookings={userBookings}
+                        />
                     </div>
 
-                    {/* Calendario para móvil - DISEÑO ARMONIZADO CON SOMBRA INVERSA */}
+                    {/* Calendario móvil - mismo componente pero en posición fija abajo */}
                     <div className="block md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-100">
-                        <div className="overflow-x-auto scrollbar-hide">
-                            <div className="flex space-x-2 py-2 px-2 min-w-max">
-                                {dateStripDates.map(day => {
-                                    const isSelected = selectedDate ? isSameDay(day, selectedDate) : false;
-                                    const dateKey = format(day, 'yyyy-MM-dd');
-                                    const indicators = dateStripIndicators[dateKey] || { activityStatus: 'none', hasEvent: false, anticipationPoints: 0 };
-                                    const isToday = isSameDay(day, new Date());
-                                    
-                                    // Estilo armonizado con sombra inversa (igual que desktop pero más pequeño)
-                                    let borderColor = 'border-gray-300';
-                                    let shadowStyle = 'shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)]';
-                                    let textColor = 'text-gray-600';
-                                    let dayTextColor = 'text-gray-900';
-                                    
-                                    if (isSelected) {
-                                        borderColor = 'border-green-500';
-                                        shadowStyle = 'shadow-[inset_0_2px_6px_rgba(34,197,94,0.3)]';
-                                        textColor = 'text-green-600';
-                                        dayTextColor = 'text-green-700';
-                                    } else if (isToday) {
-                                        borderColor = 'border-blue-300';
-                                        shadowStyle = 'shadow-[inset_0_1px_3px_rgba(59,130,246,0.15)]';
-                                        textColor = 'text-blue-500';
-                                        dayTextColor = 'text-blue-700';
-                                    }
-                                    
-                                    return (
-                                    <div key={day.toISOString()} className="flex flex-col items-center space-y-1 relative flex-shrink-0">
-                                        {/* Indicador de puntos de anticipación - arriba izquierda */}
-                                        {indicators.anticipationPoints > 0 && showPointsBonus && (
-                                            <div
-                                                className="absolute -top-1 -left-1 z-10 flex items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-white shadow-sm border border-amber-500"
-                                                title={`+${indicators.anticipationPoints} puntos`}
-                                            >
-                                                <span className="text-[8px] font-bold">+{indicators.anticipationPoints}</span>
-                                            </div>
-                                        )}
-                                        
-                                        {/* Círculo indicador "R" (Reserva confirmada) - arriba derecha */}
-                                        {indicators.activityStatus === 'confirmed' && (
-                                            <button
-                                                onClick={() => onViewPrefChangeCompat(day, 'myConfirmed', indicators.activityTypes.includes('class') ? 'class' : 'match')}
-                                                className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-red-500 border-2 border-white flex items-center justify-center shadow-lg z-20 active:scale-90 transition-transform"
-                                            >
-                                                <span className="text-[9px] font-bold text-white leading-none">R</span>
-                                            </button>
-                                        )}
-                                        
-                                        {/* Círculo indicador "I" (Inscripción pendiente) - arriba derecha */}
-                                        {indicators.activityStatus === 'inscribed' && (
-                                            <button
-                                                onClick={() => onViewPrefChangeCompat(day, 'myInscribed', indicators.activityTypes.includes('class') ? 'class' : 'match')}
-                                                className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-green-500 border-2 border-white flex items-center justify-center shadow-lg z-20 active:scale-90 transition-transform"
-                                            >
-                                                <span className="text-[9px] font-bold text-white leading-none">I</span>
-                                            </button>
-                                        )}
-                                        
-                                        <button
-                                            className={cn(
-                                                "flex flex-col items-center justify-center w-[50px] h-[50px] rounded-full",
-                                                "transition-all duration-200 cursor-pointer border-2 bg-white",
-                                                borderColor, shadowStyle,
-                                                isSelected ? 'scale-105 ring-2 ring-green-200' : 'active:scale-95'
-                                            )}
-                                            onClick={() => handleDateChange(day)}
-                                        >
-                                            <span className={`font-bold text-[9px] uppercase ${textColor}`}>
-                                                {format(day, "EEE", { locale: es }).slice(0, 3)}
-                                            </span>
-                                            <span className={`text-xl font-bold leading-none ${dayTextColor}`}>
-                                                {format(day, "d", { locale: es })}
-                                            </span>
-                                            <span className={`text-[8px] uppercase ${textColor}`}>
-                                                {format(day, "MMM", { locale: es }).slice(0,3)}
-                                            </span>
-                                        </button>
-                                    </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
+                        <DateSelector
+                            selectedDate={selectedDate}
+                            onDateChange={handleDateChange}
+                            daysToShow={30}
+                            userBookings={userBookings}
+                        />
                     </div>
 
                     {renderContent()}

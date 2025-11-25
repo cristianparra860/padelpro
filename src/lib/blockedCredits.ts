@@ -86,15 +86,14 @@ export async function hasAvailableCredits(userId: string, amount: number): Promi
 /**
  * Calcula el precio de una plaza según el tamaño del grupo.
  * 
- * @param totalPrice - Precio total de la clase (del TimeSlot)
+ * @param totalPrice - Precio total de la clase EN EUROS (del TimeSlot)
  * @param groupSize - Número de jugadores en el grupo
- * @returns Precio por plaza en céntimos
+ * @returns Precio por plaza en euros
  */
 export function calculateSlotPrice(totalPrice: number, groupSize: number): number {
-  // Convertir totalPrice (en euros) a céntimos
-  const totalPriceCents = Math.round(totalPrice * 100);
+  // totalPrice viene en euros desde la BD
   // Dividir entre el número de jugadores
-  return Math.round(totalPriceCents / groupSize);
+  return Math.round((totalPrice / groupSize) * 100) / 100; // Redondear a 2 decimales
 }
 
 /**
@@ -114,12 +113,12 @@ export async function markSlotAsRecycled(timeSlotId: string): Promise<void> {
  * Otorga puntos de compensación al usuario por cancelar una inscripción confirmada.
  * 
  * @param userId - ID del usuario
- * @param amount - Monto de la inscripción cancelada (en céntimos)
+ * @param amount - Monto de la inscripción cancelada (en euros)
  * @returns Nuevos puntos del usuario
  */
 export async function grantCompensationPoints(userId: string, amount: number): Promise<number> {
-  // Convertir céntimos a euros para obtener los puntos (1€ = 1 punto)
-  const pointsToGrant = Math.floor(amount / 100);
+  // Convertir euros a puntos (1€ = 1 punto)
+  const pointsToGrant = Math.floor(amount);
 
   const user = await prisma.user.update({
     where: { id: userId },

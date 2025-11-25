@@ -1,10 +1,11 @@
 async function testDirectBooking() {
   try {
-    console.log('🧪 Probando reserva directa en clase de las 16:00...');
+    console.log('🧪 Probando reserva directa...');
     
     const bookingData = {
-      timeSlotId: "class-2025-09-11-14-inst-1", // Clase de las 16:00 que está disponible
-      userId: "user-alex-test"
+      timeSlotId: "cmi3bxmxr01q9tg549djco39l", // TimeSlot de prueba ABIERTO
+      userId: "cmhkwi8so0001tggo0bwojrjy", // Alex Garcia
+      groupSize: 1
     };
     
     console.log('📝 Enviando solicitud:', bookingData);
@@ -17,19 +18,29 @@ async function testDirectBooking() {
       body: JSON.stringify(bookingData)
     });
     
-    console.log(`📡 Status: ${response.status}`);
+    console.log(`📡 Status: ${response.status} ${response.statusText}`);
     
     const result = await response.text();
     console.log('📋 Respuesta completa:', result);
     
+    // Intentar parsear JSON si es posible
+    try {
+      const json = JSON.parse(result);
+      console.log('\n💡 JSON parseado:');
+      console.log(JSON.stringify(json, null, 2));
+    } catch (e) {
+      console.log('\n⚠️  La respuesta no es JSON válido');
+    }
+    
     if (response.ok) {
-      console.log('✅ Reserva exitosa desde terminal');
+      console.log('\n✅ Reserva exitosa desde terminal');
     } else {
-      console.log('❌ Error en la reserva desde terminal');
+      console.log('\n❌ Error en la reserva desde terminal');
     }
     
   } catch (error) {
     console.error('💥 Error:', error.message);
+    console.error(error);
   }
 }
 

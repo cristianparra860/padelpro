@@ -110,44 +110,76 @@ export async function GET(request: NextRequest) {
     console.log('   With courtId=null:', classesInRange.filter((c: any) => c.courtId === null).length);
     console.log('   With courtId!=null:', classesInRange.filter((c: any) => c.courtId !== null).length);
 
-    // Obtener datos de instructor y bookings por separado
-    const classes = await Promise.all(classesInRange.map(async (timeSlot: any) => {
-      const [instructor, bookings] = await Promise.all([
-        timeSlot.instructorId ? prisma.instructor.findUnique({
-          where: { id: timeSlot.instructorId },
-          include: {
-            user: {
-              select: {
-                name: true,
-                profilePictureUrl: true
-              }
-            }
-          }
-        }) : null,
-        prisma.booking.findMany({
-          where: { 
-            timeSlotId: timeSlot.id,
-            status: { 
-              in: ['PENDING', 'CONFIRMED'] // Excluir CANCELLED
-            }
-          },
-          include: {
-            user: {
-              select: {
-                name: true,
-                profilePictureUrl: true
-              }
-            }
-          }
-        })
-      ]);
+    // Obtener todos los IDs de TimeSlots e Instructores para queries optimizadas
+    const timeSlotIds = classesInRange.map((c: any) => c.id);
+    const instructorIds = [...new Set(classesInRange.map((c: any) => c.instructorId).filter(Boolean))];
 
+    console.log('🔍 Loading data for:', timeSlotIds.length, 'timeslots and', instructorIds.length, 'instructors');
+
+    // Cargar TODOS los instructores de las clases en una query
+    const classInstructors = await prisma.instructor.findMany({
+      where: { id: { in: instructorIds } },
+      include: {
+        user: {
+          select: {
+            name: true,
+            profilePictureUrl: true
+          }
+        }
+      }
+    });
+
+    const instructorMap = new Map(classInstructors.map(i => [i.id, i]));
+
+    // Cargar TODOS los bookings en una query
+    const allBookings = await prisma.booking.findMany({
+      where: {
+        timeSlotId: { in: timeSlotIds },
+        status: { in: ['PENDING', 'CONFIRMED'] }
+      },
+      select: {
+        id: true,
+        userId: true,
+        timeSlotId: true,
+        status: true,
+        groupSize: true, // ⭐ EXPLICITLY SELECT groupSize
+        user: {
+          select: {
+            name: true,
+            profilePictureUrl: true
+          }
+        }
+      }
+    });
+
+    console.log('📚 Loaded:', classInstructors.length, 'instructors and', allBookings.length, 'bookings');
+    if (allBookings.length > 0) {
+      console.log('🔍 Sample booking:', {
+        id: allBookings[0].id,
+        userId: allBookings[0].userId,
+        groupSize: allBookings[0].groupSize,
+        status: allBookings[0].status,
+        userName: allBookings[0].user?.name
+      });
+    }
+
+    // Agrupar bookings por timeSlotId
+    const bookingsBySlot = new Map<string, any[]>();
+    allBookings.forEach(b => {
+      if (!bookingsBySlot.has(b.timeSlotId)) {
+        bookingsBySlot.set(b.timeSlotId, []);
+      }
+      bookingsBySlot.get(b.timeSlotId)!.push(b);
+    });
+
+    // Combinar datos
+    const classes = classesInRange.map((timeSlot: any) => {
       return {
         ...timeSlot,
-        instructor,
-        bookings
+        instructor: instructorMap.get(timeSlot.instructorId) || null,
+        bookings: bookingsBySlot.get(timeSlot.id) || []
       };
-    }));
+    });
 
     console.log('📅 Step 4: Classes fetched:', classes.length);
 
@@ -194,11 +226,14 @@ export async function GET(request: NextRequest) {
       })),
       // Nueva estructura: separar propuestas de confirmadas
       proposedClasses: proposedClasses.map((cls: any) => {
-        const bookingsCount = cls.bookings?.length || 0;
+        // Calcular total de jugadores inscritos (suma de groupSize, solo bookings activos)
+        const activeBookings = cls.bookings?.filter((b: any) => b.status === 'CONFIRMED' || b.status === 'PENDING') || [];
+        const totalPlayers = activeBookings.reduce((sum: number, b: any) => sum + (b.groupSize || 1), 0);
+        
         return {
           id: `class-${cls.id}`,
           type: 'class-proposal',
-          title: `${cls.level} (${bookingsCount}/${cls.maxPlayers})`,
+          title: `${cls.level} (${totalPlayers}/${cls.maxPlayers})`,
           start: cls.start.toISOString(),
           end: cls.end.toISOString(),
           instructorId: cls.instructor?.id,
@@ -207,15 +242,18 @@ export async function GET(request: NextRequest) {
           level: cls.level,
           category: cls.category,
           price: cls.totalPrice,
-          playersCount: bookingsCount,
+          playersCount: totalPlayers, // Total de jugadores (no bookings)
           maxPlayers: cls.maxPlayers,
-          availableSpots: cls.maxPlayers - bookingsCount,
+          availableSpots: cls.maxPlayers - totalPlayers,
           bookings: cls.bookings,
           color: '#FFA500' // Naranja para propuestas
         };
       }),
       confirmedClasses: confirmedClasses.map((cls: any) => {
-        const bookingsCount = cls.bookings?.length || 0;
+        // Calcular el groupSize real de la clase confirmada (suma de groupSize de bookings CONFIRMED)
+        const confirmedBookings = cls.bookings?.filter((b: any) => b.status === 'CONFIRMED') || [];
+        const actualGroupSize = confirmedBookings.reduce((sum: number, b: any) => sum + (b.groupSize || 1), 0);
+        
         return {
           id: `class-${cls.id}`,
           type: 'class-confirmed',
@@ -229,9 +267,9 @@ export async function GET(request: NextRequest) {
           level: cls.level,
           category: cls.category,
           price: cls.totalPrice,
-          playersCount: bookingsCount,
-          maxPlayers: cls.maxPlayers,
-          availableSpots: cls.maxPlayers - bookingsCount,
+          playersCount: actualGroupSize, // Total de jugadores confirmados
+          maxPlayers: actualGroupSize, // Capacidad = jugadores confirmados
+          availableSpots: 0, // No hay espacios disponibles en clases confirmadas
           bookings: cls.bookings,
           color: '#10B981' // Verde para confirmadas
         };
@@ -297,7 +335,14 @@ export async function GET(request: NextRequest) {
 
     console.log('✅ Calendar data built successfully');
 
-    return NextResponse.json(calendarData);
+    // Desactivar cache para que los navegadores siempre obtengan datos frescos
+    return NextResponse.json(calendarData, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
 
   } catch (error) {
     console.error('❌ Error fetching calendar data:', error);

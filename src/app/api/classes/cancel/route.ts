@@ -163,14 +163,70 @@ export async function POST(request: NextRequest) {
         console.log('🔓 [CANCEL] ¡NO HAY RESERVAS ACTIVAS! Iniciando limpieza de TimeSlot...');
         
         try {
-          // RESETEAR COMPLETAMENTE LA CLASE: pista, categoría de género
-          console.log('🔵 [CANCEL] Paso 3a: Limpiando courtId del TimeSlot...');
+          // RESETEAR COMPLETAMENTE LA CLASE: pista, categoría de género Y NIVEL
+          console.log('🔵 [CANCEL] Paso 3a: Limpiando courtId, genderCategory y level del TimeSlot...');
           const updateResult = await prisma.$executeRaw`
             UPDATE TimeSlot
-            SET courtId = NULL, courtNumber = NULL, genderCategory = NULL, updatedAt = datetime('now')
+            SET courtId = NULL, courtNumber = NULL, genderCategory = NULL, level = 'ABIERTO', updatedAt = datetime('now')
             WHERE id = ${timeSlotId}
           `;
-          console.log(`✅ [CANCEL] TimeSlot limpiado (filas afectadas: ${updateResult})`);
+          console.log(`✅ [CANCEL] TimeSlot limpiado y restaurado a ABIERTO (filas afectadas: ${updateResult})`);
+          
+          // 🆕 CREAR NUEVA TARJETA ABIERTA (nivel=ABIERTO, categoria=mixto)
+          // Solo si NO existe ya otra tarjeta abierta para este instructor/hora
+          console.log('🆕 [CANCEL] Verificando si crear nueva tarjeta ABIERTA...');
+          
+          const existingOpenSlot = await prisma.$queryRaw`
+            SELECT id FROM TimeSlot
+            WHERE instructorId = ${timeSlotInfo.instructorId}
+            AND start = ${timeSlotInfo.start}
+            AND level = 'ABIERTO'
+            AND (genderCategory IS NULL OR genderCategory = 'mixto')
+            AND id != ${timeSlotId}
+            LIMIT 1
+          ` as Array<{id: string}>;
+          
+          if (existingOpenSlot.length === 0) {
+            console.log('🆕 [CANCEL] No existe tarjeta ABIERTA, creando nueva...');
+            
+            // Obtener info del club
+            const instructorInfo = await prisma.instructor.findUnique({
+              where: { id: timeSlotInfo.instructorId },
+              select: { clubId: true }
+            });
+            
+            if (instructorInfo) {
+              const newOpenSlotId = `ts_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+              
+              await prisma.$executeRaw`
+                INSERT INTO TimeSlot (
+                  id, clubId, instructorId, start, end, maxPlayers, 
+                  totalPrice, instructorPrice, courtRentalPrice, 
+                  level, category, genderCategory, createdAt, updatedAt
+                )
+                VALUES (
+                  ${newOpenSlotId},
+                  ${instructorInfo.clubId},
+                  ${timeSlotInfo.instructorId},
+                  ${timeSlotInfo.start},
+                  ${timeSlotInfo.end},
+                  4,
+                  ${timeSlotInfo.totalPrice},
+                  ${timeSlotInfo.instructorPrice},
+                  ${timeSlotInfo.courtRentalPrice},
+                  'ABIERTO',
+                  'clases',
+                  'mixto',
+                  datetime('now'),
+                  datetime('now')
+                )
+              `;
+              
+              console.log(`✅ [CANCEL] Nueva tarjeta ABIERTA creada: ${newOpenSlotId}`);
+            }
+          } else {
+            console.log('ℹ️ [CANCEL] Ya existe una tarjeta ABIERTA para este instructor/hora, no se crea duplicado');
+          }
           
           // Liberar la pista en CourtSchedule
           console.log('🔵 [CANCEL] Paso 3b: Eliminando CourtSchedule...');

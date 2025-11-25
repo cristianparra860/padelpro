@@ -17,7 +17,8 @@ export async function POST(
       );
     }
 
-    const eurosInCents = Math.round(euros * 100);
+    // Los créditos se almacenan en euros directamente
+    const eurosAmount = Number(euros);
     const pointsToAdd = Math.floor(euros * (pointsPerEuro || 1));
 
     // Buscar el usuario
@@ -34,7 +35,7 @@ export async function POST(
     }
 
     // Verificar que tenga suficiente saldo
-    if ((user.credits || 0) < eurosInCents) {
+    if ((user.credits || 0) < eurosAmount) {
       return NextResponse.json(
         { error: 'Saldo insuficiente para la conversión' },
         { status: 400 }
@@ -45,14 +46,13 @@ export async function POST(
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
-        credits: (user.credits || 0) - eurosInCents,
+        credits: (user.credits || 0) - eurosAmount,
         points: (user.points || 0) + pointsToAdd
       },
       select: { credits: true, points: true }
     });
 
-    // Convertir céntimos a euros para la respuesta
-    const newCreditBalance = (updatedUser.credits || 0) / 100;
+    const newCreditBalance = updatedUser.credits || 0;
     const newLoyaltyPoints = updatedUser.points || 0;
 
     console.log(`✅ Convertidos ${euros}€ a ${pointsToAdd} puntos para usuario ${userId}`);

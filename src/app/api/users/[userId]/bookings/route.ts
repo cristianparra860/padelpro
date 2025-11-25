@@ -46,6 +46,7 @@ export async function GET(
     const formattedBookings = bookings.map((booking) => ({
       id: booking.id,
       userId: booking.userId,
+      timeSlotId: booking.timeSlotId,
       groupSize: booking.groupSize,
       status: booking.status,
       createdAt: booking.createdAt.toISOString(),

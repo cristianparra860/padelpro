@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useTransition } from 'react';
+import React, { useEffect, useState, useTransition } from 'react';
 import type { Club, CourtRateTier, DayOfWeek, DynamicPricingTier } from '@/types';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -8,7 +8,7 @@ import { updateClub } from '@/lib/mockData';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Trash2, PlusCircle, Save, Settings2, Euro, Clock, Sparkles } from 'lucide-react';
+import { Trash2, PlusCircle, Save, Settings2, Euro, Clock, Sparkles, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from '@/components/ui/switch';
 import { daysOfWeek, dayOfWeekLabels } from '@/types';
 import { Label } from '@/components/ui/label';
+import { getMockCurrentUser } from '@/lib/mockData';
 
 interface ManageCourtRatesPanelProps {
     club: Club;
@@ -68,6 +69,7 @@ type CourtRateFormData = z.infer<typeof formSchema>;
 const ManageCourtRatesPanel: React.FC<ManageCourtRatesPanelProps> = ({ club, onRatesUpdated }) => {
     const { toast } = useToast();
     const [isSaving, startSaveTransition] = useTransition();
+    const [isUpdatingPrices, setIsUpdatingPrices] = useState(false);
 
     const form = useForm<CourtRateFormData>({
         resolver: zodResolver(formSchema),
@@ -110,6 +112,54 @@ const ManageCourtRatesPanel: React.FC<ManageCourtRatesPanelProps> = ({ club, onR
                 form.reset(data); // Reset the form with the new data to make it "not dirty"
             }
         });
+    };
+
+    const handleUpdateFuturePrices = async () => {
+        const currentUser = getMockCurrentUser();
+        
+        if (!currentUser) {
+            toast({
+                title: "Error de autenticación",
+                description: "No se pudo obtener el usuario actual",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        setIsUpdatingPrices(true);
+        
+        try {
+            const response = await fetch('/api/admin/update-future-prices', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    clubId: club.id,
+                    userId: currentUser.id
+                })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Error al actualizar precios');
+            }
+
+            toast({
+                title: "¡Precios actualizados!",
+                description: `Se actualizaron ${result.updated} clases futuras con las nuevas tarifas.`,
+                className: "bg-green-600 text-white"
+            });
+
+        } catch (error) {
+            console.error('Error actualizando precios futuros:', error);
+            toast({
+                title: "Error al actualizar precios",
+                description: error instanceof Error ? error.message : "Ocurrió un error inesperado",
+                variant: "destructive"
+            });
+        } finally {
+            setIsUpdatingPrices(false);
+        }
     };
 
     return (
@@ -186,9 +236,29 @@ const ManageCourtRatesPanel: React.FC<ManageCourtRatesPanelProps> = ({ club, onR
                         )}
                     </CardContent>
                 </Card>
-                <Button type="submit" disabled={isSaving || !form.formState.isDirty}>
-                    <Save className="mr-2 h-4 w-4" /> Guardar Cambios de Tarifas
-                </Button>
+                
+                <div className="flex items-center gap-3">
+                    <Button type="submit" disabled={isSaving || !form.formState.isDirty}>
+                        <Save className="mr-2 h-4 w-4" /> Guardar Cambios de Tarifas
+                    </Button>
+                    
+                    <Button 
+                        type="button" 
+                        variant="secondary"
+                        onClick={handleUpdateFuturePrices}
+                        disabled={isUpdatingPrices || form.formState.isDirty}
+                        className="bg-orange-500 hover:bg-orange-600 text-white"
+                    >
+                        <RefreshCw className={`mr-2 h-4 w-4 ${isUpdatingPrices ? 'animate-spin' : ''}`} />
+                        {isUpdatingPrices ? 'Actualizando...' : 'Aplicar a Clases Futuras'}
+                    </Button>
+                </div>
+                
+                <p className="text-sm text-muted-foreground">
+                    💡 <strong>Tip:</strong> Después de guardar nuevas tarifas, usa el botón "Aplicar a Clases Futuras" 
+                    para actualizar los precios de todas las clases ya generadas sin confirmar. 
+                    Las clases generadas desde mañana usarán automáticamente las nuevas tarifas.
+                </p>
             </form>
         </Form>
     );

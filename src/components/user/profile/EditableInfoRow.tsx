@@ -85,12 +85,15 @@ const EditableInfoRow: React.FC<EditableInfoRowProps> = ({
             isLast ? "rounded-b-lg" : "border-b border-gray-200"
         )}>
           {inputType === 'select' && selectOptions ? (
-            <Select value={value} onValueChange={(val) => onChange(val as MatchPadelLevel)}>
+            <Select 
+              value={value && value !== '' ? value : selectOptions[0]?.value} 
+              onValueChange={(val) => onChange(val as MatchPadelLevel)}
+            >
               <SelectTrigger id={id} className="flex-grow h-9 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500">
                 <SelectValue placeholder={selectPlaceholder || "Selecciona..."} />
               </SelectTrigger>
               <SelectContent>
-                {selectOptions.map(option => (
+                {selectOptions.filter(opt => opt.value && opt.value !== '').map(option => (
                   <SelectItem key={option.value} value={option.value} className="text-sm">
                     {option.label}
                   </SelectItem>

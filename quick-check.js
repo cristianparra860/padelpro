@@ -1,61 +1,39 @@
 ﻿const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-async function quickFix() {
-  console.log(' Verificación rápida del estado...\n');
-  
-  // 1. Contar instructores
-  const instructors = await prisma.instructor.count();
-  console.log(`Instructores: ${instructors}`);
-  
-  // 2. Contar propuestas
-  const proposals = await prisma.timeSlot.count({
-    where: { courtNumber: null }
-  });
-  console.log(`Propuestas: ${proposals}`);
-  
-  // 3. Verificar usuario
-  const user = await prisma.user.findFirst({
-    where: { 
-      OR: [
-        { id: 'alex-user-id' },
-        { email: 'alex@example.com' }
-      ]
+async function quickCheck() {
+  // Contar propuestas día 19
+  const nov19 = await prisma.timeSlot.count({
+    where: {
+      start: { gte: new Date('2025-11-19T00:00:00.000Z'), lt: new Date('2025-11-20T00:00:00.000Z') },
+      courtId: null
     }
   });
   
-  if (user) {
-    console.log(`\nUsuario encontrado: ${user.name} (${user.id})`);
-    console.log(`Créditos: ${user.credits || 0}`);
+  console.log(` Día 19 nov: ${nov19} propuestas`);
+  
+  if (nov19 < 100) {
+    console.log(`\n PROBLEMA: Solo hay ${nov19} clases, deberían ser ~150`);
+    console.log('   Regenerando día 19...\n');
     
-    // Actualizar créditos si es necesario
-    if (!user.credits || user.credits < 10) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { credits: 100 }
-      });
-      console.log(' Créditos actualizados a 100');
-    }
+    const response = await fetch('http://localhost:9002/api/cron/generate-cards?targetDay=0');
+    const result = await response.json();
+    console.log(`   Resultado: ${result.created} clases creadas`);
   } else {
-    console.log('\n No se encontró usuario para reservas');
+    console.log(' Día 19 tiene suficientes clases');
   }
   
-  await prisma.$disconnect();
+  // Total general
+  const total = await prisma.timeSlot.count({ where: { courtId: null } });
+  console.log(`\n Total propuestas: ${total}`);
   
-  console.log('\n Usa este usuario en la consola del navegador (F12):');
-  console.log(`
-const user = {
-  id: '${user?.id || 'alex-user-id'}',
-  name: '${user?.name || 'Alex García'}',
-  email: '${user?.email || 'alex@example.com'}',
-  clubId: 'club-padel-estrella',
-  credits: 100,
-  credit: 100,
-  level: 'intermedio'
-};
-localStorage.setItem('padelpro_current_user', JSON.stringify(user));
-location.reload();
-  `);
+  console.log('\n CAMBIO APLICADO:');
+  console.log('   API del calendario ahora filtra bookings CANCELLED');
+  console.log('   Solo muestra jugadores de bookings CONFIRMED o PENDING');
+  console.log('\n PRÓXIMO PASO:');
+  console.log('   Ctrl+Shift+R para refrescar el calendario');
+  
+  await prisma.$disconnect();
 }
 
-quickFix();
+quickCheck();

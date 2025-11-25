@@ -17,18 +17,19 @@ async function cancelOtherBookingsOnSameDay(userId: string, confirmedTimeSlotId:
     // Obtener la fecha del slot confirmado
     const confirmedSlot = await prisma.$queryRaw`
       SELECT start FROM TimeSlot WHERE id = ${confirmedTimeSlotId}
-    ` as Array<{ start: number | bigint }>;
+    ` as Array<{ start: string }>;
     
     if (!confirmedSlot || confirmedSlot.length === 0) {
       console.log('❌ No se pudo obtener información del slot confirmado');
       return;
     }
     
-    // Convertir timestamp a fecha (inicio y fin del día)
-    const slotTimestamp = Number(confirmedSlot[0].start);
-    const slotDate = new Date(slotTimestamp);
-    const startOfDay = new Date(slotDate.getFullYear(), slotDate.getMonth(), slotDate.getDate()).getTime();
-    const endOfDay = new Date(slotDate.getFullYear(), slotDate.getMonth(), slotDate.getDate(), 23, 59, 59, 999).getTime();
+    // Convertir a fecha y calcular inicio/fin del día en formato ISO
+    const slotDate = new Date(confirmedSlot[0].start);
+    const startOfDayDate = new Date(Date.UTC(slotDate.getUTCFullYear(), slotDate.getUTCMonth(), slotDate.getUTCDate(), 0, 0, 0, 0));
+    const endOfDayDate = new Date(Date.UTC(slotDate.getUTCFullYear(), slotDate.getUTCMonth(), slotDate.getUTCDate(), 23, 59, 59, 999));
+    const startOfDay = startOfDayDate.toISOString();
+    const endOfDay = endOfDayDate.toISOString();
     
     console.log(`📅 Fecha del slot confirmado: ${slotDate.toISOString().split('T')[0]}`);
     console.log(`⏰ Rango del día: ${startOfDay} - ${endOfDay}`);
@@ -43,7 +44,7 @@ async function cancelOtherBookingsOnSameDay(userId: string, confirmedTimeSlotId:
       AND b.timeSlotId != ${confirmedTimeSlotId}
       AND ts.start >= ${startOfDay}
       AND ts.start <= ${endOfDay}
-    ` as Array<{ id: string, userId: string, timeSlotId: string, amountBlocked: number | bigint, start: number | bigint }>;
+    ` as Array<{ id: string, userId: string, timeSlotId: string, amountBlocked: number | bigint, start: string }>;
     
     console.log(`📊 Inscripciones pendientes encontradas en el mismo día: ${otherBookings.length}`);
     
@@ -55,7 +56,7 @@ async function cancelOtherBookingsOnSameDay(userId: string, confirmedTimeSlotId:
     // Cancelar cada inscripción pendiente
     for (const booking of otherBookings) {
       const amountBlocked = Number(booking.amountBlocked);
-      const bookingTime = new Date(Number(booking.start)).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      const bookingTime = new Date(booking.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
       
       console.log(`   ❌ Cancelando inscripción ${booking.id} (${bookingTime}) - Desbloquear €${(amountBlocked/100).toFixed(2)}`);
       
@@ -184,6 +185,15 @@ export async function POST(request: Request) {
     
     const { userId, timeSlotId, groupSize = 1 } = body;
     console.log('🔍 Extracted values:', { userId, timeSlotId, groupSize, typeOfGroupSize: typeof groupSize });
+    console.log('🆔 USER ID RECIBIDO:', userId);
+    console.log('📧 USER EMAIL RECIBIDO:', body.userEmail);
+    console.log('👤 USER NAME RECIBIDO:', body.userName);
+    
+    // ⚠️ VERIFICACIÓN DE SEGURIDAD: Asegurar que el userId no es Alex García por error
+    if (userId === 'cmhkwi8so0001tggo0bwojrjy') {
+      console.log('⚠️⚠️⚠️ ALERTA: Se está intentando reservar con Alex García!');
+      console.log('⚠️ Este podría ser un error si el usuario real es otro');
+    }
 
     if (!userId || !timeSlotId) {
       return NextResponse.json({ error: 'Missing userId or timeSlotId' }, { status: 400 });
@@ -213,8 +223,15 @@ export async function POST(request: Request) {
       // 🚫 VALIDAR: No puede inscribirse si ya tiene una reserva CONFIRMADA ese día
       const slotTimestamp = typeof slotDetails[0].start === 'bigint' ? Number(slotDetails[0].start) : typeof slotDetails[0].start === 'number' ? slotDetails[0].start : new Date(slotDetails[0].start).getTime();
       const slotDate = new Date(slotTimestamp);
-      const startOfDay = new Date(slotDate.getFullYear(), slotDate.getMonth(), slotDate.getDate()).getTime();
-      const endOfDay = new Date(slotDate.getFullYear(), slotDate.getMonth(), slotDate.getDate(), 23, 59, 59, 999).getTime();
+      
+      // Calcular inicio y fin del día en formato ISO string (para SQLite)
+      const startOfDayDate = new Date(Date.UTC(slotDate.getUTCFullYear(), slotDate.getUTCMonth(), slotDate.getUTCDate(), 0, 0, 0, 0));
+      const endOfDayDate = new Date(Date.UTC(slotDate.getUTCFullYear(), slotDate.getUTCMonth(), slotDate.getUTCDate(), 23, 59, 59, 999));
+      const startOfDay = startOfDayDate.toISOString();
+      const endOfDay = endOfDayDate.toISOString();
+      
+      console.log(`🔍 Verificando reservas confirmadas del día ${slotDate.toISOString().split('T')[0]}`);
+      console.log(`   Rango: ${startOfDay} - ${endOfDay}`);
       
       const confirmedBookingsToday = await prisma.$queryRaw`
         SELECT b.id, ts.start
@@ -224,14 +241,20 @@ export async function POST(request: Request) {
         AND b.status = 'CONFIRMED'
         AND ts.start >= ${startOfDay}
         AND ts.start <= ${endOfDay}
-      ` as Array<{ id: string, start: number | bigint }>;
+      ` as Array<{ id: string, start: string }>;
+      
+      console.log(`   📊 Reservas confirmadas encontradas: ${confirmedBookingsToday.length}`);
       
       if (confirmedBookingsToday.length > 0) {
-        const confirmedTime = new Date(Number(confirmedBookingsToday[0].start)).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        const confirmedDate = new Date(confirmedBookingsToday[0].start);
+        const confirmedTime = confirmedDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        console.log(`   ❌ BLOQUEADO: Ya tiene reserva confirmada a las ${confirmedTime}`);
         return NextResponse.json({ 
           error: `Ya tienes una reserva confirmada este día a las ${confirmedTime}. Solo puedes tener una reserva confirmada por día.` 
         }, { status: 400 });
       }
+      
+      console.log(`   ✅ No hay reservas confirmadas este día, puede inscribirse`);
 
       // 🚫 VALIDAR: No puede inscribirse en otra tarjeta del mismo día/hora/instructor
       const slotInstructorId = slotDetails[0].instructorId;
@@ -299,7 +322,7 @@ export async function POST(request: Request) {
       const totalPrice = Number((priceInfo as any[])[0].totalPrice) || 55;
       const pricePerSlot = calculateSlotPrice(totalPrice, Number(groupSize) || 1);
 
-      console.log(`💰 Precio total: €${totalPrice}, Precio por grupo (${groupSize} jugadores): €${(pricePerSlot/100).toFixed(2)}`);
+      console.log(`💰 Precio total: €${totalPrice}, Precio por grupo (${groupSize} jugadores): €${pricePerSlot.toFixed(2)}`);
 
       // Verificar saldo disponible (no bloqueado)
       const hasCredits = await hasAvailableCredits(userId, pricePerSlot);
@@ -310,8 +333,8 @@ export async function POST(request: Request) {
           select: { credits: true, blockedCredits: true }
         });
         
-        const available = (userInfo!.credits - userInfo!.blockedCredits) / 100;
-        const required = pricePerSlot / 100;
+        const available = userInfo!.credits - userInfo!.blockedCredits;
+        const required = pricePerSlot;
         
         console.log(`❌ Saldo insuficiente: necesita €${required.toFixed(2)}, disponible €${available.toFixed(2)}`);
         return NextResponse.json({ 
@@ -323,9 +346,7 @@ export async function POST(request: Request) {
         }, { status: 400 });
       }
 
-      console.log(`✅ Saldo disponible verificado: €${(pricePerSlot/100).toFixed(2)}`);
-
-      console.log(`✅ Saldo disponible verificado: €${(pricePerSlot/100).toFixed(2)}`);
+      console.log(`✅ Saldo disponible verificado: €${pricePerSlot.toFixed(2)}`);
 
       // NO descontar el saldo aún - solo crear booking PENDING
 
@@ -340,6 +361,24 @@ export async function POST(request: Request) {
       const isFirstBooking = Number(existingBookings[0]?.count) === 0;
       console.log(`📋 Existing bookings for this slot: ${existingBookings[0]?.count}`);
       console.log(`🎯 Is this the first booking? ${isFirstBooking}`);
+
+      // 🚨 VALIDAR QUE NO EXISTA UNA RESERVA ACTIVA DEL MISMO USUARIO/SLOT/GROUPSIZE
+      const duplicateBooking = await prisma.$queryRaw`
+        SELECT id
+        FROM Booking 
+        WHERE userId = ${userId}
+        AND timeSlotId = ${timeSlotId}
+        AND groupSize = ${Number(groupSize) || 1}
+        AND status IN ('PENDING', 'CONFIRMED')
+        LIMIT 1
+      ` as Array<{id: string}>;
+
+      if (duplicateBooking.length > 0) {
+        console.log(`❌ Ya existe una reserva activa: ${duplicateBooking[0].id}`);
+        return NextResponse.json({ 
+          error: 'Ya tienes una reserva activa en esta clase con este número de jugadores' 
+        }, { status: 400 });
+      }
 
       // Crear la reserva como PENDING con amountBlocked
       const bookingId = `booking-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -379,37 +418,77 @@ export async function POST(request: Request) {
         });
       }
 
-      // 🏷️ ESTABLECER CATEGORÍA DEL TIMESLOT basada en el primer jugador
+      // 🏷️ CLASIFICAR Y CREAR DUPLICADA EN EL PRIMER BOOKING
+      // REGLA CRÍTICA: La primera persona que se inscribe determina la categoría (masculino/femenino/mixto)
+      console.log(`🔍 isFirstBooking = ${isFirstBooking}`);
+      
       if (isFirstBooking) {
-        console.log('🏷️ This is the FIRST booking for this TimeSlot, setting category...');
+        console.log('🏷️ ===== FIRST BOOKING DETECTED =====');
+        console.log('🏷️ Classifying TimeSlot based on first user gender...');
         
-        // Obtener el género del usuario (masculino/femenino)
+        // Obtener el género y nivel del usuario
         const userInfo = await prisma.$queryRaw`
-          SELECT gender FROM User WHERE id = ${userId}
-        ` as Array<{gender: string | null}>;
+          SELECT gender, level FROM User WHERE id = ${userId}
+        ` as Array<{gender: string | null, level: string | null}>;
         
-        // Convertir género a categoría de clase
-        const userGender = userInfo[0]?.gender; // "masculino" o "femenino"
+        const userGender = userInfo[0]?.gender;
+        const userLevel = userInfo[0]?.level?.toUpperCase() || 'ABIERTO';
+        
+        console.log(`   👤 Usuario género: ${userGender || 'NO DEFINIDO'}`);
+        console.log(`   📊 Usuario nivel: ${userLevel}`);
+        
+        // ⚠️ VALIDACIÓN CRÍTICA: El usuario DEBE tener género definido
+        if (!userGender || userGender === null) {
+          console.log('   ❌ ERROR: Usuario sin género definido');
+          
+          // Cancelar la reserva recién creada
+          await prisma.$executeRaw`
+            DELETE FROM Booking WHERE id = ${bookingId}
+          `;
+          
+          // Desbloquear créditos
+          await updateUserBlockedCredits(userId);
+          
+          return NextResponse.json({ 
+            error: 'Tu perfil no tiene género definido. Por favor, actualiza tu perfil antes de reservar clases.' 
+          }, { status: 400 });
+        }
+        
+        // Convertir género a categoría de clase (OBLIGATORIO)
         const classCategory = userGender === 'masculino' ? 'masculino' : 
                             userGender === 'femenino' ? 'femenino' : 
                             'mixto';
         
-        console.log(`   👤 User gender: ${userGender} → Class category: ${classCategory}`);
+        console.log(`   🏷️ ASIGNANDO categoría: ${classCategory.toUpperCase()}`);
+        console.log(`   🏷️ ASIGNANDO nivel: ${userLevel}`);
         
-        // Actualizar el TimeSlot con la categoría del primer jugador
+        // ✅ ACTUALIZAR EL TIMESLOT CON LA CATEGORÍA Y NIVEL DEL PRIMER USUARIO
+        // Esta es la regla crítica: el primer inscrito define la categoría
         await prisma.$executeRaw`
           UPDATE TimeSlot 
-          SET genderCategory = ${classCategory}, updatedAt = datetime('now')
+          SET genderCategory = ${classCategory}, 
+              level = ${userLevel}, 
+              updatedAt = datetime('now')
           WHERE id = ${timeSlotId}
         `;
         
-        console.log(`   ✅ TimeSlot category set to: ${classCategory}`);
+        console.log(`   ✅ TimeSlot actualizado: level=${userLevel}, genderCategory=${classCategory}`);
+        
+        // Verificar que se haya actualizado correctamente
+        const verifyUpdate = await prisma.$queryRaw`
+          SELECT genderCategory, level FROM TimeSlot WHERE id = ${timeSlotId}
+        ` as Array<{genderCategory: string | null, level: string | null}>;
+        
+        console.log(`   🔍 Verificación: genderCategory=${verifyUpdate[0]?.genderCategory}, level=${verifyUpdate[0]?.level}`);
+        
+        if (verifyUpdate[0]?.genderCategory !== classCategory) {
+          console.log(`   ⚠️ WARNING: La categoría no se actualizó correctamente`);
+        }
 
-        // 🆕 CREAR NUEVA TARJETA ABIERTA para permitir competencia de otros grupos
-        console.log('🆕 Creating NEW open slot for other users to compete...');
+        // 🆕 CREAR TARJETA DUPLICADA ABIERTO/MIXTO INMEDIATAMENTE
+        console.log('🆕 Creating duplicate ABIERTO/mixto slot to allow race...');
         
         try {
-          // Obtener información del TimeSlot original
           const originalSlot = await prisma.$queryRaw`
             SELECT start, end, clubId, instructorId, maxPlayers, totalPrice, 
                    instructorPrice, courtRentalPrice, category
@@ -430,36 +509,69 @@ export async function POST(request: Request) {
           if (originalSlot.length > 0) {
             const slot = originalSlot[0];
             
-            // Crear nueva tarjeta con nivel ABIERTO y categoría mixto
-            const newSlot = await prisma.timeSlot.create({
-              data: {
-                clubId: slot.clubId,
-                instructorId: slot.instructorId,
-                start: new Date(Number(slot.start)),
-                end: new Date(Number(slot.end)),
-                maxPlayers: slot.maxPlayers,
-                totalPrice: slot.totalPrice,
-                instructorPrice: slot.instructorPrice,
-                courtRentalPrice: slot.courtRentalPrice,
-                level: 'ABIERTO', // Siempre abierto
-                genderCategory: 'mixto', // Siempre mixto
-                category: slot.category,
-                courtId: null, // Sin pista asignada (propuesta)
-                courtNumber: null
-              }
-            });
+            // Verificar que no exista ya una tarjeta ABIERTA
+            const existingOpen = await prisma.$queryRaw`
+              SELECT id FROM TimeSlot
+              WHERE instructorId = ${slot.instructorId}
+              AND start = ${slot.start}
+              AND level = 'ABIERTO'
+              AND courtId IS NULL
+              AND (genderCategory = 'mixto' OR genderCategory IS NULL)
+            ` as Array<{id: string}>;
+            
+            if (existingOpen.length === 0) {
+              const newSlot = await prisma.timeSlot.create({
+                data: {
+                  clubId: slot.clubId,
+                  instructorId: slot.instructorId,
+                  start: new Date(Number(slot.start)),
+                  end: new Date(Number(slot.end)),
+                  maxPlayers: slot.maxPlayers,
+                  totalPrice: slot.totalPrice,
+                  instructorPrice: slot.instructorPrice,
+                  courtRentalPrice: slot.courtRentalPrice,
+                  level: 'ABIERTO',
+                  genderCategory: 'mixto',
+                  category: slot.category,
+                  courtId: null,
+                  courtNumber: null
+                }
+              });
 
-            console.log(`   ✅ New open slot created: ${newSlot.id}`);
-            console.log(`   📋 Same instructor & time, but level=ABIERTO, category=mixto`);
+              console.log(`   ✅ Duplicate created: ${newSlot.id}`);
+              console.log(`   🏁 Race started: [${userLevel}/${classCategory}] vs [ABIERTO/mixto]`);
+            } else {
+              console.log(`   ℹ️ Duplicate already exists`);
+            }
           }
         } catch (createError) {
-          console.error('   ⚠️ Error creating new open slot:', createError);
-          // No fallar la reserva principal si esto falla
+          console.error('   ⚠️ Error creating duplicate:', createError);
         }
       }
 
       // 🏁 SISTEMA DE CARRERAS: Verificar si alguna modalidad se completa
       console.log('🏁 RACE SYSTEM: Checking if any group option is complete...');
+      
+      // ⚠️ SI ES LA PRIMERA RESERVA Y GRUPO > 1, NO COMPLETAR LA CARRERA
+      // Para grupos de 1 jugador, completar inmediatamente
+      // Para grupos de 2-4 jugadores, esperar más inscripciones
+      if (isFirstBooking && groupSize > 1) {
+        console.log('   ℹ️ First booking detected (group size > 1) - race will NOT complete yet');
+        console.log('   ⏳ Waiting for more players to join...');
+        
+        return NextResponse.json({
+          success: true,
+          bookingId,
+          message: 'Reserva creada exitosamente',
+          classComplete: false,
+          status: 'PENDING'
+        });
+      }
+      
+      // Si es grupo de 1 jugador, completar la carrera inmediatamente
+      if (isFirstBooking && groupSize === 1) {
+        console.log('   ✅ First booking with groupSize=1 - completing race immediately');
+      }
       
       // Obtener todas las reservas activas para este timeSlot
       const allBookingsForSlot = await prisma.$queryRaw`
@@ -575,27 +687,70 @@ export async function POST(request: Request) {
               
               const assignedCourtId = courtInfo && courtInfo.length > 0 ? courtInfo[0].id : null;
               
-              // Actualizar el TimeSlot con la pista asignada (la categoría ya debería estar desde la primera reserva)
-              await prisma.$executeRaw`
-                UPDATE TimeSlot 
-                SET courtId = ${assignedCourtId}, courtNumber = ${courtAssigned}, updatedAt = datetime('now')
-                WHERE id = ${timeSlotId}
-              `;
+              // 🕒 EXTENDER SLOT A 60 MINUTOS (si es de 30 min, extenderlo)
+              const slotDetails = await prisma.$queryRaw`
+                SELECT start, end, instructorId FROM TimeSlot WHERE id = ${timeSlotId}
+              ` as Array<{start: Date, end: Date, instructorId: string}>;
+              
+              if (slotDetails.length > 0) {
+                const currentStart = new Date(slotDetails[0].start);
+                const currentEnd = new Date(slotDetails[0].end);
+                const durationMinutes = (currentEnd.getTime() - currentStart.getTime()) / (1000 * 60);
+                
+                console.log(`   📏 Duración actual del slot: ${durationMinutes} minutos`);
+                
+                // Si el slot es de 30 minutos, extenderlo a 60 minutos
+                if (durationMinutes === 30) {
+                  const newEnd = new Date(currentStart.getTime() + (60 * 60 * 1000)); // +60 minutos
+                  console.log(`   🔄 Extendiendo slot de 30min a 60min: ${currentEnd.toISOString()} → ${newEnd.toISOString()}`);
+                  
+                  await prisma.$executeRaw`
+                    UPDATE TimeSlot 
+                    SET end = ${newEnd.toISOString()}, courtId = ${assignedCourtId}, courtNumber = ${courtAssigned}, updatedAt = datetime('now')
+                    WHERE id = ${timeSlotId}
+                  `;
+                } else {
+                  // Si ya es de 60 minutos, solo asignar pista
+                  await prisma.$executeRaw`
+                    UPDATE TimeSlot 
+                    SET courtId = ${assignedCourtId}, courtNumber = ${courtAssigned}, updatedAt = datetime('now')
+                    WHERE id = ${timeSlotId}
+                  `;
+                }
+              }
               
               console.log(`   ✅ Court ${courtAssigned} (ID: ${assignedCourtId}) assigned to TimeSlot ${timeSlotId}`);
 
-              // 🗑️ ELIMINAR SOLO PROPUESTAS DENTRO DE LA CLASE CONFIRMADA
-              console.log(`   🗑️ Removing proposals inside the confirmed class...`);
+              // 🗑️ ELIMINAR PROPUESTAS SOLAPADAS DEL MISMO INSTRUCTOR (SIGUIENTES 60 MIN)
+              console.log(`   🗑️ Removing overlapping proposals from same instructor...`);
               
               const slotDetailsForDeletion = await prisma.$queryRaw`
                 SELECT start, end, instructorId FROM TimeSlot WHERE id = ${timeSlotId}
-              ` as Array<{start: string, end: string, instructorId: string}>;
+              ` as Array<{start: Date, end: Date, instructorId: string}>;
               
-              // ✅ NO ELIMINAMOS PROPUESTAS 30MIN ANTES
-              // Las propuestas conflictivas quedan disponibles en el calendario
-              // pero el sistema de validación de InstructorSchedule las bloquea automáticamente
-              // Esto permite que al cancelar, las propuestas sigan existiendo
-              console.log(`      ℹ️ Propuestas conflictivas quedan disponibles (bloqueadas por InstructorSchedule)`);
+              if (slotDetailsForDeletion.length > 0) {
+                const confirmedStart = new Date(slotDetailsForDeletion[0].start);
+                const confirmedEnd = new Date(slotDetailsForDeletion[0].end);
+                const instructorId = slotDetailsForDeletion[0].instructorId;
+                
+                console.log(`      🔍 Buscando propuestas entre ${confirmedStart.toISOString()} y ${confirmedEnd.toISOString()}`);
+                
+                // Eliminar TODAS las propuestas del mismo instructor que solapen con esta clase de 60 min
+                // Esto incluye las 2 propuestas de 30 min que conforman la hora completa
+                const deletedProposals = await prisma.$executeRaw`
+                  DELETE FROM TimeSlot
+                  WHERE instructorId = ${instructorId}
+                  AND courtId IS NULL
+                  AND id != ${timeSlotId}
+                  AND (
+                    (start >= ${confirmedStart.toISOString()} AND start < ${confirmedEnd.toISOString()})
+                    OR (end > ${confirmedStart.toISOString()} AND end <= ${confirmedEnd.toISOString()})
+                    OR (start <= ${confirmedStart.toISOString()} AND end >= ${confirmedEnd.toISOString()})
+                  )
+                `;
+                
+                console.log(`      ✅ Deleted ${deletedProposals} overlapping proposals (from ${confirmedStart.toLocaleTimeString()} to ${confirmedEnd.toLocaleTimeString()})`);
+              }
 
               // 🚫 CANCELAR RESERVAS DE LAS OPCIONES PERDEDORAS
               console.log(`   🚫 Cancelling bookings for losing options...`);
@@ -669,7 +824,7 @@ export async function POST(request: Request) {
                 // 🚫 CANCELAR OTRAS INSCRIPCIONES DEL MISMO DÍA
                 await cancelOtherBookingsOnSameDay(booking.userId, timeSlotId, prisma);
               }
-              
+
               // Cancelar todas las reservas que NO son del grupo ganador
               const losingBookings = allBookingsForSlot.filter(b => b.groupSize !== raceWinner);
               console.log(`   ❌ Losing bookings to cancel:`, losingBookings.length);
@@ -838,7 +993,7 @@ export async function POST(request: Request) {
       console.log('👤 Usuario:', userId);
       console.log('📅 TimeSlot:', timeSlotId);
       console.log('🎮 Group Size:', groupSize);
-      console.log('💰 Monto bloqueado:', pricePerSlot / 100, '€');
+      console.log('💰 Monto bloqueado:', pricePerSlot, '€');
       console.log('='.repeat(80));
       console.log('');
 

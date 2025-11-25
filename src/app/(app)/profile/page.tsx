@@ -4,20 +4,78 @@ import React, { Suspense, useEffect, useState, useCallback } from 'react';
 import { getMockCurrentUser, setGlobalCurrentUser, updateUserLevel, updateUserGenderCategory } from '@/lib/mockData';
 import type { User, MatchPadelLevel, UserGenderCategory } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Settings, Edit } from 'lucide-react';
+import { Settings, Edit, User as UserIcon, CalendarDays } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import PageSkeleton from '@/components/layout/PageSkeleton';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import UserProfileSheet from '@/components/user/profile/UserProfileSheet';
 import { matchPadelLevels } from '@/types';
 import EditableInfoRow from '@/components/user/profile/EditableInfoRow';
 import { Badge } from '@/components/ui/badge';
-import UserProfileAvatar from '@/components/user/profile/UserProfileAvatar';
+import SimpleAvatar from '@/components/user/profile/SimpleAvatar';
 import ChangePasswordDialog from '@/components/user/profile/ChangePasswordDialog';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
 
 function ProfilePageContent() {
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [isLoadingUser, setIsLoadingUser] = useState(true);
+    const [userStats, setUserStats] = useState({
+        totalBookings: 0,
+        confirmedBookings: 0,
+        credits: 0
+    });
+    const router = useRouter();
+
+    // Cargar usuario con JWT
+    useEffect(() => {
+        const loadUser = async () => {
+            try {
+                const token = localStorage.getItem('auth_token');
+                if (!token) {
+                    router.push('/');
+                    return;
+                }
+
+                const response = await fetch('/api/users/current', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    cache: 'no-store' // No cachear para obtener siempre datos frescos
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const userData = data.user || data;
+                    console.log('👤 Usuario cargado en página:', {
+                        name: userData.name,
+                        email: userData.email,
+                        hasProfilePictureUrl: !!userData.profilePictureUrl,
+                        profilePictureUrlPreview: userData.profilePictureUrl?.substring(0, 50)
+                    });
+                    setCurrentUser(userData);
+                    
+                    // Cargar estadísticas del usuario
+                    setUserStats({
+                        totalBookings: 0, // Aquí podrías hacer otra llamada al API
+                        confirmedBookings: 0,
+                        credits: userData.credits || 0
+                    });
+                } else {
+                    router.push('/');
+                }
+            } catch (error) {
+                console.error('Error loading user:', error);
+                router.push('/');
+            } finally {
+                setIsLoadingUser(false);
+            }
+        };
+
+        loadUser();
+    }, [router]);
+
     const {
         user,
         name, setName, isEditingName, setIsEditingName, handleNameChange, handleSaveName,
@@ -26,7 +84,15 @@ function ProfilePageContent() {
         selectedGenderCategory, setSelectedGenderCategory, isEditingGenderCategory, setIsEditingGenderCategory, handleGenderCategoryChange, handleSaveGenderCategory,
         profilePicUrl, fileInputRef, handlePhotoUploadClick, handlePhotoChange,
         handleLogout
-    } = useUserProfile(getMockCurrentUser()); 
+    } = useUserProfile(currentUser);
+    
+    // Actualizar currentUser cuando cambie el user del hook (después de subir foto)
+    useEffect(() => {
+        if (user && user.profilePictureUrl) {
+            console.log('🔄 Actualizando currentUser con nueva foto:', user.profilePictureUrl.substring(0, 50));
+            setCurrentUser(prev => prev ? { ...prev, profilePictureUrl: user.profilePictureUrl } : user);
+        }
+    }, [user?.profilePictureUrl]); // Solo cuando cambie la foto 
     
     const [isClient, setIsClient] = useState(false);
     const [isChangePasswordDialogOpen, setIsChangePasswordDialogOpen] = useState(false);
@@ -35,12 +101,12 @@ function ProfilePageContent() {
         setIsClient(true);
     }, []);
 
-    if (!isClient) {
+    if (!isClient || isLoadingUser) {
         return <PageSkeleton />;
     }
 
     if (!user) {
-        return <div>Debes iniciar sesión para ver tu perfil.</div>;
+        return <PageSkeleton />;
     }
 
     const genderCategoryOptions = [
@@ -58,18 +124,30 @@ function ProfilePageContent() {
 
     return (
         <div className="container mx-auto max-w-2xl py-8">
-            <header className="mb-6">
-                <h1 className="text-3xl font-bold text-foreground">Tu Perfil</h1>
-                <p className="text-muted-foreground">Gestiona tu información personal, preferencias y seguridad.</p>
+            {/* Barra de encabezado estilo admin */}
+            <header className="mb-6 rounded-xl overflow-hidden shadow-lg" style={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+            }}>
+                <div className="p-6">
+                    <div className="flex items-center gap-4">
+                        <div className="bg-white/20 p-3 rounded-lg backdrop-blur-sm">
+                            <UserIcon className="h-6 w-6 text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl font-bold text-white">
+                                Tus Datos
+                            </h1>
+                            <p className="text-white/80 text-sm">{currentUser?.name || 'Usuario'}</p>
+                        </div>
+                    </div>
+                </div>
             </header>
             
             <main className="space-y-6">
-                 <UserProfileAvatar
-                    user={user}
-                    profilePicUrl={profilePicUrl}
+                <SimpleAvatar
+                    userId={currentUser?.id || ''}
+                    userName={currentUser?.name || ''}
                     fileInputRef={fileInputRef}
-                    onPhotoUploadClick={handlePhotoUploadClick}
-                    onPhotoChange={handlePhotoChange}
                 />
 
                 <div className="rounded-lg shadow-xl overflow-hidden bg-white">

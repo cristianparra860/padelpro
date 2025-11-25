@@ -36,9 +36,15 @@ export default function AdminPage() {
 
         let selectedClub: Club | null = null;
 
-        // Si hay un club activo guardado, intentar usarlo
+        // Si hay un club activo guardado, verificar que aún exista
         if (activeClubId) {
             selectedClub = allClubs.find(c => c.id === activeClubId) || null;
+            
+            // Si el club guardado no existe, limpiar localStorage
+            if (!selectedClub && typeof window !== 'undefined') {
+                console.warn(`⚠️ Club guardado (${activeClubId}) no existe, limpiando localStorage`);
+                localStorage.removeItem('activeAdminClubId');
+            }
         }
 
         // Si no hay club activo o no existe, seleccionar el primer club disponible
@@ -47,6 +53,7 @@ export default function AdminPage() {
             if (typeof window !== 'undefined') {
                 localStorage.setItem('activeAdminClubId', selectedClub.id);
             }
+            console.log(`✅ Seleccionado club por defecto: ${selectedClub.name} (${selectedClub.id})`);
         }
 
         if (selectedClub) {

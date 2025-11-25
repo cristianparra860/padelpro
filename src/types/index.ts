@@ -101,6 +101,7 @@ export interface User {
     level?: MatchPadelLevel;
     credit?: number;
     credits?: number; // Alias para compatibilidad con Prisma
+    blockedCredits?: number;
     points?: number; // Puntos por cancelaciones
     phone?: string; // Teléfono del usuario
     blockedCredit?: number;
@@ -113,6 +114,10 @@ export interface User {
     genderCategory?: UserGenderCategory;
     isPro?: boolean;
     currentClubId?: string;
+    pendingBookingsCount?: number;
+    confirmedBookingsCount?: number;
+    role?: string;
+    club?: any;
 }
 
 export interface InstructorRateTier {

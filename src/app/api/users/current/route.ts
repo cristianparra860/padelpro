@@ -1,18 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getCurrentUser } from '@/lib/auth';
 
 /**
  * GET /api/users/current
- * Obtiene los datos actuales del usuario desde la base de datos
- * y sincroniza con el estado en memoria
+ * Obtiene los datos actuales del usuario autenticado desde JWT
  */
 export async function GET(request: NextRequest) {
   try {
-    // Buscar al usuario Alex García por email
+    // Obtener usuario desde el token JWT
+    const authUser = await getCurrentUser(request);
+
+    if (!authUser) {
+      console.log('❌ No hay usuario autenticado');
+      return NextResponse.json(
+        { error: 'No autenticado' },
+        { status: 401 }
+      );
+    }
+
+    // Buscar al usuario en la base de datos para datos actualizados
     const user = await prisma.user.findUnique({
-      where: {
-        email: 'alex@example.com'
-      }
+      where: { id: authUser.id },
+      include: { club: true }
     });
 
     if (!user) {
@@ -23,30 +33,33 @@ export async function GET(request: NextRequest) {
     }
 
     // Convertir los datos de Prisma al formato User esperado
-    // IMPORTANTE: Dividir entre 100 porque la BD almacena en centavos
     const userData = {
       id: user.id,
       name: user.name,
       email: user.email || undefined,
       level: user.level as any,
-      credit: (user.credits || 0) / 100, // Convertir centavos a euros
-      credits: (user.credits || 0) / 100, // Convertir centavos a euros
-      blockedCredits: (user.blockedCredits || 0) / 100, // Convertir centavos a euros
+      credit: user.credits || 0,
+      credits: user.credits || 0,
+      blockedCredits: user.blockedCredits || 0,
       points: user.points || 0,
-      loyaltyPoints: user.points || 0, // Alias para compatibilidad
+      loyaltyPoints: user.points || 0,
       profilePictureUrl: user.profilePictureUrl || undefined,
       genderCategory: user.genderCategory as any,
       favoriteInstructorIds: [],
       currentClubId: user.clubId || undefined,
-      phone: user.phone || undefined
+      phone: user.phone || undefined,
+      role: user.role,
+      club: user.club
     };
 
-    console.log('✅ Usuario cargado desde BD:', {
+    console.log('✅ Usuario autenticado cargado:', {
       name: userData.name,
+      email: userData.email,
       credits: userData.credits,
-      blockedCredits: userData.blockedCredits,
-      points: userData.points,
-      email: userData.email
+      role: userData.role,
+      hasProfilePic: !!userData.profilePictureUrl,
+      profilePicLength: userData.profilePictureUrl?.length,
+      isBase64: userData.profilePictureUrl?.startsWith('data:image') ? 'SÍ' : 'NO'
     });
 
     return NextResponse.json(userData);

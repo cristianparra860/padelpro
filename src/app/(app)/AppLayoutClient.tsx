@@ -44,22 +44,41 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
     const fetchUserAndClub = async () => {
       setLoading(true);
       
-      // Cargar usuario desde la API real
+      // ✅ FIXED: Cargar usuario con JWT authentication
       try {
-        const userResponse = await fetch('/api/users/current');
+        const token = localStorage.getItem('auth_token');
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json'
+        };
+        
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+        
+        const userResponse = await fetch('/api/users/current', { headers });
+        
+        if (userResponse.status === 401) {
+          // No autenticado, redirigir al login
+          console.log('❌ AppLayout: Usuario no autenticado, redirigiendo...');
+          localStorage.removeItem('auth_token');
+          router.push('/');
+          return;
+        }
+        
         if (userResponse.ok) {
           const userData = await userResponse.json();
+          console.log('✅ AppLayout: Usuario JWT cargado:', userData.name, userData.email);
           setCurrentUser(userData);
         } else {
-          // Fallback a mock si falla
-          const user = await getMockCurrentUser();
-          setCurrentUser(user);
+          // Si falla, redirigir al login (no usar mock)
+          console.log('❌ AppLayout: Error al cargar usuario, redirigiendo...');
+          router.push('/');
+          return;
         }
       } catch (error) {
-        console.error('Error loading user:', error);
-        // Fallback a mock si hay error
-        const user = await getMockCurrentUser();
-        setCurrentUser(user);
+        console.error('❌ AppLayout: Error loading user:', error);
+        router.push('/');
+        return;
       }
       
       // Cargar clubes desde la API real en lugar de mock
