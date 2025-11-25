@@ -68,25 +68,57 @@ export async function GET(request: NextRequest) {
     const timeSlotIds = timeSlots.map(slot => slot.id);
     const instructorIds = timeSlots.map(slot => slot.instructorId).filter(Boolean);
 
-    // Query ÚNICA para TODOS los bookings de TODAS las clases (excluyendo cancelados)
-    const allBookings = await prisma.booking.findMany({
-      where: {
-        timeSlotId: { in: timeSlotIds },
-        status: { not: 'CANCELLED' }  // Excluir bookings cancelados
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            level: true,
-            position: true,
-            profilePictureUrl: true
+    // Query para bookings - dividir en lotes si hay demasiados TimeSlots
+    let allBookings: any[] = [];
+    
+    if (timeSlotIds.length > 500) {
+      // Dividir en lotes de 500 para evitar límite de parámetros de SQLite
+      const batchSize = 500;
+      for (let i = 0; i < timeSlotIds.length; i += batchSize) {
+        const batch = timeSlotIds.slice(i, i + batchSize);
+        const batchBookings = await prisma.booking.findMany({
+          where: {
+            timeSlotId: { in: batch },
+            status: 'CONFIRMED' // Solo bookings confirmados
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                level: true,
+                position: true,
+                profilePictureUrl: true
+              }
+            }
+          }
+        });
+        allBookings = allBookings.concat(batchBookings);
+      }
+      console.log(`📚 Total bookings cargados en ${Math.ceil(timeSlotIds.length / batchSize)} lotes: ${allBookings.length}`);
+    } else {
+      // Query directa si son pocos TimeSlots
+      allBookings = await prisma.booking.findMany({
+        where: {
+          timeSlotId: { in: timeSlotIds },
+          status: 'CONFIRMED' // Solo bookings confirmados
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              level: true,
+              position: true,
+              profilePictureUrl: true
+            }
           }
         }
-      }
-    });
+      });
+      console.log(`📚 Total bookings cargados: ${allBookings.length}`);
+    }
     
     console.log(`📚 Total bookings cargados (sin CANCELLED): ${allBookings.length}`);
     if (allBookings.length > 0) {
@@ -162,6 +194,10 @@ export async function GET(request: NextRequest) {
     const formattedSlots = timeSlots.map((slot: any) => {
       // Obtener bookings de este slot del mapa
       const slotBookings = bookingsBySlot.get(slot.id) || [];
+      
+      if (slotBookings.length > 0) {
+        console.log(`🔍 Slot ${slot.id.substring(0, 15)} has ${slotBookings.length} bookings`);
+      }
       
       const formattedBookings = slotBookings.map(booking => ({
         id: booking.id,

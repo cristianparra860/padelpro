@@ -26,6 +26,8 @@ import InstructorAvailabilitySettings from './InstructorAvailabilitySettings';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import InstructorClassCards from './InstructorClassCards';
+import ClubCalendar from '@/components/admin/ClubCalendar';
 
 interface InstructorPanelProps {
   instructor: InstructorType;
@@ -61,6 +63,7 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshMatchesKey, setRefreshMatchesKey] = useState(0);
   const [instructorData, setInstructorData] = useState<InstructorType>(initialInstructor);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [availableClubs, setAvailableClubs] = useState<Club[]>([]);
   const [availableCourtsForSelectedClub, setAvailableCourtsForSelectedClub] = useState<PadelCourt[]>([]);
   const [isSavingSettings, startSettingsTransition] = useTransition();
@@ -83,6 +86,30 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
   });
 
   const watchedAssignedClubId = preferencesForm.watch('assignedClubId');
+
+  // Cargar usuario actual con JWT
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const token = localStorage.getItem('auth_token');
+        const response = await fetch('/api/users/current', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const userData = await response.json();
+          setCurrentUser(userData);
+        }
+      } catch (error) {
+        console.error('Error loading current user:', error);
+      }
+    };
+    
+    loadCurrentUser();
+  }, []);
 
   useEffect(() => {
     setInstructorData(initialInstructor);
@@ -171,26 +198,34 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
   const clubCalendarLink = instructorData.assignedClubId ? `/club-calendar/${instructorData.assignedClubId}` : '#';
 
   return (
-    <Tabs defaultValue="manageClasses" className="space-y-4">
-  <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-1 h-auto flex-wrap">
+    <Tabs defaultValue="myClasses" className="space-y-4">
+  <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-1 h-auto flex-wrap">
+        <TabsTrigger value="myClasses" className="text-xs sm:text-sm py-1.5 px-2">Mis Clases</TabsTrigger>
         <TabsTrigger value="manageClasses" className="text-xs sm:text-sm py-1.5 px-2">Gestionar Clases</TabsTrigger>
         <TabsTrigger value="addCredits" className="text-xs sm:text-sm py-1.5 px-2">Añadir Crédito</TabsTrigger>
         <TabsTrigger value="openMatch" className="text-xs sm:text-sm py-1.5 px-2">Abrir Partida</TabsTrigger>
-        
-        <Button
-            asChild
-            variant="ghost"
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 text-muted-foreground hover:bg-accent hover:text-accent-foreground text-xs sm:text-sm h-full"
-            disabled={!instructorData.assignedClubId}
-        >
-            <Link href={clubCalendarLink}>
-                <CalendarSearch className="mr-1 h-4 w-4"/>
-                Calendario Club
-            </Link>
-        </Button>
-
+        <TabsTrigger value="clubCalendar" className="text-xs sm:text-sm py-1.5 px-2">
+          <CalendarSearch className="mr-1 h-4 w-4"/>
+          Calendario Club
+        </TabsTrigger>
         <TabsTrigger value="instructorPreferences" className="text-xs sm:text-sm py-1.5 px-2">Preferencias y Tarifas</TabsTrigger>
       </TabsList>
+
+      <TabsContent value="myClasses">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center text-lg">
+              <ListChecks className="mr-2 h-5 w-5 text-primary" /> Mis Clases Programadas
+            </CardTitle>
+            <CardDescription>
+              Visualiza todas tus clases con las reservas actuales. Usa el mismo formato de tarjetas que ven tus alumnos.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <InstructorClassCards instructor={instructorData} />
+          </CardContent>
+        </Card>
+      </TabsContent>
 
       <TabsContent value="manageClasses">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -247,6 +282,26 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
            <CardContent>
               <OpenMatchForm instructor={instructorData} onMatchOpened={handleMatchOpened} />
            </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="clubCalendar">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center text-lg">
+              <CalendarSearch className="mr-2 h-5 w-5 text-primary" /> Calendario del Club
+            </CardTitle>
+            <CardDescription>
+              Visualiza todas las clases, propuestas y eventos del club {instructorData.assignedClubId || 'padel-estrella-madrid'}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ClubCalendar 
+              clubId={instructorData.assignedClubId || 'padel-estrella-madrid'} 
+              currentUser={currentUser}
+              viewMode="instructor"
+            />
+          </CardContent>
         </Card>
       </TabsContent>
 

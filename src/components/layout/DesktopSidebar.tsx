@@ -16,9 +16,6 @@ import { Badge } from '@/components/ui/badge';
 import { usePathname, useRouter } from 'next/navigation';
 import { Separator } from '../ui/separator';
 import LevelFilterDialog from '../classfinder/LevelFilterDialog';
-import TimeOfDayFilterDialog from '../classfinder/TimeOfDayFilterDialog';
-import ViewOptionsDialog from '@/components/classfinder/ViewOptionsDialog';
-import { InstructorFilter } from '@/components/class/InstructorFilter';
 interface DesktopSidebarProps {
     currentUser: User | null;
     clubInfo: Club | null;
@@ -63,12 +60,6 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
 }) => {
     const pathname = usePathname();
     const router = useRouter();
-    const [isTimeFilterOpen, setIsTimeFilterOpen] = useState(false);
-    const [isViewOptionsOpen, setIsViewOptionsOpen] = useState(false);
-    
-    const timeFilterLabel = timeSlotFilter === 'all'
-        ? 'Horarios'
-        : timeSlotFilterOptions.find(o => o.value === timeSlotFilter)?.label.replace(/ \([^)]+\)/, '') || 'Horarios';
     
     const viewPreferenceLabel = useMemo(() => {
         switch (viewPreference) {
@@ -152,49 +143,6 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                             <Separator />
                             <div className="space-y-1 p-1">
                                 <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase">Filtros</h3>
-                                <Button variant="ghost" style={timeSlotFilter === 'all' ? inactiveFilterShadowStyle : {}} className={cn("w-full justify-start text-sm h-10 rounded-full relative", timeSlotFilter !== 'all' && activeFilterClasses)} onClick={() => setIsTimeFilterOpen(true)}>
-                                    <Clock className="mr-3 h-4 w-4" /> 
-                                    <span className="flex-1 text-left">{timeFilterLabel}</span>
-                                    {timeSlotFilter !== 'all' && (
-                                        <Badge variant="secondary" className="ml-auto text-[10px] h-5 px-1.5 bg-blue-100 text-blue-700 border-blue-300">
-                                            Activo
-                                        </Badge>
-                                    )}
-                                </Button>
-                                <Button variant="ghost" style={viewPreference === 'normal' ? inactiveFilterShadowStyle : {}} className={cn("w-full justify-start text-sm h-10 rounded-full relative", viewPreference !== 'normal' && activeFilterClasses)} onClick={() => setIsViewOptionsOpen(true)}>
-                                    <Eye className="mr-3 h-4 w-4" /> 
-                                    <span className="flex-1 text-left">{viewPreferenceLabel}</span>
-                                    {viewPreference !== 'normal' && (
-                                        <Badge variant="secondary" className="ml-auto text-[10px] h-5 px-1.5 bg-blue-100 text-blue-700 border-blue-300">
-                                            Activo
-                                        </Badge>
-                                    )}
-                                </Button>
-                                {activeView === 'clases' && (
-                                    <>
-                                        {/* 🚫 FILTRO DE JUGADORES DESHABILITADO - Ahora se usa el filtro flotante */}
-                                        {/* <Button
-                                            variant="ghost"
-                                            style={(selectedPlayerCounts.size === 0 || selectedPlayerCounts.size === 4) ? inactiveFilterShadowStyle : {}}
-                                            className={cn("w-full justify-start text-sm h-10 rounded-full relative", (selectedPlayerCounts.size > 0 && selectedPlayerCounts.size < 4) && activeFilterClasses)}
-                                            onClick={() => setIsPlayerCountOpen(true)}
-                                        >
-                                            <Users className="mr-3 h-4 w-4" />
-                                            <span className="flex-1 text-left">{playerCountLabel}</span>
-                                            {(selectedPlayerCounts.size > 0 && selectedPlayerCounts.size < 4) && (
-                                                <Badge variant="secondary" className="ml-auto text-[10px] h-5 px-1.5 bg-blue-100 text-blue-700 border-blue-300">
-                                                    {selectedPlayerCounts.size}
-                                                </Badge>
-                                            )}
-                                        </Button> */}
-                                        <div className="px-3 py-1">
-                                            <InstructorFilter
-                                                selectedInstructorIds={selectedInstructorIds}
-                                                onInstructorChange={handleInstructorChange}
-                                            />
-                                        </div>
-                                    </>
-                                )}
                                 <Button variant="ghost" style={!showPointsBonus ? inactiveFilterShadowStyle : {}} className={cn("w-full justify-start text-sm h-10 rounded-full relative", showPointsBonus && activeFilterClasses)} onClick={handleTogglePointsBonus}>
                                     <Sparkles className="mr-3 h-4 w-4 text-amber-500" /> 
                                     <span className="flex-1 text-left">+ Puntos</span>
@@ -212,8 +160,6 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                         <Button variant="outline" className="w-full justify-start text-sm h-10 rounded-full" onClick={onLogoutClick}><LogOut className="mr-3 h-4 w-4" /> Salir</Button>
                     </div>
                 </div>
-                <TimeOfDayFilterDialog isOpen={isTimeFilterOpen} onOpenChange={setIsTimeFilterOpen} currentValue={timeSlotFilter} onSelect={handleTimeFilterChange} />
-                <ViewOptionsDialog isOpen={isViewOptionsOpen} onOpenChange={setIsViewOptionsOpen} viewPreference={viewPreference} onViewPreferenceChange={(pref) => handleViewPrefChange(pref, activeView as ActivityViewType)} />
             </aside>
         </>
     );

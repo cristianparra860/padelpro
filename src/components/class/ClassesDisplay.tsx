@@ -447,7 +447,7 @@ export function ClassesDisplay({
                 key={instructor.id}
                 onClick={() => setShowInstructorFilterPanel(true)}
                 className={`
-                  w-7 h-7 rounded-full transition-all duration-200 cursor-pointer overflow-hidden
+                  w-7 h-7 md:w-11 md:h-11 rounded-full transition-all duration-200 cursor-pointer overflow-hidden
                   ${selectedInstructorIds.length === 0 || selectedInstructorIds.includes(instructor.id)
                     ? 'border border-green-500 shadow-[inset_0_1px_3px_rgba(34,197,94,0.2)]'
                     : 'border border-gray-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] opacity-40 hover:opacity-70 hover:border-gray-400'
@@ -475,7 +475,7 @@ export function ClassesDisplay({
         <button
           onClick={() => setShowTimeFilterPanel(true)}
           className={`
-            w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer
+            w-7 h-7 md:w-11 md:h-11 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer
             ${timeSlotFilter !== 'all'
               ? 'bg-white border border-green-500 shadow-[inset_0_1px_3px_rgba(34,197,94,0.2)]'
               : 'bg-white border border-gray-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] hover:border-gray-400'
@@ -522,7 +522,7 @@ export function ClassesDisplay({
         <button
           onClick={() => setShowViewFilterPanel(true)}
           className={`
-            w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer
+            w-7 h-7 md:w-11 md:h-11 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer
             ${viewPreference === 'withBookings'
               ? 'bg-white border border-blue-500 shadow-[inset_0_1px_3px_rgba(59,130,246,0.2)]'
               : viewPreference === 'myConfirmed'
@@ -588,7 +588,7 @@ export function ClassesDisplay({
               key={count}
               onClick={openFilterPanel}
               className={`
-                w-7 h-7 rounded-full font-bold text-xs transition-all duration-200 cursor-pointer bg-white
+                w-7 h-7 md:w-11 md:h-11 rounded-full font-bold text-xs md:text-base transition-all duration-200 cursor-pointer bg-white
                 ${localPlayerCounts.includes(count)
                   ? 'border border-green-600 text-green-600 shadow-[inset_0_1px_3px_rgba(0,0,0,0.2)]'
                   : 'border border-gray-300 text-gray-400 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] hover:border-gray-400 hover:text-gray-500'

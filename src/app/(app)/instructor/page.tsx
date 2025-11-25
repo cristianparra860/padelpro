@@ -5,27 +5,82 @@ import InstructorPanel from './components/InstructorPanel';
 import { getMockInstructors } from '@/lib/mockData';
 import type { Instructor } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useRouter } from 'next/navigation';
 
 export default function InstructorPage() {
     const [instructor, setInstructor] = useState<Instructor | null>(null);
     const [loading, setLoading] = useState(true);
+    const router = useRouter();
 
     useEffect(() => {
         const fetchInstructor = async () => {
             setLoading(true);
-            // In a real app, you'd get the currently logged-in user.
-            // For this mock, we'll assume an instructor is a user.
-            // Let's take the first instructor and treat them as a user for this context.
-          const instructors = await getMockInstructors();
-            if (instructors.length > 0) {
-                 // We'll simulate 'inst-2' (Ana García) being the logged-in instructor
-              const currentInstructor = instructors.find(i => i.id === 'inst-2') || instructors[0];
-                 setInstructor(currentInstructor);
+            try {
+                // Cargar el usuario actual desde la API
+                const token = localStorage.getItem('auth_token');
+                const headers: HeadersInit = {
+                    'Content-Type': 'application/json'
+                };
+                
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                
+                const response = await fetch('/api/users/current', { headers });
+                
+                if (response.status === 401) {
+                    // No autenticado, redirigir al login
+                    localStorage.removeItem('auth_token');
+                    router.push('/');
+                    return;
+                }
+                
+                if (response.ok) {
+                    const userData = await response.json();
+                    
+                    // Verificar si el usuario es instructor
+                    if (userData.role !== 'INSTRUCTOR') {
+                        router.push('/dashboard');
+                        return;
+                    }
+                    
+                    // Obtener el registro Instructor desde la tabla Instructor
+                    const instructorResponse = await fetch(`/api/instructors/by-user/${userData.id}`, { headers });
+                    let instructorId = userData.id; // fallback
+                    
+                    if (instructorResponse.ok) {
+                        const instructorRecord = await instructorResponse.json();
+                        instructorId = instructorRecord.id; // usar el ID de la tabla Instructor
+                    }
+                    
+                    // Convertir el usuario a formato Instructor
+                    const instructorData: Instructor = {
+                        id: instructorId, // Usar instructorId de la tabla Instructor
+                        name: userData.name,
+                        email: userData.email,
+                        profilePictureUrl: userData.profilePictureUrl || null,
+                        isAvailable: userData.isAvailable ?? true,
+                        assignedClubId: userData.assignedClubId || 'padel-estrella-madrid',
+                        assignedCourtNumber: userData.assignedCourtNumber || undefined,
+                        defaultRatePerHour: userData.defaultRatePerHour || 28,
+                        rateTiers: userData.rateTiers || [],
+                        unavailableHours: userData.unavailableHours || {}
+                    };
+                    
+                    setInstructor(instructorData);
+                } else {
+                    console.error('Error al cargar usuario');
+                    router.push('/');
+                }
+            } catch (error) {
+                console.error('Error loading instructor:', error);
+                router.push('/');
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
         };
         fetchInstructor();
-    }, []);
+    }, [router]);
 
     if (loading) {
         return (

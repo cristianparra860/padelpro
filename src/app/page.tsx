@@ -88,7 +88,7 @@ export default function LoginPage() {
             if (data.user.role === 'CLUB_ADMIN' || data.user.role === 'SUPER_ADMIN') {
                 redirectPath = '/admin';
             } else if (data.user.role === 'INSTRUCTOR') {
-                redirectPath = '/simple-instructor';
+                redirectPath = '/instructor';
             }
             
             console.log('🔀 Redirigiendo a:', redirectPath);

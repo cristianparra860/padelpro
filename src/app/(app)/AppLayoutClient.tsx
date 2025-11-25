@@ -147,7 +147,6 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
         </main>
       </div>
       <LeftNavigationBar />
-      <BottomNavigationBar onMobileFiltersClick={() => setIsMobileFiltersOpen(true)} />
       <AiHelpButton onMobileFiltersClick={() => setIsMobileFiltersOpen(true)} />
 
       <LogoutConfirmationDialog
