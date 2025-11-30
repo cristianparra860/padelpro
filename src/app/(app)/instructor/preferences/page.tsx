@@ -6,22 +6,68 @@ import { getMockInstructors, updateInstructor } from '@/lib/mockData';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import InstructorAvailabilitySettings from '../components/InstructorAvailabilitySettings';
+import InstructorLevelRanges from '../components/InstructorLevelRanges';
+
+interface LevelRange {
+  name: string;
+  minStudents: number;
+  maxStudents: number;
+}
 
 export default function InstructorPreferencesPage() {
     const [instructor, setInstructor] = useState<Instructor | null>(null);
     const [loading, setLoading] = useState(true);
+    const [levelRanges, setLevelRanges] = useState<LevelRange[]>([]);
     const { toast } = useToast();
 
     const fetchInstructorData = useCallback(async () => {
         setLoading(true);
         try {
-            // In a real app, you'd get the currently logged-in instructor.
-            // For now, we'll simulate getting Ana García.
-            const instructors = await getMockInstructors();
-            const currentInstructor = instructors.find(i => i.id === 'inst-2');
-            setInstructor(currentInstructor || null);
-        } catch (error) {
-            toast({ title: "Error", description: "No se pudo cargar la información del instructor.", variant: "destructive" });
+            const token = localStorage.getItem('auth_token');
+            if (!token) {
+                toast({ title: "Error", description: "No estás autenticado", variant: "destructive" });
+                return;
+            }
+
+            // Obtener instructor actual del usuario autenticado
+            const userResponse = await fetch('/api/users/current', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!userResponse.ok) {
+                throw new Error('No se pudo cargar el usuario');
+            }
+
+            const userData = await userResponse.json();
+            const user = userData.user || userData;
+
+            // Obtener datos del instructor
+            const instructorResponse = await fetch(`/api/instructors/by-user/${user.id}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!instructorResponse.ok) {
+                throw new Error('No se pudo cargar el instructor');
+            }
+
+            const instructorData = await instructorResponse.json();
+            setInstructor(instructorData.instructor);
+
+            // Cargar rangos de nivel si existen
+            if (instructorData.instructor.levelRanges) {
+                try {
+                    const ranges = typeof instructorData.instructor.levelRanges === 'string'
+                        ? JSON.parse(instructorData.instructor.levelRanges)
+                        : instructorData.instructor.levelRanges;
+                    setLevelRanges(ranges);
+                } catch (e) {
+                    console.error('Error parsing level ranges:', e);
+                    setLevelRanges([]);
+                }
+            }
+        } catch (error: any) {
+            console.error('Error loading instructor:', error);
+            toast({ title: "Error", description: error.message || "No se pudo cargar la información del instructor.", variant: "destructive" });
         } finally {
             setLoading(false);
         }
@@ -66,13 +112,18 @@ export default function InstructorPreferencesPage() {
     return (
         <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
             <header>
-                <h1 className="font-headline text-3xl font-semibold">Preferencias de Instructor</h1>
+                <h1 className="font-headline text-3xl font-semibold">Preferencias y Tarifas</h1>
                 <p className="text-muted-foreground">
-                    Gestiona tu horario y otras configuraciones.
+                    Gestiona tu horario, rangos de nivel y configuraciones.
                 </p>
             </header>
             <main className="flex-1">
-                <div className="mx-auto max-w-4xl">
+                <div className="mx-auto max-w-4xl space-y-6">
+                   <InstructorLevelRanges 
+                        instructorId={instructor.id}
+                        initialRanges={levelRanges}
+                   />
+                   
                    <InstructorAvailabilitySettings 
                         instructor={instructor}
                         onSaveUnavailableHours={handleSave}

@@ -314,7 +314,13 @@ export function ClassesDisplay({
   }, [timeSlots, timeSlotFilter, viewPreference, selectedInstructorIds, localPlayerCounts]);
 
   // Memoize slot conversion to avoid recalculating on every render
-  const convertApiSlotToClassCard = useCallback((apiSlot: ApiTimeSlot): TimeSlot => {
+  const convertApiSlotToClassCard = useCallback((apiSlot: ApiTimeSlot): TimeSlot | null => {
+    // ✅ Validar que el slot tiene datos mínimos requeridos
+    if (!apiSlot || !apiSlot.id || !apiSlot.start || !apiSlot.end) {
+      console.error('❌ convertApiSlotToClassCard: Slot inválido o incompleto:', apiSlot);
+      return null;
+    }
+    
     // Convertir bookings del API al formato que espera ClassCardReal
     const bookings = (apiSlot.bookings || []).map((b: any) => ({
       userId: b.userId,
@@ -333,15 +339,18 @@ export function ClassesDisplay({
       instructorId: apiSlot.instructorId || `instructor-${apiSlot.id.substring(0, 8)}`,
       instructorName: apiSlot.instructorName || 'Instructor',
       instructorProfilePicture: apiSlot.instructorProfilePicture,
+      start: apiSlot.start, // ✅ Pasar directamente el timestamp
+      end: apiSlot.end, // ✅ Pasar directamente el timestamp
       startTime: new Date(apiSlot.start),
       endTime: new Date(apiSlot.end),
-      durationMinutes: 90,
+      durationMinutes: 60, // ✅ CORREGIDO: 60 minutos, no 90
       level: 'abierto' as const, // Simplificado por ahora
       category: 'abierta' as const, // Simplificado por ahora
       genderCategory: apiSlot.genderCategory, // AGREGADO: Pasar la categoría de género desde el API
       maxPlayers: apiSlot.maxPlayers || 4,
       status: 'forming' as const,
       bookedPlayers: bookings, // Pasar las reservas reales del API
+      bookings: bookings, // ✅ También agregar bookings para compatibilidad
       courtNumber: apiSlot.courtNumber,
       totalPrice: apiSlot.totalPrice,
       courtsAvailability: apiSlot.courtsAvailability, // 🏟️ PASAR DISPONIBILIDAD DE PISTAS
@@ -357,10 +366,10 @@ export function ClassesDisplay({
       try {
         return convertApiSlotToClassCard(apiSlot);
       } catch (error) {
-        console.error(`❌ Error procesando slot ${apiSlot.id}:`, error);
+        console.error(`❌ Error procesando slot ${apiSlot?.id}:`, error);
         return null;
       }
-    }).filter((slot): slot is TimeSlot => slot !== null);
+    }).filter((slot): slot is TimeSlot => slot !== null && slot.start !== undefined && slot.end !== undefined);
   }, [filteredSlots, convertApiSlotToClassCard]);
 
   // Memoize time filter label
@@ -374,10 +383,21 @@ export function ClassesDisplay({
   }, [timeSlotFilter]);
 
   // Memoize handleBookingSuccess to prevent prop changes
-  const handleBookingSuccess = useCallback(() => {
-    console.log('🔄 Booking success! Reloading slots...');
-    setRefreshKey(prev => prev + 1); // ✅ Forzar re-render
-    loadTimeSlots(1, false); // Recargar página 1 después de booking exitoso
+  const handleBookingSuccess = useCallback((updatedSlot?: TimeSlot) => {
+    console.log('🔄 Booking success! updatedSlot:', updatedSlot ? 'SÍ (actualización inmediata)' : 'NO (recargando...)');
+    
+    if (updatedSlot) {
+      // ✅ Actualización inmediata: reemplazar el slot en el state actual
+      setTimeSlots(prev => prev.map(slot => 
+        slot.id === updatedSlot.id ? updatedSlot : slot
+      ));
+      console.log('✅ Slot actualizado localmente:', updatedSlot.id);
+    } else {
+      // Fallback: recargar desde API
+      setRefreshKey(prev => prev + 1);
+      loadTimeSlots(1, false);
+    }
+    
     onBookingSuccess?.();
   }, [loadTimeSlots, onBookingSuccess]);
 

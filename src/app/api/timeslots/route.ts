@@ -63,6 +63,16 @@ export async function GET(request: NextRequest) {
     const timeSlots = await prisma.$queryRawUnsafe(query, ...params) as any[];
 
     console.log(`📊 Found ${timeSlots.length} time slots with SQL query`);
+    
+    // 🐛 DEBUG: Verificar si levelRange viene de la base de datos
+    if (timeSlots.length > 0) {
+      console.log('🔍 Sample slot from DB:', {
+        id: timeSlots[0].id,
+        levelRange: timeSlots[0].levelRange,
+        level: timeSlots[0].level,
+        hasLevelRange: 'levelRange' in timeSlots[0]
+      });
+    }
 
     // Obtener TODOS los IDs de TimeSlots para hacer queries optimizadas
     const timeSlotIds = timeSlots.map(slot => slot.id);
@@ -79,7 +89,7 @@ export async function GET(request: NextRequest) {
         const batchBookings = await prisma.booking.findMany({
           where: {
             timeSlotId: { in: batch },
-            status: 'CONFIRMED' // Solo bookings confirmados
+            status: { in: ['PENDING', 'CONFIRMED'] } // Incluir PENDING y CONFIRMED
           },
           include: {
             user: {
@@ -102,7 +112,7 @@ export async function GET(request: NextRequest) {
       allBookings = await prisma.booking.findMany({
         where: {
           timeSlotId: { in: timeSlotIds },
-          status: 'CONFIRMED' // Solo bookings confirmados
+          status: { in: ['PENDING', 'CONFIRMED'] } // Incluir PENDING y CONFIRMED
         },
         include: {
           user: {
@@ -269,6 +279,7 @@ export async function GET(request: NextRequest) {
         level: slot.level || 'abierto',
         category: slot.category || 'general',
         genderCategory: slot.genderCategory || null, // AGREGADO: Categoría de género del TimeSlot
+        levelRange: slot.levelRange || null, // AGREGADO: Rango de nivel del TimeSlot
         createdAt: typeof slot.createdAt === 'string' ? new Date(slot.createdAt) : slot.createdAt,
         updatedAt: typeof slot.updatedAt === 'string' ? new Date(slot.updatedAt) : slot.updatedAt,
         instructorName: instructorName,
@@ -403,6 +414,33 @@ export async function GET(request: NextRequest) {
     });
     
     console.log(`🏟️ Court availability filtering: ${beforeCourtFilter} slots → ${filteredSlots.length} slots (removed ${beforeCourtFilter - filteredSlots.length} slots with no available courts)`);
+
+    // 📊 ORDENAR: Primero clases con usuarios inscritos o confirmadas, luego vacías
+    filteredSlots.sort((a, b) => {
+      // Prioridad 1: Clases confirmadas (con pista asignada)
+      const aIsConfirmed = a.courtId !== null;
+      const bIsConfirmed = b.courtId !== null;
+      
+      // Prioridad 2: Clases con usuarios inscritos
+      const aHasBookings = (a.bookings?.length || 0) > 0;
+      const bHasBookings = (b.bookings?.length || 0) > 0;
+      
+      // Calcular "peso" de prioridad
+      const aWeight = (aIsConfirmed ? 2 : 0) + (aHasBookings ? 1 : 0);
+      const bWeight = (bIsConfirmed ? 2 : 0) + (bHasBookings ? 1 : 0);
+      
+      // Si tienen diferente prioridad, ordenar por prioridad (mayor primero)
+      if (aWeight !== bWeight) {
+        return bWeight - aWeight; // Mayor peso primero
+      }
+      
+      // Si tienen la misma prioridad, ordenar por horario (más temprano primero)
+      const aTime = new Date(a.start).getTime();
+      const bTime = new Date(b.start).getTime();
+      return aTime - bTime;
+    });
+    
+    console.log(`📊 Ordenamiento aplicado: ${filteredSlots.filter(s => s.courtId || (s.bookings?.length || 0) > 0).length} clases con actividad primero, ${filteredSlots.filter(s => !s.courtId && !(s.bookings?.length || 0)).length} clases vacías después`);
 
     // 📄 PAGINACIÓN: Solo aplicar si se especificaron parámetros page/limit
     if (page && limit && page > 0 && limit > 0) {

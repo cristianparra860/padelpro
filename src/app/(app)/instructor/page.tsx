@@ -38,36 +38,36 @@ export default function InstructorPage() {
                 if (response.ok) {
                     const userData = await response.json();
                     
-                    // Verificar si el usuario es instructor
-                    if (userData.role !== 'INSTRUCTOR') {
-                        router.push('/dashboard');
-                        return;
-                    }
-                    
                     // Obtener el registro Instructor desde la tabla Instructor
                     const instructorResponse = await fetch(`/api/instructors/by-user/${userData.id}`, { headers });
                     let instructorId = userData.id; // fallback
                     
                     if (instructorResponse.ok) {
                         const instructorRecord = await instructorResponse.json();
-                        instructorId = instructorRecord.id; // usar el ID de la tabla Instructor
+                        instructorId = instructorRecord.instructor?.id || instructorRecord.id; // usar el ID de la tabla Instructor
+                        
+                        // Convertir el usuario a formato Instructor con datos del registro
+                        const instructorData: Instructor = {
+                            id: instructorId,
+                            name: userData.name,
+                            email: userData.email,
+                            profilePictureUrl: userData.profilePictureUrl || null,
+                            isAvailable: userData.isAvailable ?? true,
+                            assignedClubId: instructorRecord.instructor?.clubId || userData.assignedClubId || 'padel-estrella-madrid',
+                            assignedCourtNumber: userData.assignedCourtNumber || undefined,
+                            defaultRatePerHour: userData.defaultRatePerHour || 28,
+                            rateTiers: userData.rateTiers || [],
+                            unavailableHours: userData.unavailableHours || {},
+                            levelRanges: instructorRecord.instructor?.levelRanges || null
+                        };
+                        
+                        setInstructor(instructorData);
+                    } else {
+                        // Usuario no es instructor, redirigir al dashboard
+                        console.log('Usuario no tiene registro de instructor');
+                        router.push('/dashboard');
+                        return;
                     }
-                    
-                    // Convertir el usuario a formato Instructor
-                    const instructorData: Instructor = {
-                        id: instructorId, // Usar instructorId de la tabla Instructor
-                        name: userData.name,
-                        email: userData.email,
-                        profilePictureUrl: userData.profilePictureUrl || null,
-                        isAvailable: userData.isAvailable ?? true,
-                        assignedClubId: userData.assignedClubId || 'padel-estrella-madrid',
-                        assignedCourtNumber: userData.assignedCourtNumber || undefined,
-                        defaultRatePerHour: userData.defaultRatePerHour || 28,
-                        rateTiers: userData.rateTiers || [],
-                        unavailableHours: userData.unavailableHours || {}
-                    };
-                    
-                    setInstructor(instructorData);
                 } else {
                     console.error('Error al cargar usuario');
                     router.push('/');

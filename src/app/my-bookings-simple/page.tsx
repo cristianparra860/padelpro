@@ -162,6 +162,7 @@ export default function MyBookingsSimple() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
+          bookingId: bookingId,
           userId: 'cmfm2r0ou0003tg2cyyyoxil5', // 🔧 Usar usuario real consistente con el resto
           timeSlotId: timeSlotId,
         })

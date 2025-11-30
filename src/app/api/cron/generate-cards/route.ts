@@ -104,6 +104,29 @@ async function generateCardsForDay(date: string, clubId: string) {
   let createdCount = 0;
   let skippedCount = 0;
 
+  // 🕐 PASO 1: Obtener horarios de apertura del club
+  const club = await prisma.club.findUnique({
+    where: { id: clubId },
+    select: { openingHours: true, name: true }
+  });
+
+  // Parsear los horarios de apertura (array de 19 booleanos: 6 AM a 12 AM)
+  let openingHoursArray: boolean[] = [];
+  if (club?.openingHours) {
+    try {
+      openingHoursArray = JSON.parse(club.openingHours);
+      console.log(`🕐 Horarios de apertura para ${club.name}: ${openingHoursArray.filter(Boolean).length}/19 horas abiertas`);
+    } catch (e) {
+      console.warn('⚠️  No se pudieron parsear openingHours, usando horario completo');
+    }
+  }
+
+  // Si no hay horarios configurados, usar horario por defecto (8 AM - 11 PM)
+  if (openingHoursArray.length === 0) {
+    openingHoursArray = Array.from({ length: 19 }, (_, i) => i >= 2 && i <= 17); // índices 2-17 = 8 AM - 11 PM
+    console.log('🕐 Usando horario por defecto: 8 AM - 11 PM');
+  }
+
   // Obtener TODOS los instructores activos
   const instructors = await prisma.$queryRaw<Array<{id: string}>>`
     SELECT id FROM Instructor WHERE isActive = 1
@@ -115,12 +138,23 @@ async function generateCardsForDay(date: string, clubId: string) {
 
   console.log(`📚 Generando propuestas para ${instructors.length} instructores`);
 
-  // Generar propuestas cada 30 minutos de 06:00 a 21:00 UTC (07:00-22:00 hora local España)
+  // 🕐 PASO 2: Generar timeSlots SOLO para horarios de apertura
+  // openingHoursArray[0] = 6 AM, [1] = 7 AM, ..., [18] = 12 AM (medianoche)
   const timeSlots: string[] = [];
-  for (let hour = 6; hour < 21; hour++) {
-    timeSlots.push(`${hour.toString().padStart(2, '0')}:00`);
-    timeSlots.push(`${hour.toString().padStart(2, '0')}:30`);
+  for (let i = 0; i < openingHoursArray.length; i++) {
+    if (openingHoursArray[i]) {
+      const hour = 6 + i; // 6 AM + índice
+      timeSlots.push(`${hour.toString().padStart(2, '0')}:00`);
+      timeSlots.push(`${hour.toString().padStart(2, '0')}:30`);
+    }
   }
+
+  if (timeSlots.length === 0) {
+    console.log('⚠️  Club cerrado este día - no se generarán propuestas');
+    return { created: 0, skipped: 0, reason: 'Club closed' };
+  }
+
+  console.log(`🕐 Generando en ${timeSlots.length} franjas horarias (club abierto)`);
 
   // Para cada instructor, generar propuestas en todos los horarios
   for (const instructor of instructors) {
@@ -194,6 +228,11 @@ async function generateCardsForDay(date: string, clubId: string) {
       const instructorPrice = 15; // Precio por defecto del instructor
       const totalPrice = instructorPrice + courtPrice;
 
+      // Convertir fechas a timestamps numéricos para SQLite
+      const startTimestamp = startDateTime.getTime();
+      const endTimestamp = endDateTime.getTime();
+      const nowTimestamp = Date.now();
+
       await prisma.$executeRaw`
         INSERT INTO TimeSlot (
           id, clubId, instructorId, start, end,
@@ -203,16 +242,16 @@ async function generateCardsForDay(date: string, clubId: string) {
           ${timeSlotId},
           ${clubId},
           ${instructorId},
-          ${startDateTime.toISOString()},
-          ${endDateTime.toISOString()},
+          ${startTimestamp},
+          ${endTimestamp},
           4,
           ${totalPrice},
           ${instructorPrice},
           ${courtPrice},
           'ABIERTO',
           'ABIERTO',
-          datetime('now'),
-          datetime('now')
+          ${nowTimestamp},
+          ${nowTimestamp}
         )
       `;
 

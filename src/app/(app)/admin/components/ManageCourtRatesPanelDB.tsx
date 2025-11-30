@@ -8,8 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Trash2, PlusCircle, RefreshCw, Edit2, Euro } from 'lucide-react';
-import { getMockCurrentUser } from '@/lib/mockData';
+import { getMockCurrentUser, getMockClubs } from '@/lib/mockData';
 import { Badge } from '@/components/ui/badge';
+import ClubOpeningHours from './ClubOpeningHours';
+import type { Club } from '@/types';
 
 interface PriceSlot {
   id: string;
@@ -30,6 +32,7 @@ const DAYS_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
 const ManageCourtRatesPanelDB: React.FC<ManageCourtRatesPanelDBProps> = ({ clubId }) => {
   const { toast } = useToast();
+  const [club, setClub] = useState<Club | null>(null);
   const [priceSlots, setPriceSlots] = useState<PriceSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -46,6 +49,12 @@ const ManageCourtRatesPanelDB: React.FC<ManageCourtRatesPanelDBProps> = ({ clubI
   });
 
   useEffect(() => {
+    // Cargar el club
+    const clubs = getMockClubs();
+    const foundClub = clubs.find(c => c.id === clubId);
+    if (foundClub) {
+      setClub(foundClub);
+    }
     loadPriceSlots();
   }, [clubId]);
 
@@ -231,8 +240,19 @@ const ManageCourtRatesPanelDB: React.FC<ManageCourtRatesPanelDBProps> = ({ clubI
     return <div className="text-center py-8">Cargando franjas horarias...</div>;
   }
 
+  if (!club) {
+    return <div className="text-center py-8">Club no encontrado</div>;
+  }
+
+  const handleClubUpdated = (updatedClub: Club) => {
+    setClub(updatedClub);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Horario de Apertura del Club */}
+      <ClubOpeningHours club={club} onHoursUpdated={handleClubUpdated} />
+      
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">

@@ -147,6 +147,7 @@ export interface Instructor extends User {
     availability?: InstructorAvailability[];
     experience?: string[];
     languages?: string[];
+    levelRanges?: string | null;
 }
 
 export interface UserDB extends User, Partial<Omit<Instructor, 'id' | 'name' | 'email' | 'level' | 'profilePictureUrl' | 'genderCategory'>> {
@@ -225,6 +226,7 @@ export interface Club {
     cardShadowEffect?: CardShadowEffectSettings;
     adminEmail?: string;
     adminPassword?: string;
+    openingHours?: boolean[]; // Array de 19 posiciones (6:00 AM a 12:00 AM)
 }
 
 export interface ClubFormData {
@@ -261,6 +263,7 @@ export interface TimeSlot {
     level: ClassPadelLevel;
     category: PadelCategoryForSlot;
     genderCategory?: string; // AGREGADO: Categoría de género (masculino/femenino/mixto)
+    hasRecycledSlots?: boolean; // ♻️ Indica que tiene plazas recicladas disponibles
     status: 'pre_registration' | 'forming' | 'confirmed' | 'confirmed_private' | 'cancelled';
     bookedPlayers: { 
         userId: string; 
@@ -272,6 +275,7 @@ export interface TimeSlot {
         userLevel?: string;
         userGender?: string;
         createdAt?: string;
+        isRecycled?: boolean; // ♻️ Indica si es una plaza reciclada
     }[];
     // 🏟️ Disponibilidad de pistas en tiempo real
     courtsAvailability?: Array<{
@@ -305,6 +309,9 @@ export interface Booking {
     slotDetails?: TimeSlot;
     bookedAt?: Date;
     isSimulated?: boolean;
+    isRecycled?: boolean; // 🎯 Plaza reciclada (solo reservable con puntos)
+    paidWithPoints?: boolean; // 💰 Reserva pagada con puntos
+    pointsUsed?: number; // 💰 Cantidad de puntos usados
 }
 
 export interface Match {

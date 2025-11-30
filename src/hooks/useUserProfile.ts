@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { getMockCurrentUser, updateUserLevel, setGlobalCurrentUser, updateUserGenderCategory } from '@/lib/mockData';
+import { setGlobalCurrentUser } from '@/lib/mockData';
 import type { User as UserType, MatchPadelLevel, UserGenderCategory } from '@/types';
 
 export function useUserProfile(initialUser: UserType | null) {
@@ -148,26 +148,44 @@ export function useUserProfile(initialUser: UserType | null) {
 
   const handleSaveLevel = useCallback(async () => {
     if (!user || !selectedLevel) return;
-    setIsEditingLevel(false);
-    const oldLevel = user.level;
     
-    setUser(prev => prev ? { ...prev, level: selectedLevel } : null);
-    const currentGlobalUser = getMockCurrentUser();
-    if (currentGlobalUser && currentGlobalUser.id === user.id) {
-        setGlobalCurrentUser({ ...currentGlobalUser, level: selectedLevel });
-    }
-
-    const result = await updateUserLevel(user.id, selectedLevel);
-    if ('error' in result) {
-      toast({ title: "Error al Actualizar Nivel", description: result.error, variant: "destructive" });
-      setUser(prev => prev ? { ...prev, level: oldLevel } : null); // Revert optimistic update
-      const currentGlobalUserForRevert = getMockCurrentUser();
-      if (currentGlobalUserForRevert && currentGlobalUserForRevert.id === user.id) {
-        setGlobalCurrentUser({ ...currentGlobalUserForRevert, level: oldLevel });
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        toast({ title: "Error", description: "No estás autenticado", variant: "destructive" });
+        return;
       }
-      setSelectedLevel(oldLevel);
-    } else {
-      toast({ title: "Nivel Actualizado", description: `Tu nivel de juego se ha establecido a ${selectedLevel}.` });
+
+      const response = await fetch(`/api/users/${user.id}/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ level: selectedLevel })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const updatedUser = data.user;
+        
+        setIsEditingLevel(false);
+        setUser(updatedUser);
+        setGlobalCurrentUser(updatedUser);
+        
+        // Disparar evento personalizado para actualizar otros componentes
+        window.dispatchEvent(new CustomEvent('userUpdated', { detail: updatedUser }));
+        
+        toast({ title: "Nivel Actualizado", description: `Tu nivel de juego se ha establecido a ${selectedLevel}.` });
+      } else {
+        const error = await response.json();
+        toast({ title: "Error", description: error.error || "No se pudo actualizar el nivel", variant: "destructive" });
+        setSelectedLevel(user.level); // Revertir cambio
+      }
+    } catch (error) {
+      console.error('Error updating level:', error);
+      toast({ title: "Error", description: "Error al actualizar el nivel", variant: "destructive" });
+      setSelectedLevel(user.level); // Revertir cambio
     }
   }, [user, selectedLevel, toast]);
 
@@ -177,26 +195,44 @@ export function useUserProfile(initialUser: UserType | null) {
 
   const handleSaveGenderCategory = useCallback(async () => {
     if (!user || !selectedGenderCategory) return;
-    setIsEditingGenderCategory(false);
-    const oldGenderCategory = user.genderCategory;
-
-    setUser(prev => prev ? { ...prev, genderCategory: selectedGenderCategory } : null);
-    const currentGlobalUser = getMockCurrentUser();
-    if (currentGlobalUser && currentGlobalUser.id === user.id) {
-        setGlobalCurrentUser({ ...currentGlobalUser, genderCategory: selectedGenderCategory });
-    }
     
-    const result = await updateUserGenderCategory(user.id, selectedGenderCategory);
-    if ('error' in result) {
-        toast({ title: "Error al Actualizar Categoría", description: result.error, variant: "destructive" });
-        setUser(prev => prev ? { ...prev, genderCategory: oldGenderCategory } : null);
-        const currentGlobalUserForRevert = getMockCurrentUser();
-        if (currentGlobalUserForRevert && currentGlobalUserForRevert.id === user.id) {
-            setGlobalCurrentUser({ ...currentGlobalUserForRevert, genderCategory: oldGenderCategory });
-        }
-        setSelectedGenderCategory(oldGenderCategory);
-    } else {
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        toast({ title: "Error", description: "No estás autenticado", variant: "destructive" });
+        return;
+      }
+
+      const response = await fetch(`/api/users/${user.id}/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ genderCategory: selectedGenderCategory })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const updatedUser = data.user;
+        
+        setIsEditingGenderCategory(false);
+        setUser(updatedUser);
+        setGlobalCurrentUser(updatedUser);
+        
+        // Disparar evento personalizado para actualizar otros componentes
+        window.dispatchEvent(new CustomEvent('userUpdated', { detail: updatedUser }));
+        
         toast({ title: "Categoría Actualizada", description: `Tu categoría de género se ha establecido a ${selectedGenderCategory}.` });
+      } else {
+        const error = await response.json();
+        toast({ title: "Error", description: error.error || "No se pudo actualizar la categoría", variant: "destructive" });
+        setSelectedGenderCategory(user.genderCategory); // Revertir cambio
+      }
+    } catch (error) {
+      console.error('Error updating gender category:', error);
+      toast({ title: "Error", description: "Error al actualizar la categoría", variant: "destructive" });
+      setSelectedGenderCategory(user.genderCategory); // Revertir cambio
     }
   }, [user, selectedGenderCategory, toast]);
 

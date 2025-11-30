@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       where: clubId ? { clubId, isActive: true } : { isActive: true },
       include: {
         club: {
-          select: { name: true }
+          select: { name: true, logo: true }
         }
       },
       orderBy: { number: 'asc' }
@@ -214,7 +214,8 @@ export async function GET(request: NextRequest) {
         id: court.id,
         number: court.number,
         name: court.name || `Pista ${court.number}`,
-        clubName: court.club?.name
+        clubName: court.club?.name,
+        clubLogo: court.club?.logo
       })),
       instructors: instructors.map(instructor => ({
         id: instructor.id,

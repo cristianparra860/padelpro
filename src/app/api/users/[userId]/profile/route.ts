@@ -28,9 +28,9 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { name, email } = body;
+    const { name, email, level, genderCategory } = body;
 
-    console.log('📝 Datos a actualizar:', { name, email });
+    console.log('📝 Datos a actualizar:', { name, email, level, genderCategory });
 
     // Validaciones
     if (name !== undefined && (!name || name.trim().length === 0)) {
@@ -59,6 +59,8 @@ export async function PUT(
     const updateData: any = {};
     if (name !== undefined) updateData.name = name.trim();
     if (email !== undefined) updateData.email = email.trim();
+    if (level !== undefined) updateData.level = level;
+    if (genderCategory !== undefined) updateData.position = genderCategory; // La columna se llama "position" en la DB
 
     console.log('💾 Actualizando en base de datos...');
 

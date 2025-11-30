@@ -22,6 +22,49 @@ export default function InstructorClassCards({ instructor }: InstructorClassCard
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past' | 'all'>('upcoming');
+  const [instructorBookings, setInstructorBookings] = useState<any[]>([]); // 📊 Reservas del instructor para calendario
+
+  // 📊 Cargar todas las reservas del instructor para los próximos 30 días
+  useEffect(() => {
+    const loadInstructorBookings = async () => {
+      try {
+        const today = new Date();
+        const endDate = addDays(today, 30);
+        
+        // Consultar todas las clases del instructor en el rango de fechas
+        const clubId = instructor.assignedClubId || 'padel-estrella-madrid';
+        
+        const response = await fetch(
+          `/api/timeslots?clubId=${clubId}&instructorId=${instructor.id}`
+        );
+        
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        const slotsArray = Array.isArray(data) ? data : data.slots || [];
+        
+        // Extraer bookings confirmados de todas las clases
+        const allBookings = slotsArray
+          .filter((slot: ApiTimeSlot) => 
+            slot.bookings && 
+            slot.bookings.length > 0 &&
+            slot.bookings.some((booking: any) => booking.status === 'CONFIRMED')
+          )
+          .map((slot: ApiTimeSlot) => ({
+            timeSlotId: slot.id,
+            date: new Date(slot.start),
+            status: 'CONFIRMED' as const
+          }));
+        
+        console.log('📊 Instructor bookings loaded:', allBookings.length);
+        setInstructorBookings(allBookings);
+      } catch (error) {
+        console.error('Error loading instructor bookings:', error);
+      }
+    };
+
+    loadInstructorBookings();
+  }, [instructor.id, instructor.assignedClubId, refreshKey]);
 
   useEffect(() => {
     const loadInstructorClasses = async () => {
@@ -122,6 +165,7 @@ export default function InstructorClassCards({ instructor }: InstructorClassCard
         selectedDate={selectedDate}
         onDateChange={setSelectedDate}
         daysToShow={30}
+        userBookings={instructorBookings} // 📊 Pasar reservas del instructor
       />
 
       {/* Lista de tarjetas */}

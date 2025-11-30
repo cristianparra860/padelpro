@@ -120,6 +120,7 @@ model Club {
   logo               String?
   description        String?
   courtRentalPrice   Float    @default(10.0) // Precio por hora de alquiler de pista
+  openingHours       String?  // JSON array de 19 booleanos (6:00 AM a 12:00 AM)
   admin              Admin?   @relation(fields: [adminId], references: [id])
   adminId            String?
   createdAt          DateTime @default(now())
@@ -221,6 +222,7 @@ model Instructor {
   club              Club     @relation(fields: [clubId], references: [id])
   clubId            String
   isActive          Boolean  @default(true)
+  levelRanges       String?  // JSON con rangos de nivel personalizados: [{"name":"Principiante","minStudents":0,"maxStudents":5},...]
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -251,6 +253,7 @@ model TimeSlot {
   level             String
   category          String
   genderCategory    String? // masculino, femenino, mixto - categoría de la clase
+  levelRange        String? // Rango de nivel asignado (ej: "5.0-7.0")
   hasRecycledSlots  Boolean  @default(false) // Si tiene plazas recicladas (solo reservables con puntos)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

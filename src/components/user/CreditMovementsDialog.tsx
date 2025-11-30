@@ -13,14 +13,11 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Wallet, PlusCircle, MinusCircle, Lock, Activity, Trophy } from 'lucide-react';
-import type { User as UserType, Transaction, Booking, MatchBooking } from '@/types';
+import { Wallet, Trophy } from 'lucide-react';
+import type { User as UserType, Transaction } from '@/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { getMockTransactions, fetchUserBookings, fetchUserMatchBookings, getMockTimeSlots, getMockMatches } from '@/lib/mockData';
 import { cn } from '@/lib/utils';
-import { calculatePricePerPerson } from '@/lib/utils';
-import { Separator } from '@/components/ui/separator';
 
 interface CreditMovementsDialogProps {
   isOpen: boolean;
@@ -34,7 +31,6 @@ const CreditMovementsDialog: React.FC<CreditMovementsDialogProps> = ({
   currentUser,
 }) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [pendingBookings, setPendingBookings] = useState<(Booking | MatchBooking)[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -47,42 +43,57 @@ const CreditMovementsDialog: React.FC<CreditMovementsDialogProps> = ({
           if (response.ok) {
             const data = await response.json();
             
-            // Filtrar solo transacciones de créditos (no de puntos)
-            const creditTransactions = data.transactions.filter((tx: any) => tx.type === 'credit');
+            // Separar transacciones de créditos y puntos
+            const allTransactions = data.transactions;
             
             // Mapear transacciones de la DB al formato del componente
-            const mappedTransactions: Transaction[] = creditTransactions.map((tx: any) => {
+            const mappedTransactions: Transaction[] = allTransactions.map((tx: any) => {
               // Determinar si es entrada (+) o salida (-)
               const isPositive = tx.action === 'add' || tx.action === 'refund' || tx.action === 'unblock';
-              const amountInEuros = tx.amount / 100;
+              // El amount ya está en euros/puntos en la base de datos, no dividir por 100
+              const amount = tx.amount;
               
               return {
                 id: tx.id,
                 userId: tx.userId,
                 type: tx.concept,
                 description: tx.concept,
-                amount: isPositive ? amountInEuros : -amountInEuros,
+                amount: isPositive ? amount : -amount,
                 date: tx.createdAt,
-                balanceAfter: tx.balance / 100
+                balanceAfter: tx.balance,
+                transactionType: tx.type // 'credit' o 'points'
               };
             });
             
-            setTransactions(mappedTransactions);
+            // Calcular saldos históricos para ambos tipos
+            // Partimos del saldo actual y vamos hacia atrás
+            let currentCreditBalance = currentUser.credit ?? 0;
+            let currentPointsBalance = currentUser.points ?? 0;
+            
+            // Recorrer hacia atrás para calcular saldos históricos
+            const transactionsWithHistoricBalances = mappedTransactions.map((tx: any) => {
+              const historicCreditBalance = tx.transactionType === 'credit' ? tx.balanceAfter : currentCreditBalance;
+              const historicPointsBalance = tx.transactionType === 'points' ? tx.balanceAfter : currentPointsBalance;
+              
+              // Preparar para la siguiente iteración (hacia atrás en el tiempo)
+              if (tx.transactionType === 'credit') {
+                currentCreditBalance = tx.balanceAfter;
+              } else {
+                currentPointsBalance = tx.balanceAfter;
+              }
+              
+              return {
+                ...tx,
+                historicCreditBalance,
+                historicPointsBalance
+              };
+            });
+            
+            setTransactions(transactionsWithHistoricBalances);
           } else {
             console.error('Error fetching transactions:', response.statusText);
             setTransactions([]);
           }
-
-          // Cargar bookings pendientes (esto sigue igual)
-          const [classBookings, matchBookings] = await Promise.all([
-            fetchUserBookings(currentUser.id),
-            fetchUserMatchBookings(currentUser.id)
-          ]);
-
-          const pendingClassBookings = classBookings.filter(b => b.status === 'pending' && !b.bookedWithPoints);
-          const pendingMatchBookings = matchBookings.filter(b => b.matchDetails?.status === 'forming' && !b.bookedWithPoints);
-
-          setPendingBookings([...pendingClassBookings, ...pendingMatchBookings]);
 
         } catch (error) {
           console.error("Error fetching movements data:", error);
@@ -92,7 +103,7 @@ const CreditMovementsDialog: React.FC<CreditMovementsDialogProps> = ({
       }
     };
     loadData();
-  }, [isOpen, currentUser.id]);
+  }, [isOpen, currentUser.id, currentUser.credit, currentUser.points]);
 
   // Usar blockedCredits (con 's') que es como viene de la API
   const totalCredit = currentUser.credit ?? 0;
@@ -112,111 +123,115 @@ const CreditMovementsDialog: React.FC<CreditMovementsDialogProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="my-2 p-4 bg-secondary rounded-lg shadow-inner space-y-3">
-            {/* Fila superior: Saldo Disponible y Total */}
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <p className="text-sm text-secondary-foreground">Saldo Disponible:</p>
-                    <p className="text-3xl font-bold text-primary">{availableCredit.toFixed(2)}€</p>
+        <div className="my-2 p-5 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border-2 border-gray-200">
+            <div className="grid grid-cols-2 gap-6">
+                {/* Columna izquierda: Euros */}
+                <div className="space-y-3">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Wallet className="h-5 w-5 text-blue-600" />
+                        <h3 className="font-bold text-lg text-gray-800">Saldo en Euros</h3>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <p className="text-xs text-gray-600 mb-1">Saldo</p>
+                        <p className="text-3xl font-bold text-gray-900">{totalCredit.toFixed(0)}€</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <p className="text-xs text-gray-600 mb-1">Bloqueado</p>
+                        <p className="text-xl font-semibold text-gray-700">{blockedCredit.toFixed(0)} B</p>
+                    </div>
                 </div>
-                <div>
-                    <p className="text-sm text-secondary-foreground">Saldo Total:</p>
-                    <p className="text-xl font-semibold text-muted-foreground">{totalCredit.toFixed(2)}€</p>
+                
+                {/* Columna derecha: Puntos */}
+                <div className="space-y-3">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Trophy className="h-5 w-5 text-yellow-600" />
+                        <h3 className="font-bold text-lg text-gray-800">Saldo en Puntos</h3>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <p className="text-xs text-gray-600 mb-1">Saldo</p>
+                        <p className="text-3xl font-bold text-gray-900">{currentUser.points || 0} Ptos.</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <p className="text-xs text-gray-600 mb-1">Bloqueado</p>
+                        <p className="text-xl font-semibold text-gray-700">0 Ptos.</p>
+                    </div>
                 </div>
             </div>
-            
-            {/* Fila inferior: Saldo Bloqueado (solo si hay algo bloqueado) */}
-            {blockedCredit > 0 && (
-                <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <Lock className="h-4 w-4 text-orange-600" />
-                            <span className="text-sm font-medium text-orange-900">Saldo Bloqueado:</span>
-                        </div>
-                        <span className="text-lg font-bold text-orange-700">{blockedCredit.toFixed(2)}€</span>
-                    </div>
-                    <p className="text-xs text-orange-600 mt-1">
-                        Este monto está reservado por reservas pendientes de confirmar
-                    </p>
-                </div>
-            )}
         </div>
 
-        <ScrollArea className="h-[400px] my-2 pr-3 space-y-4">
-            {/* Blocked Credit Section */}
-            <div>
-                <h4 className="font-semibold text-base text-foreground mb-2 flex items-center">
-                    <Lock className="mr-2 h-5 w-5" />
-                    Saldo Bloqueado ({blockedCredit.toFixed(2)}€)
+        <ScrollArea className="h-[400px] my-2 pr-3">
+            {/* Unified Transaction History */}
+            <div className="space-y-3">
+                <h4 className="font-semibold text-base text-foreground mb-3">
+                    Historial de Movimientos
                 </h4>
+                
                 {loading ? (
                     <p className="text-base text-muted-foreground">Cargando...</p>
-                ) : pendingBookings.length === 0 ? (
-                    <p className="text-sm text-muted-foreground italic p-3 bg-muted/50 rounded-md">No tienes saldo bloqueado por pre-inscripciones.</p>
-                ) : (
-                    <div className="space-y-3">
-                        {pendingBookings.map(booking => {
-                             let details = { type: '', description: '', amount: 0 };
-                             if (booking.activityType === 'class') {
-                                 details = {
-                                     type: 'Clase',
-                                     description: `con ${booking.slotDetails?.instructorName} el ${format(new Date(booking.slotDetails!.startTime), "dd/MM")}`,
-                                     amount: calculatePricePerPerson(booking.slotDetails?.totalPrice, booking.groupSize)
-                                 };
-                             } else { // Match
-                                 details = {
-                                     type: 'Partida',
-                                     description: `Nivel ${booking.matchDetails?.level} el ${format(new Date(booking.matchDetails!.startTime), "dd/MM")}`,
-                                     amount: calculatePricePerPerson(booking.matchDetails?.totalCourtFee, 4)
-                                 };
-                             }
-                            return (
-                                <div key={booking.id} className="flex items-center justify-between p-3 rounded-md border bg-background/50">
-                                    <div className="flex-grow">
-                                        <p className="font-semibold text-sm flex items-center">
-                                            {booking.activityType === 'class' ? <Activity className="h-4 w-4 mr-1.5"/> : <Trophy className="h-4 w-4 mr-1.5"/>}
-                                            {details.type}
-                                        </p>
-                                        <p className="text-muted-foreground text-sm">{details.description}</p>
-                                    </div>
-                                    <div className="font-bold text-base text-muted-foreground">
-                                        -{details.amount.toFixed(2)}€
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
-
-            <Separator className="my-4" />
-
-            {/* Transaction History Section */}
-             <div>
-                <h4 className="font-semibold text-base text-foreground mb-2">Historial de Movimientos</h4>
-                 {loading ? (
-                    <p className="text-base text-muted-foreground">Cargando...</p>
                 ) : transactions.length === 0 ? (
-                     <p className="text-sm text-muted-foreground italic p-3 bg-muted/50 rounded-md">No tienes movimientos de saldo registrados.</p>
+                    <p className="text-sm text-muted-foreground italic p-3 bg-muted/50 rounded-md">
+                        No tienes movimientos registrados.
+                    </p>
                 ) : (
-                    <div className="space-y-3">
-                        {transactions.map((txn) => (
-                            <div key={txn.id} className="flex items-start justify-between p-3 rounded-md border bg-background/50">
-                                <div className="flex-grow">
-                                    <p className="font-semibold text-base">{txn.type}</p>
-                                    <p className="text-muted-foreground text-sm">{txn.description}</p>
-                                    <p className="text-muted-foreground/80 text-xs mt-1.5">{format(new Date(txn.date), "dd MMM yyyy, HH:mm", { locale: es })}</p>
+                    transactions.map((txn: any, index: number) => {
+                        const isCredit = txn.transactionType === 'credit';
+                        const isPositive = txn.amount > 0;
+                        
+                        return (
+                            <div key={txn.id} className="border-2 border-gray-200 rounded-xl overflow-hidden">
+                                {/* Header con fecha */}
+                                <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                                    <p className="text-sm font-medium text-gray-700">
+                                        {format(new Date(txn.date), "d 'de' MMMM 'a las' HH:mm'h'", { locale: es })}
+                                    </p>
                                 </div>
-                                <div className={cn(
-                                    "flex items-center font-bold text-lg",
-                                    txn.amount > 0 ? 'text-green-600' : 'text-destructive'
-                                )}>
-                                    {txn.amount > 0 ? <PlusCircle className="h-5 w-5 mr-1.5"/> : <MinusCircle className="h-5 w-5 mr-1.5"/>}
-                                    {Math.abs(txn.amount).toFixed(2)}€
+                                
+                                {/* Concepto principal */}
+                                <div className="bg-green-100 px-4 py-3 text-center">
+                                    <p className="text-sm font-semibold text-gray-800">
+                                        {txn.description}
+                                    </p>
+                                </div>
+                                
+                                {/* Saldos */}
+                                <div className="bg-white px-4 py-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {/* Columna izquierda: Saldo en Euros */}
+                                        <div className="space-y-3">
+                                            <div className="border rounded-lg p-3 bg-gray-50">
+                                                <p className="text-xs text-gray-600 mb-1">Saldo</p>
+                                                <p className="text-xl font-bold text-gray-900">
+                                                    {txn.historicCreditBalance?.toFixed(0) || 0}€
+                                                </p>
+                                            </div>
+                                            <div className="border rounded-lg p-3 bg-gray-50">
+                                                <p className="text-xs text-gray-600 mb-1">Bloqueado</p>
+                                                <p className="text-base font-semibold text-gray-700">
+                                                    {blockedCredit.toFixed(0)} B
+                                                </p>
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Columna derecha: Saldo en Puntos */}
+                                        <div className="space-y-3">
+                                            <div className="border rounded-lg p-3 bg-gray-50">
+                                                <p className="text-xs text-gray-600 mb-1">Saldo</p>
+                                                <p className="text-xl font-bold text-gray-900">
+                                                    {txn.historicPointsBalance || 0} Ptos.
+                                                </p>
+                                            </div>
+                                            <div className="border rounded-lg p-3 bg-gray-50">
+                                                <p className="text-xs text-gray-600 mb-1">Bloqueado</p>
+                                                <p className="text-base font-semibold text-gray-700">
+                                                    0 Ptos.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        ))}
-                    </div>
+                        );
+                    })
                 )}
             </div>
         </ScrollArea>

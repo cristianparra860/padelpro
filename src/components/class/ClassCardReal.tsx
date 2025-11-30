@@ -7,17 +7,28 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, MapPin, Users, Euro, Star, X, Users2, Venus, Mars, Lightbulb, Info, Plus } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { User, TimeSlot } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { calculateSlotPrice } from '@/lib/blockedCredits';
 import Link from 'next/link';
 
 interface ClassCardRealProps {
   classData: TimeSlot;
   currentUser: User | null;
-  onBookingSuccess: () => void;
+  onBookingSuccess: (updatedSlot?: TimeSlot) => void; // ✅ Permitir recibir slot actualizado
   showPointsBonus?: boolean;
   allowedPlayerCounts?: number[]; // Números de jugadores permitidos para mostrar
 }
@@ -41,49 +52,123 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   allowedPlayerCounts = [1, 2, 3, 4] // Por defecto, permitir todas las opciones
 }) => {
   const { toast } = useToast();
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingGroupSize, setPendingGroupSize] = useState<number>(1);
+  const [showPrivateDialog, setShowPrivateDialog] = useState(false);
+  const [privateAttendees, setPrivateAttendees] = useState<number>(4);
   
-  console.log(`🎴 ClassCardReal ${classData.id}: allowedPlayerCounts recibido =`, allowedPlayerCounts);
+  // ✅ Validar que classData tiene los datos mínimos necesarios
+  if (!classData || !classData.start || !classData.end) {
+    console.error('❌ ClassCardReal: classData inválido:', classData);
+    return null; // No renderizar si faltan datos críticos
+  }
+  
+  // 🔄 State local para el slot (permite actualización inmediata tras booking)
+  const [currentSlotData, setCurrentSlotData] = useState<TimeSlot>(classData);
+  
+  // 🐛 DEBUG: Verificar datos recibidos
+  useEffect(() => {
+    console.log('🔍 ClassCard received data:', {
+      id: classData.id,
+      start: classData.start,
+      startType: typeof classData.start,
+      levelRange: (classData as any).levelRange
+    });
+  }, [classData]);
+  
+  // 🔄 Actualizar cuando cambie classData desde padre
+  useEffect(() => {
+    setCurrentSlotData(classData);
+  }, [classData]);
+  
+  console.log(`🎴 ClassCardReal ${currentSlotData.id}: allowedPlayerCounts recibido =`, allowedPlayerCounts);
   
   // 🔍 Si no hay opciones de jugadores permitidas, no renderizar la tarjeta
   const availableOptions = [1, 2, 3, 4].filter(count => allowedPlayerCounts.includes(count));
-  console.log(`🎴 ClassCardReal ${classData.id}: availableOptions calculado =`, availableOptions);
+  console.log(`🎴 ClassCardReal ${currentSlotData.id}: availableOptions calculado =`, availableOptions);
   
   if (availableOptions.length === 0) {
-    console.log(`🚫 ClassCardReal ${classData.id}: OCULTANDO tarjeta (sin opciones disponibles)`);
+    console.log(`🚫 ClassCardReal ${currentSlotData.id}: OCULTANDO tarjeta (sin opciones disponibles)`);
     return null; // Ocultar completamente la tarjeta
   }
   
   // Usar bookings que ya vienen en classData en lugar de cargarlos
   const [bookings, setBookings] = useState<Booking[]>(
     Array.isArray((classData as any).bookings) ? (classData as any).bookings : 
-    Array.isArray(classData.bookedPlayers) ? classData.bookedPlayers : []
+    Array.isArray(currentSlotData.bookedPlayers) ? currentSlotData.bookedPlayers : []
   );
   const [loading, setLoading] = useState(false); // Ya no necesitamos loading inicial
   const [booking, setBooking] = useState(false);
+  const [hasConfirmedBookingToday, setHasConfirmedBookingToday] = useState(false);
+  const [loadingBookingCheck, setLoadingBookingCheck] = useState(true);
 
-  // Sincronizar bookings cuando classData cambie
+  // 🚫 Verificar si el usuario ya tiene una reserva confirmada este día
   useEffect(() => {
-    // Priorizar classData.bookings si existe (viene de la API)
-    const bookingsData = (classData as any).bookings || classData.bookedPlayers;
-    console.log('🔄 useEffect - classData completo:', classData);
-    console.log('🔄 useEffect - bookingsData:', bookingsData);
+    const checkConfirmedBookingToday = async () => {
+      if (!currentUser?.id || !currentSlotData?.start) {
+        setLoadingBookingCheck(false);
+        return;
+      }
+
+      try {
+        // Obtener fecha de la clase (sin hora)
+        const classDate = new Date(currentSlotData.start);
+        const dateStr = classDate.toISOString().split('T')[0]; // YYYY-MM-DD
+
+        // Consultar API para verificar reservas confirmadas del usuario ese día
+        const response = await fetch(
+          `/api/user-bookings?userId=${currentUser.id}&date=${dateStr}&onlyConfirmed=true`,
+          { credentials: 'include' }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          // Si tiene alguna reserva confirmada (courtId != null) ese día, bloquear
+          const hasConfirmed = data.bookings?.some((b: any) => 
+            b.timeSlot?.courtId !== null && b.status === 'CONFIRMED'
+          );
+          setHasConfirmedBookingToday(hasConfirmed);
+        }
+      } catch (error) {
+        console.error('Error verificando reservas confirmadas:', error);
+      } finally {
+        setLoadingBookingCheck(false);
+      }
+    };
+
+    checkConfirmedBookingToday();
+  }, [currentUser?.id, currentSlotData?.start]);
+
+  // Sincronizar bookings cuando classData o currentSlotData cambien
+  useEffect(() => {
+    // Priorizar currentSlotData.bookings (actualizado tras booking local)
+    const bookingsData = (currentSlotData as any).bookings || 
+                         currentSlotData.bookedPlayers || 
+                         (classData as any).bookings || 
+                         classData.bookedPlayers;
+    
+    console.log('🔄 useEffect - Sincronizando bookings');
+    console.log('🔄 currentSlotData.bookings:', (currentSlotData as any).bookings);
+    console.log('🔄 currentSlotData.bookedPlayers:', currentSlotData.bookedPlayers);
+    console.log('🔄 bookingsData final:', bookingsData);
     
     // Verificar que bookingsData existe y es un array
     if (bookingsData && Array.isArray(bookingsData)) {
-      console.log('📋 Usando bookings de classData:', bookingsData.length);
+      console.log('📋 Actualizando bookings state con', bookingsData.length, 'bookings');
       if (bookingsData.length > 0) {
-        console.log('🖼️ Primer booking completo:', JSON.stringify(bookingsData[0], null, 2));
-        console.log('📸 profilePictureUrl del primer booking:', bookingsData[0].profilePictureUrl);
+        console.log('🖼️ Primer booking:', JSON.stringify(bookingsData[0], null, 2));
+        console.log('📸 profilePictureUrl:', bookingsData[0].profilePictureUrl);
+        console.log('📊 userLevel:', bookingsData[0].userLevel);
       }
       setBookings(bookingsData);
     } else {
-      console.warn('⚠️ bookingsData NO es un array o es undefined:', bookingsData, typeof bookingsData);
+      console.warn('⚠️ bookingsData NO es un array válido:', bookingsData);
       setBookings([]); // Establecer array vacío por defecto
     }
-  }, [(classData as any).bookings, classData.bookedPlayers]);
+  }, [currentSlotData, classData]); // Depender de ambos objetos completos
 
-  const handleBook = async (groupSize: number) => {
-    console.log('🔍 Current User completo:', currentUser);
+  const handleBookClick = (groupSize: number) => {
+    console.log('🎯 handleBookClick llamado con groupSize:', groupSize);
     
     if (!currentUser) {
       toast({
@@ -93,16 +178,165 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
       });
       return;
     }
+
+    // 🚫 BLOQUEO: Verificar si ya tiene una reserva confirmada ese día
+    if (hasConfirmedBookingToday) {
+      toast({
+        title: "❌ Reserva bloqueada",
+        description: "Ya tienes una reserva confirmada para este día. Solo puedes tener una reserva confirmada por día.",
+        variant: "destructive",
+        duration: 5000
+      });
+      return;
+    }
     
-    console.log('🆔 User ID que se va a enviar:', currentUser.id);
-    console.log('📋 Tipo de currentUser.id:', typeof currentUser.id);
+    // Mostrar diálogo de confirmación
+    setPendingGroupSize(groupSize);
+    setShowConfirmDialog(true);
+  };
+
+  const handlePrivateBooking = async () => {
+    if (!currentUser) {
+      toast({
+        title: "Inicia sesión",
+        description: "Debes iniciar sesión para reservar",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (hasConfirmedBookingToday) {
+      toast({
+        title: "❌ Reserva bloqueada",
+        description: "Ya tienes una reserva confirmada para este día. Solo puedes tener una reserva confirmada por día.",
+        variant: "destructive",
+        duration: 5000
+      });
+      return;
+    }
+
+    setShowPrivateDialog(false);
+    setIsBooking(true);
+
+    try {
+      const response = await fetch('/api/classes/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          timeSlotId: currentSlotData.id,
+          userId: currentUser.id,
+          groupSize: privateAttendees,
+          isPrivate: true // Marcador de reserva privada
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 402) {
+          toast({
+            title: "Saldo insuficiente",
+            description: data.details || data.error || "No tienes saldo suficiente para esta reserva",
+            variant: "destructive",
+            duration: 5000
+          });
+        } else {
+          toast({
+            title: "Error en la reserva",
+            description: data.error || "No se pudo completar la reserva",
+            variant: "destructive"
+          });
+        }
+        return;
+      }
+
+      toast({
+        title: "¡Reserva privada realizada!",
+        description: `Has reservado la clase completa para ${privateAttendees} persona${privateAttendees > 1 ? 's' : ''}. Pista asignada.`,
+        duration: 5000
+      });
+
+      if (data.updatedSlot) {
+        onBookingSuccess(data.updatedSlot);
+      } else {
+        onBookingSuccess();
+      }
+
+      window.dispatchEvent(new CustomEvent('bookingUpdate', { 
+        detail: { timeSlotId: currentSlotData.id, action: 'book' } 
+      }));
+
+    } catch (error) {
+      console.error('Error al realizar reserva privada:', error);
+      toast({
+        title: "Error",
+        description: "Ocurrió un error al procesar la reserva privada",
+        variant: "destructive"
+      });
+    } finally {
+      setIsBooking(false);
+    }
+  };
+
+  const handleBook = async () => {
+    const groupSize = pendingGroupSize;
+    console.log('🎯 handleBook confirmado con groupSize:', groupSize);
+    
+    setShowConfirmDialog(false);
+    console.log('🆔 User ID que se va a enviar:', currentUser?.id);
+    console.log('📋 Tipo de currentUser.id:', typeof currentUser?.id);
+    
+    // ♻️ VERIFICAR SI HAY PLAZAS RECICLADAS EN ESTA OPCIÓN
+    const hasRecycledInOption = bookings.some(b => 
+      b.groupSize === groupSize && 
+      b.status === 'CANCELLED' && 
+      b.isRecycled === true
+    );
+    
+    let usePoints = false;
+    
+    if (hasRecycledInOption) {
+      // ♻️ Hay plazas recicladas - preguntar al usuario si quiere usar puntos
+      const userPoints = (currentUser as any).points || 0;
+      const pricePerSlot = ((currentSlotData.totalPrice || 25) / groupSize);
+      const pointsRequired = Math.floor(pricePerSlot);
+      
+      console.log(`♻️ Plaza reciclada detectada. Puntos usuario: ${userPoints}, Requeridos: ${pointsRequired}`);
+      
+      if (userPoints >= pointsRequired) {
+        // Usuario tiene suficientes puntos - preguntar si quiere usarlos
+        const wantsToUsePoints = window.confirm(
+          `♻️ Esta clase tiene plazas recicladas.\n\n` +
+          `Puedes reservar con puntos:\n` +
+          `💎 Puntos requeridos: ${pointsRequired}\n` +
+          `💎 Tus puntos: ${userPoints}\n\n` +
+          `¿Deseas usar puntos para reservar?`
+        );
+        
+        if (wantsToUsePoints) {
+          usePoints = true;
+          console.log('✅ Usuario eligió pagar con puntos');
+        } else {
+          console.log('❌ Usuario eligió pagar con créditos normales');
+        }
+      } else {
+        // No tiene suficientes puntos - informar y continuar con créditos
+        toast({
+          title: "♻️ Plaza Reciclada",
+          description: `Esta plaza requiere ${pointsRequired} puntos para reservar (tienes ${userPoints}). Se usarán tus créditos normales.`,
+          variant: "default",
+          duration: 4000
+        });
+      }
+    }
     
     setBooking(true);
     try {
       console.log('📝 Enviando booking:', { 
         userId: currentUser.id, 
-        timeSlotId: classData.id, 
-        groupSize 
+        timeSlotId: currentSlotData.id, 
+        groupSize,
+        usePoints 
       });
       
       const response = await fetch('/api/classes/book', {
@@ -111,21 +345,52 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         credentials: 'include',
         body: JSON.stringify({
           userId: currentUser.id,
-          timeSlotId: classData.id,
-          groupSize
+          timeSlotId: currentSlotData.id,
+          groupSize,
+          usePoints // 💰 Enviar flag de pago con puntos
         })
       });
 
       if (response.ok) {
+        const result = await response.json();
+        
+        // ✅ Si la API devolvió el slot actualizado, usarlo para actualización inmediata
+        if (result.updatedSlot) {
+          console.log('✅ Slot actualizado recibido del API:', result.updatedSlot);
+          console.log('✅ Bookings en updatedSlot:', result.updatedSlot.bookings);
+          
+          // Convertir el slot del API al formato TimeSlot
+          const updatedSlot: TimeSlot = {
+            ...result.updatedSlot,
+            start: result.updatedSlot.start,
+            end: result.updatedSlot.end,
+            bookedPlayers: result.updatedSlot.bookings || [],
+            bookings: result.updatedSlot.bookings || []
+          };
+          
+          // ✅ Actualizar bookings inmediatamente en el estado local
+          if (result.updatedSlot.bookings && Array.isArray(result.updatedSlot.bookings)) {
+            console.log('✅ Actualizando bookings localmente:', result.updatedSlot.bookings);
+            setBookings(result.updatedSlot.bookings);
+          }
+          
+          // Actualizar estado local del slot
+          setCurrentSlotData(updatedSlot);
+          
+          // Notificar al padre con el slot actualizado
+          onBookingSuccess(updatedSlot);
+        } else {
+          // Fallback: recargar desde padre si no viene updatedSlot
+          setTimeout(() => {
+            onBookingSuccess();
+          }, 100);
+        }
+        
         toast({
           title: "¡Reserva realizada!",
           description: `Has reservado una plaza para ${groupSize} jugador${groupSize > 1 ? 'es' : ''}.`,
           className: "bg-green-600 text-white"
         });
-        // Pequeño delay para asegurar que la BD se actualice antes de refrescar
-        setTimeout(() => {
-          onBookingSuccess(); // Recargar lista completa desde el padre y actualizar calendario
-        }, 100);
       } else {
         const error = await response.json();
         
@@ -164,7 +429,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         credentials: 'include',
         body: JSON.stringify({
           userId: currentUser?.id || userId,
-          timeSlotId: classData.id,
+          timeSlotId: currentSlotData.id,
         })
       });
 
@@ -173,7 +438,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         
         // 🔄 Notificar a TODAS las páginas abiertas que se canceló una reserva
         localStorage.setItem('bookingCancelled', JSON.stringify({
-          timeSlotId: classData.id,
+          timeSlotId: currentSlotData.id,
           userId: currentUser?.id || userId,
           timestamp: Date.now()
         }));
@@ -237,10 +502,36 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   };
 
   // Función para formatear hora de manera consistente (evita problemas de hidratación)
-  const formatTime = (date: Date | string) => {
+  // Helper para convertir cualquier formato de fecha a Date
+  const toDateObject = (date: Date | string | number): Date => {
+    // Validar que existe el valor
+    if (!date) {
+      console.error('⚠️ toDateObject: date is null/undefined, usando fecha del slot');
+      // Usar la fecha del slot como fallback
+      if (currentSlotData?.start) {
+        return toDateObject(currentSlotData.start);
+      }
+      // Si tampoco hay fecha en el slot, usar fecha actual pero logear error
+      console.error('❌ No hay fecha disponible ni en parámetro ni en slot');
+      return new Date();
+    }
+    
+    if (date instanceof Date) return date;
+    if (typeof date === 'number') return new Date(date);
+    
+    // Para strings, intentar parsear
+    const parsed = new Date(date);
+    if (isNaN(parsed.getTime())) {
+      console.error('⚠️ toDateObject: Invalid date string:', date);
+      return new Date();
+    }
+    
+    return parsed;
+  };
+
+  const formatTime = (date: Date | string | number) => {
     try {
-      // Si es string, convertir a Date
-      const dateObj = date instanceof Date ? date : new Date(date);
+      const dateObj = toDateObject(date);
       
       // Validar que es un Date válido
       if (!(dateObj instanceof Date) || isNaN(dateObj.getTime())) {
@@ -300,9 +591,9 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     return colors[category?.toLowerCase() || ''] || 'text-gray-700 border-gray-200 bg-gray-100';
   };
 
-  const pricePerPerson = (classData.totalPrice || 25) / 4; // Precio en euros
+  const pricePerPerson = (currentSlotData.totalPrice || 25) / 4; // Precio en euros
   const instructorRating = 4.8; // Mock rating
-  const CategoryIcon = getCategoryIcon(classData.category);
+  const CategoryIcon = getCategoryIcon(currentSlotData.category);
 
   if (loading) {
     return (
@@ -334,10 +625,10 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     }
 
     // Primero: Si ya tiene courtNumber en la BD, usarlo directamente
-    if (classData.courtNumber != null && classData.courtNumber > 0) {
+    if (currentSlotData.courtNumber != null && currentSlotData.courtNumber > 0) {
       return { 
         isAssigned: true, 
-        courtNumber: classData.courtNumber 
+        courtNumber: currentSlotData.courtNumber 
       };
     }
 
@@ -368,14 +659,14 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   // Determinar categoría dinámica basada en el primer usuario inscrito
   const getDynamicCategory = () => {
     // PRIMERO: Verificar si el TimeSlot ya tiene una categoría asignada (de la BD)
-    if (classData.genderCategory && classData.genderCategory !== 'mixto') {
+    if (currentSlotData.genderCategory && currentSlotData.genderCategory !== 'mixto') {
       const genderMapping: Record<string, string> = {
         'femenino': 'Chica',
         'masculino': 'Chico',
         'mujer': 'Chica',
         'hombre': 'Chico'
       };
-      const category = genderMapping[classData.genderCategory.toLowerCase()] || 'Mixto';
+      const category = genderMapping[currentSlotData.genderCategory.toLowerCase()] || 'Mixto';
       return { category, isAssigned: true };
     }
 
@@ -410,8 +701,21 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     return { category: 'Abierta', isAssigned: false };
   };
 
-  // Determinar nivel dinámico basado en el primer usuario inscrito  
+  // Determinar nivel dinámico basado en el levelRange del TimeSlot o el primer usuario inscrito  
   const getDynamicLevel = (): { level: string; isAssigned: boolean } => {
+    // 🐛 DEBUG: Log para ver qué está recibiendo
+    console.log(`🔍 [ClassCard ${currentSlotData.id}] levelRange:`, (currentSlotData as any).levelRange);
+    
+    // 🎯 PRIORIDAD 1: Usar levelRange del TimeSlot si está definido
+    if ((currentSlotData as any).levelRange) {
+      console.log(`✅ [ClassCard ${currentSlotData.id}] Usando levelRange:`, (currentSlotData as any).levelRange);
+      return { 
+        level: (currentSlotData as any).levelRange, 
+        isAssigned: true 
+      };
+    }
+
+    // 🎯 PRIORIDAD 2: Si no hay levelRange, buscar el nivel del primer usuario
     if (!Array.isArray(bookings) || bookings.length === 0) {
       return { level: 'Abierto', isAssigned: false };
     }
@@ -423,20 +727,8 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     
     const firstUser = sortedBookings[0];
     if (firstUser?.userLevel) {
-      // Mapear nivel de usuario a rango de nivel con rangos numéricos
-      const levelRanges: Record<string, string> = {
-        'principiante': '1.0 - 2.5',
-        'inicial-medio': '2.0 - 3.5', 
-        'intermedio': '3.0 - 4.5',
-        'avanzado': '4.0 - 5.5',
-        'profesional': '5.0 - 6.0',
-        'abierto': 'Abierto'
-      };
-      
-      const userLevel = firstUser.userLevel.toLowerCase();
-      const levelRange = levelRanges[userLevel] || firstUser.userLevel;
-      
-      return { level: levelRange, isAssigned: true };
+      // Mostrar el nivel del usuario directamente si no hay rango definido
+      return { level: firstUser.userLevel, isAssigned: true };
     }
 
     return { level: 'Abierto', isAssigned: false };
@@ -453,15 +745,15 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           <div className="flex items-center gap-2 flex-1 min-w-0">
             {/* Instructor Avatar */}
             <div className="w-14 h-14 rounded-full bg-gray-200 overflow-hidden flex items-center justify-center flex-shrink-0">
-              {classData.instructorProfilePicture ? (
+              {currentSlotData.instructorProfilePicture ? (
                 <img 
-                  src={classData.instructorProfilePicture}
-                  alt={classData.instructorName || 'Instructor'}
+                  src={currentSlotData.instructorProfilePicture}
+                  alt={currentSlotData.instructorName || 'Instructor'}
                   className="w-full h-full object-cover"
                 />
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-semibold text-base">
-                  {(classData.instructorName || 'I').charAt(0).toUpperCase()}
+                  {(currentSlotData.instructorName || 'I').charAt(0).toUpperCase()}
                 </div>
               )}
             </div>
@@ -469,7 +761,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
             {/* Instructor Name and Rating */}
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-gray-900 text-sm leading-tight line-clamp-2 break-words">
-                {classData.instructorName || 'Carlos Santana'}
+                {currentSlotData.instructorName || 'Carlos Santana'}
               </h3>
               <div className="flex items-center gap-1 mt-0.5">
                 {/* Stars */}
@@ -487,8 +779,25 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           
           {/* Reserve Button */}
           <button 
-            className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg font-medium text-xs transition-colors shadow-lg flex items-center gap-2"
-            onClick={() => handleBook(4)}
+            className={cn(
+              "px-3 py-1.5 rounded-lg font-medium text-xs transition-colors shadow-lg flex items-center gap-2",
+              hasConfirmedBookingToday
+                ? "bg-gray-400 cursor-not-allowed opacity-50"
+                : "bg-purple-600 hover:bg-purple-700 text-white"
+            )}
+            onClick={() => {
+              if (hasConfirmedBookingToday) {
+                toast({
+                  title: "❌ Reserva bloqueada",
+                  description: "Ya tienes una reserva confirmada este día",
+                  variant: "destructive",
+                  duration: 5000
+                });
+              } else {
+                setShowPrivateDialog(true);
+              }
+            }}
+            disabled={hasConfirmedBookingToday}
           >
             <span className="text-lg">+</span>
             <div className="flex flex-col items-start leading-tight">
@@ -550,15 +859,15 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
             <div className="flex items-center gap-3">
               {/* Número del día */}
               <div className="text-[2rem] font-black text-gray-900 leading-none min-w-[3rem] text-center">
-                {format(classData.startTime, 'dd', { locale: es })}
+                {format(toDateObject(currentSlotData.start), 'dd', { locale: es })}
               </div>
               {/* Día y mes en texto */}
               <div className="flex flex-col justify-center gap-0.5">
                 <div className="text-sm font-bold text-gray-900 uppercase tracking-tight leading-none">
-                  {format(classData.startTime, 'EEEE', { locale: es })}
+                  {format(toDateObject(currentSlotData.start), 'EEEE', { locale: es })}
                 </div>
                 <div className="text-xs font-normal text-gray-500 capitalize leading-none">
-                  {format(classData.startTime, 'MMMM', { locale: es })}
+                  {format(toDateObject(currentSlotData.start), 'MMMM', { locale: es })}
                 </div>
               </div>
             </div>
@@ -567,7 +876,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
             <div className="flex items-center gap-4">
               <div className="text-right">
                 <div className="text-2xl font-bold text-gray-900 leading-none">
-                  {formatTime(classData.startTime)}
+                  {formatTime(currentSlotData.start)}
                 </div>
                 <div className="text-xs text-gray-500 flex items-center justify-end gap-1 mt-1">
                   <Clock className="w-3 h-3" />
@@ -591,6 +900,18 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
 
       {/* Pricing Options */}
       <div className="px-3 py-1.5 space-y-0">
+        {/* 🚫 Mensaje de bloqueo si tiene reserva confirmada */}
+        {hasConfirmedBookingToday && !loadingBookingCheck && (
+          <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-center gap-2 text-red-700 text-xs font-medium">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <span>Ya tienes una reserva confirmada este día</span>
+            </div>
+          </div>
+        )}
+        
         {[1, 2, 3, 4].filter(players => allowedPlayerCounts.includes(players)).map((players) => {
           // CORRECCIÓN: Solo mostrar reservas que corresponden exactamente a esta modalidad
           const modalityBookings = Array.isArray(bookings) 
@@ -607,7 +928,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           
           // Debug log para mostrar el filtrado
           if (bookings.length > 0) {
-            console.log(`🎯 Clase ${classData.id.substring(0, 8)}: Modalidad ${players} jugadores`);
+            console.log(`🎯 Clase ${currentSlotData.id.substring(0, 8)}: Modalidad ${players} jugadores`);
             console.log(`📋 Todas las reservas:`, bookings.map(b => `${b.name}(${b.groupSize})`));
             console.log(`📋 Reservas filtradas para ${players}:`, modalityBookings.map(b => `${b.name}(${b.groupSize})`));
           }
@@ -616,20 +937,27 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           const bookedUsers = modalityBookings.slice(0, players);
           
           const isUserBookedForOption = isUserBooked(players);
-          const pricePerPerson = (classData.totalPrice || 25) / players; // Precio en euros
+          const pricePerPerson = (currentSlotData.totalPrice || 25) / players; // Precio en euros
           
           return (
             <div 
               key={players} 
               className={cn(
                 "flex items-center justify-between gap-2 p-1 rounded-lg transition-colors",
-                isAnotherModalityConfirmed 
+                hasConfirmedBookingToday || isAnotherModalityConfirmed 
                   ? "opacity-40 cursor-not-allowed bg-gray-100" 
                   : "cursor-pointer hover:bg-gray-50"
               )}
               onClick={() => {
-                if (!isAnotherModalityConfirmed) {
-                  handleBook(players);
+                if (hasConfirmedBookingToday) {
+                  toast({
+                    title: "❌ Reserva bloqueada",
+                    description: "Ya tienes una reserva confirmada este día. Solo puedes tener una reserva confirmada por día.",
+                    variant: "destructive",
+                    duration: 5000
+                  });
+                } else if (!isAnotherModalityConfirmed) {
+                  handleBookClick(players);
                 } else {
                   toast({
                     title: "Clase Confirmada",
@@ -645,12 +973,14 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                   const booking = bookedUsers[index];
                   const isOccupied = !!booking;
                   const isCurrentUser = booking?.userId === currentUser?.id;
+                  const isRecycled = booking?.status === 'CANCELLED' && booking?.isRecycled === true;
                   const displayName = booking?.name ? booking.name.substring(0, 5) : '';
                   
                   // Debug log para ver los datos del booking
                   if (isOccupied && index === 0) {
                     console.log('🖼️ Booking completo:', booking);
                     console.log('📸 profilePictureUrl:', booking.profilePictureUrl);
+                    console.log('♻️ isRecycled:', isRecycled);
                   }
                   
                   return (
@@ -658,19 +988,28 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                       <div
                         className={cn(
                           "w-12 h-12 rounded-full border-2 flex items-center justify-center text-lg font-bold transition-all shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]",
-                          isOccupied 
-                            ? 'border-green-500 bg-white' 
-                            : 'border-dashed border-green-400 bg-white text-green-400',
+                          isRecycled
+                            ? 'border-yellow-500 bg-yellow-400 text-yellow-900 recycled-slot-blink' // ♻️ Plaza reciclada
+                            : isOccupied 
+                              ? 'border-green-500 bg-white' 
+                              : 'border-dashed border-green-400 bg-white text-green-400',
                           isCurrentUser && 'ring-2 ring-blue-400 ring-offset-1',
                           isAnotherModalityConfirmed && 'grayscale opacity-50'
                         )}
                         title={
-                          isAnotherModalityConfirmed 
-                            ? 'Opción bloqueada - Otra modalidad confirmada'
-                            : isOccupied ? booking.name : 'Disponible'
+                          isRecycled
+                            ? '♻️ Plaza reciclada - Reservable con puntos'
+                            : isAnotherModalityConfirmed 
+                              ? 'Opción bloqueada - Otra modalidad confirmada'
+                              : isOccupied ? booking.name : 'Disponible'
                         }
                       >
-                        {isOccupied ? (
+                        {isRecycled ? (
+                          // ♻️ Mostrar símbolo de reciclaje para plazas recicladas
+                          <div className="w-full h-full rounded-full bg-yellow-400 flex items-center justify-center shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]">
+                            <span className="text-yellow-900 text-2xl">♻️</span>
+                          </div>
+                        ) : isOccupied ? (
                           (() => {
                             console.log(`🎨 Renderizando círculo ${index + 1}/${players}:`, {
                               hasProfilePic: !!booking.profilePictureUrl,
@@ -711,7 +1050,9 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                         )}
                       </div>
                       <span className="text-xs font-medium leading-none">
-                        {isOccupied ? (
+                        {isRecycled ? (
+                          <span className="text-yellow-600 font-semibold">♻️ Reciclada</span>
+                        ) : isOccupied ? (
                           <span className="text-gray-700">{displayName}</span>
                         ) : (
                           <span className="text-green-400">Libre</span>
@@ -861,6 +1202,74 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           )}
         </div>
       </div>
+      
+      {/* Diálogo de Confirmación */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Reserva</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas reservar una plaza para {pendingGroupSize} jugador{pendingGroupSize > 1 ? 'es' : ''}?
+              <br /><br />
+              <strong>Clase:</strong> {currentSlotData.level}
+              <br />
+              <strong>Fecha:</strong> {format(new Date(currentSlotData.start), "d 'de' MMMM 'a las' HH:mm", { locale: es })}
+              <br />
+              <strong>Precio por jugador:</strong> €{calculateSlotPrice(currentSlotData.totalPrice || 0, pendingGroupSize).toFixed(2)}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBook} className="bg-blue-600 hover:bg-blue-700">
+              Confirmar Reserva
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Diálogo de Reserva Privada */}
+      <AlertDialog open={showPrivateDialog} onOpenChange={setShowPrivateDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reserva Privada</AlertDialogTitle>
+            <AlertDialogDescription>
+              Reserva la clase completa (instructor + pista) para tu grupo.
+              <br /><br />
+              <strong>Clase:</strong> {currentSlotData.level}
+              <br />
+              <strong>Fecha:</strong> {format(new Date(currentSlotData.start), "d 'de' MMMM 'a las' HH:mm", { locale: es })}
+              <br />
+              <strong>Precio total:</strong> €{(currentSlotData.totalPrice || 0).toFixed(2)}
+              <br /><br />
+              <div className="space-y-2">
+                <label className="text-sm font-medium">¿Cuántas personas asistirán? (informativo)</label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4].map(num => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => setPrivateAttendees(num)}
+                      className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
+                        privateAttendees === num
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handlePrivateBooking} className="bg-purple-600 hover:bg-purple-700">
+              Confirmar Reserva Privada
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

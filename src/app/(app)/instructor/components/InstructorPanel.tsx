@@ -23,6 +23,7 @@ import { getMockClubs, getMockPadelCourts, updateInstructor, getMockCurrentUser,
 import { cn } from '@/lib/utils';
 import { dayOfWeekLabels } from '@/types';
 import InstructorAvailabilitySettings from './InstructorAvailabilitySettings';
+import InstructorLevelRanges from './InstructorLevelRanges';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
@@ -151,47 +152,81 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
 
   const handleSaveInstructorPreferences = (values: PreferencesFormData) => {
     startSettingsTransition(async () => {
-      const safeRateTiers = values.rateTiers?.map(t => ({
-        ...t,
-        days: (t.days as unknown as DayOfWeek[]),
-      }));
-      const updatePayload: Partial<Omit<InstructorType, 'id'>> = {
-        ...values,
-        assignedClubId: values.assignedClubId || undefined,
-        assignedCourtNumber: values.assignedCourtNumber || undefined,
-        rateTiers: safeRateTiers,
-      };
-      const result = await updateInstructor(instructorData.id, updatePayload);
-      if ('error'in result) {
-        toast({ title: "Error al Guardar Preferencias", description: result.error, variant: "destructive" });
-      } else {
-        const updatedInstructor = result as InstructorType;
-        setInstructorData(prev => ({ ...prev, ...updatedInstructor }));
-    const currentUser = await getMockCurrentUser();
-    if (currentUser && currentUser.id === instructorData.id) {
-      setGlobalCurrentUser({ ...(currentUser as any), ...updatedInstructor } as any);
-    }
-        toast({ title: "Preferencias Guardadas", description: "Tus preferencias y tarifas de instructor han sido actualizadas.", className: "bg-primary text-primary-foreground" });
-    preferencesForm.reset(values); // Reset form with new values to remove dirty state
-    handleClassAdded(); // Trigger a refresh of the class list to show new prices
+      try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+          toast({ title: "Error de Autenticación", description: "No se encontró token de sesión", variant: "destructive" });
+          return;
+        }
+
+        const safeRateTiers = values.rateTiers?.map(t => ({
+          ...t,
+          days: (t.days as unknown as DayOfWeek[]),
+        }));
+        
+        const updatePayload = {
+          isAvailable: values.isAvailable,
+          defaultRatePerHour: values.defaultRatePerHour,
+          rateTiers: safeRateTiers,
+        };
+
+        const response = await fetch(`/api/instructors/${instructorData.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(updatePayload)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          toast({ title: "Error al Guardar Preferencias", description: result.error || 'Error desconocido', variant: "destructive" });
+        } else {
+          setInstructorData(prev => ({ ...prev, ...result.instructor }));
+          toast({ title: "Preferencias Guardadas", description: "Tus preferencias y tarifas de instructor han sido actualizadas.", className: "bg-primary text-primary-foreground" });
+          preferencesForm.reset(values);
+          handleClassAdded();
+        }
+      } catch (error) {
+        console.error('Error saving preferences:', error);
+        toast({ title: "Error al Guardar Preferencias", description: "Error de conexión", variant: "destructive" });
       }
     });
   };
 
   const handleSaveUnavailableHours = async (unavailableHours: Partial<Record<DayOfWeek, TimeRange[]>>) => {
     startSettingsTransition(async () => {
-        const result = await updateInstructor(instructorData.id, { unavailableHours });
-        if('error' in result) {
-            toast({ title: "Error al Guardar Disponibilidad", description: result.error, variant: "destructive"});
-        } else {
-            setInstructorData(prev => ({ ...prev, ...result })); // Update local instructor data
-      const currentUser = await getMockCurrentUser();
-      if (currentUser && currentUser.id === instructorData.id) { // Also update global state if current user is this instructor
-        setGlobalCurrentUser({ ...(currentUser as any), unavailableHours: result.unavailableHours || {} } as any);
-      }
-            toast({ title: "Disponibilidad Guardada", description: "Tu horario de disponibilidad ha sido actualizado.", className: "bg-primary text-primary-foreground" });
-      handleClassAdded(); // Refresh classes to respect new availability
+      try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+          toast({ title: "Error de Autenticación", description: "No se encontró token de sesión", variant: "destructive" });
+          return;
         }
+
+        const response = await fetch(`/api/instructors/${instructorData.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ unavailableHours })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          toast({ title: "Error al Guardar Disponibilidad", description: result.error || 'Error desconocido', variant: "destructive"});
+        } else {
+          setInstructorData(prev => ({ ...prev, ...result.instructor }));
+          toast({ title: "Disponibilidad Guardada", description: "Tu horario de disponibilidad ha sido actualizado.", className: "bg-primary text-primary-foreground" });
+          handleClassAdded();
+        }
+      } catch (error) {
+        console.error('Error saving availability:', error);
+        toast({ title: "Error al Guardar Disponibilidad", description: "Error de conexión", variant: "destructive"});
+      }
     });
   };
 
@@ -306,7 +341,24 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
       </TabsContent>
 
       <TabsContent value="instructorPreferences">
-        <Card>
+        <div className="space-y-6">
+          {/* Rangos de Nivel de Usuarios */}
+          <InstructorLevelRanges 
+            instructorId={instructorData.id}
+            initialRanges={(() => {
+              try {
+                return instructorData.levelRanges && instructorData.levelRanges.trim() !== '' 
+                  ? JSON.parse(instructorData.levelRanges) 
+                  : [];
+              } catch (e) {
+                console.error('Error parsing levelRanges:', e);
+                return [];
+              }
+            })()}
+          />
+
+          {/* Preferencias y Tarifas */}
+          <Card>
             <CardHeader>
                 <CardTitle className="flex items-center"><Settings2 className="mr-2 h-5 w-5 text-primary" />Preferencias y Tarifas</CardTitle>
                 <CardDescription>Configura tu club de operación, disponibilidad general y tarifas por hora.</CardDescription>
@@ -314,31 +366,6 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
             <CardContent>
               <Form {...preferencesForm}>
                 <form onSubmit={preferencesForm.handleSubmit(handleSaveInstructorPreferences)} className="space-y-6">
-                  
-                  <FormField control={preferencesForm.control} name="assignedClubId" render={({ field }) => (
-                    <FormItem><FormLabel>Club de Operación Principal</FormLabel>
-                      <Select value={field.value || ""} onValueChange={(value) => field.onChange(value === "" ? undefined : value)} disabled={isSavingSettings}>
-                          <FormControl><SelectTrigger><SelectValue placeholder="Selecciona tu club principal" /></SelectTrigger></FormControl>
-                          <SelectContent>
-                              {availableClubs.map(club => (<SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>))}
-                          </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-
-                  <FormField control={preferencesForm.control} name="assignedCourtNumber" render={({ field }) => (
-                     <FormItem><FormLabel>Pista Asignada (opcional)</FormLabel>
-                        <Select value={field.value?.toString() ?? "none"} onValueChange={(val) => field.onChange(val === "none" ? undefined : parseInt(val))} disabled={!watchedAssignedClubId || availableCourtsForSelectedClub.length === 0 || isSavingSettings}>
-                          <FormControl><SelectTrigger><SelectValue placeholder={!watchedAssignedClubId ? "Selecciona un club primero" : "Ninguna (flotante)"} /></SelectTrigger></FormControl>
-                          <SelectContent>
-                              <SelectItem value="none">Ninguna (flotante)</SelectItem>
-                              {availableCourtsForSelectedClub.map(court => (<SelectItem key={court.id} value={court.courtNumber.toString()}>{court.name} (Pista {court.courtNumber})</SelectItem>))}
-                          </SelectContent>
-                        </Select>
-                     <FormMessage />
-                     </FormItem>
-                  )} />
 
                   <FormField control={preferencesForm.control} name="isAvailable" render={({ field }) => (
                       <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
@@ -409,6 +436,7 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
               </Form>
             </CardContent>
         </Card>
+        </div>
       </TabsContent>
     </Tabs>
   );

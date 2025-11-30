@@ -102,4 +102,20 @@ body {
     overscroll-behavior-x: contain;
     overscroll-behavior-y: none;
   }
+
+  /* Animación de blink para plazas recicladas */
+  @keyframes recycled-blink {
+    0%, 100% {
+      opacity: 1;
+      box-shadow: 0 0 10px rgba(234, 179, 8, 0.6), inset 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+    50% {
+      opacity: 0.7;
+      box-shadow: 0 0 20px rgba(234, 179, 8, 0.9), inset 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+  }
+
+  .recycled-slot-blink {
+    animation: recycled-blink 2s ease-in-out infinite;
+  }
 }

@@ -8,6 +8,7 @@ import { Calendar, CalendarIcon, ChevronLeft, ChevronRight, Filter, Users, DoorO
 import CalendarEventDetails from './CalendarEventDetails';
 import DateSelector from './DateSelector';
 import ClassCardReal from '@/components/class/ClassCardReal';
+import GenerateProposalsButton from './GenerateProposalsButton';
 import {
   Select,
   SelectContent,
@@ -490,16 +491,27 @@ export default function ClubCalendar({
         <Card className="hidden md:block bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 border-0 shadow-2xl overflow-hidden">
           <CardContent className="p-6">
             <div className="flex items-center justify-between gap-6">
-              {/* Título */}
+              {/* Título con Logo */}
               <div className="flex items-center gap-4 min-w-fit">
-                <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
-                  <CalendarIcon className="h-6 w-6 text-white" />
-                </div>
+                {calendarData.courts[0]?.clubLogo ? (
+                  <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+                    <img 
+                      src={calendarData.courts[0].clubLogo} 
+                      alt={calendarData.courts[0]?.clubName || 'Club'} 
+                      className="h-16 w-16 object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+                    <CalendarIcon className="h-6 w-6 text-white" />
+                  </div>
+                )}
                 <h2 className="text-white text-xl font-bold whitespace-nowrap">Calendario del Club, {calendarData.courts[0]?.clubName || 'Club'}</h2>
               </div>
               
               {/* Botones a la derecha */}
               <div className="flex gap-2">
+                <GenerateProposalsButton />
                 <Button
                   variant="secondary"
                   size="sm"
@@ -540,7 +552,15 @@ export default function ClubCalendar({
           <Card className="bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 border-0 shadow-lg">
             <CardHeader className="p-4">
               <CardTitle className="flex items-center gap-2 text-white text-lg font-bold">
-                <CalendarIcon className="h-5 w-5" />
+                {calendarData.courts[0]?.clubLogo ? (
+                  <img 
+                    src={calendarData.courts[0].clubLogo} 
+                    alt={calendarData.courts[0]?.clubName || 'Club'} 
+                    className="h-10 w-10 object-contain"
+                  />
+                ) : (
+                  <CalendarIcon className="h-5 w-5" />
+                )}
                 Calendario del Club, {calendarData.courts[0]?.clubName || 'Club'}
               </CardTitle>
             </CardHeader>
@@ -681,8 +701,8 @@ export default function ClubCalendar({
                     const [hour, minute] = time.split(':');
                     return (
                       <div key={time} className="w-8 md:w-11 border-r text-center py-1 flex-shrink-0 hover:bg-blue-50 transition-colors">
-                        <div className="text-[12px] font-black text-gray-800 leading-none">{hour}</div>
-                        <div className="text-[10px] font-bold text-gray-500 leading-none">{minute}</div>
+                        <div className="text-[14px] font-black text-gray-800 leading-none">{hour}</div>
+                        <div className="text-[12px] font-bold text-gray-500 leading-none">{minute}</div>
                       </div>
                     );
                   })}

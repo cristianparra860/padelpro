@@ -4,67 +4,63 @@ const prisma = new PrismaClient();
 
 async function checkClassDates() {
   try {
-    console.log('🔍 Verificando fechas de clases en la base de datos...\n');
-
-    // Obtener todas las clases con sus fechas
-    const timeSlots = await prisma.timeSlot.findMany({
-      select: {
-        id: true,
-        start: true,
-        end: true,
-        clubId: true,
-        instructorId: true,
-        maxPlayers: true,
-        totalPrice: true
+    console.log('\n📅 VERIFICANDO CLASES CONFIRMADAS\n');
+    
+    const classes = await prisma.timeSlot.findMany({
+      where: {
+        courtId: { not: null }
       },
-      orderBy: {
-        start: 'asc'
-      }
+      include: {
+        court: { select: { number: true } },
+        instructor: { include: { user: { select: { name: true } } } },
+        bookings: {
+          where: { status: { in: ['PENDING', 'CONFIRMED'] } },
+          include: { user: { select: { name: true, email: true } } }
+        }
+      },
+      orderBy: { start: 'asc' }
     });
-
-    console.log(`📊 Total de clases encontradas: ${timeSlots.length}\n`);
-
-    if (timeSlots.length === 0) {
-      console.log('❌ No hay clases en la base de datos');
-      return;
-    }
-
-    // Agrupar por fecha
-    const classesByDate = {};
-    timeSlots.forEach(slot => {
-      const date = slot.start.toISOString().split('T')[0];
-      if (!classesByDate[date]) {
-        classesByDate[date] = [];
+    
+    console.log(`Total clases confirmadas: ${classes.length}\n`);
+    
+    classes.forEach((c, i) => {
+      const d = new Date(c.start);
+      const marcBooking = c.bookings.find(b => 
+        b.user.email && (b.user.email.includes('marc') || b.user.email.includes('jugador1'))
+      );
+      
+      console.log(`${i + 1}. ${d.toLocaleString('es-ES')}`);
+      console.log(`   ID: ${c.id.substring(0, 20)}...`);
+      console.log(`   Pista: ${c.court?.number || 'SIN PISTA'}`);
+      console.log(`   Instructor: ${c.instructor?.user?.name || 'Sin instructor'}`);
+      console.log(`   Bookings: ${c.bookings.length}`);
+      if (marcBooking) {
+        console.log(`   ⭐ Marc está en esta clase (${marcBooking.status})`);
       }
-      classesByDate[date].push(slot);
-    });
-
-    console.log('📅 Clases agrupadas por fecha:\n');
-    Object.keys(classesByDate).sort().forEach(date => {
-      const classes = classesByDate[date];
-      console.log(`📅 ${date}: ${classes.length} clases`);
-      classes.forEach((cls, index) => {
-        const startTime = cls.start.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-        const endTime = cls.end.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-        console.log(`   ${index + 1}. ${startTime}-${endTime} | Max: ${cls.maxPlayers} | Precio: €${cls.totalPrice} | ID: ${cls.id.substring(0, 12)}...`);
-      });
       console.log('');
     });
-
-    // Verificar fecha de hoy
-    const today = new Date('2025-09-25').toISOString().split('T')[0]; // Fecha actual según contexto
-    console.log(`🗓️ Fecha de hoy: ${today}`);
     
-    if (classesByDate[today]) {
-      console.log(`✅ Hay ${classesByDate[today].length} clases para hoy`);
-    } else {
-      console.log(`❌ No hay clases para hoy`);
-      
-      // Buscar la fecha más cercana con clases
-      const futureDates = Object.keys(classesByDate).filter(date => date >= today).sort();
-      if (futureDates.length > 0) {
-        console.log(`💡 La fecha más próxima con clases es: ${futureDates[0]} (${classesByDate[futureDates[0]].length} clases)`);
-      }
+    // Verificar qué devolvería el API del calendario
+    console.log('\n📆 SIMULANDO API /admin/calendar\n');
+    
+    const now = new Date();
+    const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    
+    console.log(`Rango API: ${startDate.toLocaleDateString('es-ES')} - ${endDate.toLocaleDateString('es-ES')}`);
+    
+    const classesInRange = classes.filter(c => {
+      const d = new Date(c.start);
+      return d >= startDate && d <= endDate;
+    });
+    
+    console.log(`Clases en rango del mes actual: ${classesInRange.length}\n`);
+    
+    if (classesInRange.length > 0) {
+      classesInRange.forEach(c => {
+        const d = new Date(c.start);
+        console.log(`  ${d.toLocaleString('es-ES')} - Pista ${c.court?.number}`);
+      });
     }
 
   } catch (error) {

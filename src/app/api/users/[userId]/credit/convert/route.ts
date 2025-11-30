@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { createTransaction } from '@/lib/transactionLogger';
 
 export async function POST(
   request: NextRequest,
@@ -54,6 +55,38 @@ export async function POST(
 
     const newCreditBalance = updatedUser.credits || 0;
     const newLoyaltyPoints = updatedUser.points || 0;
+
+    // Registrar transacción de conversión de créditos
+    await createTransaction({
+      userId,
+      type: 'credit',
+      action: 'subtract',
+      amount: eurosAmount,
+      balance: newCreditBalance,
+      concept: `Conversión de ${eurosAmount}€ a ${pointsToAdd} puntos`,
+      relatedType: 'conversion',
+      metadata: {
+        convertedEuros: eurosAmount,
+        pointsReceived: pointsToAdd,
+        exchangeRate: pointsPerEuro || 1
+      }
+    });
+
+    // Registrar transacción de puntos recibidos
+    await createTransaction({
+      userId,
+      type: 'points',
+      action: 'add',
+      amount: pointsToAdd,
+      balance: newLoyaltyPoints,
+      concept: `Conversión de ${eurosAmount}€ a puntos`,
+      relatedType: 'conversion',
+      metadata: {
+        convertedEuros: eurosAmount,
+        pointsReceived: pointsToAdd,
+        exchangeRate: pointsPerEuro || 1
+      }
+    });
 
     console.log(`✅ Convertidos ${euros}€ a ${pointsToAdd} puntos para usuario ${userId}`);
     console.log(`   Nuevo saldo: ${newCreditBalance}€, Nuevos puntos: ${newLoyaltyPoints}`);

@@ -1,0 +1,223 @@
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Clock, Save } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+import type { Club } from '@/types';
+
+interface ClubOpeningHoursProps {
+    club: Club;
+    onHoursUpdated: (updatedClub: Club) => void;
+}
+
+const ClubOpeningHours: React.FC<ClubOpeningHoursProps> = ({ club, onHoursUpdated }) => {
+    console.log('🕐 ClubOpeningHours renderizando para club:', club.name);
+    const { toast } = useToast();
+    const [isSaving, setIsSaving] = useState(false);
+    
+    // Estado para las horas de apertura (6:00 AM a 12:00 PM = medianoche)
+    // Cada hora puede estar activa (abierto) o inactiva (cerrado)
+    const [openingHours, setOpeningHours] = useState<boolean[]>(() => {
+        // Si el club tiene horarios guardados, usarlos; sino, todo abierto por defecto
+        if (club.openingHours && Array.isArray(club.openingHours)) {
+            return club.openingHours;
+        }
+        // Por defecto: abierto de 8:00 AM a 11:00 PM (índices 2 a 17)
+        return Array.from({ length: 19 }, (_, i) => i >= 2 && i <= 17);
+    });
+
+    // Generar las horas desde 6:00 AM hasta 12:00 AM (medianoche)
+    const hours = Array.from({ length: 19 }, (_, i) => {
+        const hour = i + 6; // Empieza en 6
+        const displayHour = hour > 12 ? hour - 12 : hour;
+        const period = hour < 12 ? 'AM' : 'PM';
+        const hourFormatted = hour === 24 ? 12 : (hour > 12 ? hour - 12 : hour);
+        return {
+            value: hour,
+            label: `${hourFormatted}:00 ${period}`,
+            displayLabel: hour < 12 ? `${hour}:00` : hour === 12 ? '12:00' : `${hour}:00`
+        };
+    });
+
+    const toggleHour = (index: number) => {
+        const newHours = [...openingHours];
+        newHours[index] = !newHours[index];
+        setOpeningHours(newHours);
+    };
+
+    const toggleAll = (active: boolean) => {
+        setOpeningHours(Array(19).fill(active));
+    };
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            const response = await fetch(`/api/clubs/${club.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ openingHours })
+            });
+
+            if (!response.ok) {
+                throw new Error('Error al guardar horarios');
+            }
+
+            const updatedClub = await response.json();
+            
+            toast({
+                title: "✅ Horarios actualizados",
+                description: "Los horarios de apertura se han guardado correctamente.",
+                className: "bg-green-600 text-white"
+            });
+
+            onHoursUpdated(updatedClub);
+        } catch (error) {
+            console.error('Error guardando horarios:', error);
+            toast({
+                title: "Error al guardar",
+                description: "No se pudieron actualizar los horarios de apertura.",
+                variant: "destructive"
+            });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // Verificar si hay cambios
+    const hasChanges = JSON.stringify(openingHours) !== JSON.stringify(club.openingHours || []);
+
+    return (
+        <Card className="mb-6">
+            <CardHeader>
+                <CardTitle className="flex items-center text-lg">
+                    <Clock className="mr-2 h-5 w-5 text-blue-600" />
+                    Horario de Apertura del Club
+                </CardTitle>
+                <CardDescription>
+                    Define las horas en las que el club está abierto. Las horas activas (azul) permiten reservas.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                {/* Calendario Horizontal de Horas */}
+                <div className="bg-gradient-to-r from-gray-50 to-blue-50 p-4 rounded-xl border-2 border-blue-100">
+                    <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-semibold text-gray-700">
+                            Selecciona las horas de apertura
+                        </span>
+                        <div className="flex gap-2">
+                            <Button 
+                                type="button" 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => toggleAll(true)}
+                                className="h-7 text-xs"
+                            >
+                                Todo Abierto
+                            </Button>
+                            <Button 
+                                type="button" 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => toggleAll(false)}
+                                className="h-7 text-xs"
+                            >
+                                Todo Cerrado
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* Grid de horas */}
+                    <div className="flex gap-1 overflow-x-auto pb-2">
+                        {hours.map((hour, index) => (
+                            <button
+                                key={index}
+                                type="button"
+                                onClick={() => toggleHour(index)}
+                                className={cn(
+                                    "relative flex flex-col items-center justify-center px-2 py-2 rounded border-2 transition-all duration-200 hover:scale-105 active:scale-95 whitespace-nowrap flex-shrink-0",
+                                    openingHours[index]
+                                        ? "bg-blue-500 border-blue-600 text-white shadow-md hover:bg-blue-600"
+                                        : "bg-gray-100 border-gray-200 text-gray-400 hover:bg-gray-200"
+                                )}
+                                title={`${hour.label} - ${openingHours[index] ? 'Abierto' : 'Cerrado'}`}
+                            >
+                                {/* Hora */}
+                                <span className={cn(
+                                    "text-[11px] font-bold",
+                                    openingHours[index] ? "text-white" : "text-gray-500"
+                                )}>
+                                    {hour.value}:00
+                                </span>
+                                
+                                {/* Indicador de estado */}
+                                <div className={cn(
+                                    "mt-0.5 h-1 w-1 rounded-full",
+                                    openingHours[index] ? "bg-white" : "bg-gray-400"
+                                )} />
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Leyenda */}
+                    <div className="flex items-center justify-center gap-6 mt-4 pt-3 border-t border-gray-200">
+                        <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 rounded bg-blue-500 border-2 border-blue-600" />
+                            <span className="text-xs text-gray-600 font-medium">Abierto</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 rounded bg-gray-100 border-2 border-gray-200" />
+                            <span className="text-xs text-gray-600 font-medium">Cerrado</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Resumen de horarios */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-sm text-blue-800">
+                        <strong>Horario actual:</strong>{' '}
+                        {openingHours.some(h => h) ? (
+                            <>
+                                {(() => {
+                                    const openHours = openingHours
+                                        .map((isOpen, i) => isOpen ? i + 6 : null)
+                                        .filter(h => h !== null) as number[];
+                                    
+                                    if (openHours.length === 0) return 'Cerrado todo el día';
+                                    
+                                    const firstOpen = Math.min(...openHours);
+                                    const lastOpen = Math.max(...openHours);
+                                    
+                                    return `${firstOpen}:00 - ${lastOpen + 1}:00 (${openHours.length}h abiertas)`;
+                                })()}
+                            </>
+                        ) : (
+                            'Cerrado todo el día'
+                        )}
+                    </p>
+                </div>
+
+                {/* Botón de guardar */}
+                <Button 
+                    type="button"
+                    onClick={handleSave}
+                    disabled={isSaving || !hasChanges}
+                    className="w-full sm:w-auto"
+                >
+                    <Save className="mr-2 h-4 w-4" />
+                    {isSaving ? 'Guardando...' : 'Guardar Horarios'}
+                </Button>
+
+                {!hasChanges && (
+                    <p className="text-xs text-muted-foreground">
+                        No hay cambios pendientes
+                    </p>
+                )}
+            </CardContent>
+        </Card>
+    );
+};
+
+export default ClubOpeningHours;

@@ -17,6 +17,7 @@ import { Switch } from '@/components/ui/switch';
 import { daysOfWeek, dayOfWeekLabels } from '@/types';
 import { Label } from '@/components/ui/label';
 import { getMockCurrentUser } from '@/lib/mockData';
+import ClubOpeningHours from './ClubOpeningHours';
 
 interface ManageCourtRatesPanelProps {
     club: Club;
@@ -165,6 +166,9 @@ const ManageCourtRatesPanel: React.FC<ManageCourtRatesPanelProps> = ({ club, onR
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                {/* Horario de Apertura del Club */}
+                <ClubOpeningHours club={club} onHoursUpdated={onRatesUpdated} />
+
                 <Card>
                     <CardHeader>
                         <div className="flex items-center justify-between">

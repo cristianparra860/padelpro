@@ -6,17 +6,21 @@ import { prisma } from '@/lib/prisma';
 /**
  * Calcula el saldo que debe estar bloqueado para un usuario.
  * 
- * Regla: Se bloquea la SUMA de TODAS las inscripciones pendientes (PENDING).
+ * NUEVA REGLA: Se bloquea solo el precio de la clase MÁS CARA entre todas las inscripciones
+ * pendientes (PENDING) cuyos TimeSlots NO tengan pista asignada (courtId = NULL).
  * 
  * @param userId - ID del usuario
- * @returns Monto en céntimos que debe estar bloqueado
+ * @returns Monto en euros que debe estar bloqueado
  */
 export async function calculateBlockedCredits(userId: string): Promise<number> {
-  // Obtener todas las inscripciones pendientes del usuario
+  // Obtener todas las inscripciones pendientes del usuario donde el TimeSlot NO tenga pista asignada
   const pendingBookings = await prisma.booking.findMany({
     where: {
       userId,
-      status: 'PENDING' // Solo las que están pendientes
+      status: 'PENDING', // Solo las que están pendientes
+      timeSlot: {
+        courtId: null // Solo TimeSlots sin pista asignada (incompletas)
+      }
     },
     select: {
       amountBlocked: true
@@ -27,12 +31,10 @@ export async function calculateBlockedCredits(userId: string): Promise<number> {
     return 0;
   }
 
-  // Sumar todos los montos bloqueados
-  const totalBlocked = pendingBookings.reduce((sum, booking) => {
-    return sum + (booking.amountBlocked || 0);
-  }, 0);
+  // Encontrar el monto MÁS ALTO (la clase más cara)
+  const maxAmount = Math.max(...pendingBookings.map(b => b.amountBlocked || 0));
 
-  return totalBlocked;
+  return maxAmount;
 }
 
 /**
@@ -56,7 +58,7 @@ export async function updateUserBlockedCredits(userId: string): Promise<number> 
  * Calcula el saldo disponible del usuario (credits - blockedCredits).
  * 
  * @param userId - ID del usuario
- * @returns Saldo disponible en céntimos
+ * @returns Saldo disponible en euros
  */
 export async function getAvailableCredits(userId: string): Promise<number> {
   const user = await prisma.user.findUnique({
@@ -75,7 +77,7 @@ export async function getAvailableCredits(userId: string): Promise<number> {
  * Verifica si el usuario tiene suficiente saldo disponible para una inscripción.
  * 
  * @param userId - ID del usuario
- * @param amount - Monto requerido en céntimos
+ * @param amount - Monto requerido en euros
  * @returns true si tiene saldo suficiente
  */
 export async function hasAvailableCredits(userId: string, amount: number): Promise<boolean> {
@@ -84,16 +86,17 @@ export async function hasAvailableCredits(userId: string, amount: number): Promi
 }
 
 /**
- * Calcula el precio de una plaza según el tamaño del grupo.
+ * Calcula el precio por jugador individual según el tamaño del grupo.
  * 
  * @param totalPrice - Precio total de la clase EN EUROS (del TimeSlot)
  * @param groupSize - Número de jugadores en el grupo
- * @returns Precio por plaza en euros
+ * @returns Precio por jugador individual en euros
  */
 export function calculateSlotPrice(totalPrice: number, groupSize: number): number {
   // totalPrice viene en euros desde la BD
-  // Dividir entre el número de jugadores
-  return Math.round((totalPrice / groupSize) * 100) / 100; // Redondear a 2 decimales
+  // El precio por jugador es simplemente el total dividido entre el número de jugadores
+  const pricePerPlayer = totalPrice / groupSize;
+  return Math.round(pricePerPlayer * 100) / 100; // Redondear a 2 decimales
 }
 
 /**
@@ -116,7 +119,7 @@ export async function markSlotAsRecycled(timeSlotId: string): Promise<void> {
  * @param amount - Monto de la inscripción cancelada (en euros)
  * @returns Nuevos puntos del usuario
  */
-export async function grantCompensationPoints(userId: string, amount: number): Promise<number> {
+export async function grantCompensationPoints(userId: string, amount: number, skipTransaction = false): Promise<number> {
   // Convertir euros a puntos (1€ = 1 punto)
   const pointsToGrant = Math.floor(amount);
 
@@ -128,6 +131,24 @@ export async function grantCompensationPoints(userId: string, amount: number): P
       }
     }
   });
+
+  // Registrar transacción (a menos que se indique explícitamente que no)
+  // El skipTransaction se usa cuando el caller ya registró la transacción manualmente
+  if (!skipTransaction) {
+    await createTransaction({
+      userId,
+      type: 'points',
+      action: 'add',
+      amount: pointsToGrant,
+      balance: user.points,
+      concept: `Puntos de compensación por cesión de plaza`,
+      relatedType: 'compensation',
+      metadata: {
+        originalAmount: amount,
+        pointsGranted: pointsToGrant
+      }
+    });
+  }
 
   return user.points;
 }
