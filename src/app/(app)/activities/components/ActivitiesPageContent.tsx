@@ -19,7 +19,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import ActivityTypeSelectionDialog from './ActivityTypeSelectionDialog';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import { Plus } from 'lucide-react';
+import { Plus, Gift } from 'lucide-react';
 import { useActivityFilters } from '@/hooks/useActivityFilters';
 import DateSelector from '@/components/admin/DateSelector';
 
@@ -91,6 +91,10 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
     const [matchDayEvents, setMatchDayEvents] = useState<MatchDayEvent[]>([]);
     const [isInitialLoading, setIsInitialLoading] = useState(true);
     const [useNewClassesSystem, setUseNewClassesSystem] = useState(true);
+    
+    // 🎁 Estado para modo puntos (solo instructores)
+    const [creditsEditMode, setCreditsEditMode] = useState(false);
+    const isInstructor = currentUser?.role === 'instructor';
 
     const [activitySelection, setActivitySelection] = useState<{
         isOpen: boolean;
@@ -319,6 +323,7 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
                             onTimeSlotFilterChange={handleTimeFilterChange}
                             onInstructorIdsChange={handleInstructorChange}
                             onViewPreferenceChange={(view) => handleViewPrefChange(view, 'clases')}
+                            creditsEditMode={creditsEditMode}
                         />
                     </div>
                 );
@@ -384,16 +389,36 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
         <>
             {/* Contenedor principal */}
             <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Calendario desktop fijo - fuera del scroll */}
+                <div className="hidden md:block md:sticky md:top-0 md:z-30 md:bg-white md:border-b md:border-gray-100 md:shadow-sm">
+                    <DateSelector
+                        selectedDate={selectedDate}
+                        onDateChange={handleDateChange}
+                        daysToShow={30}
+                        userBookings={userBookings}
+                    />
+                </div>
+                
                 <main className="flex-1 overflow-y-auto px-2 md:px-6 pb-[70px] md:pb-6 space-y-2 md:space-y-4 md:pt-4">
-                    {/* Calendario unificado - usa el mismo componente que ClubCalendar */}
-                    <div className="hidden md:block">
-                        <DateSelector
-                            selectedDate={selectedDate}
-                            onDateChange={handleDateChange}
-                            daysToShow={30}
-                            userBookings={userBookings}
-                        />
-                    </div>
+                    {/* 🎁 Botón Modo Puntos - Solo para instructores */}
+                    {isInstructor && (
+                        <div className="flex justify-end">
+                            <Button
+                                onClick={() => setCreditsEditMode(!creditsEditMode)}
+                                variant={creditsEditMode ? "default" : "outline"}
+                                size="sm"
+                                className={cn(
+                                    "gap-2 transition-all",
+                                    creditsEditMode 
+                                        ? "bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white shadow-md" 
+                                        : "border-amber-400 text-amber-700 hover:bg-amber-50"
+                                )}
+                            >
+                                <Gift className="w-4 h-4" />
+                                {creditsEditMode ? "✓ Modo Puntos Activo" : "🎁 Activar Modo Puntos"}
+                            </Button>
+                        </div>
+                    )}
 
                     {/* Calendario móvil - mismo componente pero en posición fija abajo */}
                     <div className="block md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-100">

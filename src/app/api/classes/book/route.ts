@@ -80,10 +80,19 @@ async function cancelOtherBookingsOnSameDay(userId: string, confirmedTimeSlotId:
       const isPending = booking.status === 'PENDING';
       const hasNoCourt = booking.courtNumber === null;
       
+      // Obtener información del pago
+      const bookingInfo = await prisma.booking.findUnique({
+        where: { id: booking.id },
+        select: { paidWithPoints: true, pointsUsed: true }
+      });
+      
+      const isPaidWithPoints = bookingInfo?.paidWithPoints || false;
+      const pointsBlocked = bookingInfo?.pointsUsed || 0;
+      
       if (isPending && hasNoCourt) {
-        console.log(`   🗑️ ELIMINANDO inscripción PENDIENTE sin pista ${booking.id} (${bookingTime}) - Liberar €${(amountBlocked/100).toFixed(2)}`);
+        console.log(`   🗑️ ELIMINANDO inscripción PENDIENTE sin pista ${booking.id} (${bookingTime}) - Liberar ${isPaidWithPoints ? `${pointsBlocked} puntos` : `€${(amountBlocked/100).toFixed(2)}`}`);
       } else if (booking.status === 'CONFIRMED') {
-        console.log(`   ❌ CANCELANDO reserva CONFIRMADA ${booking.id} (${bookingTime}) - Compensación €${(amountBlocked/100).toFixed(2)}`);
+        console.log(`   ❌ CANCELANDO reserva CONFIRMADA ${booking.id} (${bookingTime}) - Compensación ${isPaidWithPoints ? `${pointsBlocked} puntos` : `€${(amountBlocked/100).toFixed(2)}`}`);
       } else {
         console.log(`   ❌ CANCELANDO inscripción ${booking.id} (${bookingTime})`);
       }
@@ -95,73 +104,147 @@ async function cancelOtherBookingsOnSameDay(userId: string, confirmedTimeSlotId:
         WHERE id = ${booking.id}
       `;
       
-      // Si la reserva estaba CONFIRMED, otorgar puntos de compensación
+      // Si la reserva estaba CONFIRMED, otorgar compensación
       if (booking.status === 'CONFIRMED') {
-        const pointsGranted = Math.floor(amountBlocked / 100);
-        console.log(`      🎁 Reserva confirmada cancelada - Otorgando ${pointsGranted} puntos de compensación`);
-        
-        await grantCompensationPoints(userId, amountBlocked);
-        
-        await createTransaction({
-          userId,
-          type: 'points',
-          action: 'add',
-          amount: pointsGranted,
-          balance: 0, // Se actualizará después
-          concept: `Compensación: Reserva cancelada automáticamente - Solo 1 reserva confirmada por día`,
-          relatedId: booking.id,
-          relatedType: 'booking',
-          metadata: {
-            timeSlotId: booking.timeSlotId,
-            reason: 'one_booking_per_day_rule',
-            originalAmount: amountBlocked
+        if (isPaidWithPoints) {
+          // Devolver puntos
+          console.log(`      💎 Reserva confirmada cancelada - Devolviendo ${pointsBlocked} puntos`);
+          
+          await prisma.$executeRaw`
+            UPDATE User
+            SET points = points + ${pointsBlocked}, updatedAt = datetime('now')
+            WHERE id = ${userId}
+          `;
+          
+          const userAfterRefund = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { points: true }
+          });
+          
+          if (userAfterRefund) {
+            await createTransaction({
+              userId,
+              type: 'points',
+              action: 'add',
+              amount: pointsBlocked,
+              balance: userAfterRefund.points,
+              concept: `Devolución: Reserva cancelada automáticamente - Solo 1 reserva confirmada por día`,
+              relatedId: booking.id,
+              relatedType: 'booking',
+              metadata: {
+                timeSlotId: booking.timeSlotId,
+                reason: 'one_booking_per_day_rule',
+                pointsRefunded: pointsBlocked
+              }
+            });
           }
-        });
+        } else {
+          // Otorgar puntos de compensación (pago con créditos)
+          const pointsGranted = Math.floor(amountBlocked / 100);
+          console.log(`      🎁 Reserva confirmada cancelada - Otorgando ${pointsGranted} puntos de compensación`);
+          
+          await grantCompensationPoints(userId, amountBlocked);
+          
+          await createTransaction({
+            userId,
+            type: 'points',
+            action: 'add',
+            amount: pointsGranted,
+            balance: 0, // Se actualizará después
+            concept: `Compensación: Reserva cancelada automáticamente - Solo 1 reserva confirmada por día`,
+            relatedId: booking.id,
+            relatedType: 'booking',
+            metadata: {
+              timeSlotId: booking.timeSlotId,
+              reason: 'one_booking_per_day_rule',
+              originalAmount: amountBlocked
+            }
+          });
+        }
       } else {
-        // Para inscripciones PENDING, registrar el desbloqueo
-        await createTransaction({
-          userId,
-          type: 'credit',
-          action: 'unblock',
-          amount: amountBlocked,
-          balance: 0, // Se actualizará después
-          concept: `Inscripción cancelada automáticamente - Ya tienes una reserva confirmada hoy a las ${new Date(confirmedSlot[0].start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`,
-          relatedId: booking.id,
-          relatedType: 'booking',
-          metadata: {
-            timeSlotId: booking.timeSlotId,
-            reason: 'one_booking_per_day_rule',
-            isPending: true,
-            confirmedTimeSlotId
+        // Para inscripciones PENDING, desbloquear puntos o créditos
+        if (isPaidWithPoints) {
+          // Desbloquear puntos
+          console.log(`      💎 Desbloqueando ${pointsBlocked} puntos`);
+          
+          await prisma.$executeRaw`
+            UPDATE User
+            SET blockedPoints = blockedPoints - ${pointsBlocked}, updatedAt = datetime('now')
+            WHERE id = ${userId}
+          `;
+          
+          const userAfterUnblock = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { points: true, blockedPoints: true }
+          });
+          
+          if (userAfterUnblock) {
+            await createTransaction({
+              userId,
+              type: 'points',
+              action: 'unblock',
+              amount: pointsBlocked,
+              balance: userAfterUnblock.points - userAfterUnblock.blockedPoints,
+              concept: `Puntos desbloqueados - Ya tienes una reserva confirmada a las ${new Date(confirmedSlot[0].start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`,
+              relatedId: booking.id,
+              relatedType: 'booking',
+              metadata: {
+                timeSlotId: booking.timeSlotId,
+                reason: 'one_booking_per_day_rule',
+                isPending: true,
+                confirmedTimeSlotId,
+                pointsUnblocked: pointsBlocked
+              }
+            });
           }
-        });
+        } else {
+          // Desbloquear créditos y registrar transacción
+          await createTransaction({
+            userId,
+            type: 'credit',
+            action: 'unblock',
+            amount: amountBlocked,
+            balance: 0, // Se actualizará después
+            concept: `Inscripción cancelada automáticamente - Ya tienes una reserva confirmada hoy a las ${new Date(confirmedSlot[0].start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`,
+            relatedId: booking.id,
+            relatedType: 'booking',
+            metadata: {
+              timeSlotId: booking.timeSlotId,
+              reason: 'one_booking_per_day_rule',
+              isPending: true,
+              confirmedTimeSlotId
+            }
+          });
+        }
       }
       
-      // Desbloquear créditos
-      await updateUserBlockedCredits(userId);
-      
-      // Registrar transacción de desbloqueo
-      const userAfter = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { credits: true, blockedCredits: true }
-      });
-      
-      if (userAfter) {
-        await createTransaction({
-          userId,
-          type: 'credit',
-          action: 'unblock',
-          amount: amountBlocked,
-          balance: userAfter.credits,
-          concept: `Inscripción cancelada automáticamente - Ya tienes una reserva confirmada este día`,
-          relatedId: booking.id,
-          relatedType: 'booking',
-          metadata: {
-            timeSlotId: booking.timeSlotId,
-            reason: 'one_reservation_per_day',
-            confirmedTimeSlotId
-          }
+      // Desbloquear créditos si no pagó con puntos
+      if (!isPaidWithPoints) {
+        await updateUserBlockedCredits(userId);
+        
+        // Registrar transacción de desbloqueo
+        const userAfter = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { credits: true, blockedCredits: true }
         });
+        
+        if (userAfter) {
+          await createTransaction({
+            userId,
+            type: 'credit',
+            action: 'unblock',
+            amount: amountBlocked,
+            balance: userAfter.credits,
+            concept: `Inscripción cancelada automáticamente - Ya tienes una reserva confirmada este día`,
+            relatedId: booking.id,
+            relatedType: 'booking',
+            metadata: {
+              timeSlotId: booking.timeSlotId,
+              reason: 'one_reservation_per_day',
+              confirmedTimeSlotId
+            }
+          });
+        }
       }
     }
     
@@ -387,7 +470,7 @@ export async function POST(request: Request) {
 
       // 💰 OBTENER PRECIO DEL TIMESLOT Y VERIFICAR SALDO DISPONIBLE
       const priceInfo = await prisma.$queryRaw`
-        SELECT totalPrice FROM TimeSlot WHERE id = ${timeSlotId}
+        SELECT totalPrice, creditsSlots, creditsCost FROM TimeSlot WHERE id = ${timeSlotId}
       `;
 
       if (!priceInfo || (priceInfo as any[]).length === 0) {
@@ -395,6 +478,60 @@ export async function POST(request: Request) {
       }
 
       const totalPrice = Number((priceInfo as any[])[0].totalPrice) || 55;
+      const creditsSlots = (priceInfo as any[])[0].creditsSlots;
+      const creditsCost = Number((priceInfo as any[])[0].creditsCost) || 50;
+      
+      // 🎁 Verificar si este groupSize es una plaza con puntos
+      // IMPORTANTE: creditsSlots ahora contiene índices absolutos (0-9), no groupSize (1-4)
+      // Necesitamos calcular qué índice ocupará esta nueva reserva
+      let isCreditsSlot = false;
+      if (creditsSlots) {
+        try {
+          const parsedCreditsSlots = JSON.parse(creditsSlots);
+          
+          // Calcular el rango de índices para esta modalidad
+          const groupSizeNum = Number(groupSize) || 1;
+          const startIndex = [1,2,3,4].slice(0, groupSizeNum - 1).reduce((sum, p) => sum + p, 0);
+          const endIndex = startIndex + groupSizeNum;
+          
+          // Contar cuántas plazas ya están ocupadas en esta modalidad
+          const existingBookingsForModality = await prisma.$queryRaw`
+            SELECT COUNT(*) as count
+            FROM Booking
+            WHERE timeSlotId = ${timeSlotId}
+            AND groupSize = ${groupSizeNum}
+            AND status IN ('PENDING', 'CONFIRMED')
+          ` as Array<{count: number}>;
+          
+          const occupiedCount = Number(existingBookingsForModality[0]?.count) || 0;
+          const nextSlotIndex = startIndex + occupiedCount;
+          
+          console.log(`🎯 Modalidad ${groupSizeNum}: rango ${startIndex}-${endIndex-1}, plazas ocupadas: ${occupiedCount}, próximo índice: ${nextSlotIndex}`);
+          console.log(`🎁 creditsSlots array: [${parsedCreditsSlots.join(', ')}]`);
+          
+          // Verificar si el próximo slot disponible es una creditsSlot
+          isCreditsSlot = nextSlotIndex < endIndex && 
+                         Array.isArray(parsedCreditsSlots) && 
+                         parsedCreditsSlots.includes(nextSlotIndex);
+                         
+          console.log(`🎁 ¿Próximo slot (${nextSlotIndex}) es creditsSlot? ${isCreditsSlot}`);
+        } catch (e) {
+          console.warn('⚠️ Error parseando creditsSlots:', e);
+        }
+      }
+      
+      console.log(`🎁 Es plaza con puntos: ${isCreditsSlot}, Coste: ${creditsCost} puntos`);
+      
+      // 🚫 VALIDACIÓN: Si es credits slot, DEBE pagar con puntos
+      if (isCreditsSlot && !usePoints) {
+        console.log('❌ Intento de reservar credits slot sin usar puntos');
+        return NextResponse.json({ 
+          error: `Esta plaza solo se puede reservar con puntos`,
+          details: `Esta plaza requiere ${creditsCost} puntos. No se puede pagar con créditos.`,
+          required: creditsCost,
+          isCreditsSlot: true
+        }, { status: 400 });
+      }
       
       // 🎫 RESERVA PRIVADA: Usuario paga el precio total completo
       // 🎯 RESERVA NORMAL: Usuario paga precio dividido por número de jugadores
@@ -404,33 +541,35 @@ export async function POST(request: Request) {
 
       console.log(`💰 Precio total: €${totalPrice}, ${isPrivate ? 'RESERVA PRIVADA' : `Precio por grupo (${groupSize} jugadores)`}: €${pricePerSlot.toFixed(2)}`);
 
-      // 💰 VERIFICAR MÉTODO DE PAGO: PUNTOS O CRÉDITOS
+      // 💰 VERIFICAR MÉTODO DE PAGO: SIEMPRE USA CRÉDITOS (sistema de puntos eliminado)
       if (usePoints) {
-        // 🎯 PAGO CON PUNTOS
-        console.log('💰 Verificando saldo de PUNTOS para pago...');
+        // 🎯 PAGO CON CRÉDITOS (sistema antiguo de puntos eliminado, ahora todo es con créditos)
+        console.log('💰 Verificando saldo de CRÉDITOS (credits slot)...');
         
         const userInfo = await prisma.user.findUnique({
           where: { id: userId },
-          select: { points: true }
+          select: { credits: true, blockedCredits: true }
         });
         
-        const pointsRequired = Math.floor(pricePerSlot); // 1 punto = €1
-        const pointsAvailable = userInfo?.points || 0;
+        // 🎁 Si es credits slot, usar creditsCost en lugar de puntos (convertido a euros/100)
+        // creditsCost venía en "puntos" pero ahora representa céntimos de euro
+        const creditsRequired = isCreditsSlot ? creditsCost : Math.floor(pricePerSlot);
+        const creditsAvailable = (userInfo?.credits || 0) - (userInfo?.blockedCredits || 0);
         
-        console.log(`💎 Puntos requeridos: ${pointsRequired}, Puntos disponibles: ${pointsAvailable}`);
+        console.log(`💳 Créditos requeridos: ${creditsRequired} céntimos (€${(creditsRequired/100).toFixed(2)}) ${isCreditsSlot ? '(credits slot)' : ''}, Créditos disponibles: ${creditsAvailable} céntimos (€${(creditsAvailable/100).toFixed(2)})`);
         
-        if (pointsAvailable < pointsRequired) {
-          console.log(`❌ Puntos insuficientes: necesita ${pointsRequired}, disponible ${pointsAvailable}`);
+        if (creditsAvailable < creditsRequired) {
+          console.log(`❌ Créditos insuficientes: necesita ${creditsRequired} céntimos, disponible ${creditsAvailable} céntimos`);
           return NextResponse.json({ 
-            error: `Puntos insuficientes`,
-            details: `Necesitas ${pointsRequired} puntos pero solo tienes ${pointsAvailable}. Las plazas recicladas solo se pueden reservar con puntos.`,
-            required: pointsRequired,
-            available: pointsAvailable,
-            missing: pointsRequired - pointsAvailable
+            error: `Saldo insuficiente`,
+            details: `Necesitas €${(creditsRequired/100).toFixed(2)} disponibles pero solo tienes €${(creditsAvailable/100).toFixed(2)}. ${isCreditsSlot ? 'Esta plaza requiere créditos para reservar.' : ''}`,
+            required: creditsRequired,
+            available: creditsAvailable,
+            missing: creditsRequired - creditsAvailable
           }, { status: 400 });
         }
         
-        console.log(`✅ Puntos suficientes verificados: ${pointsRequired} puntos`);
+        console.log(`✅ Créditos disponibles suficientes: ${creditsRequired} céntimos serán BLOQUEADOS (no cobrados hasta confirmación)`);
         
       } else {
         // 💳 PAGO CON CRÉDITOS (NORMAL)
@@ -494,51 +633,42 @@ export async function POST(request: Request) {
       const bookingId = `booking-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       
       // 💰 Calcular valores según método de pago
-      const pointsToUse = usePoints ? Math.floor(pricePerSlot) : 0;
-      const amountToBlock = usePoints ? 0 : pricePerSlot; // Si paga con puntos, no bloqueamos créditos
+      // 🎁 Si es credits slot con puntos, usar creditsCost; si es reciclada, usar pricePerSlot
+      const pointsToBlock = usePoints ? (isCreditsSlot ? creditsCost : Math.floor(pricePerSlot)) : 0;
+      const creditsToBlock = usePoints ? 0 : pricePerSlot; // Si paga con puntos, no bloqueamos créditos
       
-      console.log(`💎 Creando booking: paidWithPoints=${usePoints ? 1 : 0}, pointsUsed=${pointsToUse}, amountBlocked=${amountToBlock}`);
+      console.log(`💎 Creando booking: paidWithPoints=${usePoints ? 1 : 0}, pointsToBlock=${pointsToBlock}, creditsToBlock=${creditsToBlock}, isCreditsSlot=${isCreditsSlot}`);
       
       await prisma.$executeRaw`
         INSERT INTO Booking (id, userId, timeSlotId, groupSize, status, amountBlocked, paidWithPoints, pointsUsed, isRecycled, createdAt, updatedAt)
-        VALUES (${bookingId}, ${userId}, ${timeSlotId}, ${Number(groupSize) || 1}, 'PENDING', ${amountToBlock}, ${usePoints ? 1 : 0}, ${pointsToUse}, 0, datetime('now'), datetime('now'))
+        VALUES (${bookingId}, ${userId}, ${timeSlotId}, ${Number(groupSize) || 1}, 'PENDING', ${creditsToBlock}, ${usePoints ? 1 : 0}, ${pointsToBlock}, 0, datetime('now'), datetime('now'))
       `;
       
-      // 💰 Si paga con puntos, descontar inmediatamente (no se bloquea, se consume)
-      if (usePoints) {
-        console.log(`💎 Descontando ${pointsToUse} puntos del usuario...`);
-        await prisma.$executeRaw`
-          UPDATE User
-          SET points = points - ${pointsToUse}, updatedAt = datetime('now')
-          WHERE id = ${userId}
-        `;
-        console.log(`✅ ${pointsToUse} puntos descontados exitosamente`);
-      }
+      // 💎 Sistema de puntos eliminado - ahora todo usa créditos bloqueados
+      // No hay lógica especial para usePoints, ambos casos usan créditos
 
       console.log('✅ Booking created successfully:', bookingId);
 
-      // 🔒 ACTUALIZAR SALDO BLOQUEADO DEL USUARIO (solo si paga con créditos)
-      if (!usePoints) {
-        const newBlockedAmount = await updateUserBlockedCredits(userId);
-        console.log(`🔒 Usuario blockedCredits actualizado: €${(newBlockedAmount/100).toFixed(2)}`);
-      }
+      // 🔒 ACTUALIZAR SALDO BLOQUEADO DEL USUARIO (siempre créditos)
+      const newBlockedAmount = await updateUserBlockedCredits(userId);
+      console.log(`🔒 Usuario blockedCredits actualizado: €${(newBlockedAmount/100).toFixed(2)}`);
 
-      // 📝 REGISTRAR TRANSACCIÓN (créditos bloqueados o puntos descontados)
+      // 📝 REGISTRAR TRANSACCIÓN (siempre créditos bloqueados)
       const userBalance = await prisma.user.findUnique({
         where: { id: userId },
-        select: { credits: true, blockedCredits: true, points: true }
+        select: { credits: true, blockedCredits: true }
       });
       
       if (userBalance) {
         if (usePoints) {
-          // Transacción de puntos
+          // Credits slot - Transacción de BLOQUEO de créditos
           await createTransaction({
             userId,
-            type: 'points',
-            action: 'deduct',
-            amount: pointsToUse,
-            balance: userBalance.points - pointsToUse,
-            concept: `Reserva con puntos - Clase ${new Date(slotDetails[0].start).toLocaleString('es-ES')}`,
+            type: 'credit',
+            action: 'block',
+            amount: creditsToBlock,
+            balance: userBalance.credits - userBalance.blockedCredits,
+            concept: `Créditos bloqueados (plaza especial) - Reserva pendiente ${new Date(slotDetails[0].start).toLocaleString('es-ES')}`,
             relatedId: bookingId,
             relatedType: 'booking',
             metadata: {
@@ -546,7 +676,7 @@ export async function POST(request: Request) {
               groupSize,
               status: 'PENDING',
               paidWithPoints: true,
-              pointsUsed: pointsToUse
+              pointsBlocked: pointsToBlock
             }
           });
         } else {
@@ -577,7 +707,7 @@ export async function POST(request: Request) {
         console.log('🏷️ ===== FIRST BOOKING DETECTED =====');
         console.log('🏷️ Classifying TimeSlot based on first user gender and level...');
         
-        // Obtener el género, nivel y datos del instructor
+        // Obtener el género del usuario
         const userInfo = await prisma.$queryRaw`
           SELECT gender, level FROM User WHERE id = ${userId}
         ` as Array<{gender: string | null, level: string | null}>;
@@ -585,10 +715,9 @@ export async function POST(request: Request) {
         const userGender = userInfo[0]?.gender;
         const userLevelStr = userInfo[0]?.level;
         const userLevel = userLevelStr ? parseFloat(userLevelStr) : null;
-        const userLevelDisplay = userLevelStr?.toUpperCase() || 'ABIERTO';
         
         console.log(`   👤 Usuario género: ${userGender || 'NO DEFINIDO'}`);
-        console.log(`   📊 Usuario nivel: ${userLevelDisplay} (numeric: ${userLevel})`);
+        console.log(`   📊 Usuario nivel: ${userLevelStr} (numeric: ${userLevel})`);
         
         // ⚠️ VALIDACIÓN CRÍTICA: El usuario DEBE tener género definido
         if (!userGender || userGender === null) {
@@ -607,8 +736,10 @@ export async function POST(request: Request) {
           }, { status: 400 });
         }
         
-        // 🎯 OBTENER RANGOS DE NIVEL DEL INSTRUCTOR
-        let levelRange: string | null = null;
+        // 🎯 DETERMINAR RANGO DE NIVEL SEGÚN EL PRIMER USUARIO
+        // Buscar en qué rango del instructor encaja el nivel del primer usuario inscrito
+        let instructorLevelRange = 'ABIERTO'; // Por defecto si no hay rango configurado
+        
         if (userLevel !== null && slotDetails[0].instructorId) {
           const instructorData = await prisma.$queryRaw`
             SELECT levelRanges FROM Instructor WHERE id = ${slotDetails[0].instructorId}
@@ -617,14 +748,23 @@ export async function POST(request: Request) {
           if (instructorData[0]?.levelRanges) {
             try {
               const ranges = JSON.parse(instructorData[0].levelRanges) as Array<{minLevel: number, maxLevel: number}>;
-              levelRange = findLevelRange(userLevel, ranges);
-              console.log(`   🎯 Rango de nivel encontrado: ${levelRange || 'NINGUNO'}`);
+              console.log(`   📊 Rangos del instructor:`, ranges);
+              
+              const foundRange = findLevelRange(userLevel, ranges);
+              if (foundRange) {
+                instructorLevelRange = foundRange;
+                console.log(`   🎯 Usuario nivel ${userLevel} → Rango asignado: ${instructorLevelRange}`);
+              } else {
+                console.log(`   ℹ️ Usuario nivel ${userLevel} no encaja en ningún rango del instructor - usando ABIERTO`);
+              }
             } catch (e) {
               console.log(`   ⚠️ Error parsing instructor level ranges:`, e);
             }
           } else {
-            console.log(`   ℹ️ Instructor no tiene rangos de nivel configurados`);
+            console.log(`   ℹ️ Instructor no tiene rangos de nivel configurados - usando ABIERTO`);
           }
+        } else if (userLevel === null) {
+          console.log(`   ℹ️ Usuario sin nivel definido - usando ABIERTO`);
         }
         
         // Convertir género a categoría de clase (OBLIGATORIO)
@@ -633,21 +773,21 @@ export async function POST(request: Request) {
                             'mixto';
         
         console.log(`   🏷️ ASIGNANDO categoría: ${classCategory.toUpperCase()}`);
-        console.log(`   🏷️ ASIGNANDO nivel: ${userLevelDisplay}`);
-        console.log(`   🏷️ ASIGNANDO rango: ${levelRange || 'SIN RANGO'}`);
+        console.log(`   🏷️ MANTENIENDO nivel como rango del instructor: ${instructorLevelRange}`);
         
-        // ✅ ACTUALIZAR EL TIMESLOT CON LA CATEGORÍA, NIVEL Y RANGO DEL PRIMER USUARIO
-        // Esta es la regla crítica: el primer inscrito define la categoría y rango
+        // ✅ ACTUALIZAR EL TIMESLOT CON LA CATEGORÍA Y EL RANGO DEL INSTRUCTOR
+        // IMPORTANTE: El campo "level" debe mantener el RANGO del instructor, NO el nivel del jugador
+        // El campo "levelRange" se mantiene para compatibilidad
         await prisma.$executeRaw`
           UPDATE TimeSlot 
           SET genderCategory = ${classCategory}, 
-              level = ${userLevelDisplay},
-              levelRange = ${levelRange},
+              level = ${instructorLevelRange},
+              levelRange = ${instructorLevelRange},
               updatedAt = datetime('now')
           WHERE id = ${timeSlotId}
         `;
         
-        console.log(`   ✅ TimeSlot actualizado: level=${userLevelDisplay}, genderCategory=${classCategory}, levelRange=${levelRange}`);
+        console.log(`   ✅ TimeSlot actualizado: level=${instructorLevelRange}, genderCategory=${classCategory}`);
         
         // Verificar que se haya actualizado correctamente
         const verifyUpdate = await prisma.$queryRaw`
@@ -876,7 +1016,7 @@ export async function POST(request: Request) {
             // Obtener el monto bloqueado del booking
             const bookingInfo = await prisma.booking.findUnique({
               where: { id: booking.id },
-              select: { amountBlocked: true, userId: true }
+              select: { amountBlocked: true, paidWithPoints: true, userId: true }
             });
             
             const amountToCharge = bookingInfo?.amountBlocked || 0;
@@ -887,7 +1027,7 @@ export async function POST(request: Request) {
               select: { credits: true, blockedCredits: true }
             });
             
-            // 💳 COBRAR del saldo real
+            // 💳 COBRAR CRÉDITOS (sistema de puntos eliminado, todo usa créditos)
             await prisma.$executeRaw`
               UPDATE User 
               SET credits = credits - ${amountToCharge}, updatedAt = datetime('now')
@@ -904,7 +1044,7 @@ export async function POST(request: Request) {
             // Actualizar blockedCredits del usuario (recalcular)
             await updateUserBlockedCredits(booking.userId);
             
-            // 📝 REGISTRAR TRANSACCIÓN DE COBRO
+            // 📝 REGISTRAR TRANSACCIÓN DE COBRO DE CRÉDITOS
             if (userBeforeCharge) {
               const newBalance = userBeforeCharge.credits - amountToCharge;
               await createTransaction({
@@ -919,13 +1059,13 @@ export async function POST(request: Request) {
                 metadata: {
                   timeSlotId,
                   groupSize: booking.groupSize,
-                  status: 'CONFIRMED'
+                  status: 'CONFIRMED',
+                  paidWithCredits: true
                 }
               });
             }
             
             console.log(`      ✅ Confirmed and charged €${(amountToCharge/100).toFixed(2)} to user ${booking.userId}`);
-            
             // 🚫 CANCELAR OTRAS INSCRIPCIONES DEL MISMO DÍA
             console.log(`      🔍 Verificando otras inscripciones del usuario ${booking.userId} para cancelar...`);
             await cancelOtherBookingsOnSameDay(booking.userId, timeSlotId, prisma);
@@ -938,10 +1078,12 @@ export async function POST(request: Request) {
           for (const booking of losingBookings) {
             const bookingInfo = await prisma.booking.findUnique({
               where: { id: booking.id },
-              select: { amountBlocked: true, userId: true, status: true }
+              select: { amountBlocked: true, paidWithPoints: true, pointsUsed: true, userId: true, status: true }
             });
             
             const amountBlocked = bookingInfo?.amountBlocked || 0;
+            const isPaidWithPoints = bookingInfo?.paidWithPoints || false;
+            const pointsBlocked = bookingInfo?.pointsUsed || 0;
             const wasConfirmed = bookingInfo?.status === 'CONFIRMED';
             
             await prisma.$executeRaw`
@@ -951,55 +1093,128 @@ export async function POST(request: Request) {
             `;
             
             if (wasConfirmed) {
-              // 🎁 Otorgar puntos de compensación
-              const newPoints = await grantCompensationPoints(booking.userId, amountBlocked);
-              const pointsGranted = Math.floor(amountBlocked / 100);
-              
-              console.log(`      🎁 Booking confirmado cancelado - Otorgados ${pointsGranted} puntos de compensación al usuario ${booking.userId}`);
-              
-              await createTransaction({
-                userId: booking.userId,
-                type: 'points',
-                action: 'add',
-                amount: pointsGranted,
-                balance: newPoints,
-                concept: `Compensación por cancelación - Otra modalidad completó primero`,
-                relatedId: booking.id,
-                relatedType: 'booking',
-                metadata: {
-                  timeSlotId,
-                  groupSize: booking.groupSize,
-                  status: 'CANCELLED',
-                  reason: 'Clase confirmada cancelada - Otra modalidad ganó la carrera',
-                  originalAmount: amountBlocked
-                }
-              });
-            } else {
-              // CLASE PENDIENTE - Solo desbloquear créditos
-              await updateUserBlockedCredits(booking.userId);
-              
-              const userAfterUnblock = await prisma.user.findUnique({
-                where: { id: booking.userId },
-                select: { credits: true, blockedCredits: true }
-              });
-              
-              if (userAfterUnblock) {
+              // 🎁 Otorgar puntos de compensación (solo si pagó con créditos)
+              if (!isPaidWithPoints) {
+                const newPoints = await grantCompensationPoints(booking.userId, amountBlocked);
+                const pointsGranted = Math.floor(amountBlocked / 100);
+                
+                console.log(`      🎁 Booking confirmado cancelado - Otorgados ${pointsGranted} puntos de compensación al usuario ${booking.userId}`);
+                
                 await createTransaction({
                   userId: booking.userId,
-                  type: 'credit',
-                  action: 'unblock',
-                  amount: amountBlocked,
-                  balance: userAfterUnblock.credits - userAfterUnblock.blockedCredits,
-                  concept: `Reserva cancelada - Opción ${booking.groupSize} jugadores no completada`,
+                  type: 'points',
+                  action: 'add',
+                  amount: pointsGranted,
+                  balance: newPoints,
+                  concept: `Compensación por cancelación - Otra modalidad completó primero`,
                   relatedId: booking.id,
                   relatedType: 'booking',
                   metadata: {
                     timeSlotId,
                     groupSize: booking.groupSize,
                     status: 'CANCELLED',
-                    reason: 'Otra modalidad ganó la carrera'
+                    reason: 'Clase confirmada cancelada - Otra modalidad ganó la carrera',
+                    originalAmount: amountBlocked
                   }
                 });
+              } else {
+                // Si pagó con puntos y ya estaba confirmado, devolver los puntos
+                console.log(`      💎 Devolviendo ${pointsBlocked} puntos ya cobrados al usuario ${booking.userId}`);
+                
+                await prisma.$executeRaw`
+                  UPDATE User
+                  SET points = points + ${pointsBlocked}, updatedAt = datetime('now')
+                  WHERE id = ${booking.userId}
+                `;
+                
+                const userAfterRefund = await prisma.user.findUnique({
+                  where: { id: booking.userId },
+                  select: { points: true }
+                });
+                
+                if (userAfterRefund) {
+                  await createTransaction({
+                    userId: booking.userId,
+                    type: 'points',
+                    action: 'add',
+                    amount: pointsBlocked,
+                    balance: userAfterRefund.points,
+                    concept: `Devolución de puntos - Otra modalidad completó primero`,
+                    relatedId: booking.id,
+                    relatedType: 'booking',
+                    metadata: {
+                      timeSlotId,
+                      groupSize: booking.groupSize,
+                      status: 'CANCELLED',
+                      reason: 'Clase confirmada cancelada - Otra modalidad ganó la carrera',
+                      pointsRefunded: pointsBlocked
+                    }
+                  });
+                }
+              }
+            } else {
+              // CLASE PENDIENTE - Desbloquear créditos o puntos
+              if (isPaidWithPoints) {
+                // Desbloquear puntos
+                console.log(`      💎 Desbloqueando ${pointsBlocked} puntos del usuario ${booking.userId}`);
+                
+                await prisma.$executeRaw`
+                  UPDATE User
+                  SET blockedPoints = blockedPoints - ${pointsBlocked}, updatedAt = datetime('now')
+                  WHERE id = ${booking.userId}
+                `;
+                
+                const userAfterUnblock = await prisma.user.findUnique({
+                  where: { id: booking.userId },
+                  select: { points: true, blockedPoints: true }
+                });
+                
+                if (userAfterUnblock) {
+                  await createTransaction({
+                    userId: booking.userId,
+                    type: 'points',
+                    action: 'unblock',
+                    amount: pointsBlocked,
+                    balance: userAfterUnblock.points - userAfterUnblock.blockedPoints,
+                    concept: `Puntos desbloqueados - Opción ${booking.groupSize} jugadores no completada`,
+                    relatedId: booking.id,
+                    relatedType: 'booking',
+                    metadata: {
+                      timeSlotId,
+                      groupSize: booking.groupSize,
+                      status: 'CANCELLED',
+                      reason: 'Otra modalidad ganó la carrera',
+                      pointsUnblocked: pointsBlocked
+                    }
+                  });
+                }
+              } else {
+                // Desbloquear créditos
+                await updateUserBlockedCredits(booking.userId);
+                
+                const userAfterUnblock = await prisma.user.findUnique({
+                  where: { id: booking.userId },
+                  select: { credits: true, blockedCredits: true }
+                });
+                
+                if (userAfterUnblock) {
+                  await createTransaction({
+                    userId: booking.userId,
+                    type: 'credit',
+                    action: 'unblock',
+                    amount: amountBlocked,
+                    balance: userAfterUnblock.credits - userAfterUnblock.blockedCredits,
+                    concept: `Reserva cancelada - Opción ${booking.groupSize} jugadores no completada`,
+                    relatedId: booking.id,
+                    relatedType: 'booking',
+                    metadata: {
+                      timeSlotId,
+                      groupSize: booking.groupSize,
+                      status: 'CANCELLED',
+                      reason: 'Otra modalidad ganó la carrera'
+                    }
+                  });
+                }
               }
             }
             
@@ -1305,6 +1520,17 @@ export async function POST(request: Request) {
           createdAt: b.createdAt
         }))
       } : null;
+
+      // 🐛 DEBUG: Verificar que level está presente en updatedSlotData
+      if (updatedSlotData) {
+        console.log('📦 updatedSlotData siendo devuelto al frontend:', {
+          id: updatedSlotData.id?.substring(0, 15),
+          level: updatedSlotData.level,
+          levelRange: updatedSlotData.levelRange,
+          genderCategory: updatedSlotData.genderCategory,
+          bookingsCount: updatedSlotData.bookings?.length || 0
+        });
+      }
 
       return NextResponse.json({
         success: true,

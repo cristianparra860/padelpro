@@ -4,7 +4,6 @@
 import * as React from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
-import DesktopSidebar from '@/components/layout/DesktopSidebar';
 import { BottomNavigationBar } from '@/components/layout/BottomNavigationBar';
 import { LeftNavigationBar } from '@/components/layout/LeftNavigationBar';
 import { AiHelpButton } from '@/components/layout/AiHelpButton';
@@ -132,16 +131,7 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
   return (
     <>
       <div className="flex min-h-screen overflow-x-hidden">
-        <DesktopSidebar
-            currentUser={currentUser}
-            clubInfo={clubInfo}
-            onProfessionalAccessClick={() => setIsProfessionalAccessOpen(true)}
-            onLogoutClick={handleLogout}
-            onMobileFiltersClick={() => setIsMobileFiltersOpen(true)}
-            isActivitiesPage={pathname.startsWith('/activities')}
-            {...sidebarFilters}
-        />
-        <main className="flex-1 flex flex-col pb-14 md:pb-0 overflow-x-hidden md:ml-72">
+        <main className="flex-1 flex flex-col pb-14 md:pb-0 overflow-x-hidden">
           {children}
           <Footer />
         </main>

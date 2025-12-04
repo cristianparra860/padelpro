@@ -8,7 +8,6 @@ import { Calendar, CalendarIcon, ChevronLeft, ChevronRight, Filter, Users, DoorO
 import CalendarEventDetails from './CalendarEventDetails';
 import DateSelector from './DateSelector';
 import ClassCardReal from '@/components/class/ClassCardReal';
-import GenerateProposalsButton from './GenerateProposalsButton';
 import {
   Select,
   SelectContent,
@@ -511,7 +510,6 @@ export default function ClubCalendar({
               
               {/* Botones a la derecha */}
               <div className="flex gap-2">
-                <GenerateProposalsButton />
                 <Button
                   variant="secondary"
                   size="sm"

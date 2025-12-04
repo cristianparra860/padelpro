@@ -206,7 +206,25 @@ export async function GET(request: NextRequest) {
       const slotBookings = bookingsBySlot.get(slot.id) || [];
       
       if (slotBookings.length > 0) {
-        console.log(`🔍 Slot ${slot.id.substring(0, 15)} has ${slotBookings.length} bookings`);
+        console.log(`🔍 Slot ${slot.id.substring(0, 15)} has ${slotBookings.length} bookings:`, 
+          slotBookings.map(b => ({ user: b.user.name, size: b.groupSize, status: b.status })));
+      }
+      
+      // 🎁 Parsear creditsSlots (plazas reservables con puntos)
+      let creditsSlots: number[] = [];
+      if (slot.creditsSlots) {
+        try {
+          creditsSlots = JSON.parse(slot.creditsSlots);
+        } catch (e) {
+          console.warn('⚠️ Error parseando creditsSlots para slot:', slot.id);
+        }
+      }
+      if (slot.creditsSlots) {
+        try {
+          creditsSlots = JSON.parse(slot.creditsSlots);
+        } catch (e) {
+          console.warn('⚠️ Error parseando creditsSlots para slot:', slot.id);
+        }
       }
       
       const formattedBookings = slotBookings.map(booking => ({
@@ -289,7 +307,9 @@ export async function GET(request: NextRequest) {
         bookings: formattedBookings,
         description: '',
         courtsAvailability: courtsAvailability, // 🏟️ Array de disponibilidad de pistas
-        availableCourtsCount: availableCourtsCount // 🏟️ Contador rápido
+        availableCourtsCount: availableCourtsCount, // 🏟️ Contador rápido
+        creditsSlots: creditsSlots, // 🎁 Plazas reservables con puntos
+        creditsCost: Number(slot.creditsCost || 50) // 🎁 Coste en puntos
       };
     });
 
@@ -402,18 +422,25 @@ export async function GET(request: NextRequest) {
     }
 
     // 🏟️ FILTRAR PROPUESTAS SIN PISTAS DISPONIBLES (solo para propuestas sin confirmar)
+    // NOTA: Si se consulta con instructorId, NO filtrar por disponibilidad de pistas
+    // (el instructor debe ver todas sus propuestas para gestionarlas)
     const beforeCourtFilter = filteredSlots.length;
-    filteredSlots = filteredSlots.filter(slot => {
-      // Si es una clase confirmada (ya tiene pista asignada), siempre mostrar
-      if (slot.courtId) {
-        return true;
-      }
+    if (!instructorId) {
+      // Solo aplicar filtro de disponibilidad si NO es consulta de instructor
+      filteredSlots = filteredSlots.filter(slot => {
+        // Si es una clase confirmada (ya tiene pista asignada), siempre mostrar
+        if (slot.courtId) {
+          return true;
+        }
+        
+        // Si es una propuesta, solo mostrar si hay al menos 1 pista disponible
+        return slot.availableCourtsCount > 0;
+      });
       
-      // Si es una propuesta, solo mostrar si hay al menos 1 pista disponible
-      return slot.availableCourtsCount > 0;
-    });
-    
-    console.log(`🏟️ Court availability filtering: ${beforeCourtFilter} slots → ${filteredSlots.length} slots (removed ${beforeCourtFilter - filteredSlots.length} slots with no available courts)`);
+      console.log(`🏟️ Court availability filtering: ${beforeCourtFilter} slots → ${filteredSlots.length} slots (removed ${beforeCourtFilter - filteredSlots.length} slots with no available courts)`);
+    } else {
+      console.log(`👨‍🏫 Instructor query: Skipping court availability filter (showing all proposals)`);
+    }
 
     // 📊 ORDENAR: Primero clases con usuarios inscritos o confirmadas, luego vacías
     filteredSlots.sort((a, b) => {

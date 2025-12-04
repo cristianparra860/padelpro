@@ -1,12 +1,12 @@
 // src/components/class/ClassCardReal.tsx
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, MapPin, Users, Euro, Star, X, Users2, Venus, Mars, Lightbulb, Info, Plus } from 'lucide-react';
+import { Calendar, Clock, MapPin, Users, Euro, Star, X, Users2, Venus, Mars, Lightbulb, Info, Plus, Gift, Loader2 } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,6 +31,9 @@ interface ClassCardRealProps {
   onBookingSuccess: (updatedSlot?: TimeSlot) => void; // ✅ Permitir recibir slot actualizado
   showPointsBonus?: boolean;
   allowedPlayerCounts?: number[]; // Números de jugadores permitidos para mostrar
+  isInstructor?: boolean; // 🎓 Si el usuario es instructor (pasado desde padre)
+  instructorId?: string; // 🎓 ID del instructor para validación
+  creditsSlots?: number[]; // 🎁 Slots con puntos (pasado desde padre)
 }
 
 interface Booking {
@@ -49,13 +52,29 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   currentUser,
   onBookingSuccess,
   showPointsBonus = true,
-  allowedPlayerCounts = [1, 2, 3, 4] // Por defecto, permitir todas las opciones
+  allowedPlayerCounts = [1, 2, 3, 4], // Por defecto, permitir todas las opciones
+  isInstructor: isInstructorProp = false, // 🎓 Recibir desde padre
+  instructorId: instructorIdProp, // 🎓 ID del instructor
+  creditsSlots: creditsSlotsProps = [] // 🎁 Recibir desde padre
 }) => {
   const { toast } = useToast();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingGroupSize, setPendingGroupSize] = useState<number>(1);
   const [showPrivateDialog, setShowPrivateDialog] = useState(false);
   const [privateAttendees, setPrivateAttendees] = useState<number>(4);
+  
+  // 🎓 Estados para edición de creditsSlots (recibidos desde padre, pero mantenemos estado local para updates)
+  const [creditsSlots, setCreditsSlots] = useState<number[]>(creditsSlotsProps);
+  const [loadingSlot, setLoadingSlot] = useState<number | null>(null);
+  
+  // 🔄 Sincronizar creditsSlots cuando cambien las props
+  useEffect(() => {
+    console.log(`🔄 ClassCard ${classData.id.substring(0,8)}: Sincronizando creditsSlots`, {
+      props: creditsSlotsProps,
+      stateActual: creditsSlots
+    });
+    setCreditsSlots(creditsSlotsProps);
+  }, [creditsSlotsProps, classData.id]);
   
   // ✅ Validar que classData tiene los datos mínimos necesarios
   if (!classData || !classData.start || !classData.end) {
@@ -72,7 +91,9 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
       id: classData.id,
       start: classData.start,
       startType: typeof classData.start,
-      levelRange: (classData as any).levelRange
+      levelRange: (classData as any).levelRange,
+      creditsSlots: (classData as any).creditsSlots,
+      creditsCost: (classData as any).creditsCost
     });
   }, [classData]);
   
@@ -81,14 +102,12 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     setCurrentSlotData(classData);
   }, [classData]);
   
-  console.log(`🎴 ClassCardReal ${currentSlotData.id}: allowedPlayerCounts recibido =`, allowedPlayerCounts);
-  
   // 🔍 Si no hay opciones de jugadores permitidas, no renderizar la tarjeta
-  const availableOptions = [1, 2, 3, 4].filter(count => allowedPlayerCounts.includes(count));
-  console.log(`🎴 ClassCardReal ${currentSlotData.id}: availableOptions calculado =`, availableOptions);
+  const availableOptions = useMemo(() => {
+    return [1, 2, 3, 4].filter(count => allowedPlayerCounts.includes(count));
+  }, [allowedPlayerCounts]);
   
   if (availableOptions.length === 0) {
-    console.log(`🚫 ClassCardReal ${currentSlotData.id}: OCULTANDO tarjeta (sin opciones disponibles)`);
     return null; // Ocultar completamente la tarjeta
   }
   
@@ -97,6 +116,177 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     Array.isArray((classData as any).bookings) ? (classData as any).bookings : 
     Array.isArray(currentSlotData.bookedPlayers) ? currentSlotData.bookedPlayers : []
   );
+  
+  // 🔄 Actualizar bookings cuando cambien las props de classData
+  useEffect(() => {
+    console.log(`🔄🔄🔄 ClassCard ${classData.id.substring(0,8)}: useEffect TRIGGERED`);
+    console.log('📦 classData completo:', {
+      id: classData.id,
+      hasBookings: 'bookings' in classData,
+      bookingsIsArray: Array.isArray((classData as any).bookings),
+      bookingsLength: (classData as any).bookings?.length || 0,
+      level: (classData as any).level,
+      levelRange: (classData as any).levelRange,
+      genderCategory: (classData as any).genderCategory,
+      timestamp: Date.now()
+    });
+    
+    const newBookings = Array.isArray((classData as any).bookings) ? (classData as any).bookings : 
+                       Array.isArray(currentSlotData.bookedPlayers) ? currentSlotData.bookedPlayers : [];
+    
+    console.log(`   → Nuevos bookings a aplicar:`, {
+      cantidad: newBookings.length,
+      bookings: newBookings.map(b => ({
+        id: b.id,
+        name: b.name || b.userName,
+        groupSize: b.groupSize
+      }))
+    });
+    
+    setBookings(newBookings);
+    console.log(`✅ setBookings llamado con ${newBookings.length} bookings`);
+  }, [classData, currentSlotData, classData.id]);
+  
+  // 🎁 Función para toggle de PLAZAS INDIVIDUALES (euros ↔ puntos)
+  // Nueva lógica: cada círculo puede ser activado individualmente
+  const handleToggleIndividualSlot = async (players: number, circleIndex: number, event: React.MouseEvent) => {
+    console.log('🔥 handleToggleIndividualSlot CALLED', { players, circleIndex });
+    event.stopPropagation();
+    event.preventDefault();
+    
+    if (!isInstructorProp || !instructorIdProp) {
+      console.log('❌ No es instructor o falta instructorId', { isInstructorProp, instructorIdProp });
+      return;
+    }
+    
+    // Calcular índice absoluto basado en modalidad y posición del círculo
+    // Modalidad 1: círculo 0 → índice 0
+    // Modalidad 2: círculos 0,1 → índices 1,2  
+    // Modalidad 3: círculos 0,1,2 → índices 3,4,5
+    // Modalidad 4: círculos 0,1,2,3 → índices 6,7,8,9
+    const startIndex = [1,2,3,4].slice(0, players - 1).reduce((sum, p) => sum + p, 0);
+    const absoluteIndex = startIndex + circleIndex;
+    
+    setLoadingSlot(absoluteIndex);
+    
+    try {
+      const isCurrentlyCreditsSlot = creditsSlots.includes(absoluteIndex);
+      const action = isCurrentlyCreditsSlot ? 'remove' : 'add';
+
+      // Calcular el precio por persona de esta modalidad (en euros = puntos)
+      const totalPrice = classData.totalPrice || 25;
+      const pricePerPerson = Math.ceil(totalPrice / players); // Redondear hacia arriba
+      
+      console.log(`🎁 Toggle plaza individual:`, {
+        modalidad: players,
+        circuloEnModalidad: circleIndex,
+        indiceAbsoluto: absoluteIndex,
+        accion: action,
+        precioTotal: totalPrice,
+        precioPorPersona: pricePerPerson,
+        currentCreditsSlots: creditsSlots
+      });
+
+      const response = await fetch(`/api/timeslots/${classData.id}/credits-slots`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          slotIndex: absoluteIndex, 
+          action, 
+          creditsCost: pricePerPerson, // Usar precio por persona
+          instructorId: instructorIdProp
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Error al actualizar plaza');
+      }
+
+      // Actualizar estado local
+      const newCreditsSlots = action === 'add' 
+        ? [...creditsSlots, absoluteIndex].sort((a, b) => a - b)
+        : creditsSlots.filter(s => s !== absoluteIndex);
+      
+      setCreditsSlots(newCreditsSlots);
+
+      toast({
+        title: action === 'add' ? '🎁 Plaza Individual Activada' : '💰 Plaza Restaurada a Euros',
+        description: `Plaza ${circleIndex + 1} de modalidad ${players} jugador${players > 1 ? 'es' : ''}`,
+        className: action === 'add' ? 'bg-amber-500 text-white' : 'bg-green-500 text-white'
+      });
+
+      onBookingSuccess();
+
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'No se pudo actualizar',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoadingSlot(null);
+    }
+  };
+  
+  // 🎁 Función para toggle de creditsSlots (euros ↔ puntos)
+  const handleToggleCreditsSlot = async (modalitySize: number, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevenir que active el booking
+    
+    if (!isInstructorProp) return;
+    
+    setLoadingSlot(modalitySize);
+    
+    try {
+      const isCurrentlyCreditsSlot = creditsSlots.includes(modalitySize);
+      const action = isCurrentlyCreditsSlot ? 'remove' : 'add';
+
+      const response = await fetch(`/api/timeslots/${classData.id}/credits-slots`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          slotIndex: modalitySize, 
+          action, 
+          creditsCost: 50,
+          instructorId: classData.instructorId // 🎓 Enviar ID del instructor de la clase
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Error al actualizar modalidad');
+      }
+
+      // Actualizar estado local INMEDIATAMENTE
+      const newCreditsSlots = action === 'add' 
+        ? [...creditsSlots, modalitySize].sort((a, b) => a - b)
+        : creditsSlots.filter(s => s !== modalitySize);
+      
+      setCreditsSlots(newCreditsSlots);
+      console.log(`🎁 Estado local actualizado para slot ${classData.id.substring(0,8)}:`, newCreditsSlots);
+
+      toast({
+        title: action === 'add' ? '🎁 Plaza con Puntos Activada' : '💰 Plaza de Pago Restaurada',
+        description: `${modalitySize} jugador${modalitySize > 1 ? 'es' : ''}: ${action === 'add' ? 'Ahora cuesta 50 puntos' : 'Vuelve a pago normal'}`,
+        className: action === 'add' ? 'bg-amber-500 text-white' : 'bg-green-500 text-white'
+      });
+
+      // Notificar al padre para refrescar datos (esto recargará los creditsSlots desde el servidor)
+      console.log(`📞 Llamando onBookingSuccess para recargar creditsSlots...`);
+      onBookingSuccess();
+
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Error desconocido',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoadingSlot(null);
+    }
+  };
   const [loading, setLoading] = useState(false); // Ya no necesitamos loading inicial
   const [booking, setBooking] = useState(false);
   const [hasConfirmedBookingToday, setHasConfirmedBookingToday] = useState(false);
@@ -139,6 +329,11 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     checkConfirmedBookingToday();
   }, [currentUser?.id, currentSlotData?.start]);
 
+  // Sincronizar currentSlotData cuando classData cambie desde el padre
+  useEffect(() => {
+    setCurrentSlotData(classData);
+  }, [classData]);
+
   // Sincronizar bookings cuando classData o currentSlotData cambien
   useEffect(() => {
     // Priorizar currentSlotData.bookings (actualizado tras booking local)
@@ -147,22 +342,10 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                          (classData as any).bookings || 
                          classData.bookedPlayers;
     
-    console.log('🔄 useEffect - Sincronizando bookings');
-    console.log('🔄 currentSlotData.bookings:', (currentSlotData as any).bookings);
-    console.log('🔄 currentSlotData.bookedPlayers:', currentSlotData.bookedPlayers);
-    console.log('🔄 bookingsData final:', bookingsData);
-    
     // Verificar que bookingsData existe y es un array
     if (bookingsData && Array.isArray(bookingsData)) {
-      console.log('📋 Actualizando bookings state con', bookingsData.length, 'bookings');
-      if (bookingsData.length > 0) {
-        console.log('🖼️ Primer booking:', JSON.stringify(bookingsData[0], null, 2));
-        console.log('📸 profilePictureUrl:', bookingsData[0].profilePictureUrl);
-        console.log('📊 userLevel:', bookingsData[0].userLevel);
-      }
       setBookings(bookingsData);
     } else {
-      console.warn('⚠️ bookingsData NO es un array válido:', bookingsData);
       setBookings([]); // Establecer array vacío por defecto
     }
   }, [currentSlotData, classData]); // Depender de ambos objetos completos
@@ -286,47 +469,113 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     console.log('🆔 User ID que se va a enviar:', currentUser?.id);
     console.log('📋 Tipo de currentUser.id:', typeof currentUser?.id);
     
-    // ♻️ VERIFICAR SI HAY PLAZAS RECICLADAS EN ESTA OPCIÓN
-    const hasRecycledInOption = bookings.some(b => 
-      b.groupSize === groupSize && 
-      b.status === 'CANCELLED' && 
-      b.isRecycled === true
-    );
+    // 🎁 VERIFICAR SI ES UNA PLAZA CON PUNTOS (creditsSlot)
+    // Calcular creditsCost basado en el precio por persona de la modalidad
+    const totalPrice = currentSlotData.totalPrice || 25;
+    const creditsCost = Math.ceil(totalPrice / groupSize); // Precio en puntos = precio en euros
+    
+    // Calcular índices para esta modalidad
+    const startIndex = [1,2,3,4].slice(0, groupSize - 1).reduce((sum, p) => sum + p, 0);
+    const endIndex = startIndex + groupSize;
+    
+    // Filtrar las reservas de esta modalidad
+    const modalityBookings = bookings.filter(b => b.groupSize === groupSize);
+    
+    // Verificar qué plazas están ocupadas y cuál sería la siguiente disponible
+    let nextAvailableIndex = -1;
+    for (let i = 0; i < groupSize; i++) {
+      const absoluteIndex = startIndex + i;
+      const isOccupied = modalityBookings[i] && 
+                        modalityBookings[i].status !== 'CANCELLED';
+      
+      if (!isOccupied) {
+        nextAvailableIndex = absoluteIndex;
+        break;
+      }
+    }
+    
+    console.log(`🎯 Modalidad ${groupSize}: índices ${startIndex}-${endIndex-1}, próxima plaza disponible: ${nextAvailableIndex}`);
+    
+    // Verificar si la próxima plaza disponible es una creditsSlot
+    const isCreditsSlot = nextAvailableIndex >= 0 && 
+                         Array.isArray(creditsSlots) && 
+                         creditsSlots.includes(nextAvailableIndex);
+    
+    console.log(`🎁 ¿Es creditsSlot? ${isCreditsSlot} (índice ${nextAvailableIndex} en array [${creditsSlots.join(', ')}])`);
     
     let usePoints = false;
     
-    if (hasRecycledInOption) {
-      // ♻️ Hay plazas recicladas - preguntar al usuario si quiere usar puntos
+    if (isCreditsSlot) {
+      // 🎁 Esta plaza es reservable con puntos - verificar que el usuario tenga suficientes
       const userPoints = (currentUser as any).points || 0;
-      const pricePerSlot = ((currentSlotData.totalPrice || 25) / groupSize);
-      const pointsRequired = Math.floor(pricePerSlot);
       
-      console.log(`♻️ Plaza reciclada detectada. Puntos usuario: ${userPoints}, Requeridos: ${pointsRequired}`);
+      console.log(`🎁 Plaza con puntos detectada. Puntos usuario: ${userPoints}, Requeridos: ${creditsCost}`);
       
-      if (userPoints >= pointsRequired) {
-        // Usuario tiene suficientes puntos - preguntar si quiere usarlos
-        const wantsToUsePoints = window.confirm(
-          `♻️ Esta clase tiene plazas recicladas.\n\n` +
-          `Puedes reservar con puntos:\n` +
-          `💎 Puntos requeridos: ${pointsRequired}\n` +
-          `💎 Tus puntos: ${userPoints}\n\n` +
-          `¿Deseas usar puntos para reservar?`
-        );
+      if (userPoints >= creditsCost) {
+        // Usuario tiene suficientes puntos - usar automáticamente
+        usePoints = true;
+        console.log('✅ Usuario tiene suficientes puntos - Se usarán automáticamente');
         
-        if (wantsToUsePoints) {
-          usePoints = true;
-          console.log('✅ Usuario eligió pagar con puntos');
-        } else {
-          console.log('❌ Usuario eligió pagar con créditos normales');
-        }
-      } else {
-        // No tiene suficientes puntos - informar y continuar con créditos
+        // Mostrar confirmación al usuario
         toast({
-          title: "♻️ Plaza Reciclada",
-          description: `Esta plaza requiere ${pointsRequired} puntos para reservar (tienes ${userPoints}). Se usarán tus créditos normales.`,
+          title: "🎁 Reserva con Puntos",
+          description: `Se usarán ${creditsCost} puntos para esta reserva (tienes ${userPoints}).`,
           variant: "default",
-          duration: 4000
+          duration: 3000
         });
+      } else {
+        // No tiene suficientes puntos - no permitir reserva
+        toast({
+          title: "❌ Puntos Insuficientes",
+          description: `Esta plaza requiere ${creditsCost} puntos pero solo tienes ${userPoints}. No puedes reservar con créditos normales.`,
+          variant: "destructive",
+          duration: 5000
+        });
+        return; // 🚫 No continuar con la reserva
+      }
+    }
+    
+    // ♻️ VERIFICAR SI HAY PLAZAS RECICLADAS EN ESTA OPCIÓN (solo si no es credits slot)
+    if (!isCreditsSlot) {
+      const hasRecycledInOption = bookings.some(b => 
+        b.groupSize === groupSize && 
+        b.status === 'CANCELLED' && 
+        b.isRecycled === true
+      );
+      
+      if (hasRecycledInOption) {
+        // ♻️ Hay plazas recicladas - preguntar al usuario si quiere usar puntos
+        const userPoints = (currentUser as any).points || 0;
+        const pricePerSlot = ((currentSlotData.totalPrice || 25) / groupSize);
+        const pointsRequired = Math.floor(pricePerSlot);
+        
+        console.log(`♻️ Plaza reciclada detectada. Puntos usuario: ${userPoints}, Requeridos: ${pointsRequired}`);
+        
+        if (userPoints >= pointsRequired) {
+          // Usuario tiene suficientes puntos - preguntar si quiere usarlos
+          const wantsToUsePoints = window.confirm(
+            `♻️ Esta clase tiene plazas recicladas.\n\n` +
+            `Puedes reservar con puntos:\n` +
+            `💎 Puntos requeridos: ${pointsRequired}\n` +
+            `💎 Tus puntos: ${userPoints}\n\n` +
+            `¿Deseas usar puntos para reservar?`
+          );
+          
+          if (wantsToUsePoints) {
+            usePoints = true;
+            console.log('✅ Usuario eligió pagar con puntos');
+          } else {
+            console.log('❌ Usuario eligió pagar con créditos normales');
+          }
+        } else {
+          // No tiene suficientes puntos - informar y continuar con créditos
+          toast({
+            title: "♻️ Plaza Reciclada",
+            description: `Esta plaza requiere ${pointsRequired} puntos para reservar (tienes ${userPoints}). Se usarán tus créditos normales.`,
+            variant: "default",
+            duration: 4000
+          });
+        }
       }
     }
     
@@ -354,32 +603,63 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
       if (response.ok) {
         const result = await response.json();
         
+        console.log('🎉 ========================================');
+        console.log('🎉 BOOKING EXITOSO');
+        console.log('📦 Respuesta del API:', {
+          success: result.success,
+          hasUpdatedSlot: !!result.updatedSlot,
+          bookingsInUpdatedSlot: result.updatedSlot?.bookings?.length || 0
+        });
+        
         // ✅ Si la API devolvió el slot actualizado, usarlo para actualización inmediata
         if (result.updatedSlot) {
-          console.log('✅ Slot actualizado recibido del API:', result.updatedSlot);
-          console.log('✅ Bookings en updatedSlot:', result.updatedSlot.bookings);
+          console.log('✅ Slot actualizado recibido del API');
+          console.log('📋 Bookings en updatedSlot:', result.updatedSlot.bookings?.length || 0);
+          
+          if (result.updatedSlot.bookings && result.updatedSlot.bookings.length > 0) {
+            console.log('👤 Primer booking en respuesta:', {
+              id: result.updatedSlot.bookings[0].id,
+              name: result.updatedSlot.bookings[0].name || result.updatedSlot.bookings[0].userName,
+              userLevel: result.updatedSlot.bookings[0].userLevel,
+              profilePictureUrl: result.updatedSlot.bookings[0].profilePictureUrl ? 'SÍ (tiene)' : 'NO'
+            });
+          }
           
           // Convertir el slot del API al formato TimeSlot
           const updatedSlot: TimeSlot = {
             ...result.updatedSlot,
             start: result.updatedSlot.start,
             end: result.updatedSlot.end,
+            level: result.updatedSlot.level || 'abierto', // ✅ PRESERVAR nivel del API
+            levelRange: result.updatedSlot.levelRange || null, // ✅ PRESERVAR levelRange
+            genderCategory: result.updatedSlot.genderCategory || null, // ✅ PRESERVAR genderCategory
             bookedPlayers: result.updatedSlot.bookings || [],
             bookings: result.updatedSlot.bookings || []
           };
           
+          console.log('📦 Slot convertido para el padre:', {
+            id: updatedSlot.id,
+            level: updatedSlot.level,
+            levelRange: updatedSlot.levelRange,
+            genderCategory: updatedSlot.genderCategory,
+            bookings: updatedSlot.bookings?.length || 0
+          });
+          
           // ✅ Actualizar bookings inmediatamente en el estado local
           if (result.updatedSlot.bookings && Array.isArray(result.updatedSlot.bookings)) {
-            console.log('✅ Actualizando bookings localmente:', result.updatedSlot.bookings);
+            console.log('✅ Actualizando bookings localmente:', result.updatedSlot.bookings.length);
             setBookings(result.updatedSlot.bookings);
           }
           
           // Actualizar estado local del slot
           setCurrentSlotData(updatedSlot);
           
+          console.log('📞 Llamando onBookingSuccess(updatedSlot)...');
           // Notificar al padre con el slot actualizado
           onBookingSuccess(updatedSlot);
+          console.log('🎉 ========================================');
         } else {
+          console.log('⚠️ API no devolvió updatedSlot, usando fallback');
           // Fallback: recargar desde padre si no viene updatedSlot
           setTimeout(() => {
             onBookingSuccess();
@@ -703,34 +983,33 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
 
   // Determinar nivel dinámico basado en el levelRange del TimeSlot o el primer usuario inscrito  
   const getDynamicLevel = (): { level: string; isAssigned: boolean } => {
-    // 🐛 DEBUG: Log para ver qué está recibiendo
-    console.log(`🔍 [ClassCard ${currentSlotData.id}] levelRange:`, (currentSlotData as any).levelRange);
-    
-    // 🎯 PRIORIDAD 1: Usar levelRange del TimeSlot si está definido
-    if ((currentSlotData as any).levelRange) {
-      console.log(`✅ [ClassCard ${currentSlotData.id}] Usando levelRange:`, (currentSlotData as any).levelRange);
+    // 🐛 DEBUG: Log para ver qué datos recibe el componente
+    console.log('🔍 getDynamicLevel - Data received:', {
+      classDataId: classData.id.substring(0, 12),
+      classDataLevel: (classData as any)?.level,
+      classDataLevelRange: (classData as any)?.levelRange,
+      currentSlotDataLevel: (currentSlotData as any)?.level,
+      currentSlotDataLevelRange: (currentSlotData as any)?.levelRange,
+      instructorName: classData.instructorName
+    });
+
+    // 🎯 PRIORIDAD 1: Usar levelRange del TimeSlot si está definido (usar classData que viene del API)
+    const levelRange = (classData as any).levelRange || (currentSlotData as any).levelRange;
+    if (levelRange && levelRange !== 'null') {
+      console.log('✅ Using levelRange:', levelRange);
       return { 
-        level: (currentSlotData as any).levelRange, 
+        level: levelRange, 
         isAssigned: true 
       };
     }
 
-    // 🎯 PRIORIDAD 2: Si no hay levelRange, buscar el nivel del primer usuario
-    if (!Array.isArray(bookings) || bookings.length === 0) {
-      return { level: 'Abierto', isAssigned: false };
-    }
-
-    // Buscar el primer usuario inscrito
-    const sortedBookings = [...bookings].sort((a, b) => 
-      new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
-    );
+    // 🎯 PRIORIDAD 2: Usar el campo "level" del TimeSlot directamente
+    // Este campo ya contiene el rango correcto (ej: "5-7") gracias al backend
+    const slotLevel = (classData as any)?.level || (currentSlotData as any)?.level;
     
-    const firstUser = sortedBookings[0];
-    if (firstUser?.userLevel) {
-      // Mostrar el nivel del usuario directamente si no hay rango definido
-      return { level: firstUser.userLevel, isAssigned: true };
+    if (slotLevel && slotLevel !== 'abierto' && slotLevel !== 'ABIERTO' && slotLevel !== 'null') {
+      return { level: slotLevel, isAssigned: true };
     }
-
     return { level: 'Abierto', isAssigned: false };
   };
 
@@ -926,11 +1205,43 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           // Verificar si OTRA modalidad está confirmada
           const isAnotherModalityConfirmed = courtAssignment.isAssigned && !isThisModalityConfirmed;
           
+          // 🎁 Verificar si esta modalidad es reservable con puntos
+          // Calcular creditsCost dinámicamente: precio por persona
+          const totalPrice = currentSlotData.totalPrice || 25;
+          const creditsCost = Math.ceil(totalPrice / players);
+          
+          // Calcular cuántas plazas de esta modalidad son de puntos
+          const startIndex = [1,2,3,4].slice(0, players - 1).reduce((sum, p) => sum + p, 0);
+          const endIndex = startIndex + players;
+          const creditsSlotIndicesForThisModality = Array.isArray(creditsSlots) 
+            ? creditsSlots.filter(idx => idx >= startIndex && idx < endIndex)
+            : [];
+          
+          const hasAnyCreditSlot = creditsSlotIndicesForThisModality.length > 0;
+          const hasAllCreditSlots = creditsSlotIndicesForThisModality.length === players;
+          
+          // Para retrocompatibilidad (por si hay datos antiguos con modalidades en lugar de índices)
+          const isCreditsSlot = Array.isArray(creditsSlots) && 
+            (creditsSlots.includes(players) || hasAllCreditSlots);
+          
+          // 🐛 DEBUG temporal para Cristian Parra slot
+          if (currentSlotData.id.includes('z9y4veby1rd')) {
+            console.log(`🐛 DEBUG slot ${currentSlotData.id.substring(0, 12)}:`, {
+              players,
+              creditsSlotsState: creditsSlots,
+              isArray: Array.isArray(creditsSlots),
+              includes: creditsSlots.includes ? creditsSlots.includes(players) : 'NO includes method',
+              isCreditsSlot,
+              creditsCost
+            });
+          }
+          
           // Debug log para mostrar el filtrado
           if (bookings.length > 0) {
             console.log(`🎯 Clase ${currentSlotData.id.substring(0, 8)}: Modalidad ${players} jugadores`);
             console.log(`📋 Todas las reservas:`, bookings.map(b => `${b.name}(${b.groupSize})`));
             console.log(`📋 Reservas filtradas para ${players}:`, modalityBookings.map(b => `${b.name}(${b.groupSize})`));
+            console.log(`🎁 Es plaza con puntos:`, isCreditsSlot, '- Coste:', creditsCost);
           }
           
           // Para esta modalidad específica, mostrar solo las reservas que tienen este groupSize
@@ -976,6 +1287,11 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                   const isRecycled = booking?.status === 'CANCELLED' && booking?.isRecycled === true;
                   const displayName = booking?.name ? booking.name.substring(0, 5) : '';
                   
+                  // 🎁 NUEVA LÓGICA: Calcular índice absoluto para verificar creditsSlots
+                  const startIndex = [1,2,3,4].slice(0, players - 1).reduce((sum, p) => sum + p, 0);
+                  const absoluteIndex = startIndex + index;
+                  const isThisCircleCredits = Array.isArray(creditsSlots) && creditsSlots.includes(absoluteIndex);
+                  
                   // Debug log para ver los datos del booking
                   if (isOccupied && index === 0) {
                     console.log('🖼️ Booking completo:', booking);
@@ -984,26 +1300,58 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                   }
                   
                   return (
-                    <div key={index} className="flex flex-col items-center gap-1">
+                    <div key={index} className="flex flex-col items-center gap-1 relative">
                       <div
                         className={cn(
                           "w-12 h-12 rounded-full border-2 flex items-center justify-center text-lg font-bold transition-all shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]",
                           isRecycled
                             ? 'border-yellow-500 bg-yellow-400 text-yellow-900 recycled-slot-blink' // ♻️ Plaza reciclada
                             : isOccupied 
-                              ? 'border-green-500 bg-white' 
-                              : 'border-dashed border-green-400 bg-white text-green-400',
+                              ? (isThisCircleCredits ? 'border-amber-500 bg-white' : 'border-green-500 bg-white')
+                              : (isThisCircleCredits 
+                                  ? 'border-2 border-amber-500 bg-amber-50 text-amber-600' // 🎁 Plaza vacía con puntos - fondo dorado
+                                  : 'border-dashed border-green-400 bg-white text-green-400'),
                           isCurrentUser && 'ring-2 ring-blue-400 ring-offset-1',
-                          isAnotherModalityConfirmed && 'grayscale opacity-50'
+                          isAnotherModalityConfirmed && 'grayscale opacity-50',
+                          isThisCircleCredits && !isOccupied && 'shadow-[0_0_15px_rgba(245,158,11,0.5)] animate-pulse' // 🎁 Glow dorado pulsante para plazas con puntos
                         )}
                         title={
                           isRecycled
                             ? '♻️ Plaza reciclada - Reservable con puntos'
+                            : isThisCircleCredits
+                              ? `🎁 Reservable con ${creditsCost} puntos`
                             : isAnotherModalityConfirmed 
                               ? 'Opción bloqueada - Otra modalidad confirmada'
                               : isOccupied ? booking.name : 'Disponible'
                         }
                       >
+                      
+                      {/* 🎓 Botón de edición para instructores (AHORA EN CADA CÍRCULO VACÍO) */}
+                      {isInstructorProp && !isOccupied && !isAnotherModalityConfirmed && (
+                        <button
+                          onClick={(e) => {
+                            console.log('🔥 Botón clicked!', { players, index, absoluteIndex });
+                            handleToggleIndividualSlot(players, index, e);
+                          }}
+                          disabled={loadingSlot === absoluteIndex}
+                          className={cn(
+                            "absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md z-10 transition-all",
+                            loadingSlot === absoluteIndex ? "bg-gray-400" : isThisCircleCredits 
+                              ? "bg-green-500 hover:bg-green-600" 
+                              : "bg-amber-500 hover:bg-amber-600"
+                          )}
+                          title={isThisCircleCredits ? "Cambiar a pago en euros" : "Cambiar a pago con puntos"}
+                        >
+                          {loadingSlot === absoluteIndex ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : isThisCircleCredits ? (
+                            "€"
+                          ) : (
+                            <Gift className="w-3 h-3" />
+                          )}
+                        </button>
+                      )}
+                      
                         {isRecycled ? (
                           // ♻️ Mostrar símbolo de reciclaje para plazas recicladas
                           <div className="w-full h-full rounded-full bg-yellow-400 flex items-center justify-center shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]">
@@ -1046,7 +1394,12 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                             }
                           })()
                         ) : (
-                          '+'
+                          // Círculo vacío: mostrar 🎁 si es plaza de puntos, + si es normal
+                          isThisCircleCredits ? (
+                            <Gift className="w-6 h-6 text-amber-600" />
+                          ) : (
+                            '+'
+                          )
                         )}
                       </div>
                       <span className="text-xs font-medium leading-none">
@@ -1054,6 +1407,8 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                           <span className="text-yellow-600 font-semibold">♻️ Reciclada</span>
                         ) : isOccupied ? (
                           <span className="text-gray-700">{displayName}</span>
+                        ) : isThisCircleCredits ? (
+                          <span className="text-amber-600 font-bold">{creditsCost}p</span>
                         ) : (
                           <span className="text-green-400">Libre</span>
                         )}
@@ -1063,11 +1418,36 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                 })}
               </div>
               
-              {/* Price - Desglosado */}
+              {/* Price or Credits - Desglosado */}
               <div className="text-right flex-shrink-0 ml-auto mr-2">
-                <div className="text-lg font-bold text-gray-900">
-                  € {pricePerPerson.toFixed(2)}
-                </div>
+                {hasAllCreditSlots ? (
+                  // 🎁 Todas las plazas son con puntos
+                  <div className="flex flex-col items-end gap-0.5">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-br from-amber-400 via-yellow-400 to-amber-500 shadow-lg">
+                      <span className="text-2xl">🎁</span>
+                      <div className="flex flex-col items-end">
+                        <span className="text-base font-bold text-amber-900 leading-none">{creditsCost}</span>
+                        <span className="text-[10px] font-semibold text-amber-800 leading-none">Puntos</span>
+                      </div>
+                    </div>
+                    <span className="text-[9px] text-amber-600 font-medium">Todas con puntos</span>
+                  </div>
+                ) : hasAnyCreditSlot ? (
+                  // 💰+🎁 Algunas plazas con puntos, otras con euros
+                  <div className="flex flex-col items-end gap-0.5">
+                    <div className="text-lg font-bold text-gray-900">
+                      € {pricePerPerson.toFixed(2)}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[9px] text-amber-600 font-medium">Algunas con 🎁</span>
+                    </div>
+                  </div>
+                ) : (
+                  // 💰 Mostrar precio normal (ninguna plaza con puntos)
+                  <div className="text-lg font-bold text-gray-900">
+                    € {pricePerPerson.toFixed(2)}
+                  </div>
+                )}
               </div>
             </div>
           );

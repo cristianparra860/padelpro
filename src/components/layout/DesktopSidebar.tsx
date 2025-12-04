@@ -138,6 +138,7 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                                                 <Link href="/admin/calendar" className="w-full"><Button variant={pathname.startsWith('/admin/calendar') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Calendar className="mr-3 h-5 w-5" /> Calendario Club</Button></Link>
                                                 <Link href="/admin" className="w-full"><Button variant={pathname === '/admin' ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Settings className="mr-3 h-5 w-5" /> Config Club</Button></Link>
                     </div>
+                    {/* Botón +Puntos comentado por solicitud del usuario
                     {isActivitiesPage && (
                         <>
                             <Separator />
@@ -155,6 +156,7 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                             </div>
                         </>
                     )}
+                    */}
                     <div className="mt-auto pt-2 border-t space-y-2">
                         <Button variant="outline" className="w-full justify-start text-sm h-10 rounded-full" onClick={onProfessionalAccessClick}><Briefcase className="mr-3 h-4 w-4" /> Acceso Profesional</Button>
                         <Button variant="outline" className="w-full justify-start text-sm h-10 rounded-full" onClick={onLogoutClick}><LogOut className="mr-3 h-4 w-4" /> Salir</Button>

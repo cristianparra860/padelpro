@@ -20,6 +20,7 @@ interface ClassesDisplayProps {
   onTimeSlotFilterChange?: (filter: TimeOfDayFilterType) => void; // 🕐 Callback para cambiar filtro de horarios
   onInstructorIdsChange?: (ids: string[]) => void; // 👨‍🏫 Callback para cambiar filtro de instructores
   onViewPreferenceChange?: (view: 'withBookings' | 'all' | 'myConfirmed') => void; // 👥 Callback para cambiar filtro de vista
+  creditsEditMode?: boolean; // 🎁 Modo edición de plazas con puntos (solo instructores)
 }
 
 // ✅ Removido React.memo - los filtros necesitan re-renderizar cuando cambian props
@@ -36,7 +37,8 @@ export function ClassesDisplay({
   onPlayerCountsChange, // 🆕
   onTimeSlotFilterChange, // 🕐
   onInstructorIdsChange, // 👨‍🏫
-  onViewPreferenceChange // 👥
+  onViewPreferenceChange, // 👥
+  creditsEditMode = false // 🎁
 }: ClassesDisplayProps) {
   const [timeSlots, setTimeSlots] = useState<ApiTimeSlot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,10 +56,73 @@ export function ClassesDisplay({
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   
+  // 🎁 Estados para optimización de botones de puntos
+  const [isInstructor, setIsInstructor] = useState(false);
+  const [instructorId, setInstructorId] = useState<string | null>(null);
+  const [creditsSlotsMap, setCreditsSlotsMap] = useState<Record<string, number[]>>({});
+  
   // 🆕 Sincronizar estado local con props
   useEffect(() => {
     setLocalPlayerCounts(selectedPlayerCounts);
   }, [selectedPlayerCounts]);
+  
+  // 💾 Cargar preferencias guardadas del usuario al iniciar
+  useEffect(() => {
+    const loadUserPreferences = async () => {
+      try {
+        const token = localStorage.getItem('auth_token');
+        if (!token || !currentUser) return;
+        
+        const response = await fetch('/api/user/preferences', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const prefs = await response.json();
+          console.log('✅ Preferencias cargadas:', prefs);
+          
+          // Aplicar prefPlayerCounts si existe
+          if (prefs.prefPlayerCounts) {
+            const counts = prefs.prefPlayerCounts
+              .split(',')
+              .map((n: string) => parseInt(n.trim()))
+              .filter((n: number) => !isNaN(n) && n >= 1 && n <= 4);
+            
+            if (counts.length > 0) {
+              setLocalPlayerCounts(counts);
+              if (onPlayerCountsChange) {
+                onPlayerCountsChange(counts);
+              }
+              console.log('🔢 Filtro de jugadores aplicado desde preferencias:', counts);
+            }
+          }
+          
+          // Aplicar otras preferencias si existen callbacks
+          if (prefs.prefTimeSlot && prefs.prefTimeSlot !== 'all' && onTimeSlotFilterChange) {
+            onTimeSlotFilterChange(prefs.prefTimeSlot as TimeOfDayFilterType);
+          }
+          
+          if (prefs.prefViewType && prefs.prefViewType !== 'all' && onViewPreferenceChange) {
+            onViewPreferenceChange(prefs.prefViewType as 'withBookings' | 'all' | 'myConfirmed');
+          }
+          
+          if (prefs.prefInstructorIds && onInstructorIdsChange) {
+            const ids = prefs.prefInstructorIds.split(',').filter((id: string) => id.trim());
+            if (ids.length > 0) {
+              onInstructorIdsChange(ids);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error cargando preferencias del usuario:', error);
+      }
+    };
+    
+    loadUserPreferences();
+  }, [currentUser]); // Solo cargar una vez cuando currentUser está disponible
   
   // 👨‍🏫 Obtener lista única de instructores de los slots disponibles
   const availableInstructors = useMemo(() => {
@@ -106,6 +171,28 @@ export function ClassesDisplay({
   // 🎯 Abrir y cerrar panel de filtros
   const openFilterPanel = () => setShowFilterPanel(true);
   const closeFilterPanel = () => setShowFilterPanel(false);
+  
+  // 🎓 Detectar si usuario es instructor (una sola vez)
+  useEffect(() => {
+    const checkInstructor = async () => {
+      if (!currentUser?.id) return;
+      
+      try {
+        const response = await fetch(`/api/instructors/by-user/${currentUser.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setIsInstructor(true);
+          setInstructorId(data.instructor?.id || data.id);
+          console.log('🎓 Usuario es instructor - habilitando edición de plazas');
+        }
+        // Silently ignore 404 - user is just not an instructor
+      } catch (error) {
+        // Silently ignore - user is not an instructor
+      }
+    };
+    
+    checkInstructor();
+  }, [currentUser?.id]);
   
   // 🔥 LIMPIAR CACHÉ AL MONTAR EL COMPONENTE
   useEffect(() => {
@@ -195,6 +282,36 @@ export function ClassesDisplay({
         setTimeSlots(slots);
       }
       
+      // 🎁 Cargar creditsSlots en batch para TODOS los usuarios (ver plazas con puntos)
+      if (slots.length > 0) {
+        const slotIds = slots.map(s => s.id);
+        try {
+          const creditsResponse = await fetch(`/api/timeslots/credits-slots-batch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ slotIds })
+          });
+          
+          if (creditsResponse.ok) {
+            const creditsData = await creditsResponse.json();
+            setCreditsSlotsMap(prev => ({ ...prev, ...creditsData }));
+            console.log(`🎁 Cargados creditsSlots para ${Object.keys(creditsData).length} slots:`, creditsData);
+            // DEBUG: Mostrar específicamente el slot de Cristian
+            const cristianSlot = Object.keys(creditsData).find(k => k.includes('z9y4veby1rd'));
+            if (cristianSlot) {
+              console.log(`   ✨ Slot Cristian Parra encontrado:`, {
+                id: cristianSlot,
+                creditsSlots: creditsData[cristianSlot]
+              });
+            }
+          } else {
+            console.error('❌ Error en batch response:', creditsResponse.status);
+          }
+        } catch (error) {
+          console.error('Error cargando creditsSlots batch:', error);
+        }
+      }
+      
       // 📄 Actualizar estado de paginación
       setCurrentPage(page);
       setHasMore(pagination.hasMore);
@@ -230,7 +347,7 @@ export function ClassesDisplay({
     setHasMore(true);
     setTimeSlots([]);
     loadTimeSlots(1, false);
-  }, [selectedDate, clubId, timeSlotFilter, viewPreference, selectedInstructorIds, currentUser, loadTimeSlots, externalRefreshKey]);
+  }, [selectedDate, clubId, timeSlotFilter, viewPreference, selectedInstructorIds, currentUser, loadTimeSlots, externalRefreshKey, refreshKey]); // ✅ AGREGAR refreshKey como dependencia
 
   // 📄 Función simple para cargar más clases
   const handleLoadMore = useCallback(() => {
@@ -308,8 +425,44 @@ export function ClassesDisplay({
       console.log(`👨‍🏫 Instructor filter: ${beforeInstructorFilter} slots → ${filtered.length} slots (${selectedInstructorIds.length} instructors selected)`);
     }
     
-    console.log(`⏰ Time filter: ${timeSlotFilter} - ${timeSlots.length} slots → ${filtered.length} slots`);
-    console.log(`🔢 Player counts selected: [${localPlayerCounts.join(', ')}] - Will be applied in ClassCardReal`);
+    // 🔢 Filtro de número de jugadores
+    if (localPlayerCounts.length > 0) {
+      const beforePlayerFilter = filtered.length;
+      console.log(`🔢 Filtro de jugadores ACTIVO con: [${localPlayerCounts.join(', ')}]`);
+      
+      filtered = filtered.filter(slot => {
+        // Una clase se muestra si tiene al menos UNA modalidad seleccionada con disponibilidad
+        // Por ejemplo: si seleccionas [2, 3, 4] (sin 1), la clase debe tener disponible 2, 3 o 4 jugadores
+        const hasAvailableOption = localPlayerCounts.some(count => {
+          // Contar reservas ACTIVAS (no canceladas) para esta modalidad
+          const bookingsForThisMode = (slot.bookings || []).filter(
+            b => b.groupSize === count && b.status !== 'CANCELLED'
+          );
+          
+          // Disponible = hay menos reservas que el número de jugadores de la modalidad
+          // Ejemplo: para 4 jugadores, si hay 3 o menos reservas, está disponible
+          const isAvailable = bookingsForThisMode.length < count;
+          
+          if (isAvailable) {
+            console.log(`   ✅ Clase ${slot.id?.substring(0, 8)}: tiene disponible ${count} jugadores (${bookingsForThisMode.length}/${count})`);
+          }
+          
+          return isAvailable;
+        });
+        
+        if (!hasAvailableOption) {
+          console.log(`   ❌ Clase ${slot.id?.substring(0, 8)}: NO tiene ninguna opción disponible de [${localPlayerCounts.join(', ')}]`);
+        }
+        
+        return hasAvailableOption;
+      });
+      console.log(`🔢 Player counts filter: ${beforePlayerFilter} slots → ${filtered.length} slots (showing only classes with availability in: [${localPlayerCounts.join(', ')}] players)`);
+    } else {
+      console.log(`🔢 Filtro de jugadores DESACTIVADO - mostrando todas las clases`);
+    }
+    
+    console.log(`⏰ Final filter result: ${filtered.length} slots`);
+    console.log(`🔢 Player counts selected: [${localPlayerCounts.join(', ')}] - Cards will show only these options`);
     return filtered;
   }, [timeSlots, timeSlotFilter, viewPreference, selectedInstructorIds, localPlayerCounts]);
 
@@ -344,7 +497,8 @@ export function ClassesDisplay({
       startTime: new Date(apiSlot.start),
       endTime: new Date(apiSlot.end),
       durationMinutes: 60, // ✅ CORREGIDO: 60 minutos, no 90
-      level: 'abierto' as const, // Simplificado por ahora
+      level: apiSlot.level || 'abierto', // ✅ USAR EL NIVEL DEL API, NO HARDCODEAR
+      levelRange: apiSlot.levelRange || null, // ✅ PASAR levelRange del API
       category: 'abierta' as const, // Simplificado por ahora
       genderCategory: apiSlot.genderCategory, // AGREGADO: Pasar la categoría de género desde el API
       maxPlayers: apiSlot.maxPlayers || 4,
@@ -382,24 +536,62 @@ export function ClassesDisplay({
     }
   }, [timeSlotFilter]);
 
-  // Memoize handleBookingSuccess to prevent prop changes
-  const handleBookingSuccess = useCallback((updatedSlot?: TimeSlot) => {
-    console.log('🔄 Booking success! updatedSlot:', updatedSlot ? 'SÍ (actualización inmediata)' : 'NO (recargando...)');
-    
-    if (updatedSlot) {
-      // ✅ Actualización inmediata: reemplazar el slot en el state actual
-      setTimeSlots(prev => prev.map(slot => 
-        slot.id === updatedSlot.id ? updatedSlot : slot
-      ));
-      console.log('✅ Slot actualizado localmente:', updatedSlot.id);
-    } else {
-      // Fallback: recargar desde API
-      setRefreshKey(prev => prev + 1);
-      loadTimeSlots(1, false);
+  // 🎁 Función para recargar creditsSlots en batch (TODOS los usuarios ven plazas con puntos)
+  const reloadCreditsSlots = useCallback(async () => {
+    if (timeSlots.length === 0) {
+      console.log('⏭️ Saltando recarga creditsSlots: sin slots');
+      return;
     }
     
+    console.log('🔄 Recargando creditsSlots para', timeSlots.length, 'slots...');
+    const slotIds = timeSlots.map(s => s.id);
+    try {
+      const creditsResponse = await fetch(`/api/timeslots/credits-slots-batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slotIds })
+      });
+      
+      if (creditsResponse.ok) {
+        const creditsData = await creditsResponse.json();
+        setCreditsSlotsMap(creditsData); // Reemplazar completamente el mapa
+        console.log(`✅ Recargados creditsSlots:`, creditsData);
+      }
+    } catch (error) {
+      console.error('❌ Error recargando creditsSlots batch:', error);
+    }
+  }, [timeSlots]);
+
+  // Memoize handleBookingSuccess to prevent prop changes
+  const handleBookingSuccess = useCallback(async (updatedSlot?: TimeSlot) => {
+    console.log('🔄 ========================================');
+    console.log('🔄 handleBookingSuccess LLAMADO EN CLASSESDISPLAY');
+    console.log('🔄 updatedSlot recibido:', updatedSlot ? 'SÍ' : 'NO');
+    
+    // 🚀 SOLUCIÓN: Siempre recargar desde el API para asegurar datos frescos
+    console.log('🔄 Recargando clases desde el API para asegurar actualización...');
+    
+    // Incrementar refreshKey ANTES de recargar para forzar re-render
+    setRefreshKey(prev => {
+      const newKey = prev + 1;
+      console.log(`🔑 RefreshKey actualizado: ${prev} → ${newKey}`);
+      return newKey;
+    });
+    
+    // Esperar un momento para que el key se actualice
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Recargar datos desde el API
+    await loadTimeSlots(1, false);
+    
+    // 🎁 Recargar creditsSlots después de cualquier cambio
+    await reloadCreditsSlots();
+    
+    console.log('✅ Recarga completa finalizada');
+    console.log('🔄 ========================================');
+    
     onBookingSuccess?.();
-  }, [loadTimeSlots, onBookingSuccess]);
+  }, [loadTimeSlots, onBookingSuccess, reloadCreditsSlots]);
 
   if (loading) {
     return (
@@ -449,25 +641,31 @@ export function ClassesDisplay({
   return (
     <div className="relative">
       {/* FILTROS LATERALES - Lateral derecho con diseño de cápsula */}
-      <div className="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-3 items-center pr-1">
-        {/* Etiqueta "Filtros" */}
-        <div className="text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-1">
-          Filtros
+      <div className="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2 md:gap-3 items-center pr-1">
+        {/* Título principal "Filtros" */}
+        <div className="bg-white rounded-full px-2 py-1 md:px-3 md:py-1.5 shadow-md border border-gray-200">
+          <span className="text-[7px] md:text-[9px] font-bold uppercase tracking-wider text-gray-600">
+            Filtros
+          </span>
         </div>
         
         {/* 👨‍🏫 FILTRO DE INSTRUCTORES - Cápsula con fotos de perfil */}
         {availableInstructors.length > 0 && (
-          <div className={`bg-white rounded-full p-1 flex flex-col gap-1 items-center transition-all duration-200 ${
-            selectedInstructorIds.length > 0 && selectedInstructorIds.length < availableInstructors.length
-              ? 'border border-green-500 shadow-[inset_0_3px_8px_rgba(34,197,94,0.25),inset_0_1px_3px_rgba(0,0,0,0.15)]'
-              : 'border border-gray-300 shadow-[inset_0_3px_8px_rgba(0,0,0,0.15),inset_0_1px_3px_rgba(0,0,0,0.1)]'
-          }`}>
+          <div className="flex flex-col items-center gap-0.5 md:gap-1">
+            <span className="text-[6px] md:text-[8px] font-semibold uppercase tracking-wide text-gray-500">
+              Instructores
+            </span>
+            <div className={`bg-white rounded-full p-0.5 md:p-1 flex flex-col gap-0.5 md:gap-1 items-center transition-all duration-200 ${
+              selectedInstructorIds.length > 0 && selectedInstructorIds.length < availableInstructors.length
+                ? 'border border-green-500 shadow-[inset_0_3px_8px_rgba(34,197,94,0.25),inset_0_1px_3px_rgba(0,0,0,0.15)]'
+                : 'border border-gray-300 shadow-[inset_0_3px_8px_rgba(0,0,0,0.15),inset_0_1px_3px_rgba(0,0,0,0.1)]'
+            }`}>
             {availableInstructors.map(instructor => (
               <button
                 key={instructor.id}
                 onClick={() => setShowInstructorFilterPanel(true)}
                 className={`
-                  w-7 h-7 md:w-11 md:h-11 rounded-full transition-all duration-200 cursor-pointer overflow-hidden
+                  w-6 h-6 md:w-11 md:h-11 rounded-full transition-all duration-200 cursor-pointer overflow-hidden
                   ${selectedInstructorIds.length === 0 || selectedInstructorIds.includes(instructor.id)
                     ? 'border border-green-500 shadow-[inset_0_1px_3px_rgba(34,197,94,0.2)]'
                     : 'border border-gray-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] opacity-40 hover:opacity-70 hover:border-gray-400'
@@ -489,20 +687,25 @@ export function ClassesDisplay({
               </button>
             ))}
           </div>
+        </div>
         )}
 
         {/* 🕐 Círculo de reloj */}
-        <button
-          onClick={() => setShowTimeFilterPanel(true)}
-          className={`
-            w-7 h-7 md:w-11 md:h-11 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer
-            ${timeSlotFilter !== 'all'
-              ? 'bg-white border border-green-500 shadow-[inset_0_1px_3px_rgba(34,197,94,0.2)]'
-              : 'bg-white border border-gray-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] hover:border-gray-400'
-            }
-          `}
-          title="Click para filtrar por horario"
-        >
+        <div className="flex flex-col items-center gap-0.5 md:gap-1">
+          <span className="text-[6px] md:text-[8px] font-semibold uppercase tracking-wide text-gray-500">
+            Horario
+          </span>
+          <button
+            onClick={() => setShowTimeFilterPanel(true)}
+            className={`
+              w-6 h-6 md:w-11 md:h-11 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer
+              ${timeSlotFilter !== 'all'
+                ? 'bg-white border border-green-500 shadow-[inset_0_1px_3px_rgba(34,197,94,0.2)]'
+                : 'bg-white border border-gray-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] hover:border-gray-400'
+              }
+            `}
+            title="Click para filtrar por horario"
+          >
           <svg 
             className="w-full h-full" 
             viewBox="0 0 24 24" 
@@ -536,22 +739,27 @@ export function ClassesDisplay({
             {/* Centro del reloj */}
             <circle cx="12" cy="12" r="1.5" fill={timeSlotFilter !== 'all' ? '#22c55e' : '#9ca3af'} />
           </svg>
-        </button>
+          </button>
+        </div>
 
         {/* 👥 Círculo de filtro de vista (Todas/Pendientes/Confirmadas) */}
-        <button
-          onClick={() => setShowViewFilterPanel(true)}
-          className={`
-            w-7 h-7 md:w-11 md:h-11 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer
-            ${viewPreference === 'withBookings'
-              ? 'bg-white border border-blue-500 shadow-[inset_0_1px_3px_rgba(59,130,246,0.2)]'
-              : viewPreference === 'myConfirmed'
-              ? 'bg-white border border-red-500 shadow-[inset_0_1px_3px_rgba(239,68,68,0.2)]'
-              : 'bg-white border border-gray-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] hover:border-gray-400'
-            }
-          `}
-          title="Filtrar por tipo de clase"
-        >
+        <div className="flex flex-col items-center gap-0.5 md:gap-1">
+          <span className="text-[6px] md:text-[8px] font-semibold uppercase tracking-wide text-gray-500">
+            Vista
+          </span>
+          <button
+            onClick={() => setShowViewFilterPanel(true)}
+            className={`
+              w-6 h-6 md:w-11 md:h-11 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer
+              ${viewPreference === 'withBookings'
+                ? 'bg-white border border-blue-500 shadow-[inset_0_1px_3px_rgba(59,130,246,0.2)]'
+                : viewPreference === 'myConfirmed'
+                ? 'bg-white border border-red-500 shadow-[inset_0_1px_3px_rgba(239,68,68,0.2)]'
+                : 'bg-white border border-gray-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] hover:border-gray-400'
+              }
+            `}
+            title="Filtrar por tipo de clase"
+          >
           <svg 
             className="w-full h-full" 
             viewBox="0 0 24 24" 
@@ -595,20 +803,25 @@ export function ClassesDisplay({
               strokeLinecap="round"
             />
           </svg>
-        </button>
+          </button>
+        </div>
 
         {/* Contenedor redondeado (cápsula) para los números */}
-        <div className={`bg-white rounded-full p-1 flex flex-col gap-1 items-center transition-all duration-200 ${
-          localPlayerCounts.length < 4
-            ? 'border border-green-500 shadow-[inset_0_3px_8px_rgba(34,197,94,0.25),inset_0_1px_3px_rgba(0,0,0,0.15)]'
-            : 'border border-gray-300 shadow-[inset_0_3px_8px_rgba(0,0,0,0.15),inset_0_1px_3px_rgba(0,0,0,0.1)]'
-        }`}>
+        <div className="flex flex-col items-center gap-0.5 md:gap-1">
+          <span className="text-[6px] md:text-[8px] font-semibold uppercase tracking-wide text-gray-500">
+            Jugadores
+          </span>
+          <div className={`bg-white rounded-full p-0.5 md:p-1 flex flex-col gap-0.5 md:gap-1 items-center transition-all duration-200 ${
+            localPlayerCounts.length > 0 && localPlayerCounts.length < 4
+              ? 'border border-green-500 shadow-[inset_0_3px_8px_rgba(34,197,94,0.25),inset_0_1px_3px_rgba(0,0,0,0.15)]'
+              : 'border border-gray-300 shadow-[inset_0_3px_8px_rgba(0,0,0,0.15),inset_0_1px_3px_rgba(0,0,0,0.1)]'
+          }`}>
           {[1, 2, 3, 4].map(count => (
             <button
               key={count}
               onClick={openFilterPanel}
               className={`
-                w-7 h-7 md:w-11 md:h-11 rounded-full font-bold text-xs md:text-base transition-all duration-200 cursor-pointer bg-white
+                w-6 h-6 md:w-11 md:h-11 rounded-full font-bold text-[10px] md:text-base transition-all duration-200 cursor-pointer bg-white
                 ${localPlayerCounts.includes(count)
                   ? 'border border-green-600 text-green-600 shadow-[inset_0_1px_3px_rgba(0,0,0,0.2)]'
                   : 'border border-gray-300 text-gray-400 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] hover:border-gray-400 hover:text-gray-500'
@@ -619,6 +832,7 @@ export function ClassesDisplay({
               {count}
             </button>
           ))}
+          </div>
         </div>
       </div>
 
@@ -633,55 +847,120 @@ export function ClassesDisplay({
           
           {/* Panel Central */}
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 md:p-4">
-            <div className="bg-white rounded-2xl shadow-2xl p-4 md:p-8 animate-in zoom-in-95 duration-300">
-              <div className="text-center mb-4 md:mb-6">
-                <h3 className="text-base md:text-xl font-bold text-gray-900 mb-1 md:mb-2">
-                  Filtrar por número de jugadores
+            <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 animate-in zoom-in-95 duration-300 max-w-lg">
+              {/* Header con botón cerrar */}
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl md:text-2xl font-bold text-gray-800">
+                  Filtrar por jugadores
                 </h3>
-                <p className="text-xs md:text-sm text-gray-500">
-                  Selecciona los tipos de clase que quieres ver
-                </p>
+                <button
+                  onClick={closeFilterPanel}
+                  className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                >
+                  <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
+
+              {/* Instructions */}
+              <p className="text-sm md:text-base text-gray-600 mb-6">
+                Selecciona el número de jugadores que te interesa. Solo verás clases con disponibilidad para esas opciones.
+              </p>
               
               {/* Círculos grandes tipo avatar */}
-              <div className="flex gap-3 md:gap-6 justify-center mb-4 md:mb-6">
+              <div className="flex gap-4 md:gap-6 justify-center mb-8">
                 {[1, 2, 3, 4].map(count => (
                   <button
                     key={count}
                     onClick={() => togglePlayerCount(count)}
                     className={`
-                      w-16 h-16 md:w-20 md:h-20 rounded-full font-bold text-2xl md:text-3xl
+                      relative w-16 h-16 md:w-20 md:h-20 rounded-full font-bold text-2xl md:text-3xl
                       transition-all duration-200 cursor-pointer
                       ${localPlayerCounts.includes(count)
-                        ? 'bg-white border-4 border-green-500 text-green-600 shadow-[inset_0_2px_8px_rgba(34,197,94,0.3)] scale-110'
-                        : 'bg-white border-4 border-gray-300 text-gray-400 shadow-[inset_0_2px_4px_rgba(0,0,0,0.1)] hover:border-green-400 hover:text-green-500 hover:scale-105'
+                        ? 'bg-green-500 text-white shadow-lg scale-110 ring-4 ring-green-200'
+                        : 'bg-white border-4 border-gray-300 text-gray-400 shadow-md hover:border-green-300 hover:text-green-500 hover:scale-105'
                       }
                     `}
                   >
                     {count}
+                    {localPlayerCounts.includes(count) && (
+                      <div className="absolute -top-1 -right-1 bg-white rounded-full p-1 shadow-md">
+                        <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    )}
                   </button>
                 ))}
               </div>
 
-              {/* Descripción */}
-              <div className="text-center text-xs md:text-sm text-gray-600 mb-4">
-                {localPlayerCounts.length === 0 && (
-                  <p>⚠️ Selecciona al menos un tipo de clase</p>
-                )}
-                {localPlayerCounts.length > 0 && (
-                  <p>
-                    ✓ Mostrando clases de: <span className="font-semibold">{localPlayerCounts.sort().join(', ')} jugador{localPlayerCounts.length > 1 ? 'es' : ''}</span>
+              {/* Current selection info */}
+              <div className="text-center mb-6 p-3 bg-gray-50 rounded-lg">
+                {localPlayerCounts.length === 0 ? (
+                  <p className="text-sm text-gray-500">⚠️ No hay filtros seleccionados - se mostrarán todas las clases</p>
+                ) : localPlayerCounts.length === 4 ? (
+                  <p className="text-sm text-gray-500">✓ Todos los modos seleccionados - se mostrarán todas las clases</p>
+                ) : (
+                  <p className="text-sm text-green-600 font-medium">
+                    ✓ Mostrando clases con {localPlayerCounts.length === 1 ? 'opción de' : 'opciones de'} <span className="font-bold">{localPlayerCounts.join(', ')}</span> {localPlayerCounts.length === 1 ? 'jugador' : 'jugadores'}
                   </p>
                 )}
               </div>
 
-              {/* Botón cerrar */}
-              <button
-                onClick={closeFilterPanel}
-                className="w-full py-3 px-6 bg-green-500 hover:bg-green-600 text-white rounded-full font-semibold transition-colors duration-200"
-              >
-                Aplicar filtro
-              </button>
+              {/* Action buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={closeFilterPanel}
+                  className="flex-1 px-6 py-3 rounded-xl text-white bg-blue-500 hover:bg-blue-600 font-medium transition-colors shadow-lg"
+                >
+                  ✓ Aplicar selección
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      const token = localStorage.getItem('auth_token');
+                      if (!token) {
+                        alert('❌ Debes iniciar sesión para guardar preferencias');
+                        return;
+                      }
+
+                      // Guardar preferencia en la base de datos
+                      const response = await fetch('/api/user/preferences', {
+                        method: 'PUT',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                          prefPlayerCounts: localPlayerCounts.join(',')
+                        })
+                      });
+
+                      if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Error al guardar preferencias');
+                      }
+
+                      // Mostrar confirmación visual con mejor feedback
+                      const successMessage = localPlayerCounts.length === 0 
+                        ? '✅ Filtro eliminado - se mostrarán todas las clases'
+                        : localPlayerCounts.length === 4
+                        ? '✅ Todos los modos seleccionados - se mostrarán todas las clases'
+                        : `✅ Preferencias guardadas: ${localPlayerCounts.join(', ')} jugadores`;
+                      
+                      alert(successMessage);
+                      closeFilterPanel();
+                    } catch (error) {
+                      console.error('Error saving preferences:', error);
+                      alert(`❌ Error al guardar preferencias: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+                    }
+                  }}
+                  className="flex-1 px-6 py-3 rounded-xl text-white bg-green-500 hover:bg-green-600 font-medium transition-colors shadow-lg"
+                >
+                  💾 Guardar selección
+                </button>
+              </div>
             </div>
           </div>
         </>
@@ -1074,14 +1353,25 @@ export function ClassesDisplay({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-0 md:gap-0">
             {processedSlots.map((slot) => {
               console.log(`🎴 Renderizando tarjeta ${slot.id.substring(0,8)} con allowedPlayerCounts:`, localPlayerCounts);
+              // 🎓 Solo permitir edición si el instructor es el de esta clase
+              const canEditCreditsSlots = isInstructor && instructorId === slot.instructorId;
+              console.log(`🔍 Verificación de permisos para slot ${slot.id.substring(0,8)}:`, {
+                isInstructor,
+                instructorIdUsuario: instructorId,
+                instructorIdClase: slot.instructorId,
+                canEditCreditsSlots
+              });
               return (
-                <div key={`${slot.id}-${refreshKey}-${localPlayerCounts.join(',')}`} className="flex justify-center">
+                <div key={`slot-${slot.id}-refresh-${refreshKey}-bookings-${slot.bookings?.length || 0}-players-${localPlayerCounts.join('-')}`} className="flex justify-center">
                   <ClassCardReal
                     classData={slot}
                     currentUser={currentUser || null}
                     onBookingSuccess={handleBookingSuccess}
                     showPointsBonus={true}
                     allowedPlayerCounts={localPlayerCounts}
+                    isInstructor={canEditCreditsSlots}
+                    instructorId={instructorId}
+                    creditsSlots={creditsSlotsMap[slot.id] || []}
                   />
                 </div>
               );

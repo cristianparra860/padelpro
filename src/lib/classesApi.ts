@@ -18,6 +18,7 @@ export interface TimeSlot {
   maxPlayers: number;
   totalPrice?: number;
   level?: string;
+  levelRange?: string; // Rango de nivel del instructor (e.g., "5-7")
   category?: string;
   genderCategory?: string; // Categoría de género: masculino, femenino, mixto
   createdAt: string;
@@ -44,6 +45,9 @@ export interface TimeSlot {
     status: 'available' | 'occupied' | 'unavailable';
   }>;
   availableCourtsCount?: number;
+  // 🎁 Nuevos campos para plazas reservables con puntos
+  creditsSlots?: number[]; // Array de índices [1,2,3,4] que son reservables con puntos
+  creditsCost?: number; // Coste en puntos (default: 50)
 }
 
 export interface Booking {

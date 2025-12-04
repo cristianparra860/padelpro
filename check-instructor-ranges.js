@@ -3,35 +3,33 @@ const prisma = new PrismaClient();
 
 async function checkInstructorRanges() {
   try {
-    const instructor = await prisma.instructor.findFirst({
-      where: {
-        user: {
-          name: 'Carlos Martinez'
+    const instructors = await prisma.$queryRaw`
+      SELECT id, name, levelRanges 
+      FROM Instructor 
+      LIMIT 10
+    `;
+    
+    console.log('👨‍🏫 Instructores y sus rangos de nivel:\n');
+    
+    instructors.forEach(i => {
+      console.log(`- ${i.name}:`);
+      if (i.levelRanges) {
+        try {
+          const ranges = JSON.parse(i.levelRanges);
+          ranges.forEach(r => {
+            console.log(`  • ${r.minLevel} - ${r.maxLevel}`);
+          });
+        } catch (e) {
+          console.log(`  ⚠️ Error parseando: ${i.levelRanges}`);
         }
-      },
-      select: {
-        id: true,
-        levelRanges: true,
-        user: {
-          select: {
-            name: true
-          }
-        }
+      } else {
+        console.log(`  ❌ SIN RANGOS CONFIGURADOS`);
       }
+      console.log('');
     });
     
-    console.log('Instructor encontrado:');
-    console.log(JSON.stringify(instructor, null, 2));
-    
-    if (instructor && instructor.levelRanges) {
-      console.log('\nRangos parseados:');
-      console.log(JSON.parse(instructor.levelRanges));
-    } else {
-      console.log('\n⚠️ El instructor NO tiene rangos de nivel configurados');
-      console.log('Ve a /instructor y configura rangos en "Preferencias y Tarifas"');
-    }
   } catch (error) {
-    console.error('Error:', error);
+    console.error('❌ Error:', error);
   } finally {
     await prisma.$disconnect();
   }

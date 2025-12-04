@@ -234,16 +234,25 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
 
   return (
     <Tabs defaultValue="myClasses" className="space-y-4">
-  <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-1 h-auto flex-wrap">
-        <TabsTrigger value="myClasses" className="text-xs sm:text-sm py-1.5 px-2">Mis Clases</TabsTrigger>
-        <TabsTrigger value="manageClasses" className="text-xs sm:text-sm py-1.5 px-2">Gestionar Clases</TabsTrigger>
-        <TabsTrigger value="addCredits" className="text-xs sm:text-sm py-1.5 px-2">Añadir Crédito</TabsTrigger>
-        <TabsTrigger value="openMatch" className="text-xs sm:text-sm py-1.5 px-2">Abrir Partida</TabsTrigger>
-        <TabsTrigger value="clubCalendar" className="text-xs sm:text-sm py-1.5 px-2">
-          <CalendarSearch className="mr-1 h-4 w-4"/>
-          Calendario Club
+      <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-1 h-auto flex-wrap">
+        <TabsTrigger value="myClasses" className="text-xs sm:text-sm py-1.5 px-2">
+          <ListChecks className="mr-1.5 h-4 w-4" /> Mis Clases
         </TabsTrigger>
-        <TabsTrigger value="instructorPreferences" className="text-xs sm:text-sm py-1.5 px-2">Preferencias y Tarifas</TabsTrigger>
+        <TabsTrigger value="manageClasses" className="text-xs sm:text-sm py-1.5 px-2">
+          <CalendarPlus className="mr-1.5 h-4 w-4" /> Gestionar Clases
+        </TabsTrigger>
+        <TabsTrigger value="addCredits" className="text-xs sm:text-sm py-1.5 px-2">
+          <Wallet className="mr-1.5 h-4 w-4" /> Añadir Crédito
+        </TabsTrigger>
+        <TabsTrigger value="openMatch" className="text-xs sm:text-sm py-1.5 px-2">
+          <PlayCircle className="mr-1.5 h-4 w-4" /> Abrir Partida
+        </TabsTrigger>
+        <TabsTrigger value="clubCalendar" className="text-xs sm:text-sm py-1.5 px-2">
+          <CalendarSearch className="mr-1 h-4 w-4"/> Calendario Club
+        </TabsTrigger>
+        <TabsTrigger value="instructorPreferences" className="text-xs sm:text-sm py-1.5 px-2">
+          <Settings2 className="mr-1.5 h-4 w-4" /> Preferencias
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="myClasses">

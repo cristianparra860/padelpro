@@ -73,6 +73,7 @@ model User {
   credits           Int             @default(0)  // Saldo en euros (céntimos)
   blockedCredits    Int             @default(0)  // Saldo bloqueado por inscripciones pendientes
   points            Int             @default(0)  // Puntos acumulados por cancelaciones
+  blockedPoints     Int             @default(0)  // Puntos bloqueados por inscripciones pendientes
   genderCategory    String?         // masculino, femenino, mixto
   preferredGameType String?         // clases, partidas, mixto
   
@@ -255,6 +256,8 @@ model TimeSlot {
   genderCategory    String? // masculino, femenino, mixto - categoría de la clase
   levelRange        String? // Rango de nivel asignado (ej: "5.0-7.0")
   hasRecycledSlots  Boolean  @default(false) // Si tiene plazas recicladas (solo reservables con puntos)
+  creditsSlots      String? // JSON array de índices de plazas reservables con puntos [1,2,3,4]
+  creditsCost       Int      @default(50) // Coste en puntos para plazas con créditos
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

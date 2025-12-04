@@ -252,6 +252,8 @@ export interface PadelCourt {
 export interface TimeSlot {
     id: string;
     clubId: string;
+    start?: number; // ✅ Timestamp de inicio (para compatibilidad con API)
+    end?: number; // ✅ Timestamp de fin (para compatibilidad con API)
     startTime: Date;
     endTime: Date;
     durationMinutes: number;
@@ -261,13 +263,18 @@ export interface TimeSlot {
     maxPlayers: number;
     courtNumber?: number;
     level: ClassPadelLevel;
+    levelRange?: string | null; // ✅ AGREGADO: Rango de nivel asignado por el instructor (1-3, 3-5, 5-7)
     category: PadelCategoryForSlot;
     genderCategory?: string; // AGREGADO: Categoría de género (masculino/femenino/mixto)
     hasRecycledSlots?: boolean; // ♻️ Indica que tiene plazas recicladas disponibles
+    creditsSlots?: number[]; // 🎁 Índices de plazas reservables con puntos [1,2,3,4]
+    creditsCost?: number; // 🎁 Coste en puntos para reservar con créditos (default: 50)
     status: 'pre_registration' | 'forming' | 'confirmed' | 'confirmed_private' | 'cancelled';
     bookedPlayers: { 
         userId: string; 
         name?: string; 
+        userName?: string; // ✅ Alias para name
+        userEmail?: string; // ✅ Email del usuario
         isSimulated?: boolean; 
         profilePictureUrl?: string; 
         groupSize: 1 | 2 | 3 | 4;
@@ -276,7 +283,23 @@ export interface TimeSlot {
         userGender?: string;
         createdAt?: string;
         isRecycled?: boolean; // ♻️ Indica si es una plaza reciclada
+        id?: string; // ✅ ID del booking
     }[];
+    bookings?: Array<{ 
+        userId: string; 
+        name?: string; 
+        userName?: string;
+        userEmail?: string;
+        isSimulated?: boolean; 
+        profilePictureUrl?: string; 
+        groupSize: 1 | 2 | 3 | 4;
+        status: 'PENDING' | 'CONFIRMED' | 'CANCELLED';
+        userLevel?: string;
+        userGender?: string;
+        createdAt?: string;
+        isRecycled?: boolean;
+        id?: string;
+    }>; // ✅ Alias para bookedPlayers (compatibilidad con API)
     // 🏟️ Disponibilidad de pistas en tiempo real
     courtsAvailability?: Array<{
         courtNumber: number;

@@ -22,7 +22,8 @@ import PersonalMatches from '@/components/schedule/PersonalMatches';
 import PersonalMatchDay from '@/components/schedule/PersonalMatchDay';
 import UserBookings from '@/components/user/UserBookings';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
-import { Wallet, Star, History, Repeat, PlusCircle, PiggyBank, Lock, Sparkles, CalendarDays, User } from 'lucide-react';
+import { Wallet, Star, History, Repeat, PlusCircle, PiggyBank, Lock, Sparkles, CalendarDays, User, Gift } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import CreditMovementsDialog from '@/components/user/CreditMovementsDialog';
 import AddCreditDialog from '@/components/user/AddCreditDialog';
 import ConvertBalanceDialog from '@/components/user/ConvertBalanceDialog';
@@ -56,6 +57,7 @@ function DashboardPageContent() {
     const [isEditLevelDialogOpen, setIsEditLevelDialogOpen] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
     const [isInstructor, setIsInstructor] = useState(false);
+    const [editMode, setEditMode] = useState(false);
 
     const { toast } = useToast();
     const router = useRouter();
@@ -336,6 +338,26 @@ function DashboardPageContent() {
                     </Card>
                 </div>
 
+                {/* Botón Editar Plazas para Instructores */}
+                {isInstructor && (
+                    <div className="flex justify-center">
+                        <Button 
+                            size="lg"
+                            variant={editMode ? "default" : "outline"}
+                            onClick={() => setEditMode(!editMode)}
+                            className={cn(
+                                "text-sm h-12 px-6 rounded-full transition-all shadow-md",
+                                editMode 
+                                    ? "bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white border-none shadow-amber-200" 
+                                    : "border-2 border-amber-400 text-amber-700 hover:bg-amber-50"
+                            )}
+                        >
+                            <Gift className="mr-2 h-5 w-5" />
+                            {editMode ? '✓ Modo Edición Activo' : 'Editar Plazas con Puntos'}
+                        </Button>
+                    </div>
+                )}
+
                 {/* Componente de Reservas del Usuario */}
                 <UserBookings 
                     currentUser={user} 
@@ -350,6 +372,8 @@ function DashboardPageContent() {
                     currentUser={user} 
                     onBookingActionSuccess={handleDataChange} 
                     refreshKey={refreshKey}
+                    editMode={isInstructor ? editMode : false}
+                    instructorId={user.instructorId}
                 />
                 <PersonalMatchDay 
                     currentUser={user} 
