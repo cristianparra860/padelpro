@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+﻿import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ClassesApi, TimeSlot as ApiTimeSlot } from '@/lib/classesApi';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -15,15 +15,15 @@ interface ClassesDisplayProps {
   selectedPlayerCounts?: number[];
   selectedInstructorIds?: string[];
   viewPreference?: 'withBookings' | 'all' | 'myConfirmed';
-  externalRefreshKey?: number; // 🆕 Para forzar recarga desde el padre
-  onPlayerCountsChange?: (counts: number[]) => void; // 🆕 Callback para cambiar filtro de jugadores
-  onTimeSlotFilterChange?: (filter: TimeOfDayFilterType) => void; // 🕐 Callback para cambiar filtro de horarios
-  onInstructorIdsChange?: (ids: string[]) => void; // 👨‍🏫 Callback para cambiar filtro de instructores
-  onViewPreferenceChange?: (view: 'withBookings' | 'all' | 'myConfirmed') => void; // 👥 Callback para cambiar filtro de vista
-  creditsEditMode?: boolean; // 🎁 Modo edición de plazas con puntos (solo instructores)
+  externalRefreshKey?: number; // ðŸ†• Para forzar recarga desde el padre
+  onPlayerCountsChange?: (counts: number[]) => void; // ðŸ†• Callback para cambiar filtro de jugadores
+  onTimeSlotFilterChange?: (filter: TimeOfDayFilterType) => void; // ðŸ• Callback para cambiar filtro de horarios
+  onInstructorIdsChange?: (ids: string[]) => void; // ðŸ‘¨â€ðŸ« Callback para cambiar filtro de instructores
+  onViewPreferenceChange?: (view: 'withBookings' | 'all' | 'myConfirmed') => void; // ðŸ‘¥ Callback para cambiar filtro de vista
+  creditsEditMode?: boolean; // ðŸŽ Modo ediciÃ³n de plazas con puntos (solo instructores)
 }
 
-// ✅ Removido React.memo - los filtros necesitan re-renderizar cuando cambian props
+// âœ… Removido React.memo - los filtros necesitan re-renderizar cuando cambian props
 export function ClassesDisplay({ 
   selectedDate, 
   clubId = 'club-1', 
@@ -33,40 +33,41 @@ export function ClassesDisplay({
   selectedPlayerCounts = [1, 2, 3, 4],
   selectedInstructorIds = [],
   viewPreference = 'all',
-  externalRefreshKey = 0, // 🆕
-  onPlayerCountsChange, // 🆕
-  onTimeSlotFilterChange, // 🕐
-  onInstructorIdsChange, // 👨‍🏫
-  onViewPreferenceChange, // 👥
-  creditsEditMode = false // 🎁
+  externalRefreshKey = 0, // ðŸ†•
+  onPlayerCountsChange, // ðŸ†•
+  onTimeSlotFilterChange, // ðŸ•
+  onInstructorIdsChange, // ðŸ‘¨â€ðŸ«
+  onViewPreferenceChange, // ðŸ‘¥
+  creditsEditMode = false // ðŸŽ
 }: ClassesDisplayProps) {
   const [timeSlots, setTimeSlots] = useState<ApiTimeSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0); // ✅ Forzar actualización tras booking
-  const [hasReloaded, setHasReloaded] = useState(false); // 🔥 Evitar bucle de recargas
-  const [localPlayerCounts, setLocalPlayerCounts] = useState<number[]>(selectedPlayerCounts); // 🆕 Estado local para el filtro
-  const [showFilterPanel, setShowFilterPanel] = useState(false); // 🎯 Estado del panel expandido de jugadores
-  const [showTimeFilterPanel, setShowTimeFilterPanel] = useState(false); // 🕐 Estado del panel de horarios
-  const [showInstructorFilterPanel, setShowInstructorFilterPanel] = useState(false); // 👨‍🏫 Estado del panel de instructores
-  const [showViewFilterPanel, setShowViewFilterPanel] = useState(false); // 👥 Estado del panel de vista
+  const [selectedInscriptionSlotIds, setSelectedInscriptionSlotIds] = useState<string[]>([]);
+  const [refreshKey, setRefreshKey] = useState(0); // âœ… Forzar actualizaciÃ³n tras booking
+  const [hasReloaded, setHasReloaded] = useState(false); // ðŸ”¥ Evitar bucle de recargas
+  const [localPlayerCounts, setLocalPlayerCounts] = useState<number[]>(selectedPlayerCounts); // ðŸ†• Estado local para el filtro
+  const [showFilterPanel, setShowFilterPanel] = useState(false); // ðŸŽ¯ Estado del panel expandido de jugadores
+  const [showTimeFilterPanel, setShowTimeFilterPanel] = useState(false); // ðŸ• Estado del panel de horarios
+  const [showInstructorFilterPanel, setShowInstructorFilterPanel] = useState(false); // ðŸ‘¨â€ðŸ« Estado del panel de instructores
+  const [showViewFilterPanel, setShowViewFilterPanel] = useState(false); // ðŸ‘¥ Estado del panel de vista
   
-  // 📄 Estados para paginación infinita
+  // ðŸ“„ Estados para paginaciÃ³n infinita
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   
-  // 🎁 Estados para optimización de botones de puntos
+  // ðŸŽ Estados para optimizaciÃ³n de botones de puntos
   const [isInstructor, setIsInstructor] = useState(false);
   const [instructorId, setInstructorId] = useState<string | null>(null);
   const [creditsSlotsMap, setCreditsSlotsMap] = useState<Record<string, number[]>>({});
   
-  // 🆕 Sincronizar estado local con props
+  // ðŸ†• Sincronizar estado local con props
   useEffect(() => {
     setLocalPlayerCounts(selectedPlayerCounts);
   }, [selectedPlayerCounts]);
   
-  // 💾 Cargar preferencias guardadas del usuario al iniciar
+  // ðŸ’¾ Cargar preferencias guardadas del usuario al iniciar
   useEffect(() => {
     const loadUserPreferences = async () => {
       try {
@@ -82,7 +83,7 @@ export function ClassesDisplay({
         
         if (response.ok) {
           const prefs = await response.json();
-          console.log('✅ Preferencias cargadas:', prefs);
+          console.log('âœ… Preferencias cargadas:', prefs);
           
           // Aplicar prefPlayerCounts si existe
           if (prefs.prefPlayerCounts) {
@@ -96,7 +97,7 @@ export function ClassesDisplay({
               if (onPlayerCountsChange) {
                 onPlayerCountsChange(counts);
               }
-              console.log('🔢 Filtro de jugadores aplicado desde preferencias:', counts);
+              console.log('ðŸ”¢ Filtro de jugadores aplicado desde preferencias:', counts);
             }
           }
           
@@ -117,14 +118,14 @@ export function ClassesDisplay({
           }
         }
       } catch (error) {
-        console.error('❌ Error cargando preferencias del usuario:', error);
+        console.error('âŒ Error cargando preferencias del usuario:', error);
       }
     };
     
     loadUserPreferences();
-  }, [currentUser]); // Solo cargar una vez cuando currentUser está disponible
+  }, [currentUser]); // Solo cargar una vez cuando currentUser estÃ¡ disponible
   
-  // 👨‍🏫 Obtener lista única de instructores de los slots disponibles
+  // ðŸ‘¨â€ðŸ« Obtener lista Ãºnica de instructores de los slots disponibles
   const availableInstructors = useMemo(() => {
     const instructorsMap = new Map<string, { id: string; name: string; picture: string | null }>();
     
@@ -141,7 +142,7 @@ export function ClassesDisplay({
     return Array.from(instructorsMap.values());
   }, [timeSlots]);
 
-  // 🆕 Manejar cambio de filtro de jugadores
+  // ðŸ†• Manejar cambio de filtro de jugadores
   const togglePlayerCount = useCallback((count: number) => {
     setLocalPlayerCounts(prev => {
       const newCounts = prev.includes(count)
@@ -157,7 +158,7 @@ export function ClassesDisplay({
     });
   }, [onPlayerCountsChange]);
 
-  // 👨‍🏫 Manejar toggle de instructor
+  // ðŸ‘¨â€ðŸ« Manejar toggle de instructor
   const toggleInstructor = useCallback((instructorId: string) => {
     const newIds = selectedInstructorIds.includes(instructorId)
       ? selectedInstructorIds.filter(id => id !== instructorId)
@@ -168,11 +169,11 @@ export function ClassesDisplay({
     }
   }, [selectedInstructorIds, onInstructorIdsChange]);
 
-  // 🎯 Abrir y cerrar panel de filtros
+  // ðŸŽ¯ Abrir y cerrar panel de filtros
   const openFilterPanel = () => setShowFilterPanel(true);
   const closeFilterPanel = () => setShowFilterPanel(false);
   
-  // 🎓 Detectar si usuario es instructor (una sola vez)
+  // ðŸŽ“ Detectar si usuario es instructor (una sola vez)
   useEffect(() => {
     const checkInstructor = async () => {
       if (!currentUser?.id) return;
@@ -181,25 +182,28 @@ export function ClassesDisplay({
         const response = await fetch(`/api/instructors/by-user/${currentUser.id}`);
         if (response.ok) {
           const data = await response.json();
-          setIsInstructor(true);
-          setInstructorId(data.instructor?.id || data.id);
-          console.log('🎓 Usuario es instructor - habilitando edición de plazas');
+          if (data.isInstructor && data.instructor) {
+            setIsInstructor(true);
+            setInstructorId(data.instructor.id);
+            console.log('ðŸŽ“ Usuario es instructor - habilitando ediciÃ³n de plazas');
+          } else {
+            console.log('ðŸ‘¤ Usuario no es instructor');
+          }
         }
-        // Silently ignore 404 - user is just not an instructor
       } catch (error) {
-        // Silently ignore - user is not an instructor
+        console.error('Error checking instructor status:', error);
       }
     };
     
     checkInstructor();
   }, [currentUser?.id]);
   
-  // 🔥 LIMPIAR CACHÉ AL MONTAR EL COMPONENTE
+  // ðŸ”¥ LIMPIAR CACHÃ‰ AL MONTAR EL COMPONENTE
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      console.log('🗑️ Limpiando caché del navegador...');
+      console.log('ðŸ—‘ï¸ Limpiando cachÃ© del navegador...');
       
-      // Limpiar caché de fetch API
+      // Limpiar cachÃ© de fetch API
       if ('caches' in window) {
         caches.keys().then(names => {
           names.forEach(name => {
@@ -208,10 +212,10 @@ export function ClassesDisplay({
         });
       }
       
-      // Marcar que ya se limpió el caché
+      // Marcar que ya se limpiÃ³ el cachÃ©
       sessionStorage.setItem('cacheCleaned', 'true');
       
-      console.log('✅ Caché limpiado');
+      console.log('âœ… CachÃ© limpiado');
     }
   }, []); // Solo se ejecuta una vez al montar
   
@@ -225,64 +229,83 @@ export function ClassesDisplay({
       setError(null);
       
       const dateString = format(selectedDate, 'yyyy-MM-dd');
-      console.log(`🔍 Loading slots for date: ${dateString}, page: ${page}, limit: 50`);
-      console.log('👤 User level for filtering:', currentUser?.level);
-      console.log('🚹🚺 User gender for filtering:', (currentUser as any)?.genderCategory);
+      console.log(`ðŸ” Loading slots for date: ${dateString}, page: ${page}, limit: 50`);
+      console.log('ðŸ‘¤ User level for filtering:', currentUser?.level);
+      console.log('ðŸš¹ðŸšº User gender for filtering:', (currentUser as any)?.genderCategory);
       
       const response = await ClassesApi.getTimeSlots({
         clubId,
         date: dateString,
+        userId: currentUser?.id, // ðŸŽ¯ Pasar userId para mostrar clases donde tiene reservas
         userLevel: currentUser?.level, // Pass user level for automatic filtering
         userGender: (currentUser as any)?.genderCategory, // Pass user gender for filtering
-        timeSlotFilter: timeSlotFilter !== 'all' ? timeSlotFilter : undefined, // 🕐 Pasar filtro de horario al API
+        timeSlotFilter: timeSlotFilter !== 'all' ? timeSlotFilter : undefined, // ðŸ• Pasar filtro de horario al API
         page,
-        limit: 50 // 📄 Cargar 50 clases por vez para asegurar suficientes opciones en cada horario
+        limit: 50 // ðŸ“„ Cargar 50 clases por vez para asegurar suficientes opciones en cada horario
       });
       
       const slots = response.slots;
       const pagination = response.pagination;
       
-      console.log('📥 API returned slots:', slots.length);
-      console.log('📄 Pagination info:', pagination);
-      console.log('📝 First slot completo:', slots[0]);
-      console.log('🏟️ First slot tiene courtsAvailability?', slots[0]?.courtsAvailability);
-      console.log('🏟️ First slot availableCourtsCount:', slots[0]?.availableCourtsCount);
+      console.log('ðŸ“¥ API returned slots:', slots.length);
+      console.log('ðŸ“„ Pagination info:', pagination);
+      console.log('ðŸ“ First slot completo:', slots[0]);
       
-      // 🔥 VERIFICAR SI LOS DATOS TIENEN courtsAvailability
+      // â™»ï¸ VERIFICAR DATOS DE RECICLAJE
+      const recycledSlots = slots.filter(s => s.hasRecycledSlots === true || s.availableRecycledSlots > 0);
+      if (recycledSlots.length > 0) {
+        console.log('â™»ï¸â™»ï¸â™»ï¸ SLOTS CON RECICLAJE ENCONTRADOS:', recycledSlots.length);
+        recycledSlots.forEach(slot => {
+          console.log('â™»ï¸ SLOT RECICLADO:', {
+            id: slot.id?.substring(0, 20),
+            instructor: slot.instructorName,
+            court: slot.courtNumber,
+            hasRecycledSlots: slot.hasRecycledSlots,
+            availableRecycledSlots: slot.availableRecycledSlots,
+            recycledSlotsOnlyPoints: slot.recycledSlotsOnlyPoints,
+            bookingsCount: slot.bookings?.length
+          });
+        });
+      }
+      
+      console.log('ðŸŸï¸ First slot tiene courtsAvailability?', slots[0]?.courtsAvailability);
+      console.log('ðŸŸï¸ First slot availableCourtsCount:', slots[0]?.availableCourtsCount);
+      
+      // ðŸ”¥ VERIFICAR SI LOS DATOS TIENEN courtsAvailability
       if (slots.length > 0 && !slots[0]?.courtsAvailability && !hasReloaded) {
         const alreadyReloaded = sessionStorage.getItem('dataReloaded');
         
         if (!alreadyReloaded) {
-          console.warn('⚠️ Los datos NO tienen courtsAvailability - Forzando recarga en 2 segundos...');
+          console.warn('âš ï¸ Los datos NO tienen courtsAvailability - Forzando recarga en 2 segundos...');
           sessionStorage.setItem('dataReloaded', 'true');
           
           setTimeout(() => {
-            console.log('🔄 Recargando página para obtener datos actualizados...');
+            console.log('ðŸ”„ Recargando pÃ¡gina para obtener datos actualizados...');
             window.location.reload();
           }, 2000);
           
           setHasReloaded(true);
           return;
         } else {
-          console.error('❌ Los datos siguen sin courtsAvailability después de recargar');
-          console.log('💡 Posible solución: Reiniciar el servidor con npm run dev');
+          console.error('âŒ Los datos siguen sin courtsAvailability despuÃ©s de recargar');
+          console.log('ðŸ’¡ Posible soluciÃ³n: Reiniciar el servidor con npm run dev');
         }
       }
       
       // Limpiar flag de recarga si los datos son correctos
       if (slots.length > 0 && slots[0]?.courtsAvailability) {
         sessionStorage.removeItem('dataReloaded');
-        console.log('✅ Datos con courtsAvailability recibidos correctamente');
+        console.log('âœ… Datos con courtsAvailability recibidos correctamente');
       }
       
-      // 📄 Actualizar estado según si es primera carga o paginación
+      // ðŸ“„ Actualizar estado segÃºn si es primera carga o paginaciÃ³n
       if (append && page > 1) {
         setTimeSlots(prev => [...prev, ...slots]);
       } else {
         setTimeSlots(slots);
       }
       
-      // 🎁 Cargar creditsSlots en batch para TODOS los usuarios (ver plazas con puntos)
+      // ðŸŽ Cargar creditsSlots en batch para TODOS los usuarios (ver plazas con puntos)
       if (slots.length > 0) {
         const slotIds = slots.map(s => s.id);
         try {
@@ -295,28 +318,28 @@ export function ClassesDisplay({
           if (creditsResponse.ok) {
             const creditsData = await creditsResponse.json();
             setCreditsSlotsMap(prev => ({ ...prev, ...creditsData }));
-            console.log(`🎁 Cargados creditsSlots para ${Object.keys(creditsData).length} slots:`, creditsData);
-            // DEBUG: Mostrar específicamente el slot de Cristian
+            console.log(`ðŸŽ Cargados creditsSlots para ${Object.keys(creditsData).length} slots:`, creditsData);
+            // DEBUG: Mostrar especÃ­ficamente el slot de Cristian
             const cristianSlot = Object.keys(creditsData).find(k => k.includes('z9y4veby1rd'));
             if (cristianSlot) {
-              console.log(`   ✨ Slot Cristian Parra encontrado:`, {
+              console.log(`   âœ¨ Slot Cristian Parra encontrado:`, {
                 id: cristianSlot,
                 creditsSlots: creditsData[cristianSlot]
               });
             }
           } else {
-            console.error('❌ Error en batch response:', creditsResponse.status);
+            console.error('âŒ Error en batch response:', creditsResponse.status);
           }
         } catch (error) {
           console.error('Error cargando creditsSlots batch:', error);
         }
       }
       
-      // 📄 Actualizar estado de paginación
+      // ðŸ“„ Actualizar estado de paginaciÃ³n
       setCurrentPage(page);
       setHasMore(pagination.hasMore);
       
-      console.log('📊 Estado de paginación actualizado:', {
+      console.log('ðŸ“Š Estado de paginaciÃ³n actualizado:', {
         currentPage: page,
         hasMore: pagination.hasMore,
         totalPages: pagination.totalPages,
@@ -333,9 +356,9 @@ export function ClassesDisplay({
     }
   }, [selectedDate, clubId, timeSlotFilter, currentUser?.level, (currentUser as any)?.genderCategory]);
 
-  // 📄 Cargar clases cuando cambien filtros críticos o al montar el componente
+  // ðŸ“„ Cargar clases cuando cambien filtros crÃ­ticos o al montar el componente
   useEffect(() => {
-    console.log('🔄 Cargando clases. Filtros:', { 
+    console.log('ðŸ”„ Cargando clases. Filtros:', { 
       date: format(selectedDate, 'yyyy-MM-dd'), 
       clubId, 
       timeSlotFilter, 
@@ -347,90 +370,135 @@ export function ClassesDisplay({
     setHasMore(true);
     setTimeSlots([]);
     loadTimeSlots(1, false);
-  }, [selectedDate, clubId, timeSlotFilter, viewPreference, selectedInstructorIds, currentUser, loadTimeSlots, externalRefreshKey, refreshKey]); // ✅ AGREGAR refreshKey como dependencia
+  }, [selectedDate, clubId, timeSlotFilter, viewPreference, selectedInstructorIds, currentUser, loadTimeSlots, externalRefreshKey, refreshKey]); // âœ… AGREGAR refreshKey como dependencia
 
-  // 📄 Función simple para cargar más clases
+  // ðŸ“„ FunciÃ³n simple para cargar mÃ¡s clases
   const handleLoadMore = useCallback(() => {
     if (!loadingMore && hasMore) {
-      console.log('🔄 Cargando más clases - página', currentPage + 1);
+      console.log('ðŸ”„ Cargando mÃ¡s clases - pÃ¡gina', currentPage + 1);
       loadTimeSlots(currentPage + 1, true);
     }
   }, [loadingMore, hasMore, currentPage, loadTimeSlots]);
 
   // Memoize filtered slots to avoid recalculation on every render
   const filteredSlots = useMemo(() => {
-    console.log('🔄 Recalculando filteredSlots con localPlayerCounts:', localPlayerCounts);
-    console.log('🕐 Filtro de horario activo:', timeSlotFilter);
+    console.log('ðŸ”„ Recalculando filteredSlots con localPlayerCounts:', localPlayerCounts);
+    console.log('ðŸ• Filtro de horario activo:', timeSlotFilter);
     let filtered = timeSlots;
     
-    // 🕐 FILTRO DE HORARIOS DESACTIVADO TEMPORALMENTE
-    // El filtro ahora muestra todas las clases cargadas para evitar que aparezcan vacías
+    // ðŸ• FILTRO DE HORARIOS DESACTIVADO TEMPORALMENTE
+    // El filtro ahora muestra todas las clases cargadas para evitar que aparezcan vacÃ­as
     // TODO: Implementar filtrado en el servidor (API) para mejor rendimiento
-    console.log(`🕐 Filtro de horario seleccionado: ${timeSlotFilter} (mostrando todas las clases cargadas)`);
-    console.log(`📊 Total de clases disponibles: ${filtered.length}`);
+    console.log(`ðŸ• Filtro de horario seleccionado: ${timeSlotFilter} (mostrando todas las clases cargadas)`);
+    console.log(`ðŸ“Š Total de clases disponibles: ${filtered.length}`);
 
     // Filtro de vista (Con Usuarios / Todas / Confirmadas)
     if (viewPreference === 'withBookings') {
-      console.log('🔍 Aplicando filtro "Con Usuarios"...');
-      console.log('📋 Clases antes del filtro:', filtered.length);
+      console.log('ðŸ” Aplicando filtro "Con Usuarios"...');
+      console.log('ðŸ“‹ Clases antes del filtro:', filtered.length);
       
       filtered = filtered.filter((slot) => {
         const hasBookings = slot.bookings && slot.bookings.length > 0;
         const hasCourtAssigned = slot.courtNumber != null && slot.courtNumber > 0;
         const bookingsCount = slot.bookings?.length || 0;
+        const hasRecycledSlots = slot.hasRecycledSlots === true || slot.hasRecycledSlots === 1;
         
-        console.log(`   🔍 Clase ${slot.id?.substring(0, 8)}:`, {
+        // Contar bookings activos (no cancelados)
+        const activeBookings = (slot.bookings || []).filter(b => b.status !== 'CANCELLED');
+        const hasActiveBookings = activeBookings.length > 0;
+        
+        console.log(`   ðŸ” Clase ${slot.id?.substring(0, 8)}:`, {
           courtNumber: slot.courtNumber,
           courtNumberType: typeof slot.courtNumber,
           hasCourtAssigned,
           hasBookings,
-          bookingsCount
+          bookingsCount,
+          hasRecycledSlots,
+          activeBookingsCount: activeBookings.length
         });
         
-        // Mostrar solo clases CON reservas pero SIN pista asignada
-        const shouldShow = hasBookings && !hasCourtAssigned;
+        // REGLAS:
+        // 1. Clases SIN pista asignada CON reservas (PENDIENTES con usuarios)
+        // 2. Clases CON pista asignada que tienen plazas recicladas disponibles (CONFIRMADAS con cancelaciones)
+        const isPendingWithBookings = hasActiveBookings && !hasCourtAssigned;
+        const isConfirmedWithRecycled = hasCourtAssigned && hasRecycledSlots;
+        const shouldShow = isPendingWithBookings || isConfirmedWithRecycled;
         
-        console.log(`   → ${shouldShow ? '✅ INCLUIR' : '❌ EXCLUIR'} - Tiene ${bookingsCount} reservas, pista: ${slot.courtNumber || 'null/undefined'}`);
+        console.log(`   â†’ ${shouldShow ? 'âœ… INCLUIR' : 'âŒ EXCLUIR'} - Activas: ${activeBookings.length} reservas, pista: ${slot.courtNumber || 'null/undefined'}, recicladas: ${hasRecycledSlots}`);
         return shouldShow;
       });
       
-      console.log('📋 Clases después del filtro:', filtered.length);
+      console.log('ðŸ“‹ Clases despuÃ©s del filtro:', filtered.length);
     }
 
-    // Filtro "Confirmadas": Clases que tienen pista asignada
+    // Filtro "Confirmadas": Clases donde el usuario tiene una reserva confirmada
     if (viewPreference === 'myConfirmed') {
-      console.log('🔍 Aplicando filtro "Confirmadas"...');
-      console.log('📋 Clases antes del filtro:', filtered.length);
+      console.log('ðŸ” Aplicando filtro "Confirmadas"...');
+      console.log('ðŸ“‹ Clases antes del filtro:', filtered.length);
+      console.log('ðŸ‘¤ Usuario ID:', currentUser?.id);
       
       filtered = filtered.filter((slot) => {
         const hasCourtAssigned = slot.courtNumber != null && slot.courtNumber > 0;
         
-        console.log(`   Clase ${slot.id?.substring(0, 8)}: ${hasCourtAssigned ? '✅ Pista asignada' : '❌ Sin pista'} (pista: ${slot.courtNumber || 'N/A'})`);
+        // Verificar si el usuario actual tiene una reserva en esta clase
+        const userHasBooking = currentUser?.id && (slot.bookings || []).some(
+          booking => booking.userId === currentUser.id && booking.status !== 'CANCELLED'
+        );
         
-        return hasCourtAssigned;
+        console.log(`   Clase ${slot.id?.substring(0, 8)}: pista=${slot.courtNumber || 'N/A'}, usuario tiene reserva=${userHasBooking ? 'âœ…' : 'âŒ'}`);
+        
+        // Solo mostrar si tiene pista Y el usuario tiene reserva
+        return hasCourtAssigned && userHasBooking;
       });
       
-      console.log('📋 Clases después del filtro:', filtered.length);
+      console.log('ðŸ“‹ Clases despuÃ©s del filtro:', filtered.length);
     }
 
-    // "Todas": No aplicar ningún filtro adicional, mostrar todo
+    // Filtro "Pasadas": Clases con fecha anterior a hoy
+    if (viewPreference === 'past') {
+      console.log('ðŸ” Aplicando filtro "Pasadas"...');
+      const now = Date.now();
+      
+      filtered = filtered.filter((slot) => {
+        const slotTime = typeof slot.start === 'number' ? slot.start : new Date(slot.start).getTime();
+        const isPast = slotTime < now;
+        
+        console.log(`   Clase ${slot.id?.substring(0, 8)}: ${isPast ? 'âœ… Pasada' : 'âŒ Futura'}`);
+        
+        return isPast;
+      });
+      
+      console.log('ðŸ“‹ Clases pasadas:', filtered.length);
+    }
+
+    // "Todas": No aplicar ningÃºn filtro adicional, mostrar todo
     // (Los filtros de fecha, hora y jugadores ya se aplicaron arriba)
     
-    // 🆕 Filtro de instructores
+    // ðŸ†• Filtro de instructores
     if (selectedInstructorIds.length > 0) {
       const beforeInstructorFilter = filtered.length;
       filtered = filtered.filter(slot => {
         return selectedInstructorIds.includes(slot.instructorId || '');
       });
-      console.log(`👨‍🏫 Instructor filter: ${beforeInstructorFilter} slots → ${filtered.length} slots (${selectedInstructorIds.length} instructors selected)`);
+      console.log(`ðŸ‘¨â€ðŸ« Instructor filter: ${beforeInstructorFilter} slots â†’ ${filtered.length} slots (${selectedInstructorIds.length} instructors selected)`);
     }
     
-    // 🔢 Filtro de número de jugadores
+    // ðŸ”¢ Filtro de nÃºmero de jugadores
     if (localPlayerCounts.length > 0) {
       const beforePlayerFilter = filtered.length;
-      console.log(`🔢 Filtro de jugadores ACTIVO con: [${localPlayerCounts.join(', ')}]`);
+      console.log(`ðŸ”¢ Filtro de jugadores ACTIVO con: [${localPlayerCounts.join(', ')}]`);
       
       filtered = filtered.filter(slot => {
+        // â™»ï¸ CLASES RECICLADAS: Si tiene bookings cancelados con isRecycled=true, SIEMPRE mostrarla
+        const hasCourtAssigned = slot.courtNumber != null && slot.courtNumber > 0;
+        const cancelledRecycled = (slot.bookings || []).filter(b => b.status === 'CANCELLED' && b.isRecycled === true);
+        const hasRecycledSlots = hasCourtAssigned && cancelledRecycled.length > 0;
+        
+        if (hasRecycledSlots) {
+          console.log(`   â™»ï¸ Clase RECICLADA ${slot.id?.substring(0, 8)}: Pista ${slot.courtNumber}, ${cancelledRecycled.length} plazas canceladas - SIEMPRE MOSTRAR`);
+          return true; // âœ… Las clases con plazas canceladas SIEMPRE se muestran
+        }
+        
         // Una clase se muestra si tiene al menos UNA modalidad seleccionada con disponibilidad
         // Por ejemplo: si seleccionas [2, 3, 4] (sin 1), la clase debe tener disponible 2, 3 o 4 jugadores
         const hasAvailableOption = localPlayerCounts.some(count => {
@@ -439,38 +507,59 @@ export function ClassesDisplay({
             b => b.groupSize === count && b.status !== 'CANCELLED'
           );
           
-          // Disponible = hay menos reservas que el número de jugadores de la modalidad
-          // Ejemplo: para 4 jugadores, si hay 3 o menos reservas, está disponible
+          // Disponible = hay menos reservas que el nÃºmero de jugadores de la modalidad
+          // Ejemplo: para 4 jugadores, si hay 3 o menos reservas, estÃ¡ disponible
           const isAvailable = bookingsForThisMode.length < count;
           
           if (isAvailable) {
-            console.log(`   ✅ Clase ${slot.id?.substring(0, 8)}: tiene disponible ${count} jugadores (${bookingsForThisMode.length}/${count})`);
+            console.log(`   âœ… Clase ${slot.id?.substring(0, 8)}: tiene disponible ${count} jugadores (${bookingsForThisMode.length}/${count})`);
           }
           
           return isAvailable;
         });
         
         if (!hasAvailableOption) {
-          console.log(`   ❌ Clase ${slot.id?.substring(0, 8)}: NO tiene ninguna opción disponible de [${localPlayerCounts.join(', ')}]`);
+          console.log(`   âŒ Clase ${slot.id?.substring(0, 8)}: NO tiene ninguna opciÃ³n disponible de [${localPlayerCounts.join(', ')}]`);
         }
         
         return hasAvailableOption;
       });
-      console.log(`🔢 Player counts filter: ${beforePlayerFilter} slots → ${filtered.length} slots (showing only classes with availability in: [${localPlayerCounts.join(', ')}] players)`);
+      console.log(`ðŸ”¢ Player counts filter: ${beforePlayerFilter} slots â†’ ${filtered.length} slots (showing only classes with availability in: [${localPlayerCounts.join(', ')}] players)`);
     } else {
-      console.log(`🔢 Filtro de jugadores DESACTIVADO - mostrando todas las clases`);
+      console.log(`ðŸ”¢ Filtro de jugadores DESACTIVADO - mostrando todas las clases`);
     }
     
-    console.log(`⏰ Final filter result: ${filtered.length} slots`);
-    console.log(`🔢 Player counts selected: [${localPlayerCounts.join(', ')}] - Cards will show only these options`);
+    console.log(`â° Final filter result: ${filtered.length} slots`);
+    console.log(`ðŸ”¢ Player counts selected: [${localPlayerCounts.join(', ')}] - Cards will show only these options`);
+    
+    // ðŸŽ¯ ORDENAR: Clases con reserva del usuario PRIMERO
+    if (currentUser?.id) {
+      filtered.sort((a, b) => {
+        const userHasBookingA = (a.bookings || []).some(
+          booking => booking.userId === currentUser.id && booking.status !== 'CANCELLED'
+        );
+        const userHasBookingB = (b.bookings || []).some(
+          booking => booking.userId === currentUser.id && booking.status !== 'CANCELLED'
+        );
+        
+        // Si A tiene reserva del usuario y B no â†’ A primero (return -1)
+        // Si B tiene reserva del usuario y A no â†’ B primero (return 1)
+        // Si ambos tienen o ninguno tiene â†’ mantener orden original (return 0)
+        if (userHasBookingA && !userHasBookingB) return -1;
+        if (!userHasBookingA && userHasBookingB) return 1;
+        return 0;
+      });
+      console.log('ðŸŽ¯ Clases ordenadas: Las clases con tu reserva aparecen primero');
+    }
+    
     return filtered;
-  }, [timeSlots, timeSlotFilter, viewPreference, selectedInstructorIds, localPlayerCounts]);
+  }, [timeSlots, timeSlotFilter, viewPreference, selectedInstructorIds, localPlayerCounts, currentUser?.id]);
 
   // Memoize slot conversion to avoid recalculating on every render
   const convertApiSlotToClassCard = useCallback((apiSlot: ApiTimeSlot): TimeSlot | null => {
-    // ✅ Validar que el slot tiene datos mínimos requeridos
+    // âœ… Validar que el slot tiene datos mÃ­nimos requeridos
     if (!apiSlot || !apiSlot.id || !apiSlot.start || !apiSlot.end) {
-      console.error('❌ convertApiSlotToClassCard: Slot inválido o incompleto:', apiSlot);
+      console.error('âŒ convertApiSlotToClassCard: Slot invÃ¡lido o incompleto:', apiSlot);
       return null;
     }
     
@@ -478,9 +567,10 @@ export function ClassesDisplay({
     const bookings = (apiSlot.bookings || []).map((b: any) => ({
       userId: b.userId,
       groupSize: b.groupSize,
-      status: b.status || 'CONFIRMED', // Asegurar que siempre haya un status válido
+      status: b.status || 'CONFIRMED', // Asegurar que siempre haya un status vÃ¡lido
+      isRecycled: b.isRecycled || false, // â™»ï¸ CRÃTICO: Incluir isRecycled
       name: b.name || b.userName || 'Usuario',
-      profilePictureUrl: b.profilePictureUrl, // ✅ FIX: Usar profilePictureUrl del API
+      profilePictureUrl: b.profilePictureUrl, // âœ… FIX: Usar profilePictureUrl del API
       userLevel: b.userLevel,
       userGender: b.userGender,
       createdAt: b.createdAt,
@@ -492,27 +582,47 @@ export function ClassesDisplay({
       instructorId: apiSlot.instructorId || `instructor-${apiSlot.id.substring(0, 8)}`,
       instructorName: apiSlot.instructorName || 'Instructor',
       instructorProfilePicture: apiSlot.instructorProfilePicture,
-      start: apiSlot.start, // ✅ Pasar directamente el timestamp
-      end: apiSlot.end, // ✅ Pasar directamente el timestamp
+      start: apiSlot.start, // âœ… Pasar directamente el timestamp
+      end: apiSlot.end, // âœ… Pasar directamente el timestamp
       startTime: new Date(apiSlot.start),
       endTime: new Date(apiSlot.end),
-      durationMinutes: 60, // ✅ CORREGIDO: 60 minutos, no 90
-      level: apiSlot.level || 'abierto', // ✅ USAR EL NIVEL DEL API, NO HARDCODEAR
-      levelRange: apiSlot.levelRange || null, // ✅ PASAR levelRange del API
+      durationMinutes: 60, // âœ… CORREGIDO: 60 minutos, no 90
+      level: apiSlot.level || 'abierto', // âœ… USAR EL NIVEL DEL API, NO HARDCODEAR
+      levelRange: apiSlot.levelRange || null, // âœ… PASAR levelRange del API
       category: 'abierta' as const, // Simplificado por ahora
-      genderCategory: apiSlot.genderCategory, // AGREGADO: Pasar la categoría de género desde el API
+      genderCategory: apiSlot.genderCategory, // AGREGADO: Pasar la categorÃ­a de gÃ©nero desde el API
       maxPlayers: apiSlot.maxPlayers || 4,
       status: 'forming' as const,
       bookedPlayers: bookings, // Pasar las reservas reales del API
-      bookings: bookings, // ✅ También agregar bookings para compatibilidad
+      bookings: bookings, // âœ… TambiÃ©n agregar bookings para compatibilidad
       courtNumber: apiSlot.courtNumber,
       totalPrice: apiSlot.totalPrice,
-      courtsAvailability: apiSlot.courtsAvailability, // 🏟️ PASAR DISPONIBILIDAD DE PISTAS
-      availableCourtsCount: apiSlot.availableCourtsCount, // 🏟️ PASAR CONTADOR
+      courtsAvailability: apiSlot.courtsAvailability, // ðŸŸï¸ PASAR DISPONIBILIDAD DE PISTAS
+      availableCourtsCount: apiSlot.availableCourtsCount, // ðŸŸï¸ PASAR CONTADOR
+      // â™»ï¸ RECICLAJE: Pasar datos de plazas recicladas
+      hasRecycledSlots: apiSlot.hasRecycledSlots,
+      availableRecycledSlots: apiSlot.availableRecycledSlots,
+      recycledSlotsOnlyPoints: apiSlot.recycledSlotsOnlyPoints,
       designatedGratisSpotPlaceholderIndexForOption: undefined,
       privateShareCode: undefined,
     };
   }, []);
+
+  // ðŸ› DEBUG: Log convertedApiSlot DESPUÃ‰S de convertir
+  useEffect(() => {
+    if (timeSlots && timeSlots.length > 0) {
+      const converted = timeSlots.map(convertApiSlotToClassCard);
+      const recycledSlots = converted.filter(s => s.hasRecycledSlots);
+      if (recycledSlots.length > 0) {
+        console.log('ðŸ”¥ ClassesDisplay: Slots con reciclaje DESPUÃ‰S de convertir:', recycledSlots.map(s => ({
+          instructor: s.instructorName,
+          hasRecycledSlots: s.hasRecycledSlots,
+          availableRecycledSlots: s.availableRecycledSlots,
+          recycledSlotsOnlyPoints: s.recycledSlotsOnlyPoints,
+        })));
+      }
+    }
+  }, [timeSlots, convertApiSlotToClassCard]);
 
   // Memoize processed slots to avoid recalculation
   const processedSlots = useMemo(() => {
@@ -520,7 +630,7 @@ export function ClassesDisplay({
       try {
         return convertApiSlotToClassCard(apiSlot);
       } catch (error) {
-        console.error(`❌ Error procesando slot ${apiSlot?.id}:`, error);
+        console.error(`âŒ Error procesando slot ${apiSlot?.id}:`, error);
         return null;
       }
     }).filter((slot): slot is TimeSlot => slot !== null && slot.start !== undefined && slot.end !== undefined);
@@ -529,21 +639,21 @@ export function ClassesDisplay({
   // Memoize time filter label
   const timeFilterLabel = useMemo(() => {
     switch (timeSlotFilter) {
-      case 'morning': return 'Mañanas (8-13h)';
-      case 'midday': return 'Mediodía (13-18h)';
+      case 'morning': return 'MaÃ±anas (8-13h)';
+      case 'midday': return 'MediodÃ­a (13-18h)';
       case 'evening': return 'Tardes (18-22h)';
       default: return null;
     }
   }, [timeSlotFilter]);
 
-  // 🎁 Función para recargar creditsSlots en batch (TODOS los usuarios ven plazas con puntos)
+  // ðŸŽ FunciÃ³n para recargar creditsSlots en batch (TODOS los usuarios ven plazas con puntos)
   const reloadCreditsSlots = useCallback(async () => {
     if (timeSlots.length === 0) {
-      console.log('⏭️ Saltando recarga creditsSlots: sin slots');
+      console.log('â­ï¸ Saltando recarga creditsSlots: sin slots');
       return;
     }
     
-    console.log('🔄 Recargando creditsSlots para', timeSlots.length, 'slots...');
+    console.log('ðŸ”„ Recargando creditsSlots para', timeSlots.length, 'slots...');
     const slotIds = timeSlots.map(s => s.id);
     try {
       const creditsResponse = await fetch(`/api/timeslots/credits-slots-batch`, {
@@ -555,26 +665,26 @@ export function ClassesDisplay({
       if (creditsResponse.ok) {
         const creditsData = await creditsResponse.json();
         setCreditsSlotsMap(creditsData); // Reemplazar completamente el mapa
-        console.log(`✅ Recargados creditsSlots:`, creditsData);
+        console.log(`âœ… Recargados creditsSlots:`, creditsData);
       }
     } catch (error) {
-      console.error('❌ Error recargando creditsSlots batch:', error);
+      console.error('âŒ Error recargando creditsSlots batch:', error);
     }
   }, [timeSlots]);
 
   // Memoize handleBookingSuccess to prevent prop changes
   const handleBookingSuccess = useCallback(async (updatedSlot?: TimeSlot) => {
-    console.log('🔄 ========================================');
-    console.log('🔄 handleBookingSuccess LLAMADO EN CLASSESDISPLAY');
-    console.log('🔄 updatedSlot recibido:', updatedSlot ? 'SÍ' : 'NO');
+    console.log('ðŸ”„ ========================================');
+    console.log('ðŸ”„ handleBookingSuccess LLAMADO EN CLASSESDISPLAY');
+    console.log('ðŸ”„ updatedSlot recibido:', updatedSlot ? 'SÃ' : 'NO');
     
-    // 🚀 SOLUCIÓN: Siempre recargar desde el API para asegurar datos frescos
-    console.log('🔄 Recargando clases desde el API para asegurar actualización...');
+    // ðŸš€ SOLUCIÃ“N: Siempre recargar desde el API para asegurar datos frescos
+    console.log('ðŸ”„ Recargando clases desde el API para asegurar actualizaciÃ³n...');
     
     // Incrementar refreshKey ANTES de recargar para forzar re-render
     setRefreshKey(prev => {
       const newKey = prev + 1;
-      console.log(`🔑 RefreshKey actualizado: ${prev} → ${newKey}`);
+      console.log(`ðŸ”‘ RefreshKey actualizado: ${prev} â†’ ${newKey}`);
       return newKey;
     });
     
@@ -584,11 +694,11 @@ export function ClassesDisplay({
     // Recargar datos desde el API
     await loadTimeSlots(1, false);
     
-    // 🎁 Recargar creditsSlots después de cualquier cambio
+    // ðŸŽ Recargar creditsSlots despuÃ©s de cualquier cambio
     await reloadCreditsSlots();
     
-    console.log('✅ Recarga completa finalizada');
-    console.log('🔄 ========================================');
+    console.log('âœ… Recarga completa finalizada');
+    console.log('ðŸ”„ ========================================');
     
     onBookingSuccess?.();
   }, [loadTimeSlots, onBookingSuccess, reloadCreditsSlots]);
@@ -620,16 +730,16 @@ export function ClassesDisplay({
     return (
       <div className="p-4 md:p-8 text-center text-gray-500">
         <p>No hay clases disponibles para {format(selectedDate, 'dd/MM/yyyy', { locale: es })}</p>
-        <p className="text-sm mt-2">Las clases de la base de datos pueden estar en fechas diferentes al día seleccionado.</p>
+        <p className="text-sm mt-2">Las clases de la base de datos pueden estar en fechas diferentes al dÃ­a seleccionado.</p>
       </div>
     );
   }
 
-  // 🔥 DETECTAR SI HAY DATOS OBSOLETOS (sin courtsAvailability)
+  // ðŸ”¥ DETECTAR SI HAY DATOS OBSOLETOS (sin courtsAvailability)
   const hasObsoleteData = timeSlots.length > 0 && !timeSlots[0]?.courtsAvailability;
 
-  console.log(`🎯 Processed ${processedSlots.length} slots successfully`);
-  console.log('🔍 Estado actual antes de render:', {
+  console.log(`ðŸŽ¯ Processed ${processedSlots.length} slots successfully`);
+  console.log('ðŸ” Estado actual antes de render:', {
     timeSlots: timeSlots.length,
     processedSlots: processedSlots.length,
     currentPage,
@@ -640,16 +750,16 @@ export function ClassesDisplay({
 
   return (
     <div className="relative">
-      {/* FILTROS LATERALES - Lateral derecho con diseño de cápsula */}
+      {/* FILTROS LATERALES - Lateral derecho con diseÃ±o de cÃ¡psula */}
       <div className="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2 md:gap-3 items-center pr-1">
-        {/* Título principal "Filtros" */}
+        {/* TÃ­tulo principal "Filtros" */}
         <div className="bg-white rounded-full px-2 py-1 md:px-3 md:py-1.5 shadow-md border border-gray-200">
           <span className="text-[7px] md:text-[9px] font-bold uppercase tracking-wider text-gray-600">
             Filtros
           </span>
         </div>
         
-        {/* 👨‍🏫 FILTRO DE INSTRUCTORES - Cápsula con fotos de perfil */}
+        {/* ðŸ‘¨â€ðŸ« FILTRO DE INSTRUCTORES - CÃ¡psula con fotos de perfil */}
         {availableInstructors.length > 0 && (
           <div className="flex flex-col items-center gap-0.5 md:gap-1">
             <span className="text-[6px] md:text-[8px] font-semibold uppercase tracking-wide text-gray-500">
@@ -690,7 +800,7 @@ export function ClassesDisplay({
         </div>
         )}
 
-        {/* 🕐 Círculo de reloj */}
+        {/* ðŸ• CÃ­rculo de reloj */}
         <div className="flex flex-col items-center gap-0.5 md:gap-1">
           <span className="text-[6px] md:text-[8px] font-semibold uppercase tracking-wide text-gray-500">
             Horario
@@ -715,7 +825,7 @@ export function ClassesDisplay({
             {/* Fondo blanco del reloj */}
             <circle cx="12" cy="12" r="10" fill="white" />
             
-            {/* Franja horaria según filtro activo */}
+            {/* Franja horaria segÃºn filtro activo */}
             {timeSlotFilter === 'morning' && (
               <path d="M12 12 L12 2 A10 10 0 0 1 20.66 7.34 Z" fill="#22c55e" opacity="0.7" />
             )}
@@ -742,7 +852,7 @@ export function ClassesDisplay({
           </button>
         </div>
 
-        {/* 👥 Círculo de filtro de vista (Todas/Pendientes/Confirmadas) */}
+        {/* Círculo de filtro de vista (Pendientes/Confirmadas/Pasadas) */}
         <div className="flex flex-col items-center gap-0.5 md:gap-1">
           <span className="text-[6px] md:text-[8px] font-semibold uppercase tracking-wide text-gray-500">
             Vista
@@ -754,27 +864,27 @@ export function ClassesDisplay({
               ${viewPreference === 'withBookings'
                 ? 'bg-white border border-blue-500 shadow-[inset_0_1px_3px_rgba(59,130,246,0.2)]'
                 : viewPreference === 'myConfirmed'
-                ? 'bg-white border border-red-500 shadow-[inset_0_1px_3px_rgba(239,68,68,0.2)]'
+                ? 'bg-white border border-green-500 shadow-[inset_0_1px_3px_rgba(34,197,94,0.2)]'
+                : viewPreference === 'past'
+                ? 'bg-white border border-gray-500 shadow-[inset_0_1px_3px_rgba(107,114,128,0.2)]'
                 : 'bg-white border border-gray-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] hover:border-gray-400'
               }
             `}
-            title="Filtrar por tipo de clase"
+            title="Filtrar por estado de clase"
           >
-          <svg 
-            className="w-full h-full" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            {/* Fondo blanco */}
-            <circle cx="12" cy="12" r="10" fill="white" />
+            <svg 
+              className="w-5 h-5 md:w-8 md:h-8" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              xmlns="http://www.w3.org/2000/svg"
+            >
             
             {/* Doble círculo exterior - igual que el reloj */}
             <circle 
               cx="12" 
               cy="12" 
               r="10" 
-              stroke={viewPreference === 'withBookings' ? '#3b82f6' : viewPreference === 'myConfirmed' ? '#ef4444' : '#9ca3af'} 
+              stroke={viewPreference === 'withBookings' ? '#3b82f6' : viewPreference === 'myConfirmed' ? '#22c55e' : viewPreference === 'past' ? '#6b7280' : '#9ca3af'} 
               strokeWidth="1.5" 
               fill="none"
             />
@@ -784,7 +894,7 @@ export function ClassesDisplay({
               cx="9" 
               cy="10" 
               r="2.5" 
-              stroke={viewPreference === 'withBookings' ? '#3b82f6' : viewPreference === 'myConfirmed' ? '#ef4444' : '#9ca3af'} 
+              stroke={viewPreference === 'withBookings' ? '#3b82f6' : viewPreference === 'myConfirmed' ? '#22c55e' : viewPreference === 'past' ? '#6b7280' : '#9ca3af'} 
               strokeWidth="1.2" 
               fill="none"
             />
@@ -792,13 +902,13 @@ export function ClassesDisplay({
               cx="15" 
               cy="10" 
               r="2.5" 
-              stroke={viewPreference === 'withBookings' ? '#3b82f6' : viewPreference === 'myConfirmed' ? '#ef4444' : '#9ca3af'} 
+              stroke={viewPreference === 'withBookings' ? '#3b82f6' : viewPreference === 'myConfirmed' ? '#22c55e' : viewPreference === 'past' ? '#6b7280' : '#9ca3af'} 
               strokeWidth="1.2" 
               fill="none"
             />
             <path 
               d="M5 18c0-2.5 1.8-4 4-4s4 1.5 4 4M11 18c0-2.5 1.8-4 4-4s4 1.5 4 4" 
-              stroke={viewPreference === 'withBookings' ? '#3b82f6' : viewPreference === 'myConfirmed' ? '#ef4444' : '#9ca3af'} 
+              stroke={viewPreference === 'withBookings' ? '#3b82f6' : viewPreference === 'myConfirmed' ? '#22c55e' : viewPreference === 'past' ? '#6b7280' : '#9ca3af'} 
               strokeWidth="1.2" 
               strokeLinecap="round"
             />
@@ -806,7 +916,7 @@ export function ClassesDisplay({
           </button>
         </div>
 
-        {/* Contenedor redondeado (cápsula) para los números */}
+        {/* Contenedor redondeado (cÃ¡psula) para los nÃºmeros */}
         <div className="flex flex-col items-center gap-0.5 md:gap-1">
           <span className="text-[6px] md:text-[8px] font-semibold uppercase tracking-wide text-gray-500">
             Jugadores
@@ -836,7 +946,7 @@ export function ClassesDisplay({
         </div>
       </div>
 
-      {/* 🎯 PANEL CENTRAL EXPANDIDO - Modal con animación de crecimiento */}
+      {/* ðŸŽ¯ PANEL CENTRAL EXPANDIDO - Modal con animaciÃ³n de crecimiento */}
       {showFilterPanel && (
         <>
           {/* Backdrop */}
@@ -848,7 +958,7 @@ export function ClassesDisplay({
           {/* Panel Central */}
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 md:p-4">
             <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 animate-in zoom-in-95 duration-300 max-w-lg">
-              {/* Header con botón cerrar */}
+              {/* Header con botÃ³n cerrar */}
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl md:text-2xl font-bold text-gray-800">
                   Filtrar por jugadores
@@ -865,10 +975,10 @@ export function ClassesDisplay({
 
               {/* Instructions */}
               <p className="text-sm md:text-base text-gray-600 mb-6">
-                Selecciona el número de jugadores que te interesa. Solo verás clases con disponibilidad para esas opciones.
+                Selecciona el nÃºmero de jugadores que te interesa. Solo verÃ¡s clases con disponibilidad para esas opciones.
               </p>
               
-              {/* Círculos grandes tipo avatar */}
+              {/* CÃ­rculos grandes tipo avatar */}
               <div className="flex gap-4 md:gap-6 justify-center mb-8">
                 {[1, 2, 3, 4].map(count => (
                   <button
@@ -898,12 +1008,12 @@ export function ClassesDisplay({
               {/* Current selection info */}
               <div className="text-center mb-6 p-3 bg-gray-50 rounded-lg">
                 {localPlayerCounts.length === 0 ? (
-                  <p className="text-sm text-gray-500">⚠️ No hay filtros seleccionados - se mostrarán todas las clases</p>
+                  <p className="text-sm text-gray-500">âš ï¸ No hay filtros seleccionados - se mostrarÃ¡n todas las clases</p>
                 ) : localPlayerCounts.length === 4 ? (
-                  <p className="text-sm text-gray-500">✓ Todos los modos seleccionados - se mostrarán todas las clases</p>
+                  <p className="text-sm text-gray-500">âœ“ Todos los modos seleccionados - se mostrarÃ¡n todas las clases</p>
                 ) : (
                   <p className="text-sm text-green-600 font-medium">
-                    ✓ Mostrando clases con {localPlayerCounts.length === 1 ? 'opción de' : 'opciones de'} <span className="font-bold">{localPlayerCounts.join(', ')}</span> {localPlayerCounts.length === 1 ? 'jugador' : 'jugadores'}
+                    âœ“ Mostrando clases con {localPlayerCounts.length === 1 ? 'opciÃ³n de' : 'opciones de'} <span className="font-bold">{localPlayerCounts.join(', ')}</span> {localPlayerCounts.length === 1 ? 'jugador' : 'jugadores'}
                   </p>
                 )}
               </div>
@@ -914,14 +1024,14 @@ export function ClassesDisplay({
                   onClick={closeFilterPanel}
                   className="flex-1 px-6 py-3 rounded-xl text-white bg-blue-500 hover:bg-blue-600 font-medium transition-colors shadow-lg"
                 >
-                  ✓ Aplicar selección
+                  âœ“ Aplicar selecciÃ³n
                 </button>
                 <button
                   onClick={async () => {
                     try {
                       const token = localStorage.getItem('auth_token');
                       if (!token) {
-                        alert('❌ Debes iniciar sesión para guardar preferencias');
+                        alert('âŒ Debes iniciar sesiÃ³n para guardar preferencias');
                         return;
                       }
 
@@ -942,23 +1052,23 @@ export function ClassesDisplay({
                         throw new Error(errorData.error || 'Error al guardar preferencias');
                       }
 
-                      // Mostrar confirmación visual con mejor feedback
+                      // Mostrar confirmaciÃ³n visual con mejor feedback
                       const successMessage = localPlayerCounts.length === 0 
-                        ? '✅ Filtro eliminado - se mostrarán todas las clases'
+                        ? 'âœ… Filtro eliminado - se mostrarÃ¡n todas las clases'
                         : localPlayerCounts.length === 4
-                        ? '✅ Todos los modos seleccionados - se mostrarán todas las clases'
-                        : `✅ Preferencias guardadas: ${localPlayerCounts.join(', ')} jugadores`;
+                        ? 'âœ… Todos los modos seleccionados - se mostrarÃ¡n todas las clases'
+                        : `âœ… Preferencias guardadas: ${localPlayerCounts.join(', ')} jugadores`;
                       
                       alert(successMessage);
                       closeFilterPanel();
                     } catch (error) {
                       console.error('Error saving preferences:', error);
-                      alert(`❌ Error al guardar preferencias: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+                      alert(`âŒ Error al guardar preferencias: ${error instanceof Error ? error.message : 'Error desconocido'}`);
                     }
                   }}
                   className="flex-1 px-6 py-3 rounded-xl text-white bg-green-500 hover:bg-green-600 font-medium transition-colors shadow-lg"
                 >
-                  💾 Guardar selección
+                  ðŸ’¾ Guardar selecciÃ³n
                 </button>
               </div>
             </div>
@@ -966,7 +1076,7 @@ export function ClassesDisplay({
         </>
       )}
 
-      {/* 🕐 PANEL FILTRO DE HORARIOS */}
+      {/* ðŸ• PANEL FILTRO DE HORARIOS */}
       {showTimeFilterPanel && (
         <>
           {/* Backdrop */}
@@ -1005,8 +1115,8 @@ export function ClassesDisplay({
                   `}
                 >
                   <div className="flex items-center justify-between">
-                    <span>🌅 Todas las horas</span>
-                    {timeSlotFilter === 'all' && <span className="text-xl">✓</span>}
+                    <span>ðŸŒ… Todas las horas</span>
+                    {timeSlotFilter === 'all' && <span className="text-xl">âœ“</span>}
                   </div>
                 </button>
 
@@ -1027,10 +1137,10 @@ export function ClassesDisplay({
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <div>☀️ Mañana</div>
+                      <div>â˜€ï¸ MaÃ±ana</div>
                       <div className="text-sm opacity-80">08:00 - 12:00</div>
                     </div>
-                    {timeSlotFilter === 'morning' && <span className="text-xl">✓</span>}
+                    {timeSlotFilter === 'morning' && <span className="text-xl">âœ“</span>}
                   </div>
                 </button>
 
@@ -1051,10 +1161,10 @@ export function ClassesDisplay({
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <div>🌞 Mediodía</div>
+                      <div>ðŸŒž MediodÃ­a</div>
                       <div className="text-sm opacity-80">12:00 - 17:00</div>
                     </div>
-                    {timeSlotFilter === 'midday' && <span className="text-xl">✓</span>}
+                    {timeSlotFilter === 'midday' && <span className="text-xl">âœ“</span>}
                   </div>
                 </button>
 
@@ -1075,15 +1185,15 @@ export function ClassesDisplay({
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <div>🌙 Tarde/Noche</div>
+                      <div>ðŸŒ™ Tarde/Noche</div>
                       <div className="text-sm opacity-80">17:00 - 23:00</div>
                     </div>
-                    {timeSlotFilter === 'evening' && <span className="text-xl">✓</span>}
+                    {timeSlotFilter === 'evening' && <span className="text-xl">âœ“</span>}
                   </div>
                 </button>
               </div>
 
-              {/* Botón cerrar */}
+              {/* BotÃ³n cerrar */}
               <button
                 onClick={() => setShowTimeFilterPanel(false)}
                 className="w-full py-3 px-6 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-full font-semibold transition-colors duration-200"
@@ -1095,7 +1205,7 @@ export function ClassesDisplay({
         </>
       )}
 
-      {/* 👨‍🏫 PANEL FILTRO DE INSTRUCTORES */}
+      {/* ðŸ‘¨â€ðŸ« PANEL FILTRO DE INSTRUCTORES */}
       {showInstructorFilterPanel && (
         <>
           {/* Backdrop */}
@@ -1155,13 +1265,13 @@ export function ClassesDisplay({
                       <span className="flex-1 text-left">{instructor.name}</span>
                       
                       {/* Check */}
-                      {isSelected && <span className="text-xl">✓</span>}
+                      {isSelected && <span className="text-xl">âœ“</span>}
                     </button>
                   );
                 })}
               </div>
 
-              {/* Botones de acción */}
+              {/* Botones de acciÃ³n */}
               <div className="flex gap-3">
                 <button
                   onClick={() => {
@@ -1185,7 +1295,7 @@ export function ClassesDisplay({
         </>
       )}
 
-      {/* 👥 PANEL FILTRO DE VISTA (Todas/Pendientes/Confirmadas) */}
+      {/* ðŸ‘¥ PANEL FILTRO DE VISTA (Todas/Pendientes/Confirmadas) */}
       {showViewFilterPanel && (
         <>
           {/* Backdrop */}
@@ -1202,7 +1312,7 @@ export function ClassesDisplay({
                   Filtrar por tipo de clase
                 </h3>
                 <p className="text-xs md:text-sm text-gray-500">
-                  Selecciona qué clases quieres ver
+                  Selecciona quÃ© clases quieres ver
                 </p>
               </div>
               
@@ -1232,7 +1342,7 @@ export function ClassesDisplay({
                     <div>Todas las clases</div>
                     <div className="text-sm opacity-80">Ver todas las opciones disponibles</div>
                   </div>
-                  {viewPreference === 'all' && <span className="text-xl">✓</span>}
+                  {viewPreference === 'all' && <span className="text-xl">âœ“</span>}
                 </button>
 
                 <button
@@ -1258,7 +1368,7 @@ export function ClassesDisplay({
                     <div>Clases pendientes</div>
                     <div className="text-sm opacity-80">Con usuarios pero sin pista asignada</div>
                   </div>
-                  {viewPreference === 'withBookings' && <span className="text-xl">✓</span>}
+                  {viewPreference === 'withBookings' && <span className="text-xl">âœ“</span>}
                 </button>
 
                 <button
@@ -1284,11 +1394,11 @@ export function ClassesDisplay({
                     <div>Clases confirmadas</div>
                     <div className="text-sm opacity-80">Con pista asignada</div>
                   </div>
-                  {viewPreference === 'myConfirmed' && <span className="text-xl">✓</span>}
+                  {viewPreference === 'myConfirmed' && <span className="text-xl">âœ“</span>}
                 </button>
               </div>
 
-              {/* Botón cerrar */}
+              {/* BotÃ³n cerrar */}
               <button
                 onClick={() => setShowViewFilterPanel(false)}
                 className="w-full py-3 px-6 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-full font-semibold transition-colors duration-200"
@@ -1301,46 +1411,46 @@ export function ClassesDisplay({
       )}
 
       <div className="space-y-4">
-        {/* 🔥 BOTÓN DE ACTUALIZACIÓN SI HAY DATOS OBSOLETOS */}
+        {/* ðŸ”¥ BOTÃ“N DE ACTUALIZACIÃ“N SI HAY DATOS OBSOLETOS */}
         {hasObsoleteData && (
         <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="text-2xl">⚠️</span>
+              <span className="text-2xl">âš ï¸</span>
               <div>
                 <p className="text-yellow-900 font-semibold">Datos desactualizados detectados</p>
-                <p className="text-sm text-yellow-700">Los indicadores de pistas no se están mostrando. Haz clic para actualizar.</p>
+                <p className="text-sm text-yellow-700">Los indicadores de pistas no se estÃ¡n mostrando. Haz clic para actualizar.</p>
               </div>
             </div>
             <button
               onClick={() => {
-                console.log('🔄 Forzando recarga completa...');
+                console.log('ðŸ”„ Forzando recarga completa...');
                 sessionStorage.clear();
                 window.location.reload();
               }}
               className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded-lg transition-colors shadow-md"
             >
-              🔄 Actualizar Ahora
+              ðŸ”„ Actualizar Ahora
             </button>
           </div>
         </div>
       )}
 
-      {/* Mensaje si no hay clases después de los filtros */}
+      {/* Mensaje si no hay clases despuÃ©s de los filtros */}
       {processedSlots.length === 0 && timeSlots.length > 0 && (
         <div className="p-6 text-center bg-amber-50 border border-amber-200 rounded-lg">
           <p className="text-amber-800 font-medium">
             {viewPreference === 'withBookings' 
-              ? '👥 No hay clases con usuarios inscritos' 
+              ? 'ðŸ‘¥ No hay clases con usuarios inscritos' 
               : viewPreference === 'myConfirmed'
-              ? '✅ No tienes clases confirmadas'
-              : '⏰ No hay clases en el horario seleccionado'}
+              ? 'âœ… No tienes clases confirmadas'
+              : 'â° No hay clases en el horario seleccionado'}
           </p>
           <p className="text-sm text-amber-700 mt-2">
             {viewPreference === 'withBookings' 
               ? `Hay ${timeSlots.length} ${timeSlots.length === 1 ? 'clase disponible' : 'clases disponibles'} en total. Cambia a "Todas" para verlas.`
               : viewPreference === 'myConfirmed'
-              ? 'No tienes ninguna reserva confirmada para este día. Reserva una clase para verla aquí.'
+              ? 'No tienes ninguna reserva confirmada para este dÃ­a. Reserva una clase para verla aquÃ­.'
               : `Hay ${timeSlots.length} ${timeSlots.length === 1 ? 'clase disponible' : 'clases disponibles'} en otros horarios. Cambia el filtro de horarios para verlas.`
             }
           </p>
@@ -1349,13 +1459,19 @@ export function ClassesDisplay({
       
       {/* Grid de tarjetas de clases */}
       {processedSlots.length > 0 && (
-        <div className="w-full px-2 md:px-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-0 md:gap-0">
+        <div className="w-full px-2 md:px-8 lg:px-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-12 md:gap-12 justify-items-center">
             {processedSlots.map((slot) => {
-              console.log(`🎴 Renderizando tarjeta ${slot.id.substring(0,8)} con allowedPlayerCounts:`, localPlayerCounts);
-              // 🎓 Solo permitir edición si el instructor es el de esta clase
+              console.log(`ðŸŽ´ Renderizando tarjeta ${slot.id.substring(0,8)} con allowedPlayerCounts:`, localPlayerCounts);
+              
+              // ðŸ› DEBUG RECICLAJE: Mostrar si tiene plazas recicladas
+              if (slot.hasRecycledSlots) {
+                console.log(`â™»ï¸ TARJETA CON RECICLAJE: ${slot.instructorName} - hasRecycledSlots=${slot.hasRecycledSlots}, availableRecycledSlots=${slot.availableRecycledSlots}`);
+              }
+              
+              // ðŸŽ“ Solo permitir ediciÃ³n si el instructor es el de esta clase
               const canEditCreditsSlots = isInstructor && instructorId === slot.instructorId;
-              console.log(`🔍 Verificación de permisos para slot ${slot.id.substring(0,8)}:`, {
+              console.log(`ðŸ” VerificaciÃ³n de permisos para slot ${slot.id.substring(0,8)}:`, {
                 isInstructor,
                 instructorIdUsuario: instructorId,
                 instructorIdClase: slot.instructorId,
@@ -1372,6 +1488,7 @@ export function ClassesDisplay({
                     isInstructor={canEditCreditsSlots}
                     instructorId={instructorId}
                     creditsSlots={creditsSlotsMap[slot.id] || []}
+                    isInscriptionSelected={selectedInscriptionSlotIds.includes(slot.id)}
                   />
                 </div>
               );
@@ -1380,13 +1497,13 @@ export function ClassesDisplay({
         </div>
       )}
       
-      {/* 📄 Botón para cargar más clases */}
+      {/* ðŸ“„ BotÃ³n para cargar mÃ¡s clases */}
       {timeSlots.length > 0 && (
         <div className="w-full py-8 flex justify-center">
           {loadingMore && (
             <div className="flex items-center gap-3 text-gray-600">
               <Loader2 className="w-6 h-6 animate-spin" />
-              <span className="text-sm font-medium">Cargando más clases...</span>
+              <span className="text-sm font-medium">Cargando mÃ¡s clases...</span>
             </div>
           )}
           {!hasMore && !loadingMore && (
@@ -1409,7 +1526,7 @@ export function ClassesDisplay({
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
-              Cargar más clases
+              Cargar mÃ¡s clases
             </button>
           )}
         </div>
