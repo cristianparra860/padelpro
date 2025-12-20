@@ -4,7 +4,6 @@
 import React, { useState, useEffect } from 'react';
 import { ClassesApi, TimeSlot as ApiTimeSlot } from '@/lib/classesApi';
 import ClassCardReal from '@/components/class/ClassCardReal';
-import InstructorCreditsSlotManager from '@/components/class/InstructorCreditsSlotManager';
 import type { Instructor as InstructorType } from '@/types';
 import { Loader2, Calendar as CalendarIcon } from 'lucide-react';
 import { format, addDays, isPast } from 'date-fns';
@@ -186,36 +185,23 @@ export default function InstructorClassCards({ instructor }: InstructorClassCard
       ) : (
         <div className="grid gap-4">
           {filteredSlots.map((slot) => (
-            <div key={slot.id} className="space-y-3">
-              {/* Gestor de Plazas con Puntos (solo instructor) */}
-              <InstructorCreditsSlotManager
-                timeSlotId={slot.id}
-                maxPlayers={slot.maxPlayers}
-                bookings={slot.bookings || []}
-                creditsSlots={slot.creditsSlots}
-                creditsCost={slot.creditsCost}
-                onUpdate={() => setRefreshKey(prev => prev + 1)}
-              />
-              
-              {/* Tarjeta de Clase */}
-              <ClassCardReal
-                key={slot.id}
-                classData={{
-                  ...slot,
-                  startTime: new Date(slot.start),
-                  endTime: new Date(slot.end),
-                  start: new Date(slot.start),
-                  end: new Date(slot.end),
-                  createdAt: new Date(slot.createdAt),
-                  updatedAt: new Date(slot.updatedAt),
-                  durationMinutes: 30 // Duración estándar
-                }}
-                currentUser={null} // El instructor no necesita reservar como usuario
-                onBookingSuccess={handleBookingSuccess}
-                allowedPlayerCounts={[1, 2, 3, 4]} // Mostrar todas las opciones
-                instructorView={true} // Modo vista de instructor (opcional, podrías añadir esta prop)
-              />
-            </div>
+            <ClassCardReal
+              key={slot.id}
+              classData={{
+                ...slot,
+                startTime: new Date(slot.start),
+                endTime: new Date(slot.end),
+                start: new Date(slot.start),
+                end: new Date(slot.end),
+                createdAt: new Date(slot.createdAt),
+                updatedAt: new Date(slot.updatedAt),
+                durationMinutes: 30 // Duración estándar
+              }}
+              currentUser={null} // El instructor no necesita reservar como usuario
+              onBookingSuccess={handleBookingSuccess}
+              allowedPlayerCounts={[1, 2, 3, 4]} // Mostrar todas las opciones
+              instructorView={true} // Modo vista de instructor (opcional, podrías añadir esta prop)
+            />
           ))}
         </div>
       )}

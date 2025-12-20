@@ -16,13 +16,15 @@ interface DateSelectorProps {
   onDateChange: (date: Date) => void;
   daysToShow?: number;
   userBookings?: UserBooking[]; // 🆕 Bookings del usuario para colorear días
+  layoutOrientation?: 'horizontal' | 'vertical'; // 🆕 Orientación del layout
 }
 
 export default function DateSelector({ 
   selectedDate, 
   onDateChange,
   daysToShow = 30,
-  userBookings = [] // 🆕 Recibir bookings
+  userBookings = [], // 🆕 Recibir bookings
+  layoutOrientation = 'horizontal' // 🆕 Por defecto horizontal
 }: DateSelectorProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -116,9 +118,9 @@ export default function DateSelector({
   };
 
   return (
-    <div className="relative w-full rounded-lg py-2 md:py-3">
-      {/* Grid de fechas - ocupa todo el ancho con scroll horizontal en móvil */}
-      <div className="flex justify-between py-2 px-1 overflow-x-auto scrollbar-hide touch-pan-x">
+    <div className={`relative w-full rounded-lg py-2 md:py-3`}>
+      {/* Grid de fechas - horizontal o vertical según orientación */}
+      <div className={`flex ${layoutOrientation === 'vertical' ? 'flex-col space-y-2' : 'justify-between overflow-x-auto scrollbar-hide touch-pan-x'} py-2 px-1`}>
         {dates.map((date, index) => {
           const selected = isSelected(date);
           const today = isToday(date);
@@ -150,29 +152,30 @@ export default function DateSelector({
               <button
                 onClick={() => handleDateClick(date)}
                 className={`
-                  flex flex-col items-center justify-center w-[42px] h-[50px] rounded-lg
+                  flex flex-col items-center justify-center rounded-lg
                   transition-all duration-200 cursor-pointer border-2 bg-white
                   ${borderColor} ${shadowStyle}
-                  ${selected ? 'scale-110 ring-2 ring-green-200' : 'hover:scale-105'}
+                  ${selected 
+                    ? layoutOrientation === 'vertical' 
+                      ? 'w-[94px] h-[75px] scale-110 ring-2 ring-green-200' 
+                      : 'w-[63px] h-[75px] scale-110 ring-2 ring-green-200'
+                    : layoutOrientation === 'vertical'
+                      ? 'w-[63px] h-[50px] hover:scale-105'
+                      : 'w-[42px] h-[50px] hover:scale-105'
+                  }
                 `}
               >
-                {/* Día de la semana */}
-                <span className={`text-[9px] font-bold uppercase ${textColor}`}>
+                <span className={`${selected ? 'text-[13px]' : 'text-[9px]'} font-bold uppercase ${textColor}`}>
                   {dayName}
                 </span>
-
-                {/* Número del día - GRANDE */}
-                <span className={`text-lg font-bold leading-none ${dayTextColor}`}>
+                <span className={`${selected ? 'text-2xl' : 'text-lg'} font-bold leading-none ${dayTextColor}`}>
                   {dayNumber}
                 </span>
-
-                {/* Mes */}
-                <span className={`text-[8px] uppercase ${textColor}`}>
+                <span className={`${selected ? 'text-[11px]' : 'text-[8px]'} uppercase ${textColor}`}>
                   {monthName}
                 </span>
               </button>
 
-              {/* 🆕 Indicador circular R o I DEBAJO del círculo de fecha */}
               <div className="h-4 w-full flex items-center justify-center">
                 {bookingStatus && (
                   <button

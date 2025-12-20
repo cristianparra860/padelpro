@@ -186,20 +186,88 @@ export default function LoginPage() {
           </form>
         </Card>
         
-        {/* Información de usuarios de prueba (solo en desarrollo) */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg text-xs">
-            <p className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
-              👥 Usuarios de prueba disponibles:
-            </p>
-            <div className="space-y-1 text-blue-800 dark:text-blue-200">
-              <p><strong>Jugador 1:</strong> jugador1@padelpro.com / Pass123!</p>
-              <p><strong>Jugador 2:</strong> jugador2@padelpro.com / Pass123!</p>
-              <p><strong>Instructor:</strong> instructor@padelpro.com / Pass123!</p>
-              <p><strong>Admin:</strong> admin@padelpro.com / AdminPass123!</p>
+        {/* Acceso rápido - Auto-rellenador (solo en desarrollo) */}
+        <div className="mt-3 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 rounded-lg shadow-sm">
+          <p className="font-bold text-blue-900 dark:text-blue-100 mb-3 text-sm">
+            ⚡ Auto-Rellenador de Login
+          </p>
+          
+          {/* Admin */}
+          <div className="mb-4">
+            <p className="text-xs font-semibold text-red-700 dark:text-red-400 mb-2">🔴 ADMINISTRADOR</p>
+            <button
+              type="button"
+              onClick={() => {
+                setEmail('admin@padelpro.com');
+                setPassword('AdminPass123!');
+              }}
+              className="w-full text-left px-3 py-2 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 rounded border border-red-200 dark:border-red-800 text-xs transition-colors"
+            >
+              <span className="font-medium text-red-900 dark:text-red-100">Admin PadelPro</span>
+              <br />
+              <span className="text-red-600 dark:text-red-400">admin@padelpro.com</span>
+            </button>
+          </div>
+
+          {/* Instructores */}
+          <div className="mb-4">
+            <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-2">🟡 INSTRUCTORES</p>
+            <div className="space-y-2">
+              {[
+                { name: 'Carlos Ruiz', email: 'instructor@padelpro.com', password: 'Pass123!' },
+                { name: 'Ana Lopez', email: 'ana@padelclub.com', password: 'Pass123!' },
+                { name: 'Carlos Martinez', email: 'carlos@padelclub.com', password: 'Pass123!' }
+              ].map((user, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    setEmail(user.email);
+                    setPassword(user.password);
+                  }}
+                  className="w-full text-left px-3 py-2 bg-white dark:bg-gray-800 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded border border-amber-200 dark:border-amber-800 text-xs transition-colors"
+                >
+                  <span className="font-medium text-amber-900 dark:text-amber-100">{user.name}</span>
+                  <br />
+                  <span className="text-amber-600 dark:text-amber-400">{user.email}</span>
+                </button>
+              ))}
             </div>
           </div>
-        )}
+
+          {/* Jugadores */}
+          <div>
+            <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-2">🟢 JUGADORES</p>
+            <div className="space-y-2">
+              {[
+                { name: 'Marc Parra', email: 'jugador1@padelpro.com', password: 'Pass123!' },
+                { name: 'María García', email: 'jugador2@padelpro.com', password: 'Pass123!' },
+                { name: 'Ana Nueva', email: 'ana.nueva@padelpro.com', password: 'Pass123!' },
+                { name: 'Cristian Parra', email: 'cristian.parra@padelpro.com', password: 'Pass123!' },
+                { name: 'Alex García', email: 'alex.garcia@padelpro.com', password: 'Pass123!' },
+                { name: 'David Collado', email: 'david.collado@padelpro.com', password: 'Pass123!' }
+              ].map((user, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    setEmail(user.email);
+                    setPassword(user.password);
+                  }}
+                  className="w-full text-left px-3 py-2 bg-white dark:bg-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 rounded border border-green-200 dark:border-green-800 text-xs transition-colors"
+                >
+                  <span className="font-medium text-green-900 dark:text-green-100">{user.name}</span>
+                  <br />
+                  <span className="text-green-600 dark:text-green-400">{user.email}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          <p className="text-[10px] text-blue-700 dark:text-blue-300 mt-3 italic">
+            💡 Haz clic en un usuario para rellenar automáticamente el formulario, luego presiona "Acceder"
+          </p>
+        </div>
         
         <div className="mt-4 sm:mt-6 grid grid-cols-1 gap-2 sm:gap-3">
             <Button asChild className="w-full h-10 sm:h-11 text-base font-medium">

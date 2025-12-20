@@ -182,7 +182,7 @@ const PersonalMatches: React.FC<PersonalMatchesProps> = ({ currentUser, newMatch
     // Reduce re-render frequency
     const timer = setInterval(() => setNow(new Date()), 5000);
     return () => clearInterval(timer);
-  }, [currentUser.id, newMatchBooking, onBookingActionSuccess, loadData]);
+  }, [currentUser.id, newMatchBooking, onBookingActionSuccess]); // Removed loadData to prevent infinite loop
 
   const handleCancellationAction = (booking: MatchBooking) => {
     if (!booking.matchDetails) {

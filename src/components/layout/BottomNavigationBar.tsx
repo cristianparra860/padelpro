@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { cn, getInitials } from '@/lib/utils';
-import { Home, Activity, Users, User as UserIconLucideProfile, ClipboardList, PartyPopper, SlidersHorizontal, Star, Trophy, Calendar, Zap, Building } from 'lucide-react';
+import { Home, Activity, Users, User as UserIconLucideProfile, ClipboardList, PartyPopper, SlidersHorizontal, Star, Trophy, Calendar, Zap, Building, Target } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
     getMockCurrentUser,
@@ -186,9 +186,18 @@ export function BottomNavigationBar({ onMobileFiltersClick }: BottomNavigationBa
         {
             key: 'clases',
             href: '/activities?view=clases',
-            icon: ClipboardList,
+            icon: Target,
             label: 'Clases',
             isActive: pathname === '/activities' && searchParams.get('view') === 'clases',
+            hidden: !currentUser,
+        },
+        // 🆕 Mis Reservas (nueva ruta a la agenda)
+        {
+            key: 'mis-reservas',
+            href: '/agenda',
+            icon: ClipboardList,
+            label: 'Reservas',
+            isActive: pathname === '/agenda',
             hidden: !currentUser,
         },
         // 🆕 Calendario del Club (versión móvil)
@@ -209,10 +218,10 @@ export function BottomNavigationBar({ onMobileFiltersClick }: BottomNavigationBa
             hidden: !currentUser,
         },
         {
-            key: 'agenda',
+            key: 'mis-datos',
             href: '/dashboard',
             icon: currentUser?.profilePictureUrl ? null : UserIconLucideProfile,
-            label: 'Agenda',
+            label: 'Mis Datos',
             isActive: pathname === '/dashboard',
             hidden: !currentUser,
             renderCustomIcon: () => currentUser ? (

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Clicks</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .info { margin: 10px 0; padding: 10px; background: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <h1>Debug: Click Testing</h1>
+    <div class="info">
+        <p><strong>Instrucciones:</strong></p>
+        <ol>
+            <li>Abre las DevTools del navegador (F12)</li>
+            <li>Ve a la consola</li>
+            <li>Pega este código y presiona Enter:</li>
+        </ol>
+        <pre>
+document.addEventListener('click', function(e) {
+    console.log('🖱️ CLICK DETECTADO');
+    console.log('Target:', e.target);
+    console.log('CurrentTarget:', e.currentTarget);
+    
+    // Obtener todos los elementos en la posición del click
+    const elements = document.elementsFromPoint(e.clientX, e.clientY);
+    console.log('📍 Elementos en la posición del click:', elements);
+    
+    elements.forEach((el, index) => {
+        const styles = window.getComputedStyle(el);
+        console.log(`  ${index}. ${el.tagName}${el.className ? '.'+el.className.split(' ').join('.') : ''}`, {
+            zIndex: styles.zIndex,
+            pointerEvents: styles.pointerEvents,
+            position: styles.position,
+            width: styles.width,
+            height: styles.height
+        });
+    });
+}, true); // true = capture phase
+
+console.log('✅ Event listener instalado. Haz click en cualquier botón.');
+        </pre>
+    </div>
+    
+    <div class="info">
+        <p><strong>También puedes revisar overlays de Radix UI:</strong></p>
+        <pre>
+// Buscar overlays de Radix UI
+const overlays = document.querySelectorAll('[data-radix-popper-content-wrapper], [data-radix-dialog-overlay], [data-radix-alert-dialog-overlay], [data-radix-sheet-overlay]');
+console.log('🔍 Overlays de Radix UI encontrados:', overlays);
+overlays.forEach(o => console.log(o, window.getComputedStyle(o).display, window.getComputedStyle(o).pointerEvents));
+        </pre>
+    </div>
+</body>
+</html>

@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
         genderCategory: genderCategory || null,
         credits: 0,
         blockedCredits: 0,
-        points: 0,
+        points: 100, // 🎁 Puntos de bienvenida
         preference: 'NORMAL',
         visibility: 'PUBLIC'
       }

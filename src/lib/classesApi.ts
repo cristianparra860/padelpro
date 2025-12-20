@@ -48,6 +48,10 @@ export interface TimeSlot {
   // 🎁 Nuevos campos para plazas reservables con puntos
   creditsSlots?: number[]; // Array de índices [1,2,3,4] que son reservables con puntos
   creditsCost?: number; // Coste en puntos (default: 50)
+  // ♻️ Nuevos campos para plazas recicladas (de reservas canceladas)
+  hasRecycledSlots?: boolean; // Si hay plazas recicladas disponibles
+  availableRecycledSlots?: number; // Número de plazas recicladas disponibles
+  recycledSlotsOnlyPoints?: boolean; // Si las plazas recicladas solo se pueden reservar con puntos
 }
 
 export interface Booking {
@@ -81,6 +85,7 @@ export class ClassesApi {
     clubId?: string;
     date?: string;
     instructorId?: string;
+    userId?: string; // 🎯 ID del usuario para mostrar sus reservas
     userLevel?: string;
     userGender?: string;
     timeSlotFilter?: string; // 🕐 morning, midday, evening, all
@@ -91,6 +96,7 @@ export class ClassesApi {
     if (options.clubId) params.append('clubId', options.clubId);
     if (options.date) params.append('date', options.date);
     if (options.instructorId) params.append('instructorId', options.instructorId);
+    if (options.userId) params.append('userId', options.userId); // 🎯 Pasar userId
     if (options.userLevel) params.append('userLevel', options.userLevel);
     if (options.userGender) params.append('userGender', options.userGender);
     if (options.timeSlotFilter) params.append('timeSlotFilter', options.timeSlotFilter); // 🕐 Pasar filtro de horario

@@ -106,9 +106,42 @@ export function calculateSlotPrice(totalPrice: number, groupSize: number): numbe
  * @param timeSlotId - ID del TimeSlot
  */
 export async function markSlotAsRecycled(timeSlotId: string): Promise<void> {
+  // Obtener información del timeslot y sus bookings
+  const timeSlot = await prisma.timeSlot.findUnique({
+    where: { id: timeSlotId },
+    include: {
+      bookings: true
+    }
+  });
+
+  if (!timeSlot) {
+    console.error(`⚠️ TimeSlot ${timeSlotId} no encontrado`);
+    return;
+  }
+
+  // Calcular plazas recicladas disponibles
+  const recycledBookings = timeSlot.bookings.filter(b => b.status === 'CANCELLED' && b.isRecycled);
+  const activeBookings = timeSlot.bookings.filter(b => b.status !== 'CANCELLED');
+  
+  const maxPlayers = Number(timeSlot.maxPlayers || 4);
+  const availableRecycledSlots = Math.max(0, maxPlayers - activeBookings.length);
+  
+  console.log(`♻️ Actualizando TimeSlot ${timeSlotId}:`, {
+    maxPlayers,
+    activeBookings: activeBookings.length,
+    recycledBookings: recycledBookings.length,
+    availableRecycledSlots,
+    recycledSlotsOnlyPoints: true
+  });
+
+  // Actualizar el timeslot con los valores calculados
   await prisma.timeSlot.update({
     where: { id: timeSlotId },
-    data: { hasRecycledSlots: true }
+    data: { 
+      hasRecycledSlots: true,
+      availableRecycledSlots: availableRecycledSlots,
+      recycledSlotsOnlyPoints: true
+    }
   });
 }
 
@@ -151,4 +184,43 @@ export async function grantCompensationPoints(userId: string, amount: number, sk
   }
 
   return user.points;
+}
+
+/**
+ * Resetea el nivel y categoría de un TimeSlot si no tiene usuarios inscritos.
+ * Solo aplica si NO hay bookings activos (PENDING o CONFIRMED).
+ * 
+ * @param timeSlotId - ID del TimeSlot a verificar
+ * @returns true si se reseteó, false si aún tiene usuarios
+ */
+export async function resetSlotCategoryIfEmpty(timeSlotId: string): Promise<boolean> {
+  // Contar bookings activos (NO cancelados)
+  const activeBookings = await prisma.$queryRaw`
+    SELECT COUNT(*) as count 
+    FROM Booking 
+    WHERE timeSlotId = ${timeSlotId}
+    AND status IN ('PENDING', 'CONFIRMED')
+  ` as Array<{count: number}>;
+
+  const count = activeBookings[0]?.count || 0;
+
+  // Si no hay usuarios, resetear nivel y categoría
+  if (count === 0) {
+    console.log(`🔄 TimeSlot ${timeSlotId} sin usuarios - reseteando nivel y categoría...`);
+    
+    await prisma.$executeRaw`
+      UPDATE TimeSlot
+      SET genderCategory = NULL,
+          level = 'abierto',
+          levelRange = NULL,
+          updatedAt = datetime('now')
+      WHERE id = ${timeSlotId}
+    `;
+    
+    console.log(`✅ TimeSlot reseteado a valores por defecto (level='abierto', genderCategory=NULL, levelRange=NULL)`);
+    return true;
+  }
+
+  console.log(`ℹ️ TimeSlot ${timeSlotId} tiene ${count} usuario(s) - NO se resetea`);
+  return false;
 }

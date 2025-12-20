@@ -1,0 +1,1 @@
+UPDATE User SET points = points + 100 WHERE points < 100 AND role = 'PLAYER';

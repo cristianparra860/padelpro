@@ -2,76 +2,51 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function checkMarcBookings() {
-  console.log('🔍 Buscando reservas de Marc Parra...\n');
+  const userId = 'user-1763677035576-wv1t7iun0';
   
-  // Buscar usuario Marc Parra
-  const marc = await prisma.user.findFirst({
-    where: {
-      email: 'jugador1@padelpro.com'
-    }
-  });
-
-  if (!marc) {
-    console.log('❌ Usuario Marc Parra no encontrado');
-    return;
-  }
-
-  console.log(`✅ Usuario encontrado: ${marc.name} (${marc.email})`);
-  console.log(`   ID: ${marc.id}`);
-  console.log(`   Nivel: ${marc.level}`);
-  console.log(`   Género: ${marc.gender}\n`);
-
-  // Buscar todas las reservas del día 24
+  console.log('🔍 Buscando bookings de Marc Parra (jugador1@padelpro.com)...\n');
+  
   const bookings = await prisma.booking.findMany({
     where: {
-      userId: marc.id,
-      timeSlot: {
-        start: {
-          gte: new Date('2025-11-24T00:00:00.000Z'),
-          lt: new Date('2025-11-25T00:00:00.000Z')
-        }
-      }
+      userId: userId
     },
     include: {
-      timeSlot: {
-        include: {
-          instructor: {
-            select: { name: true }
-          }
-        }
-      }
+      timeSlot: true
     },
     orderBy: {
       createdAt: 'desc'
     }
   });
-
-  console.log(`📊 Total reservas de Marc el día 24: ${bookings.length}\n`);
-
-  bookings.forEach((b, i) => {
-    const hour = new Date(b.timeSlot.start).getHours();
-    console.log(`${i + 1}. TimeSlot: ${b.timeSlotId.substring(0, 25)}...`);
-    console.log(`   Hora: ${hour}:00`);
-    console.log(`   Instructor: ${b.timeSlot.instructor.name}`);
-    console.log(`   Status: ${b.status}`);
-    console.log(`   GroupSize: ${b.groupSize}`);
-    console.log(`   Nivel actual del slot: ${b.timeSlot.level}`);
-    console.log(`   Categoría actual del slot: ${b.timeSlot.genderCategory || 'NULL'}`);
-    console.log(`   Creada: ${b.createdAt.toLocaleString('es-ES')}`);
-    console.log('');
+  
+  console.log(`📋 Total bookings: ${bookings.length}\n`);
+  
+  if (bookings.length === 0) {
+    console.log('❌ NO HAY BOOKINGS para este usuario');
+    console.log('\nEsto confirma que cuando intentas reservar, NO se está creando el booking.');
+    console.log('El problema está en el endpoint de reserva.\n');
+  } else {
+    bookings.forEach(b => {
+      const date = new Date(b.timeSlot.start);
+      console.log(`${date.toLocaleDateString()} ${date.toLocaleTimeString()} - Status: ${b.status}`);
+      console.log(`   Booking ID: ${b.id.substring(0, 25)}...`);
+      console.log(`   TimeSlot ID: ${b.timeSlotId.substring(0, 25)}...`);
+      console.log(`   GroupSize: ${b.groupSize}, Pista: ${b.timeSlot.courtNumber || 'Pendiente'}`);
+      console.log('');
+    });
+  }
+  
+  // Verificar datos del usuario
+  const user = await prisma.user.findUnique({
+    where: { id: userId }
   });
-
-  // Agrupar por status
-  const byStatus = {};
-  bookings.forEach(b => {
-    byStatus[b.status] = (byStatus[b.status] || 0) + 1;
-  });
-
-  console.log('📈 Resumen por status:');
-  Object.entries(byStatus).forEach(([status, count]) => {
-    console.log(`   ${status}: ${count} reservas`);
-  });
-
+  
+  console.log('\n👤 Datos del usuario:');
+  console.log(`   Nombre: ${user.name}`);
+  console.log(`   Email: ${user.email}`);
+  console.log(`   Credits: ${user.credits}`);
+  console.log(`   Level: ${user.level}`);
+  console.log(`   Gender: ${user.genderCategory}`);
+  
   await prisma.$disconnect();
 }
 

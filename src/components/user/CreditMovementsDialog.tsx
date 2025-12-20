@@ -123,37 +123,37 @@ const CreditMovementsDialog: React.FC<CreditMovementsDialogProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="my-2 p-5 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border-2 border-gray-200">
-            <div className="grid grid-cols-2 gap-6">
+        <div className="my-2 p-3 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border border-gray-200">
+            <div className="grid grid-cols-2 gap-3">
                 {/* Columna izquierda: Euros */}
-                <div className="space-y-3">
-                    <div className="flex items-center gap-2 mb-2">
-                        <Wallet className="h-5 w-5 text-blue-600" />
-                        <h3 className="font-bold text-lg text-gray-800">Saldo en Euros</h3>
+                <div className="space-y-2">
+                    <div className="flex items-center gap-1 mb-1">
+                        <Wallet className="h-4 w-4 text-blue-600" />
+                        <h3 className="font-bold text-sm text-gray-800">Saldo en Euros</h3>
                     </div>
-                    <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <p className="text-xs text-gray-600 mb-1">Saldo</p>
-                        <p className="text-3xl font-bold text-gray-900">{totalCredit.toFixed(0)}€</p>
+                    <div className="bg-white rounded-lg p-2 border border-gray-200">
+                        <p className="text-[10px] text-gray-600 mb-0.5">Saldo</p>
+                        <p className="text-xl font-bold text-gray-900">{totalCredit.toFixed(0)}€</p>
                     </div>
-                    <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <p className="text-xs text-gray-600 mb-1">Bloqueado</p>
-                        <p className="text-xl font-semibold text-gray-700">{blockedCredit.toFixed(0)} B</p>
+                    <div className="bg-white rounded-lg p-2 border border-gray-200">
+                        <p className="text-[10px] text-gray-600 mb-0.5">Bloqueado</p>
+                        <p className="text-sm font-semibold text-gray-700">{blockedCredit.toFixed(0)} B</p>
                     </div>
                 </div>
                 
                 {/* Columna derecha: Puntos */}
-                <div className="space-y-3">
-                    <div className="flex items-center gap-2 mb-2">
-                        <Trophy className="h-5 w-5 text-yellow-600" />
-                        <h3 className="font-bold text-lg text-gray-800">Saldo en Puntos</h3>
+                <div className="space-y-2">
+                    <div className="flex items-center gap-1 mb-1">
+                        <Trophy className="h-4 w-4 text-yellow-600" />
+                        <h3 className="font-bold text-sm text-gray-800">Saldo en Puntos</h3>
                     </div>
-                    <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <p className="text-xs text-gray-600 mb-1">Saldo</p>
-                        <p className="text-3xl font-bold text-gray-900">{currentUser.points || 0} Ptos.</p>
+                    <div className="bg-white rounded-lg p-2 border border-gray-200">
+                        <p className="text-[10px] text-gray-600 mb-0.5">Saldo</p>
+                        <p className="text-xl font-bold text-gray-900">{currentUser.points || 0} Ptos.</p>
                     </div>
-                    <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <p className="text-xs text-gray-600 mb-1">Bloqueado</p>
-                        <p className="text-xl font-semibold text-gray-700">0 Ptos.</p>
+                    <div className="bg-white rounded-lg p-2 border border-gray-200">
+                        <p className="text-[10px] text-gray-600 mb-0.5">Bloqueado</p>
+                        <p className="text-sm font-semibold text-gray-700">0 Ptos.</p>
                     </div>
                 </div>
             </div>
@@ -178,51 +178,51 @@ const CreditMovementsDialog: React.FC<CreditMovementsDialogProps> = ({
                         const isPositive = txn.amount > 0;
                         
                         return (
-                            <div key={txn.id} className="border-2 border-gray-200 rounded-xl overflow-hidden">
+                            <div key={txn.id} className="border border-gray-200 rounded-lg overflow-hidden">
                                 {/* Header con fecha */}
-                                <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
-                                    <p className="text-sm font-medium text-gray-700">
+                                <div className="bg-gray-50 px-2 py-1 border-b border-gray-200">
+                                    <p className="text-xs font-medium text-gray-700">
                                         {format(new Date(txn.date), "d 'de' MMMM 'a las' HH:mm'h'", { locale: es })}
                                     </p>
                                 </div>
                                 
                                 {/* Concepto principal */}
-                                <div className="bg-green-100 px-4 py-3 text-center">
-                                    <p className="text-sm font-semibold text-gray-800">
+                                <div className="bg-green-100 px-2 py-1.5 text-center">
+                                    <p className="text-xs font-semibold text-gray-800">
                                         {txn.description}
                                     </p>
                                 </div>
                                 
                                 {/* Saldos */}
-                                <div className="bg-white px-4 py-4">
-                                    <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-white px-2 py-2">
+                                    <div className="grid grid-cols-2 gap-2">
                                         {/* Columna izquierda: Saldo en Euros */}
-                                        <div className="space-y-3">
-                                            <div className="border rounded-lg p-3 bg-gray-50">
-                                                <p className="text-xs text-gray-600 mb-1">Saldo</p>
-                                                <p className="text-xl font-bold text-gray-900">
+                                        <div className="space-y-1.5">
+                                            <div className="border rounded-lg p-1.5 bg-gray-50">
+                                                <p className="text-[10px] text-gray-600 mb-0.5">Saldo</p>
+                                                <p className="text-sm font-bold text-gray-900">
                                                     {txn.historicCreditBalance?.toFixed(0) || 0}€
                                                 </p>
                                             </div>
-                                            <div className="border rounded-lg p-3 bg-gray-50">
-                                                <p className="text-xs text-gray-600 mb-1">Bloqueado</p>
-                                                <p className="text-base font-semibold text-gray-700">
+                                            <div className="border rounded-lg p-1.5 bg-gray-50">
+                                                <p className="text-[10px] text-gray-600 mb-0.5">Bloqueado</p>
+                                                <p className="text-xs font-semibold text-gray-700">
                                                     {blockedCredit.toFixed(0)} B
                                                 </p>
                                             </div>
                                         </div>
                                         
                                         {/* Columna derecha: Saldo en Puntos */}
-                                        <div className="space-y-3">
-                                            <div className="border rounded-lg p-3 bg-gray-50">
-                                                <p className="text-xs text-gray-600 mb-1">Saldo</p>
-                                                <p className="text-xl font-bold text-gray-900">
+                                        <div className="space-y-1.5">
+                                            <div className="border rounded-lg p-1.5 bg-gray-50">
+                                                <p className="text-[10px] text-gray-600 mb-0.5">Saldo</p>
+                                                <p className="text-sm font-bold text-gray-900">
                                                     {txn.historicPointsBalance || 0} Ptos.
                                                 </p>
                                             </div>
-                                            <div className="border rounded-lg p-3 bg-gray-50">
-                                                <p className="text-xs text-gray-600 mb-1">Bloqueado</p>
-                                                <p className="text-base font-semibold text-gray-700">
+                                            <div className="border rounded-lg p-1.5 bg-gray-50">
+                                                <p className="text-[10px] text-gray-600 mb-0.5">Bloqueado</p>
+                                                <p className="text-xs font-semibold text-gray-700">
                                                     0 Ptos.
                                                 </p>
                                             </div>

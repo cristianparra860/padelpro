@@ -119,7 +119,7 @@ export function UserPreferenceFilters({ currentUser, onPreferencesChange }: User
   return (
     <>
       {/* FILTROS LATERALES */}
-      <div className="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-3 items-center pr-1">
+      <div className="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-3 items-center pr-2">
         {/* FILTRO DE INSTRUCTORES */}
         {availableInstructors.length > 0 && (
           <div className={`bg-white rounded-full p-1 flex flex-col gap-1 items-center transition-all duration-200 ${
@@ -323,9 +323,9 @@ export function UserPreferenceFilters({ currentUser, onPreferencesChange }: User
             <h3 className="text-lg font-bold mb-4 text-center">Preferencia de Visualización</h3>
             <div className="space-y-2">
               {[
-                { value: 'all' as ViewPreference, label: 'Todas las Clases', color: 'gray', icon: '📋' },
-                { value: 'withBookings' as ViewPreference, label: 'Con Reservas Pendientes', color: 'blue', icon: '⏳' },
-                { value: 'myConfirmed' as ViewPreference, label: 'Mis Clases Confirmadas', color: 'red', icon: '✅' },
+                { value: 'withBookings' as ViewPreference, label: 'Pendientes', color: 'blue', icon: '⏳' },
+                { value: 'myConfirmed' as ViewPreference, label: 'Confirmadas', color: 'green', icon: '✅' },
+                { value: 'past' as ViewPreference, label: 'Pasadas', color: 'gray', icon: '📅' },
               ].map(option => (
                 <button
                   key={option.value}
@@ -334,8 +334,8 @@ export function UserPreferenceFilters({ currentUser, onPreferencesChange }: User
                     viewPreference === option.value
                       ? option.color === 'blue'
                         ? 'bg-blue-500 text-white'
-                        : option.color === 'red'
-                        ? 'bg-red-500 text-white'
+                        : option.color === 'green'
+                        ? 'bg-green-500 text-white'
                         : 'bg-gray-500 text-white'
                       : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
                   }`}

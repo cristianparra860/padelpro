@@ -102,9 +102,9 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
     };
     fetchUserAndClub();
 
-    const intervalId = setInterval(fetchUserAndClub, 3000); 
-    return () => clearInterval(intervalId);
-  }, []);
+    // ❌ REMOVED: Auto-refresh every 3 seconds was causing navigation issues
+    // Users were being redirected to login constantly if any fetch failed
+  }, [router]);
 
   // Prevent hydration mismatch by not rendering until mounted
   if (!mounted) {
@@ -128,16 +128,18 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
     router.push('/');
   };
 
+  const hideNavigationBars = pathname === '/admin/calendar';
+
   return (
     <>
-      <div className="flex min-h-screen overflow-x-hidden">
-        <main className="flex-1 flex flex-col pb-14 md:pb-0 overflow-x-hidden">
+      <div className="flex min-h-screen overflow-x-hidden" style={{position: 'relative', zIndex: 1}}>
+        <main className="flex-1 flex flex-col pb-14 md:pb-0 overflow-x-hidden" style={{position: 'relative', zIndex: 1}}>
           {children}
           <Footer />
         </main>
       </div>
-      <LeftNavigationBar />
-      <AiHelpButton onMobileFiltersClick={() => setIsMobileFiltersOpen(true)} />
+      {!hideNavigationBars && <LeftNavigationBar />}
+      {!hideNavigationBars && <AiHelpButton onMobileFiltersClick={() => setIsMobileFiltersOpen(true)} />}
 
       <LogoutConfirmationDialog
         isOpen={isLogoutConfirmOpen}

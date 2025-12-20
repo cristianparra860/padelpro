@@ -28,30 +28,38 @@ export async function GET(request: NextRequest) {
       endDate = future.toISOString();
     }
 
-        console.log('📅 Step 1: Fetching calendar data:', {
-      clubId,
-      startDate,
-      endDate
-    });
-    console.log('🔧 Calendar API v2 - Sin filtro clubId');
+    // 1. Obtener información del club (incluyendo openingHours)
+    const club = clubId ? await prisma.club.findUnique({
+      where: { id: clubId },
+      select: {
+        id: true,
+        name: true,
+        logo: true,
+        openingHours: true
+      }
+    }) : null;
 
-    // 1. Obtener todas las pistas del club
+    // 2. Obtener todas las pistas del club
     const courts = await prisma.court.findMany({
       where: clubId ? { clubId, isActive: true } : { isActive: true },
-      include: {
+      select: {
+        id: true,
+        number: true,
+        name: true,
         club: {
           select: { name: true, logo: true }
         }
       },
       orderBy: { number: 'asc' }
     });
-    
-    console.log('📅 Step 2: Courts fetched:', courts.length);
 
-    // 2. Obtener instructores del club
+    // 3. Obtener instructores del club
     const instructors = await prisma.instructor.findMany({
       where: clubId ? { clubId, isActive: true } : { isActive: true },
-      include: {
+      select: {
+        id: true,
+        hourlyRate: true,
+        specialties: true,
         user: {
           select: {
             name: true,
@@ -62,53 +70,26 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    console.log('📅 Step 3: Instructors fetched:', instructors.length);
-
-    // 3. Obtener clases (TimeSlots) en el rango de fechas
-    // USANDO SQL DIRECTO porque Prisma ORM tiene problemas con DateTime en SQLite
+    // 4. Obtener clases (TimeSlots) en el rango de fechas - OPTIMIZADO
     const adjustedStartDate = new Date(startDate);
     const adjustedEndDate = new Date(endDate);
     adjustedEndDate.setDate(adjustedEndDate.getDate() + 1);
     adjustedEndDate.setHours(23, 59, 59, 999);
     
-    // SQLite guarda fechas como TEXT (ISO strings), así que comparamos como strings
-    const startISO = adjustedStartDate.toISOString();
-    const endISO = adjustedEndDate.toISOString();
+    const startTime = adjustedStartDate.getTime();
+    const endTime = adjustedEndDate.getTime();
     
-    console.log('🔍 Querying TimeSlots between:', startISO, 'and', endISO);
-    console.log('   startDate original:', startDate);
-    console.log('   adjustedStartDate:', adjustedStartDate);
-    console.log('   startISO:', startISO);
-    
-    // 🔧 FIX: SQLite almacena fechas como objetos, no como strings
-    // Obtener TODAS las clases y filtrar en JavaScript
+    // Query optimizada: filtrar en SQL en lugar de traer todo
     const classesRaw = await prisma.$queryRaw`
       SELECT 
         id, start, end, maxPlayers, totalPrice, level, category, 
         courtId, courtNumber, instructorId, clubId
       FROM TimeSlot
+      WHERE start >= ${startTime} AND start <= ${endTime}
       ORDER BY start ASC
     ` as any[];
-
-    console.log('🔍 SQL Query returned:', classesRaw.length, 'total classes');
     
-    // Filtrar por rango de fechas en JavaScript
-    const startTime = adjustedStartDate.getTime();
-    const endTime = adjustedEndDate.getTime();
-    
-    const classesInRange = classesRaw.filter((c: any) => {
-      const classTime = new Date(c.start).getTime();
-      return classTime >= startTime && classTime <= endTime;
-    });
-    
-    console.log('🔍 Classes in date range:', classesInRange.length);
-    if (classesInRange.length > 0) {
-      const firstSlot = classesInRange[0];
-      const firstDate = new Date(firstSlot.start);
-      console.log('   First slot:', firstDate.toLocaleString('es-ES'));
-    }
-    console.log('   With courtId=null:', classesInRange.filter((c: any) => c.courtId === null).length);
-    console.log('   With courtId!=null:', classesInRange.filter((c: any) => c.courtId !== null).length);
+    const classesInRange = classesRaw;
 
     // Obtener todos los IDs de TimeSlots e Instructores para queries optimizadas
     const timeSlotIds = classesInRange.map((c: any) => c.id);
@@ -152,17 +133,6 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    console.log('📚 Loaded:', classInstructors.length, 'instructors and', allBookings.length, 'bookings');
-    if (allBookings.length > 0) {
-      console.log('🔍 Sample booking:', {
-        id: allBookings[0].id,
-        userId: allBookings[0].userId,
-        groupSize: allBookings[0].groupSize,
-        status: allBookings[0].status,
-        userName: allBookings[0].user?.name
-      });
-    }
-
     // Agrupar bookings por timeSlotId
     const bookingsBySlot = new Map<string, any[]>();
     allBookings.forEach(b => {
@@ -181,8 +151,6 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    console.log('📅 Step 4: Classes fetched:', classes.length);
-
     // 4. Obtener partidas
     const matches = await prisma.match.findMany({
       where: {
@@ -196,13 +164,19 @@ export async function GET(request: NextRequest) {
           lte: new Date(endDate)
         }
       },
-      include: {
-        court: true
+      select: {
+        id: true,
+        startTime: true,
+        endTime: true,
+        court: {
+          select: {
+            id: true,
+            number: true
+          }
+        }
       },
       orderBy: { startTime: 'asc' }
     });
-
-    console.log('📅 Step 5: Matches fetched:', matches.length);
 
     // Separar clases propuestas de confirmadas
     const proposedClasses = classes.filter((c: any) => c.courtId === null);
@@ -331,7 +305,13 @@ export async function GET(request: NextRequest) {
         totalMatches: matches.length,
         emptyClasses: classes.filter((c: any) => (c.bookings?.length || 0) === 0).length,
         fullClasses: classes.filter((c: any) => (c.bookings?.length || 0) >= c.maxPlayers).length
-      }
+      },
+      club: club ? {
+        id: club.id,
+        name: club.name,
+        logo: club.logo,
+        openingHours: club.openingHours
+      } : null
     };
 
     console.log('✅ Calendar data built successfully');

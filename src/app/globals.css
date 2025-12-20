@@ -118,4 +118,11 @@ body {
   .recycled-slot-blink {
     animation: recycled-blink 2s ease-in-out infinite;
   }
+
+  /* TEMPORAL FIX: Forzar que todos los botones y links sean clickeables */
+  button, a, [role="button"], [role="link"] {
+    pointer-events: auto !important;
+    position: relative !important;
+    z-index: 1 !important;
+  }
 }

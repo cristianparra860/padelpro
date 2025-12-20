@@ -28,7 +28,7 @@ import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import InstructorClassCards from './InstructorClassCards';
-import ClubCalendar from '@/components/admin/ClubCalendar';
+import ClubCalendar from '@/components/admin/ClubCalendar2';
 
 interface InstructorPanelProps {
   instructor: InstructorType;
@@ -356,9 +356,15 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
             instructorId={instructorData.id}
             initialRanges={(() => {
               try {
-                return instructorData.levelRanges && instructorData.levelRanges.trim() !== '' 
-                  ? JSON.parse(instructorData.levelRanges) 
-                  : [];
+                // levelRanges ya viene parseado del API como array
+                if (Array.isArray(instructorData.levelRanges)) {
+                  return instructorData.levelRanges;
+                }
+                // Si es string (legacy), parsearlo
+                if (typeof instructorData.levelRanges === 'string' && instructorData.levelRanges.trim() !== '') {
+                  return JSON.parse(instructorData.levelRanges);
+                }
+                return [];
               } catch (e) {
                 console.error('Error parsing levelRanges:', e);
                 return [];

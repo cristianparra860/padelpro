@@ -10,26 +10,45 @@ export async function PATCH(
     const { id } = params;
     const body = await request.json();
     
-    // Validar que openingHours sea un array de booleanos
-    if (body.openingHours && !Array.isArray(body.openingHours)) {
-      return NextResponse.json(
-        { error: 'openingHours debe ser un array' },
-        { status: 400 }
-      );
+    // Validar openingHours (puede ser objeto con días de la semana o array legacy)
+    let openingHoursJson = null;
+    
+    if (body.openingHours) {
+      // Nuevo formato: objeto con días de la semana
+      if (typeof body.openingHours === 'object' && !Array.isArray(body.openingHours)) {
+        const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+        const validFormat = days.every(day => 
+          body.openingHours[day] && 
+          Array.isArray(body.openingHours[day]) && 
+          body.openingHours[day].length === 19
+        );
+        
+        if (!validFormat) {
+          return NextResponse.json(
+            { error: 'openingHours debe tener 7 días con 19 horas cada uno' },
+            { status: 400 }
+          );
+        }
+        
+        openingHoursJson = JSON.stringify(body.openingHours);
+      }
+      // Formato legacy: array de booleanos
+      else if (Array.isArray(body.openingHours)) {
+        if (body.openingHours.length !== 19) {
+          return NextResponse.json(
+            { error: 'openingHours array debe tener 19 elementos' },
+            { status: 400 }
+          );
+        }
+        openingHoursJson = JSON.stringify(body.openingHours);
+      }
+      else {
+        return NextResponse.json(
+          { error: 'openingHours debe ser un objeto con días de la semana o un array' },
+          { status: 400 }
+        );
+      }
     }
-
-    // Validar que tenga 19 elementos
-    if (body.openingHours && body.openingHours.length !== 19) {
-      return NextResponse.json(
-        { error: 'openingHours debe tener exactamente 19 elementos (6:00 AM a 12:00 AM)' },
-        { status: 400 }
-      );
-    }
-
-    // Convertir el array a JSON string para guardar en la BD
-    const openingHoursJson = body.openingHours 
-      ? JSON.stringify(body.openingHours) 
-      : null;
 
     // Actualizar el club en la base de datos
     const updatedClub = await prisma.club.update({

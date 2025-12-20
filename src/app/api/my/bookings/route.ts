@@ -52,17 +52,7 @@ export async function GET(request: Request) {
       LEFT JOIN User u ON i.userId = u.id
       LEFT JOIN Court c ON ts.courtId = c.id
       WHERE b.userId = ${userId}
-      AND b.status = 'CONFIRMED'
-      AND (
-        -- Solo mostrar clases que están completas (suficientes reservas para funcionar)
-        (SELECT COUNT(*) FROM Booking b2 
-         WHERE b2.timeSlotId = ts.id 
-         AND b2.status IN ('PENDING', 'CONFIRMED')) >= ts.maxPlayers
-        OR 
-        -- O clases que ya pasaron (sin importar si se completaron)
-        ts.start < datetime('now')
-      )
-      ORDER BY ts.start DESC
+      ORDER BY ts.start ASC
     ` as any[];
 
     console.log('📊 Reservas encontradas:', bookings.length);
@@ -91,6 +81,7 @@ export async function GET(request: Request) {
       // Formato exacto que espera ClassCardReal (TimeSlot interface)
       return {
         id: timeSlotId,  // ID original del timeSlot para APIs
+        activityId: timeSlotId, // Para agrupamiento en PersonalSchedule
         uniqueKey: `${timeSlotId}-user-bookings`,  // Key único para React
         clubId: firstBooking.timeSlot_clubId,
         startTime: new Date(firstBooking.timeSlot_start),
@@ -102,8 +93,15 @@ export async function GET(request: Request) {
         courtNumber: firstBooking.court_number || 1,
         level: firstBooking.timeSlot_level || 'abierto',
         category: firstBooking.timeSlot_category || 'abierta',
-        status: 'confirmed', // Las reservas confirmadas siempre están confirmed
+        status: firstBooking.status, // Status real del booking
         totalPrice: Number(firstBooking.timeSlot_totalPrice),
+        
+        // Alias para compatibilidad con PersonalSchedule
+        slotDetails: {
+          startTime: new Date(firstBooking.timeSlot_start),
+          endTime: new Date(firstBooking.timeSlot_end),
+          clubId: firstBooking.timeSlot_clubId
+        },
         
         // Lista de jugadores reservados (formato que espera ClassCardReal)
         bookedPlayers: [

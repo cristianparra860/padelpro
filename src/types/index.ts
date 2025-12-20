@@ -76,7 +76,7 @@ export const timeSlotFilterOptions: { value: TimeOfDayFilterType, label: string 
     { value: 'evening', label: 'Tardes (18-22h)' },
 ];
 
-export type ViewPreference = 'normal' | 'myInscriptions' | 'myConfirmed' | 'withPlayers' | 'completed' | 'withBookings' | 'all';
+export type ViewPreference = 'normal' | 'myInscriptions' | 'myConfirmed' | 'withPlayers' | 'completed' | 'withBookings' | 'all' | 'past';
 
 export type ActivityViewType = 'clases' | 'grupos';
 
@@ -267,6 +267,8 @@ export interface TimeSlot {
     category: PadelCategoryForSlot;
     genderCategory?: string; // AGREGADO: Categoría de género (masculino/femenino/mixto)
     hasRecycledSlots?: boolean; // ♻️ Indica que tiene plazas recicladas disponibles
+    availableRecycledSlots?: number; // ♻️ Número de plazas recicladas disponibles
+    recycledSlotsOnlyPoints?: boolean; // ♻️ Si es true, las plazas recicladas solo se reservan con puntos
     creditsSlots?: number[]; // 🎁 Índices de plazas reservables con puntos [1,2,3,4]
     creditsCost?: number; // 🎁 Coste en puntos para reservar con créditos (default: 50)
     status: 'pre_registration' | 'forming' | 'confirmed' | 'confirmed_private' | 'cancelled';

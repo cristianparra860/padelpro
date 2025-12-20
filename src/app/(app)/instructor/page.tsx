@@ -44,7 +44,14 @@ export default function InstructorPage() {
                     
                     if (instructorResponse.ok) {
                         const instructorRecord = await instructorResponse.json();
-                        instructorId = instructorRecord.instructor?.id || instructorRecord.id; // usar el ID de la tabla Instructor
+                        
+                        if (!instructorRecord.isInstructor) {
+                            console.error('❌ Usuario no es instructor');
+                            router.push('/dashboard');
+                            return;
+                        }
+                        
+                        instructorId = instructorRecord.instructor.id; // usar el ID de la tabla Instructor
                         
                         // Convertir el usuario a formato Instructor con datos del registro
                         const instructorData: Instructor = {
@@ -53,12 +60,12 @@ export default function InstructorPage() {
                             email: userData.email,
                             profilePictureUrl: userData.profilePictureUrl || null,
                             isAvailable: userData.isAvailable ?? true,
-                            assignedClubId: instructorRecord.instructor?.clubId || userData.assignedClubId || 'padel-estrella-madrid',
+                            assignedClubId: instructorRecord.instructor.clubId || userData.assignedClubId || 'padel-estrella-madrid',
                             assignedCourtNumber: userData.assignedCourtNumber || undefined,
                             defaultRatePerHour: userData.defaultRatePerHour || 28,
                             rateTiers: userData.rateTiers || [],
                             unavailableHours: userData.unavailableHours || {},
-                            levelRanges: instructorRecord.instructor?.levelRanges || null
+                            levelRanges: instructorRecord.instructor.levelRanges || null
                         };
                         
                         setInstructor(instructorData);
@@ -84,7 +91,7 @@ export default function InstructorPage() {
 
     if (loading) {
         return (
-             <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+             <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 pl-16 md:pl-20 lg:pl-24">
                 <header>
                     <Skeleton className="h-8 w-1/3" />
                     <Skeleton className="h-4 w-2/3 mt-2" />
@@ -98,11 +105,11 @@ export default function InstructorPage() {
     }
 
     if (!instructor) {
-        return <div className="p-6">Error: No se pudo cargar la información del instructor.</div>
+        return <div className="p-6 pl-16 md:pl-20 lg:pl-24">Error: No se pudo cargar la información del instructor.</div>
     }
     
     return (
-        <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+        <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 pl-16 md:pl-20 lg:pl-24">
             <header>
                 <h1 className="font-headline text-3xl font-semibold">Panel de Instructor</h1>
                 <p className="text-muted-foreground">

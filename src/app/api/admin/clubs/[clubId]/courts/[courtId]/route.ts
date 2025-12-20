@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 /**
- * PUT /api/admin/clubs/[clubId]/courts/[id]
+ * PUT /api/admin/clubs/[clubId]/courts/[courtId]
  * Actualiza una pista existente
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { clubId: string; id: string } }
+  { params }: { params: { clubId: string; courtId: string } }
 ) {
   try {
-    const { clubId, id } = params;
+    const { clubId, courtId: id } = params;
     const body = await request.json();
     const { number, name } = body;
 
@@ -66,15 +66,15 @@ export async function PUT(
 }
 
 /**
- * DELETE /api/admin/clubs/[clubId]/courts/[id]
+ * DELETE /api/admin/clubs/[clubId]/courts/[courtId]
  * Elimina una pista
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { clubId: string; id: string } }
+  { params }: { params: { clubId: string; courtId: string } }
 ) {
   try {
-    const { clubId, id } = params;
+    const { clubId, courtId: id } = params;
 
     // Verificar que existe
     const existing = await prisma.court.findFirst({

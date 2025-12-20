@@ -5,18 +5,20 @@ async function addStandardLevelRanges() {
   try {
     console.log('🎯 Añadiendo rangos de nivel estándar a todos los instructores...\n');
 
-    // Rangos estándar
+    // Rangos estándar (sin solapamiento)
     const standardRanges = [
-      { minLevel: 1.0, maxLevel: 3.0 },
-      { minLevel: 3.0, maxLevel: 5.0 },
-      { minLevel: 5.0, maxLevel: 7.0 }
+      { minLevel: 0.0, maxLevel: 1.5 },
+      { minLevel: 2.0, maxLevel: 3.5 },
+      { minLevel: 4.0, maxLevel: 5.5 },
+      { minLevel: 6.0, maxLevel: 7.0 }
     ];
 
     const rangesJSON = JSON.stringify(standardRanges);
     console.log('📊 Rangos estándar:', rangesJSON);
-    console.log('   - 1.0-3.0 (Principiantes)');
-    console.log('   - 3.0-5.0 (Intermedios)');
-    console.log('   - 5.0-7.0 (Avanzados)\n');
+    console.log('   - 0.0-1.5 (Iniciación)');
+    console.log('   - 2.0-3.5 (Principiantes)');
+    console.log('   - 4.0-5.5 (Intermedios)');
+    console.log('   - 6.0-7.0 (Avanzados)\n');
 
     // Obtener todos los instructores
     const instructors = await prisma.instructor.findMany({

@@ -17,7 +17,8 @@ const publicRoutes = [
   '/',
   '/login',
   '/register',
-  '/activities'
+  '/activities',
+  '/club'
 ];
 
 export function middleware(request: NextRequest) {

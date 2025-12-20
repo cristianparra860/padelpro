@@ -15,20 +15,26 @@ import { matchPadelLevels } from '@/types';
 import EditableInfoRow from '@/components/user/profile/EditableInfoRow';
 import { Badge } from '@/components/ui/badge';
 import UserProfileAvatar from '@/components/user/profile/UserProfileAvatar';
+import SimpleAvatar from '@/components/user/profile/SimpleAvatar';
 import ChangePasswordDialog from '@/components/user/profile/ChangePasswordDialog';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import PersonalSchedule from '@/components/schedule/PersonalSchedule';
-import PersonalMatches from '@/components/schedule/PersonalMatches';
-import PersonalMatchDay from '@/components/schedule/PersonalMatchDay';
-import UserBookings from '@/components/user/UserBookings';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
-import { Wallet, Star, History, Repeat, PlusCircle, PiggyBank, Lock, Sparkles, CalendarDays, User, Gift } from 'lucide-react';
+import { Wallet, Star, History, Repeat, PlusCircle, PiggyBank, Lock, Sparkles, CalendarDays, User, Gift, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import CreditMovementsDialog from '@/components/user/CreditMovementsDialog';
 import AddCreditDialog from '@/components/user/AddCreditDialog';
 import ConvertBalanceDialog from '@/components/user/ConvertBalanceDialog';
 import EditLevelDialog from '@/components/user/EditLevelDialog';
 import Link from 'next/link';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 
 function DashboardPageContent() {
@@ -51,10 +57,10 @@ function DashboardPageContent() {
     
     const [isClient, setIsClient] = useState(false);
     const [isChangePasswordDialogOpen, setIsChangePasswordDialogOpen] = useState(false);
-    const [isCreditMovementsDialogOpen, setIsCreditMovementsDialogOpen] = useState(false);
     const [isAddCreditDialogOpen, setIsAddCreditDialogOpen] = useState(false);
     const [isConvertBalanceDialogOpen, setIsConvertBalanceDialogOpen] = useState(false);
     const [isEditLevelDialogOpen, setIsEditLevelDialogOpen] = useState(false);
+    const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
     const [isInstructor, setIsInstructor] = useState(false);
     const [editMode, setEditMode] = useState(false);
@@ -101,17 +107,7 @@ function DashboardPageContent() {
                         points: userData.points
                     });
                     setUser(userData);
-                    
-                    // Verificar si el usuario es instructor
-                    const instructorResponse = await fetch(`/api/instructors/by-user/${userData.id}`, { headers });
-                    if (instructorResponse.ok) {
-                        setIsInstructor(true);
-                        console.log('✅ Usuario es instructor');
-                    } else {
-                        setIsInstructor(false);
-                    }
-                } else {
-                    console.error('❌ Error al cargar usuario:', response.status);
+                    setIsInstructor(userData.role === 'INSTRUCTOR' || userData.role === 'ADMIN');
                 }
             } catch (error) {
                 console.error('❌ Error al cargar usuario:', error);
@@ -119,10 +115,8 @@ function DashboardPageContent() {
                 setIsLoadingUser(false);
             }
         };
-
+        
         loadUser();
-        // ✅ REMOVED: Auto-refresh every 5 seconds (was causing performance issues)
-        // Solo recarga cuando refreshKey cambie (tras bookings, añadir créditos, etc.)
     }, [refreshKey, router]);
 
     // Escuchar cambios de usuario desde otros componentes/páginas
@@ -136,6 +130,9 @@ function DashboardPageContent() {
         window.addEventListener('userUpdated', handleUserUpdate);
         return () => window.removeEventListener('userUpdated', handleUserUpdate);
     }, []);
+
+    // Debug: Detectar overlays bloqueantes (ejecutar solo una vez)
+    // Eliminado: useEffect de debug que causaba spam en consola
 
     useEffect(() => {
         setIsClient(true);
@@ -211,126 +208,249 @@ function DashboardPageContent() {
     const hasPendingPoints = (user.pendingBonusPoints ?? 0) > 0;
 
     return (
-        <div className="flex-1 space-y-2 sm:space-y-6 lg:space-y-8 pl-14 pr-2 py-2 sm:p-4 md:p-6 lg:p-8">
-            <header className="mb-2 sm:mb-6">
-                {/* Barra superior con gradiente */}
-                <div className="rounded-lg p-3 sm:p-6 mb-4" style={{
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                }}>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-                        {/* Título y nombre del usuario */}
-                        <div className="flex items-center gap-2 sm:gap-3">
-                            <CalendarDays className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
-                            <div>
-                                <h1 className="text-lg sm:text-2xl font-bold text-white">
-                                    Tu Agenda
-                                </h1>
-                                <p className="text-xs sm:text-sm text-white/90">{user.name}</p>
+        <div className="flex-1 space-y-2 sm:space-y-6 lg:space-y-8 pl-20 sm:pl-20 md:pl-24 pr-2 sm:pr-4 md:pr-6 py-2 sm:py-4 md:py-6 lg:py-8 pointer-events-auto">
+            <main className="space-y-2 sm:space-y-6 lg:space-y-8 pointer-events-auto">
+                {/* Panel de Datos del Usuario */}
+                <Card className="shadow-md">
+                    <CardHeader className="pb-3 pt-4 px-4 bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600 border-b rounded-t-lg">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <User className="h-5 w-5 text-white" />
+                                <CardTitle className="text-lg text-white">
+                                    Hola, {user.name}
+                                </CardTitle>
                             </div>
+                            <Button 
+                                onClick={() => setIsLogoutDialogOpen(true)}
+                                variant="destructive" 
+                                size="sm"
+                                className="bg-red-600 hover:bg-red-700 text-white border-red-700"
+                            >
+                                <LogOut className="mr-2 h-4 w-4" />
+                                Cerrar Sesión
+                            </Button>
                         </div>
+                        <CardDescription className="text-sm text-white/90">
+                            Información de tu perfil
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-4">
+                        {/* Avatar del usuario */}
+                        <div className="mb-4">
+                            <SimpleAvatar
+                                userId={user?.id || ''}
+                                userName={user?.name || ''}
+                                fileInputRef={fileInputRef}
+                            />
+                        </div>
+                        
+                        <div className="bg-white rounded-lg overflow-hidden border">
+                            <EditableInfoRow
+                                id="dashboard-name"
+                                label="Nombre"
+                                value={name}
+                                isEditing={isEditingName}
+                                onEditClick={() => setIsEditingName(true)}
+                                onSaveClick={handleSaveName}
+                                onCancelClick={() => { setIsEditingName(false); setName(user.name || ''); }}
+                                onChange={(e) => handleNameChange(e as React.ChangeEvent<HTMLInputElement>)}
+                                isFirst
+                                showSeparator={!isEditingName}
+                            />
+                            <EditableInfoRow
+                                id="dashboard-email"
+                                label="Email"
+                                value={email}
+                                isEditing={isEditingEmail}
+                                onEditClick={() => setIsEditingEmail(true)}
+                                onSaveClick={handleSaveEmail}
+                                onCancelClick={() => { setIsEditingEmail(false); setEmail(user.email || ''); }}
+                                onChange={(e) => handleEmailChange(e as React.ChangeEvent<HTMLInputElement>)}
+                                inputType="email"
+                                showSeparator={!isEditingEmail}
+                            />
+                            <EditableInfoRow
+                                id="dashboard-level"
+                                label="Nivel de Juego"
+                                value={selectedLevel}
+                                isEditing={isEditingLevel}
+                                onEditClick={() => setIsEditingLevel(true)}
+                                onSaveClick={handleSaveLevel}
+                                onCancelClick={() => { setIsEditingLevel(false); setSelectedLevel(user.level); }}
+                                onChange={(val) => handleLevelChange(val as MatchPadelLevel)}
+                                inputType="select"
+                                selectOptions={[
+                                    { label: 'Principiante', value: 'principiante' },
+                                    { label: 'Intermedio', value: 'intermedio' },
+                                    { label: 'Avanzado', value: 'avanzado' },
+                                    { label: 'Profesional', value: 'profesional' }
+                                ]}
+                                selectPlaceholder="Selecciona tu nivel"
+                                showSeparator={!isEditingLevel}
+                            />
+                            <EditableInfoRow
+                                id="dashboard-gender"
+                                label="Categoría (Género)"
+                                value={selectedGenderCategory}
+                                isEditing={isEditingGenderCategory}
+                                onEditClick={() => setIsEditingGenderCategory(true)}
+                                onSaveClick={handleSaveGenderCategory}
+                                onCancelClick={() => { setIsEditingGenderCategory(false); setSelectedGenderCategory(user.genderCategory); }}
+                                onChange={(val) => handleGenderCategoryChange(val as UserGenderCategory)}
+                                inputType="select"
+                                selectOptions={[
+                                    { label: 'Masculino', value: 'masculino' },
+                                    { label: 'Femenino', value: 'femenino' },
+                                    { label: 'Mixto', value: 'mixto' }
+                                ]}
+                                selectPlaceholder="Selecciona tu categoría"
+                                showSeparator={false}
+                            />
+                            
+                            {/* Botón de cambiar contraseña */}
+                            <button 
+                                onClick={() => setIsChangePasswordDialogOpen(true)} 
+                                className="flex items-center justify-between p-4 bg-white w-full text-left border-t border-gray-200 hover:bg-gray-50 transition-colors"
+                            >
+                                <span className="text-sm font-medium text-gray-700">Contraseña</span>
+                                <span className="text-sm text-gray-500">••••••••</span>
+                            </button>
+                        </div>
+                    </CardContent>
+                </Card>
 
-                        {/* Botones de acción */}
-                        <div className="flex gap-1.5 sm:gap-2">
-                            <Link href="/profile" className="flex-1 sm:flex-initial">
-                                <Button variant="secondary" className="w-full sm:w-auto bg-white/20 hover:bg-white/30 text-white border-white/30 text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-4">
-                                    <User className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                                    <span className="hidden sm:inline">Mis Datos</span>
-                                    <span className="sm:hidden">Datos</span>
-                                </Button>
-                            </Link>
-                            {isInstructor && (
-                                <Link href="/instructor" className="flex-1 sm:flex-initial">
-                                    <Button variant="secondary" className="w-full sm:w-auto bg-white/20 hover:bg-white/30 text-white border-white/30 text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-4">
-                                        <CalendarDays className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                                        <span className="hidden sm:inline">Panel Instructor</span>
-                                        <span className="sm:hidden">Instructor</span>
-                                    </Button>
-                                </Link>
-                            )}
-                            <Link href="/admin/calendar" className="flex-1 sm:flex-initial">
-                                <Button variant="secondary" className="w-full sm:w-auto bg-white/20 hover:bg-white/30 text-white border-white/30 text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-4">
-                                    <CalendarDays className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                                    <span className="hidden sm:inline">Calendario Club</span>
-                                    <span className="sm:hidden">Calendario</span>
-                                </Button>
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-            </header>
-            
-            <main className="space-y-2 sm:space-y-6 lg:space-y-8">
                <div className="grid grid-cols-1 gap-2">
-                    {/* Panel Unificado Compacto */}
-                    <Card className="shadow-sm">
-                        <CardHeader className="pb-1 pt-2 px-3 bg-gradient-to-r from-blue-50 to-amber-50">
-                            <CardTitle className="text-sm flex items-center justify-center text-gray-800">
-                                <Wallet className="mr-1.5 h-4 w-4 text-blue-600" />
+                    {/* Panel Mejorado con 3 Bloques */}
+                    <Card className="shadow-md">
+                        <CardHeader className="pb-3 pt-3 px-4 bg-gradient-to-r from-blue-50 via-purple-50 to-amber-50 border-b">
+                            <CardTitle className="text-base flex items-center justify-center text-gray-800">
+                                <Wallet className="mr-2 h-5 w-5 text-blue-600" />
                                 Saldo y Puntos
-                                <Star className="ml-1.5 h-4 w-4 text-amber-500" />
+                                <Star className="ml-2 h-5 w-5 text-amber-500" />
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="px-3 pb-2 pt-2">
-                            <div className="grid grid-cols-2 gap-2">
-                                {/* Euros - Compacto */}
+                        <CardContent className="px-4 pb-4 pt-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {/* BLOQUE 1: Saldo en Euros */}
                                 {SHOW_EURO_BALANCE && (
-                                    <div className="space-y-1.5 p-2 bg-blue-50/30 rounded border border-blue-100/50">
-                                        <div className="flex items-center gap-1">
-                                            <Wallet className="h-3.5 w-3.5 text-blue-600" />
-                                            <span className="text-xs font-semibold text-blue-700">Euros</span>
-                                        </div>
-                                        <div className="text-xl font-bold text-blue-600">
-                                            {availableCredit.toFixed(0)}€
-                                        </div>
-                                        <div className="flex gap-1">
-                                            <div className="flex-1 p-1 bg-white/80 rounded text-center">
-                                                <p className="text-[9px] text-gray-500">Total</p>
-                                                <p className="text-xs font-semibold">{creditInEuros.toFixed(0)}€</p>
-                                            </div>
-                                            <div className="flex-1 p-1 bg-white/80 rounded text-center">
-                                                <p className="text-[9px] text-gray-500">Bloq</p>
-                                                <p className="text-xs font-semibold">{blockedCreditInEuros.toFixed(0)}€</p>
+                                    <div className="space-y-3 p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border-2 border-blue-200 shadow-sm">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <Wallet className="h-5 w-5 text-blue-600" />
+                                                <span className="text-sm font-bold text-blue-900">Saldo en Euros</span>
                                             </div>
                                         </div>
-                                        <div className="flex gap-1">
-                                            <Button variant="default" size="sm" onClick={() => setIsAddCreditDialogOpen(true)} className="flex-1 bg-green-600 hover:bg-green-700 text-xs h-6 px-1">
-                                                <PlusCircle className="h-3 w-3" />
-                                            </Button>
-                                            <Button variant="outline" size="sm" onClick={() => setIsCreditMovementsDialogOpen(true)} className="flex-1 text-xs h-6 px-1">
-                                                <History className="h-3 w-3" />
+                                        
+                                        {/* Disponible */}
+                                        <div className="bg-white/80 rounded-lg p-3 border border-blue-200">
+                                            <p className="text-xs text-gray-600 mb-1">💰 Disponible</p>
+                                            <p className="text-2xl font-bold text-blue-600">{availableCredit.toFixed(2)}€</p>
+                                        </div>
+                                        
+                                        {/* Total y Bloqueado */}
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div className="bg-white/60 rounded p-2 text-center border border-blue-100">
+                                                <p className="text-[10px] text-gray-600">Total</p>
+                                                <p className="text-sm font-semibold text-gray-800">{creditInEuros.toFixed(2)}€</p>
+                                            </div>
+                                            <div className="bg-white/60 rounded p-2 text-center border border-blue-100">
+                                                <p className="text-[10px] text-gray-600">🔒 Bloqueado</p>
+                                                <p className="text-sm font-semibold text-orange-600">{blockedCreditInEuros.toFixed(2)}€</p>
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Botones */}
+                                        <div className="flex gap-2">
+                                            <Button 
+                                                variant="default" 
+                                                size="sm" 
+                                                onClick={() => setIsAddCreditDialogOpen(true)} 
+                                                className="flex-1 bg-green-600 hover:bg-green-700 text-sm h-9"
+                                            >
+                                                <PlusCircle className="mr-1 h-4 w-4" />
+                                                Añadir
                                             </Button>
                                         </div>
                                     </div>
                                 )}
                                 
-                                {/* Puntos - Compacto */}
-                                <div className="space-y-1.5 p-2 bg-amber-50/30 rounded border border-amber-100/50">
-                                    <div className="flex items-center gap-1">
-                                        <Star className="h-3.5 w-3.5 text-amber-600" />
-                                        <span className="text-xs font-semibold text-amber-700">Puntos</span>
-                                    </div>
-                                    <div className="text-xl font-bold text-amber-600">
-                                        {availablePoints.toFixed(0)}
-                                    </div>
-                                    <div className="flex gap-1">
-                                        <div className="flex-1 p-1 bg-white/80 rounded text-center">
-                                            <p className="text-[9px] text-gray-500">Total</p>
-                                            <p className="text-xs font-semibold">{(user.points ?? 0).toFixed(0)}</p>
-                                        </div>
-                                        <div className="flex-1 p-1 bg-white/80 rounded text-center">
-                                            <p className="text-[9px] text-gray-500">Bloq</p>
-                                            <p className="text-xs font-semibold">{(user.blockedLoyaltyPoints ?? 0).toFixed(0)}</p>
+                                {/* BLOQUE 2: Saldo en Puntos */}
+                                <div className="space-y-3 p-4 bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg border-2 border-amber-200 shadow-sm">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <Star className="h-5 w-5 text-amber-600" />
+                                            <span className="text-sm font-bold text-amber-900">Saldo en Puntos</span>
                                         </div>
                                     </div>
-                                    <div className="flex gap-1">
+                                    
+                                    {/* Disponible */}
+                                    <div className="bg-white/80 rounded-lg p-3 border border-amber-200">
+                                        <p className="text-xs text-gray-600 mb-1">⭐ Disponibles</p>
+                                        <p className="text-2xl font-bold text-amber-600">{availablePoints.toFixed(0)}</p>
+                                    </div>
+                                    
+                                    {/* Total y Bloqueado */}
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="bg-white/60 rounded p-2 text-center border border-amber-100">
+                                            <p className="text-[10px] text-gray-600">Total</p>
+                                            <p className="text-sm font-semibold text-gray-800">{(user.points ?? 0).toFixed(0)}</p>
+                                        </div>
+                                        <div className="bg-white/60 rounded p-2 text-center border border-amber-100">
+                                            <p className="text-[10px] text-gray-600">🔒 Bloqueados</p>
+                                            <p className="text-sm font-semibold text-orange-600">{(user.blockedLoyaltyPoints ?? 0).toFixed(0)}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Botones */}
+                                    <div className="flex gap-2">
                                         {SHOW_EURO_BALANCE && (
-                                            <Button variant="default" size="sm" onClick={() => setIsConvertBalanceDialogOpen(true)} className="flex-1 bg-amber-500 hover:bg-amber-600 text-xs h-6 px-1">
-                                                <Repeat className="h-3 w-3" />
+                                            <Button 
+                                                variant="default" 
+                                                size="sm" 
+                                                onClick={() => setIsConvertBalanceDialogOpen(true)} 
+                                                className="flex-1 bg-amber-500 hover:bg-amber-600 text-sm h-9"
+                                            >
+                                                <Repeat className="mr-1 h-4 w-4" />
+                                                Convertir
                                             </Button>
                                         )}
-                                        <Button variant="outline" size="sm" onClick={() => setIsCreditMovementsDialogOpen(true)} className="flex-1 text-xs h-6 px-1">
-                                            <History className="h-3 w-3" />
+                                    </div>
+                                </div>
+                                
+                                {/* BLOQUE 3: Panel de Historial */}
+                                <div className="space-y-3 p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border-2 border-purple-200 shadow-sm">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <History className="h-5 w-5 text-purple-600" />
+                                            <span className="text-sm font-bold text-purple-900">Historial</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="space-y-2 pt-2">
+                                        <p className="text-xs text-gray-600 text-center mb-4">
+                                            Consulta todos tus movimientos de euros y puntos
+                                        </p>
+                                        
+                                        {/* Botón grande de historial */}
+                                        <Button 
+                                            variant="outline" 
+                                            size="lg"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                console.log('🔍 Click en Ver Historial! Navegando');
+                                                window.location.href = '/movimientos';
+                                            }} 
+                                            className="w-full bg-white hover:bg-purple-50 border-2 border-purple-300 text-purple-700 font-semibold h-20 flex-col gap-2"
+                                            style={{pointerEvents: 'auto', zIndex: 99999, cursor: 'pointer'}}
+                                        >
+                                            <History className="h-8 w-8" />
+                                            <span>Ver Movimientos</span>
                                         </Button>
+                                        
+                                        <div className="text-center text-xs text-gray-500 mt-2">
+                                            <p>Euros • Puntos • Bloqueos</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -357,36 +477,7 @@ function DashboardPageContent() {
                         </Button>
                     </div>
                 )}
-
-                {/* Componente de Reservas del Usuario */}
-                <UserBookings 
-                    currentUser={user} 
-                    onBookingActionSuccess={handleDataChange} 
-                />
-
-                <PersonalMatches 
-                    currentUser={user} 
-                    onBookingActionSuccess={handleDataChange} 
-                />
-                <PersonalSchedule 
-                    currentUser={user} 
-                    onBookingActionSuccess={handleDataChange} 
-                    refreshKey={refreshKey}
-                    editMode={isInstructor ? editMode : false}
-                    instructorId={user.instructorId}
-                />
-                <PersonalMatchDay 
-                    currentUser={user} 
-                    onBookingActionSuccess={handleDataChange} 
-                />
             </main>
-            {SHOW_EURO_BALANCE && (
-                <CreditMovementsDialog
-                    isOpen={isCreditMovementsDialogOpen}
-                    onOpenChange={setIsCreditMovementsDialogOpen}
-                    currentUser={user}
-                />
-            )}
             {SHOW_EURO_BALANCE && (
                 <AddCreditDialog
                     isOpen={isAddCreditDialogOpen}
@@ -403,6 +494,38 @@ function DashboardPageContent() {
                     onConversionSuccess={handleConversionSuccess}
                 />
             )}
+            <ChangePasswordDialog
+                isOpen={isChangePasswordDialogOpen}
+                onOpenChange={setIsChangePasswordDialogOpen}
+                userId={user.id}
+            />
+
+            {/* Diálogo de confirmación para cerrar sesión */}
+            <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Cerrar sesión?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            ¿Estás seguro de que quieres cerrar tu sesión? Tendrás que volver a iniciar sesión para acceder a tu cuenta.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => {
+                                // Limpiar datos de sesión
+                                localStorage.removeItem('currentUser');
+                                sessionStorage.clear();
+                                // Redirigir a login
+                                window.location.href = '/auth/login';
+                            }}
+                            className="bg-red-600 hover:bg-red-700"
+                        >
+                            Cerrar Sesión
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

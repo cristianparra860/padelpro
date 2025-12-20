@@ -223,7 +223,8 @@ model Instructor {
   club              Club     @relation(fields: [clubId], references: [id])
   clubId            String
   isActive          Boolean  @default(true)
-  levelRanges       String?  // JSON con rangos de nivel personalizados: [{"name":"Principiante","minStudents":0,"maxStudents":5},...]
+  levelRanges       String?  // JSON con rangos de nivel personalizados: [{"minLevel":0,"maxLevel":1},...]
+  unavailableHours  String?  // JSON con horarios de NO disponibilidad por día: {"monday":[{"start":"09:00","end":"12:00"}],...]
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -256,6 +257,8 @@ model TimeSlot {
   genderCategory    String? // masculino, femenino, mixto - categoría de la clase
   levelRange        String? // Rango de nivel asignado (ej: "5.0-7.0")
   hasRecycledSlots  Boolean  @default(false) // Si tiene plazas recicladas (solo reservables con puntos)
+  availableRecycledSlots Int? // Número de plazas recicladas disponibles
+  recycledSlotsOnlyPoints Boolean @default(true) // Si las plazas recicladas solo se pueden reservar con puntos
   creditsSlots      String? // JSON array de índices de plazas reservables con puntos [1,2,3,4]
   creditsCost       Int      @default(50) // Coste en puntos para plazas con créditos
   createdAt         DateTime @default(now())
@@ -275,6 +278,7 @@ model Booking {
   timeSlotId      String
   groupSize       Int           @default(1) // Número de jugadores que reserva (1, 2, 3, o 4)
   status          BookingStatus @default(CONFIRMED)
+  wasConfirmed    Boolean       @default(false) // Si alguna vez tuvo status CONFIRMED (para tracking de cancelaciones)
   paidWithPoints  Boolean       @default(false) // Si la reserva fue pagada con puntos
   pointsUsed      Int           @default(0) // Cantidad de puntos usados
   amountBlocked   Int           @default(0) // Cantidad bloqueada en céntimos

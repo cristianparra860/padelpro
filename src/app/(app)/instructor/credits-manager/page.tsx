@@ -33,7 +33,7 @@ export default function InstructorCreditsManagerPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
+    <div className="container mx-auto px-4 py-8 max-w-7xl pl-16 md:pl-20 lg:pl-24">
       <InstructorCreditsManager instructorId={user.id} />
     </div>
   );

@@ -9,7 +9,7 @@ import type { User, Club, TimeOfDayFilterType, MatchPadelLevel, ActivityViewType
 import { timeSlotFilterOptions } from '@/types';
 import {
     Activity, Users, Gift, Clock, BarChartHorizontal,
-    Briefcase, LogOut, Building, CalendarDays, Eye, ClipboardList, CheckCircle, LogIn, PartyPopper, Star, Sparkles, Plus, Calendar, User as UserIcon, Wallet, Trophy, Database, Settings
+    Briefcase, LogOut, Building, CalendarDays, Eye, ClipboardList, CheckCircle, LogIn, PartyPopper, Star, Sparkles, Plus, Calendar, User as UserIcon, Wallet, Trophy, Database, Settings, Target
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from '@/components/ui/badge';
@@ -127,10 +127,12 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                     </Link>
                     <Separator />
                     <div className="p-1 space-y-3">
-                                                <Link href="/dashboard" className="w-full"><Button variant={pathname.startsWith('/dashboard') || pathname.startsWith('/schedule') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><ClipboardList className="mr-3 h-5 w-5" /> Agenda</Button></Link>
+                                                <Link href="/dashboard" className="w-full"><Button variant={pathname.startsWith('/dashboard') || pathname.startsWith('/schedule') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><UserIcon className="mr-3 h-5 w-5" /> Mis Datos</Button></Link>
                                                 {isClassesEnabled && (
-                                                    <Link href="/activities?view=clases" className="w-full"><Button variant={isActivitiesPage && activeView === 'clases' ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Activity className="mr-3 h-5 w-5" /> Clases</Button></Link>
+                                                    <Link href="/activities?view=clases" className="w-full"><Button variant={isActivitiesPage && activeView === 'clases' ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Target className="mr-3 h-5 w-5" /> Clases</Button></Link>
                                                 )}
+                                                <Separator />
+                                                <Link href="/agenda" className="w-full"><Button variant={pathname.startsWith('/agenda') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><ClipboardList className="mr-3 h-5 w-5" /> Mis Reservas</Button></Link>
                                                 {isMatchDayEnabled && (
                                                     <Link href="/match-day" className="w-full"><Button variant={pathname.startsWith('/match-day') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><PartyPopper className="mr-3 h-5 w-5" /> Match-Day</Button></Link>
                                                 )}

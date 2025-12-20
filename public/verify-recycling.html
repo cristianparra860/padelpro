@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Verificación de Reciclaje</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        .success { color: #22c55e; font-weight: bold; }
+        .error { color: #ef4444; font-weight: bold; }
+        .data { background: #f1f5f9; padding: 15px; border-radius: 4px; margin: 10px 0; font-family: monospace; font-size: 12px; }
+        pre { margin: 0; white-space: pre-wrap; }
+        .loading { color: #3b82f6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Verificación del Sistema de Reciclaje</h1>
+        <div id="status" class="loading">Cargando datos...</div>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function verificar() {
+            const statusEl = document.getElementById('status');
+            const resultEl = document.getElementById('result');
+            
+            try {
+                statusEl.textContent = '📡 Consultando API...';
+                
+                const response = await fetch('http://localhost:9002/api/timeslots?clubId=padel-estrella-madrid&date=2025-12-28');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                const slots = Array.isArray(data) ? data : (data.slots || data.data || []);
+                const recycledSlots = slots.filter(s => s.hasRecycledSlots === true);
+                
+                if (recycledSlots.length === 0) {
+                    statusEl.className = 'error';
+                    statusEl.textContent = '❌ NO SE ENCONTRARON SLOTS CON RECICLAJE';
+                    resultEl.innerHTML = `
+                        <p>Total de slots: ${slots.length}</p>
+                        <div class="data"><pre>${JSON.stringify(slots.slice(0, 2), null, 2)}</pre></div>
+                    `;
+                    return;
+                }
+                
+                statusEl.className = 'success';
+                statusEl.textContent = `✅ ENCONTRADOS ${recycledSlots.length} SLOTS CON RECICLAJE`;
+                
+                const slot = recycledSlots[0];
+                const recycledBookings = (slot.bookings || []).filter(b => 
+                    b.status === 'CANCELLED' && b.isRecycled === true
+                );
+                
+                let html = `
+                    <h2>📊 Datos del Slot Reciclado</h2>
+                    <div class="data">
+                        <strong>Instructor:</strong> ${slot.instructorName}<br>
+                        <strong>Pista:</strong> ${slot.courtNumber}<br>
+                        <strong>hasRecycledSlots:</strong> ${slot.hasRecycledSlots}<br>
+                        <strong>availableRecycledSlots:</strong> ${slot.availableRecycledSlots}<br>
+                        <strong>recycledSlotsOnlyPoints:</strong> ${slot.recycledSlotsOnlyPoints}<br>
+                        <strong>Total Bookings:</strong> ${slot.bookings ? slot.bookings.length : 0}
+                    </div>
+                    
+                    <h3>♻️ Bookings Reciclados (${recycledBookings.length})</h3>
+                `;
+                
+                recycledBookings.forEach((b, i) => {
+                    const groupSize = b.groupSize;
+                    const startIndex = [1,2,3,4].slice(0, groupSize - 1).reduce((sum, p) => sum + p, 0);
+                    const endIndex = startIndex + groupSize;
+                    
+                    html += `
+                        <div class="data">
+                            <strong>${i + 1}. ${b.name || b.userName}</strong><br>
+                            Status: ${b.status}<br>
+                            isRecycled: ${b.isRecycled}<br>
+                            groupSize: ${b.groupSize}<br>
+                            <br>
+                            <strong style="color: #f59e0b">→ Modalidad de ${groupSize} jugadores</strong><br>
+                            <strong style="color: #f59e0b">→ Índices de círculos: ${startIndex} a ${endIndex - 1}</strong><br>
+                            <strong style="color: #f59e0b">→ Estos ${groupSize} círculos deben ser AMARILLOS</strong>
+                        </div>
+                    `;
+                });
+                
+                html += `
+                    <h3>🎯 Verificación Frontend</h3>
+                    <div class="data" style="background: #fef3c7; border: 2px solid #f59e0b;">
+                        <strong>SI EL CÓDIGO ESTÁ ACTUALIZADO, deberías ver:</strong><br><br>
+                        1. En la consola del navegador (F12):<br>
+                        &nbsp;&nbsp;&nbsp;"♻️ Modalidad reciclada detectada: {groupSize: ${recycledBookings[0].groupSize}, ...}"<br><br>
+                        2. En la tarjeta de Carlos Martinez 09:00:<br>
+                        &nbsp;&nbsp;&nbsp;• ${recycledBookings[0].groupSize} círculos AMARILLOS (no verdes)<br>
+                        &nbsp;&nbsp;&nbsp;• Icono 🎁 en cada círculo vacío<br>
+                        &nbsp;&nbsp;&nbsp;• Texto con puntos (ej: "12.5p")<br>
+                        &nbsp;&nbsp;&nbsp;• Sombra amarilla brillante<br><br>
+                        <strong style="color: #dc2626">Si NO ves esto, el navegador tiene CACHÉ:</strong><br>
+                        &nbsp;&nbsp;&nbsp;→ Presiona Ctrl+Shift+R (hard refresh)<br>
+                        &nbsp;&nbsp;&nbsp;→ O cierra completamente el navegador y vuelve a abrir
+                    </div>
+                `;
+                
+                html += `
+                    <h3>📝 Datos Completos del Slot</h3>
+                    <div class="data"><pre>${JSON.stringify(slot, null, 2)}</pre></div>
+                `;
+                
+                resultEl.innerHTML = html;
+                
+            } catch (error) {
+                statusEl.className = 'error';
+                statusEl.textContent = '❌ ERROR';
+                resultEl.innerHTML = `
+                    <div class="data">
+                        <strong>Error:</strong> ${error.message}<br><br>
+                        ${error.message.includes('Failed to fetch') ? 
+                            'El servidor no está corriendo en puerto 9002.<br>Ejecuta: <strong>npm run dev</strong>' : 
+                            error.stack}
+                    </div>
+                `;
+            }
+        }
+        
+        verificar();
+    </script>
+</body>
+</html>

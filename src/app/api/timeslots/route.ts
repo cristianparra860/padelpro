@@ -60,9 +60,59 @@ export async function GET(request: NextRequest) {
     console.log('📝 Params:', params);
 
     // Execute raw SQL query to get TimeSlots
-    const timeSlots = await prisma.$queryRawUnsafe(query, ...params) as any[];
+    let timeSlots = await prisma.$queryRawUnsafe(query, ...params) as any[];
 
     console.log(`📊 Found ${timeSlots.length} time slots with SQL query`);
+    
+    // ♻️ AGREGAR TimeSlots con bookings recicladas (aunque tengan courtId)
+    const recycledBookings = await prisma.booking.findMany({
+      where: {
+        status: 'CANCELLED',
+        isRecycled: true
+      },
+      select: {
+        timeSlotId: true
+      },
+      distinct: ['timeSlotId']
+    });
+    
+    if (recycledBookings.length > 0) {
+      const recycledTimeSlotIds = recycledBookings.map(b => b.timeSlotId);
+      console.log(`♻️ Found ${recycledTimeSlotIds.length} TimeSlots with recycled bookings`);
+      
+      // Obtener esos TimeSlots adicionales con los mismos filtros
+      let recycledQuery = `SELECT * FROM TimeSlot WHERE id IN (${recycledTimeSlotIds.map(() => '?').join(',')})`;
+      const recycledParams: any[] = [...recycledTimeSlotIds];
+      
+      if (clubId) {
+        recycledQuery += ` AND clubId = ?`;
+        recycledParams.push(clubId);
+      }
+      
+      if (date) {
+        const startOfDay = new Date(date + 'T00:00:00.000Z');
+        const endOfDay = new Date(date + 'T23:59:59.999Z');
+        const startTimestamp = startOfDay.getTime();
+        const endTimestamp = endOfDay.getTime();
+        recycledQuery += ` AND start >= ? AND start <= ?`;
+        recycledParams.push(startTimestamp, endTimestamp);
+      }
+      
+      if (instructorId) {
+        recycledQuery += ` AND instructorId = ?`;
+        recycledParams.push(instructorId);
+      }
+      
+      const recycledTimeSlots = await prisma.$queryRawUnsafe(recycledQuery, ...recycledParams) as any[];
+      console.log(`♻️ Found ${recycledTimeSlots.length} recycled TimeSlots matching filters`);
+      
+      // Combinar y eliminar duplicados
+      const existingIds = new Set(timeSlots.map(s => s.id));
+      const newRecycledSlots = recycledTimeSlots.filter(s => !existingIds.has(s.id));
+      timeSlots = [...timeSlots, ...newRecycledSlots];
+      
+      console.log(`📊 Total after adding recycled: ${timeSlots.length} slots`);
+    }
     
     // 🐛 DEBUG: Verificar si levelRange viene de la base de datos
     if (timeSlots.length > 0) {
@@ -89,7 +139,10 @@ export async function GET(request: NextRequest) {
         const batchBookings = await prisma.booking.findMany({
           where: {
             timeSlotId: { in: batch },
-            status: { in: ['PENDING', 'CONFIRMED'] } // Incluir PENDING y CONFIRMED
+            OR: [
+              { status: { in: ['PENDING', 'CONFIRMED'] } },
+              { status: 'CANCELLED', isRecycled: true } // ♻️ Incluir canceladas recicladas
+            ]
           },
           include: {
             user: {
@@ -112,7 +165,10 @@ export async function GET(request: NextRequest) {
       allBookings = await prisma.booking.findMany({
         where: {
           timeSlotId: { in: timeSlotIds },
-          status: { in: ['PENDING', 'CONFIRMED'] } // Incluir PENDING y CONFIRMED
+          OR: [
+            { status: { in: ['PENDING', 'CONFIRMED'] } },
+            { status: 'CANCELLED', isRecycled: true } // ♻️ Incluir canceladas recicladas
+          ]
         },
         include: {
           user: {
@@ -200,6 +256,41 @@ export async function GET(request: NextRequest) {
       allInstructors.map(inst => [inst.id, inst])
     );
 
+    // 🏟️ Crear mapa de courtId -> courtNumber
+    const courtMap = new Map(
+      allCourts.map(court => [court.id, court.number])
+    );
+
+    // 📊 Calcular información de plazas recicladas por TimeSlot
+    const recycledSlotsInfo = new Map();
+    timeSlots.forEach((slot: any) => {
+      const slotBookings = bookingsBySlot.get(slot.id) || [];
+      const recycledBookings = slotBookings.filter((b: any) => b.status === 'CANCELLED' && b.isRecycled);
+      const activeBookings = slotBookings.filter((b: any) => b.status !== 'CANCELLED');
+      
+      // ♻️ availableRecycledSlots = suma de groupSize de bookings cancelados con isRecycled
+      const availableRecycledSlots = recycledBookings.reduce((sum: number, b: any) => sum + (Number(b.groupSize) || 1), 0);
+      const hasRecycledSlots = availableRecycledSlots > 0;
+      
+      const recycledInfo = {
+        hasRecycledSlots: hasRecycledSlots,
+        recycledCount: recycledBookings.length,
+        activeCount: activeBookings.length,
+        availableRecycledSlots: availableRecycledSlots,
+        recycledSlotsOnlyPoints: hasRecycledSlots // Si hay plazas recicladas, solo puntos
+      };
+      
+      // 🎯 DEBUG: Log para verificar cálculo correcto
+      if (recycledBookings.length > 0) {
+        console.log(`♻️ Slot ${slot.id.substring(0, 15)}...`);
+        console.log(`   - Bookings reciclados: ${recycledBookings.length}`);
+        console.log(`   - Plazas disponibles: ${availableRecycledSlots} (${recycledBookings.map((b: any) => `${b.groupSize}p`).join(' + ')})`);
+        console.log(`   - Bookings activos: ${activeBookings.length}`);
+      }
+      
+      recycledSlotsInfo.set(slot.id, recycledInfo);
+    });
+
     // Formatear slots sin queries adicionales
     const formattedSlots = timeSlots.map((slot: any) => {
       // Obtener bookings de este slot del mapa
@@ -232,6 +323,7 @@ export async function GET(request: NextRequest) {
         userId: booking.userId,
         groupSize: booking.groupSize,
         status: booking.status,
+        isRecycled: booking.isRecycled || false, // ♻️ Campo para identificar bookings reciclados
         name: booking.user.name,  // Para compatibilidad con ClassCardReal
         userName: booking.user.name,  // Para compatibilidad con classesApi
         userEmail: booking.user.email,
@@ -240,6 +332,15 @@ export async function GET(request: NextRequest) {
         profilePictureUrl: booking.user.profilePictureUrl,
         createdAt: booking.createdAt
       }));
+      
+      // 🐛 DEBUG: Log para verificar bookings reciclados
+      const recycledCount = formattedBookings.filter(b => b.isRecycled).length;
+      if (recycledCount > 0) {
+        console.log(`♻️ SLOT ${slot.id.substring(0, 15)}... tiene ${recycledCount} booking(s) reciclado(s)`);
+        formattedBookings.filter(b => b.isRecycled).forEach(b => {
+          console.log(`   - ${b.name}: status=${b.status}, isRecycled=${b.isRecycled}, groupSize=${b.groupSize}`);
+        });
+      }
       
       // Obtener instructor del mapa
       let instructorName = 'Instructor Genérico';
@@ -283,6 +384,15 @@ export async function GET(request: NextRequest) {
       
       const availableCourtsCount = courtsAvailability.filter(c => c.status === 'available').length;
       
+      // ♻️ Información de plazas recicladas
+      const recycledInfo = recycledSlotsInfo.get(slot.id) || {
+        hasRecycledSlots: false,
+        recycledCount: 0,
+        activeCount: 0,
+        availableRecycledSlots: 0,
+        recycledSlotsOnlyPoints: false
+      };
+      
       return {
         id: slot.id,
         clubId: slot.clubId || '',
@@ -302,18 +412,34 @@ export async function GET(request: NextRequest) {
         updatedAt: typeof slot.updatedAt === 'string' ? new Date(slot.updatedAt) : slot.updatedAt,
         instructorName: instructorName,
         instructorProfilePicture: instructorProfilePicture,
-        courtNumber: slot.courtNumber || null,
+        courtNumber: slot.courtId ? courtMap.get(slot.courtId) || null : null,
         bookedPlayers: slotBookings.length,
         bookings: formattedBookings,
         description: '',
         courtsAvailability: courtsAvailability, // 🏟️ Array de disponibilidad de pistas
         availableCourtsCount: availableCourtsCount, // 🏟️ Contador rápido
         creditsSlots: creditsSlots, // 🎁 Plazas reservables con puntos
-        creditsCost: Number(slot.creditsCost || 50) // 🎁 Coste en puntos
+        creditsCost: Number(slot.creditsCost || 50), // 🎁 Coste en puntos
+        // ♻️ Información de plazas recicladas (desde BD)
+        hasRecycledSlots: recycledInfo.hasRecycledSlots,
+        availableRecycledSlots: recycledInfo.availableRecycledSlots,
+        recycledSlotsOnlyPoints: recycledInfo.recycledSlotsOnlyPoints
       };
     });
 
     const rawTimeSlots = formattedSlots;
+    
+    // 🎯 DEBUG: Log del slot de Carlos ANTES de devolverlo
+    const carlosSlot = rawTimeSlots.find(s => s.instructorName === 'Carlos Rodríguez' && s.start.toISOString().includes('09:00'));
+    if (carlosSlot) {
+      console.log('🎯 SLOT DE CARLOS ANTES DE DEVOLVER:', {
+        id: carlosSlot.id,
+        hasRecycledSlots: carlosSlot.hasRecycledSlots,
+        availableRecycledSlots: carlosSlot.availableRecycledSlots,
+        recycledSlotsOnlyPoints: carlosSlot.recycledSlotsOnlyPoints,
+        bookings: carlosSlot.bookings.map(b => ({ name: b.name, status: b.status, isRecycled: b.isRecycled }))
+      });
+    }
     
     // Log para debug - mostrar primeros 3 slots con sus valores
     if (rawTimeSlots.length > 0) {
@@ -349,9 +475,24 @@ export async function GET(request: NextRequest) {
     if (userLevel && userLevel !== 'abierto') {
       const userLevelNum = parseFloat(userLevel);
       
+      // Obtener el ID del usuario desde los parámetros de búsqueda si está disponible
+      const userId = searchParams.get('userId');
+      
       filteredSlots = rawTimeSlotsFiltered.filter(slot => {
-        // If class is 'abierto', it's accessible to everyone
-        if (slot.level === 'abierto') {
+        // 🎯 IMPORTANTE: Si el usuario tiene una reserva en esta clase, SIEMPRE mostrarla
+        // independientemente del nivel, porque ya pasó la verificación al reservar
+        if (userId) {
+          const userHasBooking = bookingsBySlot.get(slot.id)?.some(
+            b => b.userId === userId && b.status !== 'CANCELLED'
+          );
+          if (userHasBooking) {
+            console.log(`✅ Mostrando clase ${slot.id.substring(0,8)} - Usuario tiene reserva`);
+            return true;
+          }
+        }
+        
+        // If class is 'abierto' (case-insensitive), it's accessible to everyone
+        if (typeof slot.level === 'string' && slot.level.toLowerCase() === 'abierto') {
           return true;
         }
         
@@ -363,6 +504,16 @@ export async function GET(request: NextRequest) {
           
           // User level must be within the class level range
           return userLevelNum >= minLevel && userLevelNum <= maxLevel;
+        }
+        
+        // If class level is a string range like "5-7", parse and check
+        if (typeof slot.level === 'string' && slot.level.includes('-')) {
+          const [minStr, maxStr] = slot.level.split('-');
+          const minLevel = parseFloat(minStr);
+          const maxLevel = parseFloat(maxStr);
+          if (!isNaN(minLevel) && !isNaN(maxLevel)) {
+            return userLevelNum >= minLevel && userLevelNum <= maxLevel;
+          }
         }
         
         // If class has a single numeric level string, allow ±0.5 range
@@ -380,21 +531,11 @@ export async function GET(request: NextRequest) {
       console.log(`📊 Level filtering: ${rawTimeSlotsFiltered.length} slots → ${filteredSlots.length} slots (user level: ${userLevel})`);
     }
 
-    // Apply gender-based filtering if userGender is provided
+    // ℹ️ CATEGORÍA DE GÉNERO: Solo informativa, NO restrictiva
+    // Todos los usuarios pueden ver todas las clases independientemente de su género
+    // La categoría se muestra en la UI pero no filtra resultados
     if (userGender && userGender !== 'mixto') {
-      const beforeGenderFilter = filteredSlots.length;
-      
-      filteredSlots = filteredSlots.filter(slot => {
-        // If class is 'mixto' or undefined, it's accessible to everyone
-        if (!slot.genderCategory || slot.genderCategory === 'mixto') {
-          return true;
-        }
-        
-        // Otherwise, gender must match
-        return slot.genderCategory === userGender;
-      });
-      
-      console.log(`🚹🚺 Gender filtering: ${beforeGenderFilter} slots → ${filteredSlots.length} slots (user gender: ${userGender})`);
+      console.log(`ℹ️ Género del usuario: ${userGender} (solo informativo, no se aplica filtro restrictivo)`);
     }
 
     // 🕐 FILTRAR POR HORARIO (morning, midday, evening)
@@ -504,14 +645,25 @@ export async function GET(request: NextRequest) {
       return response;
     }
 
-    // Sin paginación: devolver todos los slots en formato clásico (retrocompatibilidad)
+    // Sin paginación: devolver todos los slots con estructura correcta
     console.log('✅ Returning all slots (no pagination):', filteredSlots.length);
     if (filteredSlots.length > 0) {
       console.log('📝 First slot example:', JSON.stringify(filteredSlots[0], null, 2));
     }
 
-    // Agregar headers de caché para mejorar rendimiento
-    const response = NextResponse.json(filteredSlots);
+    // ✅ IMPORTANTE: Devolver objeto con estructura {slots, pagination} para compatibilidad con frontend
+    const responseData = {
+      slots: filteredSlots,
+      pagination: {
+        page: 1,
+        limit: filteredSlots.length,
+        totalSlots: filteredSlots.length,
+        totalPages: 1,
+        hasMore: false
+      }
+    };
+
+    const response = NextResponse.json(responseData);
     
     // TEMPORALMENTE: Sin caché para forzar actualización con courtsAvailability
     response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');

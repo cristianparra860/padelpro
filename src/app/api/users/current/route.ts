@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
       credits: user.credits || 0,
       blockedCredits: user.blockedCredits || 0,
       points: user.points || 0,
+      blockedPoints: user.blockedPoints || 0,
       loyaltyPoints: user.points || 0,
       profilePictureUrl: user.profilePictureUrl || undefined,
       genderCategory: user.genderCategory as any,

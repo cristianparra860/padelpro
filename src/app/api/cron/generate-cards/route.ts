@@ -104,18 +104,33 @@ async function generateCardsForDay(date: string, clubId: string) {
   let createdCount = 0;
   let skippedCount = 0;
 
-  // 🕐 PASO 1: Obtener horarios de apertura del club
+  // 🕐 PASO 1: Obtener horarios de apertura del club y día de la semana
   const club = await prisma.club.findUnique({
     where: { id: clubId },
     select: { openingHours: true, name: true }
   });
 
-  // Parsear los horarios de apertura (array de 19 booleanos: 6 AM a 12 AM)
+  // Determinar el día de la semana de la fecha a generar
+  const targetDate = new Date(date);
+  const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][targetDate.getUTCDay()];
+  console.log(`📅 Generando para: ${date} (${dayOfWeek})`);
+
+  // Parsear los horarios de apertura
   let openingHoursArray: boolean[] = [];
   if (club?.openingHours) {
     try {
-      openingHoursArray = JSON.parse(club.openingHours);
-      console.log(`🕐 Horarios de apertura para ${club.name}: ${openingHoursArray.filter(Boolean).length}/19 horas abiertas`);
+      const parsedHours = JSON.parse(club.openingHours);
+      
+      // Nuevo formato: objeto con días de la semana
+      if (typeof parsedHours === 'object' && !Array.isArray(parsedHours)) {
+        openingHoursArray = parsedHours[dayOfWeek] || [];
+        console.log(`🕐 Horarios de ${dayOfWeek} para ${club.name}: ${openingHoursArray.filter(Boolean).length}/19 horas abiertas`);
+      }
+      // Formato legacy: array único para todos los días
+      else if (Array.isArray(parsedHours)) {
+        openingHoursArray = parsedHours;
+        console.log(`🕐 Horarios (legacy) para ${club.name}: ${openingHoursArray.filter(Boolean).length}/19 horas abiertas`);
+      }
     } catch (e) {
       console.warn('⚠️  No se pudieron parsear openingHours, usando horario completo');
     }
@@ -127,9 +142,9 @@ async function generateCardsForDay(date: string, clubId: string) {
     console.log('🕐 Usando horario por defecto: 8 AM - 11 PM');
   }
 
-  // Obtener TODOS los instructores activos
-  const instructors = await prisma.$queryRaw<Array<{id: string}>>`
-    SELECT id FROM Instructor WHERE isActive = 1
+  // Obtener TODOS los instructores activos con sus rangos de nivel y disponibilidad
+  const instructors = await prisma.$queryRaw<Array<{id: string; hourlyRate: number; levelRanges: string | null; unavailableHours: string | null}>>`
+    SELECT id, hourlyRate, levelRanges, unavailableHours FROM Instructor WHERE isActive = 1
   `;
 
   if (!instructors || instructors.length === 0) {
@@ -156,12 +171,63 @@ async function generateCardsForDay(date: string, clubId: string) {
 
   console.log(`🕐 Generando en ${timeSlots.length} franjas horarias (club abierto)`);
 
+  // 🚀 OPTIMIZACIÓN: Obtener todas las tarjetas existentes de una vez
+  const existingSlots = await prisma.$queryRaw<Array<{instructorId: string, start: bigint}>>`
+    SELECT instructorId, start
+    FROM TimeSlot
+    WHERE clubId = ${clubId}
+    AND courtId IS NULL
+    AND date(start/1000, 'unixepoch') = date(${date})
+  `;
+
+  const existingMap = new Map<string, Set<number>>();
+  existingSlots.forEach(slot => {
+    if (!existingMap.has(slot.instructorId)) {
+      existingMap.set(slot.instructorId, new Set());
+    }
+    existingMap.get(slot.instructorId)!.add(Number(slot.start));
+  });
+
+  // 🚀 OPTIMIZACIÓN: Obtener todas las clases confirmadas de una vez
+  const confirmedClasses = await prisma.$queryRaw<Array<{instructorId: string, start: bigint, end: bigint}>>`
+    SELECT instructorId, start, end
+    FROM TimeSlot
+    WHERE courtId IS NOT NULL
+    AND date(start/1000, 'unixepoch') = date(${date})
+  `;
+
+  const confirmedMap = new Map<string, Array<{start: number, end: number}>>();
+  confirmedClasses.forEach(cls => {
+    if (!confirmedMap.has(cls.instructorId)) {
+      confirmedMap.set(cls.instructorId, []);
+    }
+    confirmedMap.get(cls.instructorId)!.push({
+      start: Number(cls.start),
+      end: Number(cls.end)
+    });
+  });
+
+  console.log(`📊 Optimización: ${existingSlots.length} slots existentes, ${confirmedClasses.length} clases confirmadas`);
+
   // Para cada instructor, generar propuestas en todos los horarios
   for (const instructor of instructors) {
     const instructorId = instructor.id;
     if (process.env.NODE_ENV !== 'production') {
       console.log(`   👤 Generando para instructor ${instructorId}...`);
     }
+
+    // Parsear horarios de NO disponibilidad del instructor
+    let unavailableHours: Record<string, Array<{start: string; end: string}>> = {};
+    if (instructor.unavailableHours) {
+      try {
+        unavailableHours = JSON.parse(instructor.unavailableHours);
+      } catch (e) {
+        console.warn(`⚠️ Error parseando unavailableHours del instructor ${instructorId}`);
+      }
+    }
+
+    // Obtener los rangos de NO disponibilidad del instructor para este día
+    const instructorUnavailableRanges = unavailableHours[dayOfWeek] || [];
 
     for (const startTime of timeSlots) {
       const [hour, minute] = startTime.split(':').map(Number);
@@ -177,6 +243,37 @@ async function generateCardsForDay(date: string, clubId: string) {
       
       const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
 
+      // Verificar si el instructor está disponible en este horario
+      // Función auxiliar para convertir "HH:MM" a minutos del día
+      const timeToMinutes = (time: string): number => {
+        const [h, m] = time.split(':').map(Number);
+        return h * 60 + m;
+      };
+
+      const slotStartMin = timeToMinutes(startTime);
+      const slotEndMin = timeToMinutes(endTime);
+
+      // Verificar si hay conflicto con algún rango de NO disponibilidad
+      let isInstructorAvailable = true;
+      for (const unavailableRange of instructorUnavailableRanges) {
+        const unavailableStartMin = timeToMinutes(unavailableRange.start);
+        const unavailableEndMin = timeToMinutes(unavailableRange.end);
+        
+        // Hay conflicto si los rangos se solapan
+        if (slotStartMin < unavailableEndMin && slotEndMin > unavailableStartMin) {
+          isInstructorAvailable = false;
+          break;
+        }
+      }
+
+      // Si el instructor NO está disponible, saltar este horario
+      if (!isInstructorAvailable) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`   ⏭️  Saltando ${startTime} - instructor no disponible`);
+        }
+        continue;
+      }
+
       // Verificar disponibilidad del instructor específico
       const availability = await checkAvailability(date, startTime, endTime, instructorId);
 
@@ -188,36 +285,29 @@ async function generateCardsForDay(date: string, clubId: string) {
         continue;
       }
 
-      // Verificar si ya existe una propuesta para este instructor
+      // Crear UNA SOLA clase con nivel ABIERTO (el nivel se asignará con la primera reserva)
       const startDateTime = new Date(`${date}T${startTime}:00.000Z`);
       const endDateTime = new Date(`${date}T${endTime}:00.000Z`);
       
-      const existing = await prisma.$queryRaw<Array<{id: string}>>`
-        SELECT id FROM TimeSlot 
-        WHERE clubId = ${clubId}
-        AND instructorId = ${instructorId}
-        AND start = ${startDateTime.toISOString()}
-        AND courtId IS NULL
-      `;
-
-      if (existing && existing.length > 0) {
+      const level = 'ABIERTO';
+      const category = 'ABIERTO'; // La categoría de género se asigna con la primera reserva
+      
+      // 🚀 Verificar si ya existe usando el mapa en memoria
+      const instructorExisting = existingMap.get(instructorId);
+      if (instructorExisting && instructorExisting.has(startDateTime.getTime())) {
         skippedCount++;
         continue;
       }
 
-      // Verificar si el instructor tiene una clase confirmada en este horario
-      // Una clase confirmada bloquea desde su inicio hasta su fin
-      const confirmedClass = await prisma.$queryRaw<Array<{id: string}>>`
-        SELECT id FROM TimeSlot
-        WHERE instructorId = ${instructorId}
-        AND courtId IS NOT NULL
-        AND start <= ${startDateTime.toISOString()}
-        AND end > ${startDateTime.toISOString()}
-      `;
+      // 🚀 Verificar si el instructor tiene una clase confirmada en este horario usando el mapa
+      const instructorConfirmed = confirmedMap.get(instructorId) || [];
+      const hasConflict = instructorConfirmed.some(cls => 
+        startDateTime.getTime() < cls.end && endDateTime.getTime() > cls.start
+      );
 
-      if (confirmedClass && confirmedClass.length > 0) {
+      if (hasConflict) {
         skippedCount++;
-        continue; // El instructor está ocupado en este horario
+        continue;
       }
 
       // CREAR TARJETA
@@ -225,7 +315,7 @@ async function generateCardsForDay(date: string, clubId: string) {
 
       // Calcular precio basado en franjas horarias
       const courtPrice = await getCourtPriceForTime(clubId, startDateTime);
-      const instructorPrice = 15; // Precio por defecto del instructor
+      const instructorPrice = instructor.hourlyRate || 0;
       const totalPrice = instructorPrice + courtPrice;
 
       // Convertir fechas a timestamps numéricos para SQLite
@@ -248,8 +338,8 @@ async function generateCardsForDay(date: string, clubId: string) {
           ${totalPrice},
           ${instructorPrice},
           ${courtPrice},
-          'ABIERTO',
-          'ABIERTO',
+          ${level},
+          ${category},
           ${nowTimestamp},
           ${nowTimestamp}
         )

@@ -7,22 +7,47 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ instructorId: string }> }
 ) {
+  console.log('🔵 PUT /api/instructors/[instructorId] - Inicio');
+  
   try {
     const { instructorId } = await params;
+    console.log('   instructorId:', instructorId);
     
     // Verificar autenticación
-    const currentUser = await getCurrentUser(request);
+    let currentUser;
+    try {
+      currentUser = await getCurrentUser(request);
+      console.log('   getCurrentUser resultado:', currentUser ? `Usuario: ${currentUser.id}` : 'null');
+    } catch (authError: any) {
+      console.error('   ❌ Error en getCurrentUser:', authError.message);
+      return NextResponse.json({ 
+        error: 'Error de autenticación', 
+        details: authError.message 
+      }, { status: 500 });
+    }
     
     if (!currentUser) {
+      console.log('   ❌ No autorizado - sin usuario');
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
     // Obtener el instructor
-    const instructor = await prisma.instructor.findUnique({
-      where: { id: instructorId }
-    });
+    let instructor;
+    try {
+      instructor = await prisma.instructor.findUnique({
+        where: { id: instructorId }
+      });
+      console.log('   instructor encontrado:', instructor ? 'SI' : 'NO');
+    } catch (dbError: any) {
+      console.error('   ❌ Error buscando instructor:', dbError.message);
+      return NextResponse.json({ 
+        error: 'Error de base de datos', 
+        details: dbError.message 
+      }, { status: 500 });
+    }
 
     if (!instructor) {
+      console.log('   ❌ Instructor no encontrado');
       return NextResponse.json(
         { error: 'Instructor no encontrado' },
         { status: 404 }
@@ -33,12 +58,24 @@ export async function PUT(
     const isInstructor = instructor.userId === currentUser.id;
     const isClubAdmin = currentUser.role === 'CLUB_ADMIN' && currentUser.clubId === instructor.clubId;
     const isSuperAdmin = currentUser.role === 'SUPER_ADMIN';
+    console.log('   permisos - isInstructor:', isInstructor, 'isClubAdmin:', isClubAdmin, 'isSuperAdmin:', isSuperAdmin);
 
     if (!isInstructor && !isClubAdmin && !isSuperAdmin) {
+      console.log('   ❌ No autorizado - sin permisos');
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+      console.log('   body recibido:', JSON.stringify(body));
+    } catch (jsonError: any) {
+      console.error('   ❌ Error parseando JSON:', jsonError.message);
+      return NextResponse.json({ 
+        error: 'JSON inválido', 
+        details: jsonError.message 
+      }, { status: 400 });
+    }
     
     // Preparar datos para actualizar
     const updateData: any = {};
@@ -56,31 +93,45 @@ export async function PUT(
     }
     
     if (body.unavailableHours !== undefined) {
+      console.log('   📅 Actualizando unavailableHours:', JSON.stringify(body.unavailableHours));
       updateData.unavailableHours = JSON.stringify(body.unavailableHours);
     }
 
+    console.log('   updateData final:', JSON.stringify(updateData));
+
     // Actualizar instructor
-    const updatedInstructor = await prisma.instructor.update({
-      where: { id: instructorId },
-      data: updateData,
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            profilePictureUrl: true,
-            level: true
-          }
-        },
-        club: {
-          select: {
-            id: true,
-            name: true
+    let updatedInstructor;
+    try {
+      updatedInstructor = await prisma.instructor.update({
+        where: { id: instructorId },
+        data: updateData,
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              profilePictureUrl: true,
+              level: true
+            }
+          },
+          club: {
+            select: {
+              id: true,
+              name: true
+            }
           }
         }
-      }
-    });
+      });
+      console.log('   ✅ Instructor actualizado exitosamente');
+    } catch (updateError: any) {
+      console.error('   ❌ Error actualizando instructor:', updateError.message);
+      console.error('   Stack:', updateError.stack);
+      return NextResponse.json({ 
+        error: 'Error actualizando instructor', 
+        details: updateError.message 
+      }, { status: 500 });
+    }
 
     return NextResponse.json({
       success: true,
@@ -92,9 +143,11 @@ export async function PUT(
       }
     });
   } catch (error: any) {
-    console.error('Error updating instructor:', error);
+    console.error('❌ ERROR GENERAL en PUT /api/instructors/[instructorId]:', error);
+    console.error('   Mensaje:', error.message);
+    console.error('   Stack:', error.stack);
     return NextResponse.json(
-      { error: 'Error interno del servidor', details: error.message },
+      { error: 'Error interno del servidor', details: error.message, stack: error.stack },
       { status: 500 }
     );
   }

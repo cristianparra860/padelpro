@@ -75,7 +75,7 @@ export default function AdminPage() {
 
     if (loading) {
         return (
-            <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+            <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 pl-16 md:pl-20 lg:pl-24">
                  <header>
                     <Skeleton className="h-10 w-1/3" />
                     <Skeleton className="mt-2 h-5 w-2/3" />
@@ -93,7 +93,7 @@ export default function AdminPage() {
 
     if (!adminClub) {
         return (
-            <div className="flex flex-1 flex-col items-center justify-center p-4 md:p-6">
+            <div className="flex flex-1 flex-col items-center justify-center p-4 md:p-6 pl-16 md:pl-20 lg:pl-24">
                 <div className="text-center">
                     <Building className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
                     <h2 className="text-2xl font-semibold mb-2">No hay clubs disponibles</h2>
@@ -106,7 +106,7 @@ export default function AdminPage() {
     }
 
     return (
-        <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+        <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 pl-16 md:pl-20 lg:pl-24">
             <header>
                 <h1 className="font-headline text-3xl font-semibold">Panel de Administración del Club</h1>
                 <p className="text-muted-foreground">

@@ -209,7 +209,10 @@ export function useUserProfile(initialUser: UserType | null) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ genderCategory: selectedGenderCategory })
+        body: JSON.stringify({ 
+          genderCategory: selectedGenderCategory,
+          gender: selectedGenderCategory // También enviar gender para que se guarde correctamente
+        })
       });
 
       if (response.ok) {

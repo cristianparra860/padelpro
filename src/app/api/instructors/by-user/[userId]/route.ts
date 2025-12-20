@@ -42,9 +42,10 @@ export async function GET(
     });
 
     if (!instructor) {
+      console.log('ℹ️ Usuario no es instructor');
       return NextResponse.json(
-        { error: 'Instructor not found for this user' },
-        { status: 404 }
+        { success: false, isInstructor: false },
+        { status: 200 }
       );
     }
     
@@ -62,6 +63,7 @@ export async function GET(
 
     return NextResponse.json({
       success: true,
+      isInstructor: true,
       instructor: {
         ...instructor,
         levelRanges: instructor.levelRanges ? JSON.parse(instructor.levelRanges) : []

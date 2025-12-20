@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { grantCompensationPoints } from '@/lib/blockedCredits';
+import { createTransaction } from '@/lib/transactionLogger';
 
 const prisma = new PrismaClient();
 
@@ -30,46 +32,114 @@ export async function DELETE(
       );
     }
 
-    // 💰 CALCULAR REEMBOLSO
+    // 🔍 DETERMINAR SI EL BOOKING ESTÁ CONFIRMADO (tiene courtId asignado)
+    const isConfirmed = existingBooking.timeSlot?.courtId !== null;
     const totalPrice = Number(existingBooking.timeSlot?.totalPrice) || 55;
     const pricePerPerson = totalPrice / (Number(existingBooking.groupSize) || 1);
     
-    console.log(`💰 Reembolsando €${pricePerPerson.toFixed(2)} a ${existingBooking.user.name}`);
-
-    // Actualizar saldo del usuario
-    const currentCredits = Number(existingBooking.user.credits) || 0;
-    const newCredits = currentCredits + pricePerPerson;
+    console.log(`📋 Booking status: ${isConfirmed ? 'CONFIRMED (courtId assigned)' : 'PENDING'}`);
     
-    await prisma.user.update({
-      where: { id: existingBooking.userId },
-      data: { credits: newCredits }
+    let refundMessage = '';
+    
+    // 💰 PROCESAR REEMBOLSO SEGÚN EL ESTADO
+    if (isConfirmed) {
+      // ♻️ CANCELACIÓN DE RESERVA CONFIRMADA → Otorgar PUNTOS
+      console.log(`🎁 Booking confirmado - Otorgando PUNTOS de compensación a ${existingBooking.user.name}`);
+      
+      const pointsGranted = Math.floor(pricePerPerson);
+      const newPoints = await grantCompensationPoints(existingBooking.userId, pricePerPerson, true);
+      
+      console.log(`✅ Otorgados ${pointsGranted} puntos (de €${pricePerPerson.toFixed(2)}). Total puntos: ${newPoints}`);
+      
+      // Registrar transacción de puntos
+      await createTransaction({
+        userId: existingBooking.userId,
+        type: 'points',
+        action: 'add',
+        amount: pointsGranted,
+        balance: newPoints,
+        concept: `Cancelación administrativa - Clase ${new Date(existingBooking.timeSlot?.start || Date.now()).toLocaleString('es-ES')}`,
+        relatedId: bookingId,
+        relatedType: 'booking',
+        metadata: {
+          timeSlotId: existingBooking.timeSlotId,
+          groupSize: existingBooking.groupSize,
+          reason: 'Cancelación desde panel de administración',
+          originalAmount: pricePerPerson
+        }
+      });
+      
+      refundMessage = `${pointsGranted} puntos otorgados`;
+      
+    } else {
+      // 💳 CANCELACIÓN DE RESERVA PENDIENTE → Devolver CRÉDITOS
+      console.log(`💰 Booking pendiente - Reembolsando €${pricePerPerson.toFixed(2)} a ${existingBooking.user.name}`);
+
+      const currentCredits = Number(existingBooking.user.credits) || 0;
+      const newCredits = currentCredits + pricePerPerson;
+      
+      await prisma.user.update({
+        where: { id: existingBooking.userId },
+        data: { credits: newCredits }
+      });
+
+      console.log(`✅ Saldo actualizado: €${currentCredits.toFixed(2)} → €${newCredits.toFixed(2)} (reembolso: +€${pricePerPerson.toFixed(2)})`);
+      
+      refundMessage = `€${pricePerPerson.toFixed(2)} reembolsados`;
+    }
+
+    // Marcar la reserva como CANCELADA y convertirla en plaza RECICLADA
+    // Si era confirmada, se convierte en plaza reciclada (solo puntos)
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: { 
+        status: 'CANCELLED',
+        wasConfirmed: isConfirmed, // Recordar si tenía pista asignada
+        isRecycled: isConfirmed // Si era confirmada, marcar como reciclada
+      }
     });
 
-    console.log(`✅ Saldo actualizado: €${currentCredits.toFixed(2)} → €${newCredits.toFixed(2)} (reembolso: +€${pricePerPerson.toFixed(2)})`);
+    console.log(`✅ Booking marked as CANCELLED: ${bookingId}, wasConfirmed: ${isConfirmed}, isRecycled: ${isConfirmed}`);
 
-    // Eliminar la reserva
-    await prisma.booking.delete({
-      where: { id: bookingId }
-    });
+    // ♻️ SI ERA CONFIRMADA, ya está marcada como reciclada (isRecycled=true)
+    // El booking CANCELLED con isRecycled=true aparecerá en el panel principal como plaza reciclada
+    if (isConfirmed) {
+      console.log('♻️ Plaza marcada como reciclada: solo reservable con puntos');
+    }
 
-    console.log(`✅ Booking deleted successfully: ${bookingId}`);
-
-    // 🔍 VERIFICAR SI QUEDAN BOOKINGS ACTIVOS EN EL TIMESLOT
-    const remainingBookings = await prisma.booking.count({
+    // 🔍 VERIFICAR SI QUEDAN BOOKINGS ACTIVOS O PLAZAS RECICLADAS
+    const remainingActiveBookings = await prisma.booking.count({
       where: {
         timeSlotId: existingBooking.timeSlotId,
         status: { in: ['PENDING', 'CONFIRMED'] }
       }
     });
 
-    console.log(`📊 Bookings activos restantes en TimeSlot: ${remainingBookings}`);
+    const recycledBookings = await prisma.booking.count({
+      where: {
+        timeSlotId: existingBooking.timeSlotId,
+        status: 'CANCELLED',
+        isRecycled: true
+      }
+    });
 
-    // 🔓 SI NO QUEDAN BOOKINGS, LIBERAR EL TIMESLOT
-    if (remainingBookings === 0) {
-      console.log('🔓 No quedan bookings activos - Liberando TimeSlot...');
+    const totalPlayers = Number(existingBooking.timeSlot?.maxPlayers) || 4;
+    const occupiedSpots = remainingActiveBookings;
+    const availableRecycledSpots = totalPlayers - occupiedSpots;
+
+    console.log(`📊 Estado del TimeSlot:`);
+    console.log(`   - Capacidad total: ${totalPlayers} jugadores`);
+    console.log(`   - Reservas activas: ${remainingActiveBookings}`);
+    console.log(`   - Plazas recicladas: ${recycledBookings}`);
+    console.log(`   - Plazas disponibles para reciclar: ${availableRecycledSpots}`);
+
+    // ♻️ LA PISTA SIEMPRE MANTIENE EL courtId MIENTRAS HAYA PLAZAS (activas o recicladas)
+    // Solo se limpia si la clase queda completamente vacía
+    if (remainingActiveBookings === 0 && recycledBookings === 0) {
+      console.log('🔓 Clase completamente vacía - Liberando TimeSlot...');
       
       try {
-        // Limpiar courtId del TimeSlot
+        // Solo limpiar si no hay ningún booking (ni activo ni reciclado)
         await prisma.timeSlot.update({
           where: { id: existingBooking.timeSlotId },
           data: {
@@ -78,7 +148,7 @@ export async function DELETE(
             genderCategory: null
           }
         });
-        console.log('✅ TimeSlot liberado (courtId limpiado)');
+        console.log('✅ TimeSlot liberado completamente');
 
         // Limpiar schedules
         await prisma.courtSchedule.deleteMany({
@@ -93,18 +163,23 @@ export async function DELETE(
       } catch (cleanupError) {
         console.error('❌ Error limpiando TimeSlot:', cleanupError);
       }
+    } else {
+      console.log(`✅ Clase mantiene pista ${existingBooking.timeSlot?.courtNumber || 'asignada'}`);
+      console.log(`   ♻️ Plaza liberada disponible SOLO CON PUNTOS en panel principal`);
     }
 
     console.log(`📋 Deleted booking details: User: ${existingBooking.user.name}, TimeSlot: ${existingBooking.timeSlotId}`);
 
     return NextResponse.json({
       success: true,
-      message: 'Reserva cancelada exitosamente',
+      message: `Reserva cancelada exitosamente. ${refundMessage}`,
       deletedBooking: {
         id: existingBooking.id,
         userName: existingBooking.user.name,
         timeSlotId: existingBooking.timeSlotId,
-        groupSize: existingBooking.groupSize
+        groupSize: existingBooking.groupSize,
+        wasConfirmed: isConfirmed,
+        refund: refundMessage
       }
     });
 

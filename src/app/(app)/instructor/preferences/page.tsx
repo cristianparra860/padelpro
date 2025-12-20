@@ -51,6 +51,11 @@ export default function InstructorPreferencesPage() {
             }
 
             const instructorData = await instructorResponse.json();
+            
+            if (!instructorData.isInstructor) {
+                throw new Error('El usuario no es un instructor');
+            }
+            
             setInstructor(instructorData.instructor);
 
             // Cargar rangos de nivel si existen
@@ -90,7 +95,7 @@ export default function InstructorPreferencesPage() {
 
     if (loading) {
         return (
-            <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+            <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 pl-16 md:pl-20 lg:pl-24">
                 <header>
                     <Skeleton className="h-8 w-1/3" />
                     <Skeleton className="h-4 w-2/3 mt-2" />
@@ -106,11 +111,11 @@ export default function InstructorPreferencesPage() {
     }
 
     if (!instructor) {
-        return <div className="p-6">Error: No se encontró al instructor.</div>;
+        return <div className="p-6 pl-16 md:pl-20 lg:pl-24">Error: No se encontró al instructor.</div>;
     }
 
     return (
-        <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+        <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 pl-16 md:pl-20 lg:pl-24">
             <header>
                 <h1 className="font-headline text-3xl font-semibold">Preferencias y Tarifas</h1>
                 <p className="text-muted-foreground">

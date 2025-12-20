@@ -4,7 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { 
   updateUserBlockedCredits, 
   grantCompensationPoints, 
-  markSlotAsRecycled 
+  markSlotAsRecycled,
+  resetSlotCategoryIfEmpty 
 } from '@/lib/blockedCredits';
 import { createTransaction } from '@/lib/transactionLogger';
 
@@ -97,13 +98,17 @@ export async function POST(request: NextRequest) {
       const pointsGranted = Math.floor(amountBlocked);
       const newPoints = await grantCompensationPoints(userId, amountBlocked, true);
       
-      console.log(`🎁 Otorgados ${pointsGranted} puntos al usuario. Total puntos: ${newPoints}`);
+      console.log(`🎁 Otorgados ${pointsGranted} puntos al usuario (basado en €${amountBlocked.toFixed(2)} pagados). Total puntos: ${newPoints}`);
       
       // Marcar el TimeSlot con hasRecycledSlots para indicar que tiene plazas disponibles
       await markSlotAsRecycled(timeSlotId);
       console.log(`♻️ TimeSlot marcado con hasRecycledSlots=true`);
       
-      // 📝 REGISTRAR TRANSACCIÓN DE PUNTOS
+      // � VERIFICAR SI LA TARJETA SE QUEDÓ SIN USUARIOS
+      await resetSlotCategoryIfEmpty(timeSlotId);
+      
+      // �📝 REGISTRAR TRANSACCIÓN DE PUNTOS
+      console.log(`📝 Registrando transacción de ${pointsGranted} puntos para userId: ${userId}`);
       await createTransaction({
         userId,
         type: 'points',
@@ -122,6 +127,7 @@ export async function POST(request: NextRequest) {
           isRecycled: true
         }
       });
+      console.log(`✅ Transacción de puntos registrada exitosamente`);
       
       // 🚨 IMPORTANTE: La clase NUNCA se cancela completamente
       // La pista sigue asignada, la clase se ejecuta con los jugadores restantes
@@ -129,10 +135,11 @@ export async function POST(request: NextRequest) {
       
       return NextResponse.json({ 
         success: true,
-        message: `Plaza cedida exitosamente. Has recibido ${pointsGranted} puntos de compensación. La plaza queda disponible para reservar con puntos. La clase se ejecutará de todas formas.`,
+        message: `Plaza cedida exitosamente. Has recibido ${pointsGranted} puntos de compensación (${pointsGranted} € convertidos a puntos). La plaza queda disponible para reservar con puntos.`,
         cancelledBookingId: booking.id,
         amountUnblocked: 0,
         pointsGranted: pointsGranted,
+        originalAmount: amountBlocked,
         slotMarkedAsRecycled: true,
         classStillActive: true,
         courtRemains: timeSlotInfo.courtNumber
@@ -222,6 +229,9 @@ export async function POST(request: NextRequest) {
       }
       
       console.log(`✅ Cancelación procesada. Nuevo blockedCredits: €${newBlockedAmount.toFixed(2)}`);
+      
+      // 🔄 VERIFICAR SI LA TARJETA SE QUEDÓ SIN USUARIOS
+      await resetSlotCategoryIfEmpty(timeSlotId);
       
       return NextResponse.json({ 
         success: true,
