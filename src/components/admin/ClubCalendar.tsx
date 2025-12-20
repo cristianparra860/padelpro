@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { Switch } from '@/components/ui/switch';
+import { Eye } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, CalendarIcon, ChevronLeft, ChevronRight, Filter, Users, DoorOpen, GraduationCap, UserCircle, LogOut } from 'lucide-react';
+import { Calendar, CalendarIcon, ChevronLeft, ChevronRight, Filter, Users, DoorOpen, GraduationCap, UserCircle, LogOut, Wallet } from 'lucide-react';
 import CalendarEventDetails from './CalendarEventDetails';
 import DateSelector from './DateSelector';
 import ClassCardReal from '@/components/class/ClassCardReal';
@@ -110,6 +112,12 @@ export default function ClubCalendar({
   const [layoutOrientation, setLayoutOrientation] = useState<'horizontal' | 'vertical'>('vertical');
   // Estado para el diálogo de cerrar sesión
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
+
+  // NUEVOS FILTROS AVANZADOS
+  const [hideWithStudents, setHideWithStudents] = useState(false); // Ocultar tarjetas con alumnos inscritos
+  const [hideFull, setHideFull] = useState(false); // Ocultar tarjetas completas
+  const [hideEmpty, setHideEmpty] = useState(false); // Ocultar tarjetas vacías
+  const [showViewDialog, setShowViewDialog] = useState(false); // Mostrar panel de vista
 
   const handleEventClick = (event: CalendarEvent) => {
     // Si es una clase confirmada, mostrar la tarjeta de usuario
@@ -301,9 +309,7 @@ export default function ClubCalendar({
 
   const getFilteredEvents = () => {
     if (!calendarData) return [];
-    
     let filtered = calendarData.events;
-    
     // Filtrar por tipo
     if (filterType !== 'all') {
       filtered = filtered.filter(event => {
@@ -321,7 +327,6 @@ export default function ClubCalendar({
         }
       });
     }
-    
     // Filtrar por recurso específico
     if (selectedResource !== 'all') {
       if (selectedResource.startsWith('instructor-')) {
@@ -332,7 +337,16 @@ export default function ClubCalendar({
         filtered = filtered.filter(e => e.courtNumber === courtNumber);
       }
     }
-    
+    // FILTROS AVANZADOS
+    if (hideWithStudents) {
+      filtered = filtered.filter(e => !e.playersCount || e.playersCount === 0);
+    }
+    if (hideFull) {
+      filtered = filtered.filter(e => !e.maxPlayers || !e.playersCount || e.playersCount < e.maxPlayers);
+    }
+    if (hideEmpty) {
+      filtered = filtered.filter(e => e.playersCount && e.playersCount > 0);
+    }
     return filtered;
   };
 
@@ -507,6 +521,76 @@ export default function ClubCalendar({
 
   return (
     <div className="space-y-6 relative pl-24 md:pl-28">
+      {/* BOTÓN VISTA PARA ABRIR PANEL DE OPCIONES */}
+      <div className="flex items-center justify-center py-2 mb-2">
+        <Button
+          variant="outline"
+          className="flex items-center gap-2 text-blue-700 border-blue-300 shadow-sm hover:bg-blue-50"
+          onClick={() => setShowViewDialog(true)}
+        >
+          <Eye className="w-5 h-5" />
+          Vista
+        </Button>
+      </div>
+
+      {/* PANEL MODAL DE OPCIONES DE VISTA - ESTILO NUEVO */}
+      <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
+        <DialogContent className="max-w-md p-0">
+          <div className="w-full p-6">
+            <h2 className="text-lg font-bold text-center mb-2">Filtrar por tipo de clase</h2>
+            <p className="text-sm text-gray-500 text-center mb-4">Selecciona qué clases quieres ver</p>
+            <div className="flex flex-col gap-4">
+              {/* Opción 1: Ocultar con alumnos inscritos */}
+              <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-3 border">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100">
+                  <span className="text-blue-600 text-lg font-bold">I</span>
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-gray-900 text-sm">Ocultar inscripciones</div>
+                  <div className="text-xs text-gray-500">No mostrar clases con alumnos inscritos</div>
+                </div>
+                <Switch id="hideWithStudents" checked={hideWithStudents} onCheckedChange={setHideWithStudents} />
+              </div>
+              {/* Opción 2: Ocultar clases completas */}
+              <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-3 border">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100">
+                  <span className="text-red-600 text-lg font-bold">R</span>
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-gray-900 text-sm">Ocultar reservas</div>
+                  <div className="text-xs text-gray-500">No mostrar clases completas</div>
+                </div>
+                <Switch id="hideFull" checked={hideFull} onCheckedChange={setHideFull} />
+              </div>
+              {/* Opción 3: Ocultar vacías */}
+              <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-3 border">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gray-200">
+                  <span className="text-gray-600 text-lg font-bold">Ø</span>
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-gray-900 text-sm">Ocultar vacías</div>
+                  <div className="text-xs text-gray-500">No mostrar clases sin alumnos</div>
+                </div>
+                <Switch id="hideEmpty" checked={hideEmpty} onCheckedChange={setHideEmpty} />
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 mt-6">
+              <button
+                className="w-full py-2 rounded-lg bg-green-500 text-white font-bold text-base hover:bg-green-600 transition"
+                onClick={() => setShowViewDialog(false)}
+              >
+                Aplicar filtros
+              </button>
+              <button
+                className="w-full py-2 rounded-lg bg-gray-100 text-gray-700 font-semibold text-base hover:bg-gray-200 transition"
+                onClick={() => setShowViewDialog(false)}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
       {/* 🎨 BARRA LATERAL FLOTANTE: Botones de control */}
       <div className="fixed left-4 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-3">
         {/* Botón Vista Horizontal */}
@@ -573,6 +657,18 @@ export default function ClubCalendar({
           <Calendar className="w-6 h-6" />
           <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
             Mis Reservas
+          </span>
+        </button>
+
+        {/* Botón Movimientos de Saldo */}
+        <button
+          onClick={() => router.push('/movimientos')}
+          className="group relative p-3 rounded-lg shadow-lg bg-white text-gray-600 hover:bg-green-50 hover:scale-105 transition-all duration-300"
+          title="Movimientos de Saldo"
+        >
+          <Wallet className="w-6 h-6" />
+          <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+            Saldo
           </span>
         </button>
 

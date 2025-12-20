@@ -3,6 +3,31 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ instructorId: string }> }
+) {
+  try {
+    const { instructorId } = await params;
+
+    const instructor = await prisma.instructor.findUnique({
+      where: { id: instructorId },
+      include: {
+        club: true
+      }
+    });
+
+    if (!instructor) {
+      return NextResponse.json({ error: 'Instructor no encontrado' }, { status: 404 });
+    }
+
+    return NextResponse.json(instructor);
+  } catch (error) {
+    console.error('Error fetching instructor:', error);
+    return NextResponse.json({ error: 'Error al obtener instructor' }, { status: 500 });
+  }
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ instructorId: string }> }

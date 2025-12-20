@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ClipboardList, Calendar, CalendarDays, UserCircle, Database, Settings, Target, GraduationCap } from 'lucide-react';
+import { ClipboardList, Calendar, CalendarDays, UserCircle, Database, Settings, Target, GraduationCap, Wallet, SlidersHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { User, Club } from '@/types';
@@ -235,6 +235,55 @@ export function LeftNavigationBar() {
                 className="fixed left-0 top-1/2 -translate-y-1/2 flex flex-col gap-4 items-center ml-2" 
                 style={{ pointerEvents: 'auto', zIndex: 999999, position: 'fixed' }}
             >
+            {/* 📅 Botones de Vista de Calendario - Solo en página de calendario del club */}
+            {pathname === '/admin/calendar' && (
+                <>
+                    {/* Contenedor Botón Vista Horizontal */}
+                    <div className="relative bg-gradient-to-br from-white via-gray-50 to-gray-100 rounded-lg shadow-[8px_0_24px_rgba(0,0,0,0.12),inset_-2px_0_8px_rgba(0,0,0,0.06)] border border-gray-300 px-0.5 py-2 md:px-3 md:py-4 w-[48px] md:w-[68px]">
+                        <button
+                            onClick={() => {
+                                window.dispatchEvent(new CustomEvent('setCalendarLayout', { detail: 'horizontal' }));
+                            }}
+                            className="flex flex-col items-center gap-0.5 w-full hover:opacity-80 transition-opacity cursor-pointer"
+                            title="Vista Horizontal"
+                        >
+                            <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-[0_2px_8px_rgba(0,0,0,0.12)] md:shadow-[0_4px_12px_rgba(0,0,0,0.15)] flex items-center justify-center hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)] md:hover:shadow-[0_6px_16px_rgba(0,0,0,0.2)] transition-all duration-200">
+                                <svg className="w-5 h-5 md:w-7 md:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <rect x="3" y="4" width="18" height="4" strokeWidth="2" rx="1"/>
+                                    <rect x="3" y="10" width="18" height="4" strokeWidth="2" rx="1"/>
+                                    <rect x="3" y="16" width="18" height="4" strokeWidth="2" rx="1"/>
+                                </svg>
+                            </div>
+                            <span className="text-[6px] md:text-[7px] font-medium uppercase tracking-wide text-gray-600 max-w-[45px] md:max-w-[55px] text-center leading-tight">
+                                Horizontal
+                            </span>
+                        </button>
+                    </div>
+
+                    {/* Contenedor Botón Vista Vertical */}
+                    <div className="relative bg-gradient-to-br from-white via-gray-50 to-gray-100 rounded-lg shadow-[8px_0_24px_rgba(0,0,0,0.12),inset_-2px_0_8px_rgba(0,0,0,0.06)] border border-gray-300 px-0.5 py-2 md:px-3 md:py-4 w-[48px] md:w-[68px]">
+                        <button
+                            onClick={() => {
+                                window.dispatchEvent(new CustomEvent('setCalendarLayout', { detail: 'vertical' }));
+                            }}
+                            className="flex flex-col items-center gap-0.5 w-full hover:opacity-80 transition-opacity cursor-pointer"
+                            title="Vista Vertical"
+                        >
+                            <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-gradient-to-br from-purple-500 to-purple-600 shadow-[0_2px_8px_rgba(0,0,0,0.12)] md:shadow-[0_4px_12px_rgba(0,0,0,0.15)] flex items-center justify-center hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)] md:hover:shadow-[0_6px_16px_rgba(0,0,0,0.2)] transition-all duration-200">
+                                <svg className="w-5 h-5 md:w-7 md:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <rect x="4" y="3" width="4" height="18" strokeWidth="2" rx="1"/>
+                                    <rect x="10" y="3" width="4" height="18" strokeWidth="2" rx="1"/>
+                                    <rect x="16" y="3" width="4" height="18" strokeWidth="2" rx="1"/>
+                                </svg>
+                            </div>
+                            <span className="text-[6px] md:text-[7px] font-medium uppercase tracking-wide text-gray-600 max-w-[45px] md:max-w-[55px] text-center leading-tight">
+                                Vertical
+                            </span>
+                        </button>
+                    </div>
+                </>
+            )}
+
             {clubInfo && (
                 <div className="relative bg-gradient-to-br from-white via-gray-50 to-gray-100 rounded-lg shadow-[8px_0_24px_rgba(0,0,0,0.12),inset_-2px_0_8px_rgba(0,0,0,0.06)] border border-gray-300 px-0.5 py-2 md:px-3 md:py-4 w-[48px] md:w-[68px]">
                     <a 
@@ -378,6 +427,39 @@ export function LeftNavigationBar() {
                             Inscripciones
                         </span>
                     </div>
+
+                    {/* 💰 Botón Saldo - Movimientos de Saldo */}
+                    <div className="flex flex-col items-center gap-0.5">
+                        <button
+                            onClick={() => window.location.href = '/movimientos'}
+                            className="w-8 h-8 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-[0_2px_8px_rgba(0,0,0,0.12)] md:shadow-[0_4px_12px_rgba(0,0,0,0.15)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)] md:hover:shadow-[0_6px_16px_rgba(0,0,0,0.2)] transition-all duration-200 flex items-center justify-center"
+                            title="Movimientos de Saldo: Consulta tu saldo y transacciones"
+                        >
+                            <Wallet className="w-4 h-4 md:w-6 md:h-6" />
+                        </button>
+                        <span className="text-[6px] md:text-[7px] font-medium uppercase tracking-wide text-gray-500">
+                            Saldo
+                        </span>
+                    </div>
+
+                    {/* 🎚️ Botón Filtros - Solo móvil y solo en página de clases */}
+                    {pathname === '/activities' && (
+                        <div className="flex flex-col items-center gap-0.5 md:hidden">
+                            <button
+                                onClick={() => {
+                                    // Disparar evento personalizado para toggle de filtros
+                                    window.dispatchEvent(new CustomEvent('toggleMobileFilters'));
+                                }}
+                                className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-[0_2px_8px_rgba(0,0,0,0.12)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)] transition-all duration-200 flex items-center justify-center"
+                                title="Mostrar/Ocultar Filtros"
+                            >
+                                <SlidersHorizontal className="w-4 h-4" />
+                            </button>
+                            <span className="text-[6px] font-medium uppercase tracking-wide text-gray-500">
+                                Filtros
+                            </span>
+                        </div>
+                    )}
                     
                     {/* Resto de botones (Calendario, Base Datos, Config) excepto Clases */}
                     {visibleNavItems.filter(item => item.key !== 'clases').map((item) => {

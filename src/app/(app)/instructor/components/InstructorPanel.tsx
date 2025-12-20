@@ -6,7 +6,7 @@ import type { User, TimeSlot, Match, Instructor as InstructorType, PadelCourt, C
 import AddClassForm from '../../add-class/components/AddClassForm';
 import ManagedSlotsList from './ManagedSlotsList';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { CalendarPlus, ListChecks, Wallet, PlayCircle, Settings2, ToggleLeft, ToggleRight, Loader2, ClockIcon as ClockIconLucide, CalendarSearch, Euro, Save, PlusCircle, Trash2 } from 'lucide-react';
+import { CalendarPlus, ListChecks, Wallet, PlayCircle, Settings2, ToggleLeft, ToggleRight, Loader2, ClockIcon as ClockIconLucide, CalendarSearch, Euro, Save, PlusCircle, Trash2, AlertCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -68,6 +68,8 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
   const [availableClubs, setAvailableClubs] = useState<Club[]>([]);
   const [availableCourtsForSelectedClub, setAvailableCourtsForSelectedClub] = useState<PadelCourt[]>([]);
   const [isSavingSettings, startSettingsTransition] = useTransition();
+  const [hasActiveClasses, setHasActiveClasses] = useState<boolean>(false);
+  const [isCheckingClasses, setIsCheckingClasses] = useState<boolean>(true);
   const { toast } = useToast();
 
   const preferencesForm = useForm<PreferencesFormData>({
@@ -111,6 +113,42 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
     
     loadCurrentUser();
   }, []);
+
+  // Verificar si el instructor tiene clases activas/habilitadas
+  useEffect(() => {
+    const checkActiveClasses = async () => {
+      setIsCheckingClasses(true);
+      try {
+        const token = localStorage.getItem('auth_token');
+        const now = new Date();
+        const futureDate = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000); // 1 año adelante
+        
+        const response = await fetch(
+          `/api/timeslots?instructorId=${instructorData.id}&startDate=${now.toISOString()}&endDate=${futureDate.toISOString()}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        
+        if (response.ok) {
+          const slots = await response.json();
+          // Verificar si hay clases sin pista asignada (courtId === null) que son propuestas activas
+          const activeProposals = slots.filter((slot: any) => slot.courtId === null);
+          setHasActiveClasses(activeProposals.length > 0);
+        }
+      } catch (error) {
+        console.error('Error checking active classes:', error);
+        setHasActiveClasses(false);
+      } finally {
+        setIsCheckingClasses(false);
+      }
+    };
+    
+    checkActiveClasses();
+  }, [instructorData.id, refreshKey]);
 
   useEffect(() => {
     setInstructorData(initialInstructor);
@@ -241,9 +279,6 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
         <TabsTrigger value="manageClasses" className="text-xs sm:text-sm py-1.5 px-2">
           <CalendarPlus className="mr-1.5 h-4 w-4" /> Gestionar Clases
         </TabsTrigger>
-        <TabsTrigger value="addCredits" className="text-xs sm:text-sm py-1.5 px-2">
-          <Wallet className="mr-1.5 h-4 w-4" /> Añadir Crédito
-        </TabsTrigger>
         <TabsTrigger value="openMatch" className="text-xs sm:text-sm py-1.5 px-2">
           <PlayCircle className="mr-1.5 h-4 w-4" /> Abrir Partida
         </TabsTrigger>
@@ -276,10 +311,35 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
           <div className="lg:col-span-1">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center text-lg"><CalendarPlus className="mr-2 h-5 w-5 text-primary" /> Añadir Nueva Clase</CardTitle>
+                <CardTitle className="flex items-center text-lg">
+                  <CalendarPlus className="mr-2 h-5 w-5 text-primary" /> Añadir Nueva Clase
+                </CardTitle>
+                {hasActiveClasses && (
+                  <CardDescription className="text-amber-600 flex items-center gap-2 mt-2">
+                    <AlertCircle className="h-4 w-4" />
+                    Ya tienes clases habilitadas. Solo puedes tener una clase activa a la vez.
+                  </CardDescription>
+                )}
               </CardHeader>
               <CardContent>
-                <AddClassForm instructor={instructorData} onClassAdded={handleClassAdded} />
+                {isCheckingClasses ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    <span className="ml-2 text-sm text-muted-foreground">Verificando clases...</span>
+                  </div>
+                ) : hasActiveClasses ? (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center">
+                    <AlertCircle className="h-8 w-8 text-amber-500 mx-auto mb-2" />
+                    <p className="text-sm text-amber-800 font-medium">
+                      No puedes añadir más clases mientras tengas clases activas.
+                    </p>
+                    <p className="text-xs text-amber-700 mt-1">
+                      Elimina o confirma tus clases actuales en el panel "Clases Gestionadas" para poder crear nuevas.
+                    </p>
+                  </div>
+                ) : (
+                  <AddClassForm instructor={instructorData} onClassAdded={handleClassAdded} />
+                )}
               </CardContent>
             </Card>
           </div>

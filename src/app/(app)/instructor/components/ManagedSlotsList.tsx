@@ -6,7 +6,7 @@ import type { TimeSlot, Booking, User as StudentUser, ClassPadelLevel } from '@/
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { List, Clock, Users, CalendarCheck, CalendarX, Loader2, BarChart, Hash, Euro, CheckCircle, PlusCircle, Gift, Users2, Venus, Mars } from 'lucide-react';
-import { format, isSameDay, startOfDay, addDays } from 'date-fns';
+import { format, isSameDay, startOfDay, addDays, setHours, setMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getMockTimeSlots, getMockInstructors, isSlotEffectivelyCompleted, cancelClassByInstructor, updateTimeSlotInState, removeBookingFromTimeSlotInState, toggleGratisSpot } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
@@ -32,7 +32,22 @@ const ManagedSlotsList: React.FC<ManagedSlotsListProps> = ({ instructorId }) => 
   const [processingAction, setProcessingAction] = useState<string | null>(null);
   const [isProcessing, startTransition] = useTransition();
   const [selectedDate, setSelectedDate] = useState<Date>(startOfDay(new Date()));
+  const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
+  const [isCreatingBatch, setIsCreatingBatch] = useState(false);
   const { toast } = useToast();
+
+  // Generar horarios desde 6:00 hasta 21:30 cada 30 minutos
+  const timeSlots = useMemo(() => {
+    const slots = [];
+    for (let hour = 6; hour <= 21; hour++) {
+      for (let minute = 0; minute < 60; minute += 30) {
+        if (hour === 21 && minute > 30) break; // Parar en 21:30
+        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        slots.push(time);
+      }
+    }
+    return slots;
+  }, []);
 
   const dateStripDates = useMemo(() => {
     const todayAnchor = startOfDay(new Date());
@@ -217,35 +232,192 @@ const ManagedSlotsList: React.FC<ManagedSlotsListProps> = ({ instructorId }) => 
   if (loading) return <div className="space-y-4">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-64 w-full rounded-lg" />)}</div>;
   if (error) return <div className="text-destructive p-4">{error}</div>;
 
+  const toggleTimeSlot = (time: string) => {
+    setSelectedTimes(prev => 
+      prev.includes(time) ? prev.filter(t => t !== time) : [...prev, time]
+    );
+  };
+
+  const selectAll = () => {
+    setSelectedTimes(timeSlots);
+  };
+
+  const clearAll = () => {
+    setSelectedTimes([]);
+  };
+
+  const handleCreateBatchClasses = async () => {
+    if (selectedTimes.length === 0) {
+      toast({ title: 'Sin horarios', description: 'Selecciona al menos un horario', variant: 'destructive' });
+      return;
+    }
+
+    setIsCreatingBatch(true);
+    try {
+      // Obtener instructor desde API real
+      const instructorResponse = await fetch(`/api/instructors/${instructorId}`);
+      if (!instructorResponse.ok) {
+        toast({ title: 'Error', description: 'No se pudo obtener información del instructor', variant: 'destructive' });
+        setIsCreatingBatch(false);
+        return;
+      }
+
+      const instructor = await instructorResponse.json();
+      
+      if (!instructor.clubId && !instructor.assignedClubId) {
+        toast({ title: 'Sin Club Asignado', description: 'Debes estar asignado a un club para crear clases', variant: 'destructive' });
+        setIsCreatingBatch(false);
+        return;
+      }
+
+      const clubId = instructor.clubId || instructor.assignedClubId;
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const timeStr of selectedTimes) {
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        const startDateTime = setMinutes(setHours(selectedDate, hours), minutes);
+
+        try {
+          const response = await fetch('/api/timeslots', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              clubId: clubId,
+              startTime: startDateTime.toISOString(),
+              instructorId: instructorId,
+              maxPlayers: 4,
+              level: 'abierto',
+              category: 'abierta',
+              durationMinutes: 60
+            })
+          });
+
+          if (response.ok) {
+            successCount++;
+          } else {
+            errorCount++;
+          }
+        } catch (err) {
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast({
+          title: '¡Propuestas Creadas!',
+          description: `Se crearon ${successCount} propuestas de clase${successCount > 1 ? 's' : ''}`,
+          className: 'bg-primary text-primary-foreground'
+        });
+        setSelectedTimes([]);
+        setRefreshKey(prev => prev + 1);
+      }
+
+      if (errorCount > 0) {
+        toast({
+          title: 'Algunas clases fallaron',
+          description: `${errorCount} clase${errorCount > 1 ? 's' : ''} no se pudo${errorCount > 1 ? 'ieron' : ''} crear`,
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      toast({ title: 'Error', description: 'Error al crear las propuestas', variant: 'destructive' });
+    } finally {
+      setIsCreatingBatch(false);
+    }
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="mb-4">
-          <ScrollArea className="w-full whitespace-nowrap pb-2 -mx-1">
-              <div className="flex items-center space-x-2 px-1">
-                  {dateStripDates.map(day => {
-                      const isSelected = isSameDay(day, selectedDate);
-                      return (
-                      <Button key={day.toISOString()} variant={isSelected ? "default" : "outline"} size="sm"
-                          className={cn(
-                              "h-auto px-2 py-1 flex flex-col items-center justify-center leading-tight shadow-sm",
-                              isSameDay(day, new Date()) && !isSelected && "border-primary text-primary font-semibold",
-                              isSelected && "shadow-md"
-                          )}
-                          onClick={() => setSelectedDate(day)}
-                      >
-                          <span className="font-bold text-xs uppercase">{format(day, "EEE", { locale: es }).slice(0, 3)}</span>
-                          <span className="text-lg font-bold my-0.5">{format(day, "d", { locale: es })}</span>
-                          <span className="text-xs text-muted-foreground capitalize">{format(day, "MMM", { locale: es }).slice(0,3)}</span>
-                      </Button>
-                      );
-                  })}
-              </div>
-              <ScrollBar orientation="horizontal" className="h-2 mt-1" />
-          </ScrollArea>
+    <div className="space-y-6">
+      {/* Selector de fecha */}
+      <div>
+        <h3 className="text-sm font-semibold mb-3">Selecciona el Día</h3>
+        <ScrollArea className="w-full whitespace-nowrap pb-2 -mx-1">
+          <div className="flex items-center space-x-2 px-1">
+            {dateStripDates.map(day => {
+              const isSelected = isSameDay(day, selectedDate);
+              return (
+                <Button key={day.toISOString()} variant={isSelected ? "default" : "outline"} size="sm"
+                  className={cn(
+                    "h-auto px-2 py-1 flex flex-col items-center justify-center leading-tight shadow-sm",
+                    isSameDay(day, new Date()) && !isSelected && "border-primary text-primary font-semibold",
+                    isSelected && "shadow-md"
+                  )}
+                  onClick={() => {
+                    setSelectedDate(day);
+                    setSelectedTimes([]); // Limpiar selección al cambiar día
+                  }}
+                >
+                  <span className="font-bold text-xs uppercase">{format(day, "EEE", { locale: es }).slice(0, 3)}</span>
+                  <span className="text-lg font-bold my-0.5">{format(day, "d", { locale: es })}</span>
+                  <span className="text-xs text-muted-foreground capitalize">{format(day, "MMM", { locale: es }).slice(0,3)}</span>
+                </Button>
+              );
+            })}
+          </div>
+          <ScrollBar orientation="horizontal" className="h-2 mt-1" />
+        </ScrollArea>
       </div>
 
-      {slots.length === 0 ? (<p className="text-muted-foreground italic text-center py-4">No tienes clases publicadas para el día seleccionado.</p>) : (<div className="space-y-3">{slots.map(renderSlotItem)}</div>)}
+      {/* Selector de horarios */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold">Selecciona Horarios</h3>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={selectAll}>Todo Abierto</Button>
+            <Button variant="outline" size="sm" onClick={clearAll}>Todo Cerrado</Button>
+          </div>
+        </div>
+        
+        <ScrollArea className="w-full whitespace-nowrap pb-2">
+          <div className="flex items-center gap-2 px-1">
+            {timeSlots.map(time => {
+              const isSelected = selectedTimes.includes(time);
+              return (
+                <Button
+                  key={time}
+                  variant={isSelected ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => toggleTimeSlot(time)}
+                  className={cn(
+                    "h-16 px-3 flex flex-col items-center justify-center min-w-[60px]",
+                    isSelected && "bg-blue-500 hover:bg-blue-600 text-white"
+                  )}
+                >
+                  <span className="text-sm font-bold">{time}</span>
+                  <span className="text-xs mt-1">•</span>
+                </Button>
+              );
+            })}
+          </div>
+          <ScrollBar orientation="horizontal" className="h-2 mt-1" />
+        </ScrollArea>
+
+        <div className="mt-4 flex items-center gap-4">
+          <Button 
+            onClick={handleCreateBatchClasses} 
+            disabled={selectedTimes.length === 0 || isCreatingBatch}
+            className="flex-1"
+          >
+            {isCreatingBatch ? (
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creando...</>
+            ) : (
+              <><PlusCircle className="mr-2 h-4 w-4" />Añadir {selectedTimes.length} Propuesta{selectedTimes.length !== 1 ? 's' : ''}</>
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {/* Lista de clases existentes */}
+      <div>
+        <h3 className="text-sm font-semibold mb-3">Clases del {format(selectedDate, "d 'de' MMMM", { locale: es })}</h3>
+        {slots.length === 0 ? (
+          <p className="text-muted-foreground italic text-center py-4">No tienes clases publicadas para este día.</p>
+        ) : (
+          <div className="space-y-3">{slots.map(renderSlotItem)}</div>
+        )}
+      </div>
     </div>
   );
 };

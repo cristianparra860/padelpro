@@ -201,9 +201,10 @@ export async function GET(request: NextRequest) {
       })),
       // Nueva estructura: separar propuestas de confirmadas
       proposedClasses: proposedClasses.map((cls: any) => {
-        // Calcular total de jugadores inscritos (suma de groupSize, solo bookings activos)
-        const activeBookings = cls.bookings?.filter((b: any) => b.status === 'CONFIRMED' || b.status === 'PENDING') || [];
-        const totalPlayers = activeBookings.reduce((sum: number, b: any) => sum + (b.groupSize || 1), 0);
+        // Calcular total de jugadores inscritos en bookings PENDING (participantes de la carrera)
+        // En clases propuestas (sin pista asignada), solo contamos PENDING
+        const pendingBookings = cls.bookings?.filter((b: any) => b.status === 'PENDING') || [];
+        const totalPlayers = pendingBookings.reduce((sum: number, b: any) => sum + (b.groupSize || 1), 0);
         
         return {
           id: `class-${cls.id}`,
@@ -217,7 +218,7 @@ export async function GET(request: NextRequest) {
           level: cls.level,
           category: cls.category,
           price: cls.totalPrice,
-          playersCount: totalPlayers, // Total de jugadores (no bookings)
+          playersCount: totalPlayers, // Total de jugadores inscritos (PENDING)
           maxPlayers: cls.maxPlayers,
           availableSpots: cls.maxPlayers - totalPlayers,
           bookings: cls.bookings,

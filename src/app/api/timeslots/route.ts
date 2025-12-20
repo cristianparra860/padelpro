@@ -692,3 +692,136 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+// POST: Crear nueva clase (TimeSlot)
+export async function POST(request: NextRequest) {
+  try {
+    console.log('🚀 POST /api/timeslots - Creating new class');
+    const body = await request.json();
+    
+    const {
+      clubId,
+      startTime, // DateTime
+      instructorId,
+      maxPlayers,
+      level, // String "abierto" o objeto {min, max}
+      category, // "abierta" | "chica" | "chico"
+      durationMinutes = 60
+    } = body;
+
+    // Validaciones básicas
+    if (!clubId || !startTime || !instructorId || !maxPlayers || !level || !category) {
+      return NextResponse.json(
+        { error: 'Faltan campos requeridos' },
+        { status: 400 }
+      );
+    }
+
+    // Parsear fechas
+    const startDate = new Date(startTime);
+    const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+
+    if (isNaN(startDate.getTime())) {
+      return NextResponse.json(
+        { error: 'Fecha de inicio inválida' },
+        { status: 400 }
+      );
+    }
+
+    // Verificar que el instructor existe
+    const instructor = await prisma.instructor.findUnique({
+      where: { id: instructorId }
+    });
+
+    if (!instructor) {
+      return NextResponse.json(
+        { error: 'Instructor no encontrado' },
+        { status: 404 }
+      );
+    }
+
+    // Verificar que el club existe
+    const club = await prisma.club.findUnique({
+      where: { id: clubId }
+    });
+
+    if (!club) {
+      return NextResponse.json(
+        { error: 'Club no encontrado' },
+        { status: 404 }
+      );
+    }
+
+    // Formatear level
+    let levelString = '';
+    let levelRangeString = '';
+    if (typeof level === 'string') {
+      levelString = level;
+      levelRangeString = level === 'abierto' ? 'abierto' : level;
+    } else if (typeof level === 'object' && level.min && level.max) {
+      levelString = `${level.min}-${level.max}`;
+      levelRangeString = `${level.min}-${level.max}`;
+    } else {
+      levelString = 'abierto';
+      levelRangeString = 'abierto';
+    }
+
+    // Calcular precios
+    const instructorPricePerHour = instructor.hourlyRate || 0;
+    const courtRentalPrice = 0; // Por defecto
+    const totalPrice = (instructorPricePerHour + courtRentalPrice) * (durationMinutes / 60);
+
+    // Crear el TimeSlot como PROPUESTA (sin pista asignada)
+    const newTimeSlot = await prisma.timeSlot.create({
+      data: {
+        clubId,
+        instructorId,
+        start: startDate,
+        end: endDate,
+        maxPlayers,
+        courtNumber: null, // NULL = propuesta, se asigna cuando se complete
+        courtId: null, // Sin asignar hasta que se llene
+        level: levelString,
+        levelRange: levelRangeString,
+        category,
+        genderCategory: null, // Se asigna con la primera reserva
+        instructorPrice: instructorPricePerHour,
+        courtRentalPrice,
+        totalPrice,
+        hasRecycledSlots: false,
+        availableRecycledSlots: null,
+        recycledSlotsOnlyPoints: true,
+        creditsSlots: null,
+        creditsCost: 50
+      },
+      include: {
+        instructor: true,
+        club: true,
+        bookings: true
+      }
+    });
+
+    console.log('✅ TimeSlot created successfully:', newTimeSlot.id);
+
+    return NextResponse.json({
+      success: true,
+      timeSlot: {
+        ...newTimeSlot,
+        start: newTimeSlot.start.getTime(),
+        end: newTimeSlot.end.getTime(),
+        createdAt: newTimeSlot.createdAt.getTime(),
+        updatedAt: newTimeSlot.updatedAt.getTime()
+      }
+    }, { status: 201 });
+
+  } catch (error) {
+    console.error('❌ Error creating TimeSlot:', error);
+    return NextResponse.json(
+      {
+        error: 'Failed to create time slot',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    );
+  }
+}

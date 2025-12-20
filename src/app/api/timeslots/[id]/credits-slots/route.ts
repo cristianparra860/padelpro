@@ -30,7 +30,7 @@ export async function PATCH(
     // Validaciones
     if (!slotIndex || ![1, 2, 3, 4].includes(slotIndex)) {
       return NextResponse.json(
-        { error: 'slotIndex debe ser 1, 2, 3 o 4' },
+        { error: 'slotIndex debe ser 1, 2, 3 o 4 (representa el groupSize)' },
         { status: 400 }
       );
     }
@@ -73,14 +73,15 @@ export async function PATCH(
       );
     }
 
-    // Verificar que la plaza esté libre
-    const isSlotOccupied = timeSlot.bookings.some(
-      (booking: any) => booking.groupSize >= slotIndex
+    // ✅ CORREGIDO: Verificar que NO haya reservas con ese groupSize específico
+    // slotIndex representa el groupSize (1, 2, 3 o 4 jugadores)
+    const isGroupSizeOccupied = timeSlot.bookings.some(
+      (booking: any) => booking.groupSize === slotIndex
     );
 
-    if (isSlotOccupied && action === 'add') {
+    if (isGroupSizeOccupied && action === 'add') {
       return NextResponse.json(
-        { error: 'No puedes marcar una plaza ocupada como "con puntos"' },
+        { error: `Ya existe una reserva para ${slotIndex} jugador(es). No puedes marcar esta modalidad como "con puntos" mientras esté ocupada.` },
         { status: 400 }
       );
     }

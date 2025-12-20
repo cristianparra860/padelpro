@@ -111,6 +111,19 @@ export default function ClubCalendar2({
   // Estado para el diálogo de cerrar sesión
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
 
+  // 📅 Escuchar eventos de cambio de layout desde la barra de navegación
+  useEffect(() => {
+    const handleLayoutChange = (event: CustomEvent) => {
+      const newLayout = event.detail as 'horizontal' | 'vertical';
+      setLayoutOrientation(newLayout);
+    };
+
+    window.addEventListener('setCalendarLayout', handleLayoutChange as EventListener);
+    return () => {
+      window.removeEventListener('setCalendarLayout', handleLayoutChange as EventListener);
+    };
+  }, []);
+
   // Debug: verificar currentUser
   useEffect(() => {
     console.log('🎨 ClubCalendar2 - currentUser recibido:', currentUser);
@@ -511,137 +524,7 @@ export default function ClubCalendar2({
   const timeSlots = getTimeSlots();
 
   return (
-    <div className="space-y-6 relative pl-24 md:pl-28">
-      {/* 🎨 BARRA LATERAL FLOTANTE: Botones de control */}
-      <div className="fixed left-4 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-3">
-        {/* Botón Vista Horizontal */}
-        <button
-          onClick={() => setLayoutOrientation('horizontal')}
-          className={`group relative p-3 rounded-lg shadow-lg transition-all duration-300 ${
-            layoutOrientation === 'horizontal'
-              ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white scale-110'
-              : 'bg-white text-gray-600 hover:bg-gray-50 hover:scale-105'
-          }`}
-          title="Vista Horizontal"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <rect x="3" y="4" width="18" height="4" strokeWidth="2" rx="1"/>
-            <rect x="3" y="10" width="18" height="4" strokeWidth="2" rx="1"/>
-            <rect x="3" y="16" width="18" height="4" strokeWidth="2" rx="1"/>
-          </svg>
-          <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-            Vista Horizontal
-          </span>
-        </button>
-
-        {/* Botón Vista Vertical */}
-        <button
-          onClick={() => setLayoutOrientation('vertical')}
-          className={`group relative p-3 rounded-lg shadow-lg transition-all duration-300 ${
-            layoutOrientation === 'vertical'
-              ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white scale-110'
-              : 'bg-white text-gray-600 hover:bg-gray-50 hover:scale-105'
-          }`}
-          title="Vista Vertical"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <rect x="4" y="3" width="4" height="18" strokeWidth="2" rx="1"/>
-            <rect x="10" y="3" width="4" height="18" strokeWidth="2" rx="1"/>
-            <rect x="16" y="3" width="4" height="18" strokeWidth="2" rx="1"/>
-          </svg>
-          <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-            Vista Vertical
-          </span>
-        </button>
-
-        {/* Separador */}
-        <div className="w-full h-px bg-gray-300"></div>
-
-        {/* Botón Clases */}
-        <button
-          onClick={() => router.push('/activities')}
-          className="group relative p-3 rounded-lg shadow-lg bg-white text-gray-600 hover:bg-blue-50 hover:scale-105 transition-all duration-300"
-          title="Ver Clases"
-        >
-          <GraduationCap className="w-6 h-6" />
-          <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-            Clases
-          </span>
-        </button>
-
-        {/* Botón Mis Reservas */}
-        <button
-          onClick={() => router.push('/bookings')}
-          className="group relative p-3 rounded-lg shadow-lg bg-white text-gray-600 hover:bg-blue-50 hover:scale-105 transition-all duration-300"
-          title="Mis Reservas"
-        >
-          <Calendar className="w-6 h-6" />
-          <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-            Mis Reservas
-          </span>
-        </button>
-
-        {/* Separador */}
-        <div className="w-full h-px bg-gray-300"></div>
-
-        {/* Botón Recargar */}
-        <button
-          onClick={() => loadCalendarData(false, true)}
-          className="group relative p-3 rounded-lg shadow-lg bg-white text-gray-600 hover:bg-gray-50 hover:scale-105 transition-all duration-300"
-          title="Recargar Calendario"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-            Recargar
-          </span>
-        </button>
-
-        {/* Botón Hoy */}
-        <button
-          onClick={() => setCurrentDate(new Date())}
-          className="group relative p-3 rounded-lg shadow-lg bg-white text-gray-600 hover:bg-gray-50 hover:scale-105 transition-all duration-300"
-          title="Ir a Hoy"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-            Hoy
-          </span>
-        </button>
-
-        {/* Separador */}
-        <div className="w-full h-px bg-gray-300"></div>
-
-        {/* Botón Cerrar Sesión */}
-        <button
-          onClick={() => setIsLogoutDialogOpen(true)}
-          className="group relative p-3 rounded-lg shadow-lg bg-white text-red-600 hover:bg-red-50 hover:scale-105 transition-all duration-300"
-          title="Cerrar Sesión"
-        >
-          <LogOut className="w-6 h-6" />
-          <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-            Cerrar Sesión
-          </span>
-        </button>
-      </div>
-
-      {/* 🔧 MODO MÓVIL: Barra compacta fija para navegación rápida - OCULTA */}
-      <div className="hidden">
-        <button onClick={() => navigateDate('prev')} className="px-2 py-1 text-white text-sm font-semibold bg-white/20 rounded hover:bg-white/30">◀</button>
-        <button onClick={() => setCurrentDate(new Date())} className="px-2 py-1 text-white text-sm font-semibold bg-white/20 rounded hover:bg-white/30">Hoy</button>
-        <button onClick={() => navigateDate('next')} className="px-2 py-1 text-white text-sm font-semibold bg-white/20 rounded hover:bg-white/30">▶</button>
-        <div className="flex-1 text-center text-white text-xs font-medium">
-          {currentDate.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}
-        </div>
-        <div className="flex gap-1">
-          {['day','week','month'].map(v => (
-            <button key={v} onClick={() => setView(v as any)} className={`px-2 py-1 rounded text-xs font-semibold ${view===v ? 'bg-white text-purple-600' : 'bg-white/20 text-white'} transition`}>{v === 'day' ? 'Día' : v === 'week' ? 'Semana' : 'Mes'}</button>
-          ))}
-        </div>
-      </div>
+    <div className="space-y-6 relative">
       
       {/* Header unificado con estadísticas - DESKTOP */}
       {calendarData && (
@@ -700,27 +583,66 @@ export default function ClubCalendar2({
                 
                 {/* Botones */}
                 <div className="flex gap-2">
-                  {bookingFilter === 'mine' ? (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="bg-white hover:bg-gray-100 text-blue-600 font-semibold border-0 shadow-md"
-                      onClick={() => setBookingFilter('all')}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      Ver Calendario del Club
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="bg-white hover:bg-gray-100 text-blue-600 font-semibold border-0 shadow-md"
-                      onClick={() => setBookingFilter('mine')}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      Ver Mi Calendario
-                    </Button>
-                  )}
+                  {/* Botón Vista Horizontal/Vertical */}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className={`${
+                      layoutOrientation === 'horizontal'
+                        ? 'bg-white text-blue-600'
+                        : 'bg-white/80 text-gray-600'
+                    } hover:bg-white font-semibold border-0 shadow-md`}
+                    onClick={() => setLayoutOrientation(layoutOrientation === 'horizontal' ? 'vertical' : 'horizontal')}
+                    title={layoutOrientation === 'horizontal' ? 'Cambiar a Vista Vertical' : 'Cambiar a Vista Horizontal'}
+                  >
+                    {layoutOrientation === 'horizontal' ? (
+                      <>
+                        <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <rect x="3" y="4" width="18" height="4" strokeWidth="2" rx="1"/>
+                          <rect x="3" y="10" width="18" height="4" strokeWidth="2" rx="1"/>
+                          <rect x="3" y="16" width="18" height="4" strokeWidth="2" rx="1"/>
+                        </svg>
+                        Horizontal
+                      </>
+                    ) : (
+                      <>
+                        <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <rect x="4" y="3" width="4" height="18" strokeWidth="2" rx="1"/>
+                          <rect x="10" y="3" width="4" height="18" strokeWidth="2" rx="1"/>
+                          <rect x="16" y="3" width="4" height="18" strokeWidth="2" rx="1"/>
+                        </svg>
+                        Vertical
+                      </>
+                    )}
+                  </Button>
+
+                  {/* Botón Recargar */}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="bg-white/80 hover:bg-white text-gray-600 font-semibold border-0 shadow-md"
+                    onClick={() => loadCalendarData(false, true)}
+                    title="Recargar Calendario"
+                  >
+                    <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Recargar
+                  </Button>
+
+                  {/* Botón Hoy */}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="bg-white/80 hover:bg-white text-gray-600 font-semibold border-0 shadow-md"
+                    onClick={() => setCurrentDate(new Date())}
+                    title="Ir a Hoy"
+                  >
+                    <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Hoy
+                  </Button>
                 </div>
               </div>
             </div>
@@ -1093,9 +1015,13 @@ export default function ClubCalendar2({
                                 return (
                                   <div
                                     key={cls.id}
-                                    className="bg-white text-gray-700 rounded shadow-md cursor-pointer hover:shadow-lg hover:scale-105 transition-all h-full flex flex-col items-center justify-center border-2 border-gray-300 p-0.5"
+                                    className={`rounded shadow-md cursor-pointer hover:shadow-lg hover:scale-105 transition-all h-full flex flex-col items-center justify-center border-2 p-0.5 ${
+                                      hasPlayers 
+                                        ? 'bg-blue-500 text-white border-blue-600' 
+                                        : 'bg-white text-gray-700 border-gray-300'
+                                    }`}
                                     onClick={() => handleEventClick(cls)}
-                                    title={`${cls.category || cls.level} - ${cls.playersCount || 0} alumno${(cls.playersCount || 0) !== 1 ? 's' : ''} - ${pricePerSlot ? `${pricePerSlot.toFixed(0)}€ por plaza (${selectedGroupSize} ${selectedGroupSize === 1 ? 'jugador' : 'jugadores'})` : ''}`}
+                                    title={`${cls.category || cls.level} - ${cls.playersCount || 0} alumno${(cls.playersCount || 0) !== 1 ? 's' : ''} inscrito${(cls.playersCount || 0) !== 1 ? 's' : ''} - ${pricePerSlot ? `${pricePerSlot.toFixed(0)}€ por plaza (${selectedGroupSize} ${selectedGroupSize === 1 ? 'jugador' : 'jugadores'})` : ''}`}
                                   >
                                     {hasPlayers ? (
                                       <div className="text-xs font-black leading-none">
@@ -1334,9 +1260,13 @@ export default function ClubCalendar2({
                                     return (
                                       <div
                                         key={cls.id}
-                                        className="bg-white text-gray-700 rounded shadow-md cursor-pointer hover:shadow-lg hover:scale-105 transition-all h-full flex flex-col items-center justify-center border-2 border-gray-300 p-1"
+                                        className={`rounded shadow-md cursor-pointer hover:shadow-lg hover:scale-105 transition-all h-full flex flex-col items-center justify-center border-2 p-1 ${
+                                          hasPlayers 
+                                            ? 'bg-blue-500 text-white border-blue-600' 
+                                            : 'bg-white text-gray-700 border-gray-300'
+                                        }`}
                                         onClick={() => handleEventClick(cls)}
-                                        title={`${cls.category || cls.level} - ${cls.playersCount || 0} alumno${(cls.playersCount || 0) !== 1 ? 's' : ''} - ${pricePerSlot ? `${pricePerSlot.toFixed(0)}€ por plaza (${selectedGroupSize} ${selectedGroupSize === 1 ? 'jugador' : 'jugadores'})` : ''}`}
+                                        title={`${cls.category || cls.level} - ${cls.playersCount || 0} alumno${(cls.playersCount || 0) !== 1 ? 's' : ''} inscrito${(cls.playersCount || 0) !== 1 ? 's' : ''} - ${pricePerSlot ? `${pricePerSlot.toFixed(0)}€ por plaza (${selectedGroupSize} ${selectedGroupSize === 1 ? 'jugador' : 'jugadores'})` : ''}`}
                                       >
                                         {hasPlayers ? (
                                           <div className="text-sm font-black leading-none">

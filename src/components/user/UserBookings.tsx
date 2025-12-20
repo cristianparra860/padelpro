@@ -240,16 +240,155 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
     };
   }, [bookings]);
 
+  // Calcular saldos bloqueados por fecha (inscripciones pendientes)
+  // ⚠️ REGLA: Solo se bloquea el precio MÁS ALTO del día, porque solo puede tener 1 reserva confirmada por día
+  const blockedBalances = useMemo(() => {
+    const now = new Date();
+    const pendingBookings = bookings.filter(b => {
+      const noCourtAssigned = b.timeSlot.court === null && 
+        (b.timeSlot.courtId === null || b.timeSlot.courtId === undefined) && 
+        (b.timeSlot.courtNumber === null || b.timeSlot.courtNumber === undefined);
+      const isFuture = new Date(b.timeSlot.start) >= now;
+      const isNotCancelled = b.status !== 'CANCELLED';
+      return noCourtAssigned && isFuture && isNotCancelled;
+    });
+
+    // Agrupar por fecha y encontrar el precio MÁS ALTO de cada día
+    const balancesByDate: { [date: string]: { date: Date, amount: number } } = {};
+    
+    pendingBookings.forEach(booking => {
+      const startDate = new Date(booking.timeSlot.start);
+      const dateKey = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      
+      // ✅ Fórmula correcta: totalPrice dividido entre groupSize
+      // Ejemplo: Si totalPrice = 60€ y groupSize = 2, bloquea 30€ (60/2)
+      const blockedAmount = booking.timeSlot.totalPrice / booking.groupSize;
+      
+      if (!balancesByDate[dateKey]) {
+        balancesByDate[dateKey] = { date: startDate, amount: blockedAmount };
+      } else {
+        // 🎯 SOLO mantener el monto MÁS ALTO del día (no sumar)
+        balancesByDate[dateKey].amount = Math.max(balancesByDate[dateKey].amount, blockedAmount);
+      }
+    });
+
+    // Convertir a array y ordenar por fecha
+    return Object.values(balancesByDate).sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [bookings]);
+
+  // Calcular pagos realizados por fecha (reservas confirmadas)
+  const paidAmounts = useMemo(() => {
+    const now = new Date();
+    const confirmedBookings = bookings.filter(b => {
+      const hasCourtAssigned = b.timeSlot.court !== null || b.timeSlot.courtId !== null || b.timeSlot.courtNumber !== null;
+      const isFuture = new Date(b.timeSlot.start) >= now;
+      const isNotCancelled = b.status !== 'CANCELLED';
+      return hasCourtAssigned && isFuture && isNotCancelled;
+    });
+
+    // Agrupar por fecha y calcular monto pagado
+    const amountsByDate: { [date: string]: { date: Date, amount: number } } = {};
+    
+    confirmedBookings.forEach(booking => {
+      const startDate = new Date(booking.timeSlot.start);
+      const dateKey = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      
+      // Calcular el monto pagado por esta reserva
+      const paidAmount = booking.timeSlot.totalPrice / booking.groupSize;
+      
+      if (!amountsByDate[dateKey]) {
+        amountsByDate[dateKey] = { date: startDate, amount: paidAmount };
+      } else {
+        // Para reservas confirmadas, sumar todos los pagos del día
+        amountsByDate[dateKey].amount += paidAmount;
+      }
+    });
+
+    // Convertir a array y ordenar por fecha
+    return Object.values(amountsByDate).sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [bookings]);
+
+  // Calcular puntos retornados por fecha (reservas canceladas)
+  const refundedPoints = useMemo(() => {
+    const cancelledBookings = bookings.filter(b => {
+      const isCancelled = b.status === 'CANCELLED';
+      const wasConfirmed = (b as any).wasConfirmed === true;
+      return isCancelled && wasConfirmed;
+    });
+
+    // Agrupar por fecha y sumar puntos retornados
+    const pointsByDate: { [date: string]: { date: Date, amount: number } } = {};
+    
+    cancelledBookings.forEach(booking => {
+      const startDate = new Date(booking.timeSlot.start);
+      const dateKey = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      
+      // Calcular puntos retornados por esta cancelación
+      const refundedAmount = booking.timeSlot.totalPrice / booking.groupSize;
+      
+      if (!pointsByDate[dateKey]) {
+        pointsByDate[dateKey] = { date: startDate, amount: refundedAmount };
+      } else {
+        // Sumar todos los puntos retornados del mismo día
+        pointsByDate[dateKey].amount += refundedAmount;
+      }
+    });
+
+    // Convertir a array y ordenar por fecha
+    return Object.values(pointsByDate).sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [bookings]);
+
+  // Calcular saldo desbloqueado por caducidad (inscripciones expiradas)
+  const expiredBalances = useMemo(() => {
+    const now = new Date();
+    const expiredBookings = bookings.filter(b => {
+      const noCourtAssigned = b.timeSlot.court === null && 
+        (b.timeSlot.courtId === null || b.timeSlot.courtId === undefined) && 
+        (b.timeSlot.courtNumber === null || b.timeSlot.courtNumber === undefined);
+      const isPast = new Date(b.timeSlot.start) < now;
+      const isNotCancelled = b.status !== 'CANCELLED';
+      // Estas son inscripciones que expiraron sin confirmarse
+      return noCourtAssigned && isPast && isNotCancelled;
+    });
+
+    console.log('🔍 Inscripciones expiradas encontradas:', expiredBookings.length);
+    if (expiredBookings.length > 0) {
+      console.log('📋 Detalles:', expiredBookings.map(b => ({
+        fecha: new Date(b.timeSlot.start).toLocaleString('es-ES'),
+        precio: b.timeSlot.totalPrice,
+        groupSize: b.groupSize,
+        calculado: b.timeSlot.totalPrice / b.groupSize
+      })));
+    }
+
+    // Agrupar por fecha y sumar saldos desbloqueados
+    const balancesByDate: { [date: string]: { date: Date, amount: number } } = {};
+    
+    expiredBookings.forEach(booking => {
+      const startDate = new Date(booking.timeSlot.start);
+      const dateKey = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      
+      // Calcular saldo desbloqueado por esta inscripción expirada
+      const unlockedAmount = booking.timeSlot.totalPrice / booking.groupSize;
+      
+      if (!balancesByDate[dateKey]) {
+        balancesByDate[dateKey] = { date: startDate, amount: unlockedAmount };
+      } else {
+        // Sumar todos los saldos desbloqueados del mismo día
+        balancesByDate[dateKey].amount += unlockedAmount;
+      }
+    });
+
+    // Convertir a array y ordenar por fecha
+    const result = Object.values(balancesByDate).sort((a, b) => a.date.getTime() - b.date.getTime());
+    console.log('💰 Saldos desbloqueados por fecha:', result);
+    return result;
+  }, [bookings]);
+
   return (
     <Card className="shadow-lg border-gray-200 relative z-0 max-w-full overflow-hidden">
       <CardHeader className="bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 border-b border-gray-200">
-        <CardTitle className="flex items-center gap-3 text-2xl md:text-3xl font-bold text-gray-800">
-          <span className="text-3xl">📋</span>
-          Mis Reservas de Clases
-        </CardTitle>
-        <CardDescription className="text-base text-gray-600 mt-2">
-          Gestiona tus reservas: con pista asignada, pendientes y pasadas
-        </CardDescription>
+         {/* No incluir título ni subtítulo principal aquí, ya que se muestran en agenda/page.tsx */}
       </CardHeader>
       <CardContent className="pt-6">
         {/* Tabs de filtrado */}
@@ -382,6 +521,154 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
               </span>
             </TabsTrigger>
           </TabsList>
+
+          {/* Botón para ver saldo de movimientos */}
+          <div className="mb-4 flex justify-end">
+            <button
+              className="px-4 py-2 bg-gray-800 text-white rounded-lg shadow hover:bg-gray-700 transition-colors font-semibold text-sm"
+              onClick={() => {
+                window.location.href = '/movimientos';
+              }}
+            >
+              Ver saldo de movimientos
+            </button>
+          </div>
+
+          {/* Contador de Saldo Bloqueado - Solo en Inscripciones */}
+          {activeFilter === 'pending' && blockedBalances.length > 0 && (
+            <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-gray-200">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-lg font-semibold text-gray-700">Saldo Bloqueado</span>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {blockedBalances.map((balance, index) => {
+                  const day = balance.date.getDate();
+                  const month = balance.date.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '');
+                  
+                  return (
+                    <div 
+                      key={index}
+                      className="flex flex-col items-center bg-white rounded-xl shadow-md p-3 border-2 border-gray-200 min-w-[100px]"
+                    >
+                      <div className="text-xs text-gray-500 font-medium uppercase mb-1">
+                        {month}
+                      </div>
+                      <div className="flex items-center justify-center w-14 h-14 rounded-full bg-blue-500 text-white text-2xl font-bold mb-2">
+                        {day}
+                      </div>
+                      <div className="text-lg font-bold text-gray-900">
+                        {balance.amount.toFixed(2)}€
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Contador de Pagos Realizados - Solo en Reservas */}
+          {activeFilter === 'confirmed' && paidAmounts.length > 0 && (
+            <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-gray-200">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-lg font-semibold text-gray-700">Pagos Realizados</span>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {paidAmounts.map((payment, index) => {
+                  const day = payment.date.getDate();
+                  const month = payment.date.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '');
+                  
+                  return (
+                    <div 
+                      key={index}
+                      className="flex flex-col items-center bg-white rounded-xl shadow-md p-3 border-2 border-gray-200 min-w-[100px]"
+                    >
+                      <div className="text-xs text-gray-500 font-medium uppercase mb-1">
+                        {month}
+                      </div>
+                      <div className="flex items-center justify-center w-14 h-14 rounded-full bg-green-500 text-white text-2xl font-bold mb-2">
+                        {day}
+                      </div>
+                      <div className="text-lg font-bold text-gray-900">
+                        {payment.amount.toFixed(2)}€
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Contador de Puntos Retornados - Solo en Canceladas */}
+          {activeFilter === 'cancelled' && refundedPoints.length > 0 && (
+            <div className="mb-6 p-4 bg-gradient-to-r from-orange-50 to-red-50 rounded-xl border border-gray-200">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-lg font-semibold text-gray-700">Puntos Retornados</span>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {refundedPoints.map((refund, index) => {
+                  const day = refund.date.getDate();
+                  const month = refund.date.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '');
+                  
+                  return (
+                    <div 
+                      key={index}
+                      className="flex flex-col items-center bg-white rounded-xl shadow-md p-3 border-2 border-gray-200 min-w-[100px]"
+                    >
+                      <div className="text-xs text-gray-500 font-medium uppercase mb-1">
+                        {month}
+                      </div>
+                      <div className="flex items-center justify-center w-14 h-14 rounded-full bg-orange-500 text-white text-2xl font-bold mb-2">
+                        {day}
+                      </div>
+                      <div className="text-lg font-bold text-gray-900">
+                        {refund.amount.toFixed(2)} pts
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Contador de Saldo Desbloqueado - Siempre visible en Pasadas */}
+          {activeFilter === 'past' && (
+            <div className="mb-6 p-4 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-200">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-lg font-semibold text-gray-700">Saldo Desbloqueado</span>
+                <span className="text-sm text-gray-500">(Clases incompletas expiradas)</span>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {expiredBalances.length === 0 ? (
+                  <div className="flex flex-col items-center bg-white rounded-xl shadow-md p-3 border-2 border-gray-200 min-w-[100px]">
+                    <div className="text-xs text-gray-500 font-medium uppercase mb-1">-</div>
+                    <div className="flex items-center justify-center w-14 h-14 rounded-full bg-gray-400 text-white text-2xl font-bold mb-2">0</div>
+                    <div className="text-lg font-bold text-gray-900">0.00 pts</div>
+                  </div>
+                ) : (
+                  expiredBalances.map((expired, index) => {
+                    const day = expired.date.getDate();
+                    const month = expired.date.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '');
+                    return (
+                      <div 
+                        key={index}
+                        className="flex flex-col items-center bg-white rounded-xl shadow-md p-3 border-2 border-gray-200 min-w-[100px]"
+                      >
+                        <div className="text-xs text-gray-500 font-medium uppercase mb-1">
+                          {month}
+                        </div>
+                        <div className="flex items-center justify-center w-14 h-14 rounded-full bg-gray-500 text-white text-2xl font-bold mb-2">
+                          {day}
+                        </div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {expired.amount.toFixed(2)} pts
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Contenido de tabs */}
           <TabsContent value={activeFilter} className="mt-0">

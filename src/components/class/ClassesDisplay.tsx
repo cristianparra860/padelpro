@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import ClassCardReal from './ClassCardReal'; // Usar ClassCardReal con funcionalidad simplificada
 import type { User, TimeSlot, TimeOfDayFilterType } from '@/types';
-import { Clock, Loader2 } from 'lucide-react';
+import { Clock, Loader2, Plus } from 'lucide-react';
 
 interface ClassesDisplayProps {
   selectedDate: Date;
@@ -55,6 +55,11 @@ export function ClassesDisplay({
   const [tempPlayerCounts, setTempPlayerCounts] = useState<number[]>(selectedPlayerCounts); // 🆕 Estado temporal para número de jugadores
   const [tempViewFilters, setTempViewFilters] = useState<string[]>([]); // 🆕 Estado temporal para filtros de vista (vacío = mostrar todo)
   
+  // 🔍 NUEVOS FILTROS AVANZADOS
+  const [hideEmpty, setHideEmpty] = useState(false); // Ocultar clases vacías (sin alumnos)
+  const [hideWithStudents, setHideWithStudents] = useState(false); // Ocultar clases con alumnos inscritos (no confirmadas)
+  const [hideFull, setHideFull] = useState(false); // Ocultar clases completas/confirmadas
+  
   // 📄 Estados para paginación infinita
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -65,12 +70,51 @@ export function ClassesDisplay({
   const [instructorId, setInstructorId] = useState<string | null>(null);
   const [creditsSlotsMap, setCreditsSlotsMap] = useState<Record<string, number[]>>({});
   
+  // 📱 Estado para mostrar/ocultar filtros en móvil
+  const [showMobileFilters, setShowMobileFilters] = useState(true);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  
   // 🆕 Sincronizar estado local con props
   useEffect(() => {
     setLocalPlayerCounts(selectedPlayerCounts);
   }, [selectedPlayerCounts]);
   
-  // 💾 Cargar preferencias guardadas del usuario al iniciar
+  // � Detectar scroll para ocultar filtros en móvil
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current?.closest('.overflow-y-auto');
+    if (!scrollContainer) return;
+    
+    let scrollTimeout: NodeJS.Timeout;
+    const handleScroll = () => {
+      // Ocultar filtros al empezar a hacer scroll
+      setShowMobileFilters(false);
+      
+      // Limpiar timeout anterior
+      clearTimeout(scrollTimeout);
+      
+      // No volver a mostrar automáticamente - el usuario debe usar el botón
+    };
+    
+    scrollContainer.addEventListener('scroll', handleScroll);
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll);
+      clearTimeout(scrollTimeout);
+    };
+  }, []);
+  
+
+  // Escuchar evento de toggle de filtros desde la barra de navegacion
+  useEffect(() => {
+    const handleToggleFilters = () => {
+      setShowMobileFilters(prev => !prev);
+    };
+
+    window.addEventListener('toggleMobileFilters', handleToggleFilters);
+    return () => {
+      window.removeEventListener('toggleMobileFilters', handleToggleFilters);
+    };
+  }, []);
+  // �💾 Cargar preferencias guardadas del usuario al iniciar
   useEffect(() => {
     const loadUserPreferences = async () => {
       try {
@@ -198,28 +242,37 @@ export function ClassesDisplay({
 
   // 👁️ Manejar toggle de filtro de vista (marcado = ocultar ese tipo)
   const toggleViewFilter = useCallback((filter: string) => {
-    setTempViewFilters(prev => {
-      if (prev.includes(filter)) {
-        // Ya está marcado, quitarlo (dejar de ocultar)
-        return prev.filter(f => f !== filter);
-      } else {
-        // Marcarlo (ocultar ese tipo de clase)
-        return [...prev, filter];
-      }
-    });
+    if (filter === 'withEmpty') {
+      setHideEmpty(prev => !prev);
+    } else if (filter === 'withInscriptions') {
+      setHideWithStudents(prev => !prev);
+    } else if (filter === 'withReservations') {
+      setHideFull(prev => !prev);
+    }
   }, []);
   
   // 👁️ Aplicar filtros de vista (invertido: marcado = ocultar)
   const applyViewFilter = useCallback(() => {
-    // Si ambos están marcados = ocultar todo = no mostrar nada
-    if (tempViewFilters.includes('withInscriptions') && tempViewFilters.includes('withReservations')) {
-      // Ocultar ambos = no tiene sentido, mejor mostrar todas
+    // Si los tres est\u00e1n marcados = ocultar todo = mostrar todas
+    if (tempViewFilters.includes('withInscriptions') && tempViewFilters.includes('withReservations') && tempViewFilters.includes('withEmpty')) {
       if (onViewPreferenceChange) onViewPreferenceChange('all');
+    } else if (tempViewFilters.includes('withInscriptions') && tempViewFilters.includes('withReservations')) {
+      // Ocultar inscripciones y reservas = mostrar solo vac\u00edas (edge case, mostrar todas)
+      if (onViewPreferenceChange) onViewPreferenceChange('all');
+    } else if (tempViewFilters.includes('withInscriptions') && tempViewFilters.includes('withEmpty')) {
+      // Ocultar inscripciones y vac\u00edas = mostrar solo reservas
+      if (onViewPreferenceChange) onViewPreferenceChange('myConfirmed');
+    } else if (tempViewFilters.includes('withReservations') && tempViewFilters.includes('withEmpty')) {
+      // Ocultar reservas y vac\u00edas = mostrar solo inscripciones
+      if (onViewPreferenceChange) onViewPreferenceChange('withBookings');
     } else if (tempViewFilters.includes('withInscriptions')) {
       // Ocultar inscripciones = mostrar solo reservas
       if (onViewPreferenceChange) onViewPreferenceChange('myConfirmed');
     } else if (tempViewFilters.includes('withReservations')) {
       // Ocultar reservas = mostrar solo inscripciones
+      if (onViewPreferenceChange) onViewPreferenceChange('withBookings');
+    } else if (tempViewFilters.includes('withEmpty')) {
+      // Ocultar vac\u00edas = mostrar solo con alumnos (inscripciones + reservas)
       if (onViewPreferenceChange) onViewPreferenceChange('withBookings');
     } else {
       // Ninguno marcado = mostrar todas
@@ -542,6 +595,32 @@ export function ClassesDisplay({
     // "Todas": No aplicar ningún filtro adicional, mostrar todo
     // (Los filtros de fecha, hora y jugadores ya se aplicaron arriba)
     
+    // 🔍 FILTROS AVANZADOS DE VISTA
+    if (hideEmpty || hideWithStudents || hideFull) {
+      const beforeAdvancedFilter = filtered.length;
+      console.log('🔍 Aplicando filtros avanzados:', { hideEmpty, hideWithStudents, hideFull });
+      
+      filtered = filtered.filter(slot => {
+        const hasCourtAssigned = slot.courtNumber != null && slot.courtNumber > 0;
+        const activeBookings = (slot.bookings || []).filter(b => b.status !== 'CANCELLED');
+        const playersCount = activeBookings.length;
+        
+        // Determinar tipo de clase
+        const isEmpty = playersCount === 0; // Clase vacía (sin alumnos)
+        const hasStudentsNotConfirmed = playersCount > 0 && !hasCourtAssigned; // Clase con alumnos pero sin confirmar
+        const isFull = hasCourtAssigned; // Clase confirmada/completa (con pista asignada)
+        
+        // Aplicar filtros
+        if (hideEmpty && isEmpty) return false;
+        if (hideWithStudents && hasStudentsNotConfirmed) return false;
+        if (hideFull && isFull) return false;
+        
+        return true;
+      });
+      
+      console.log(`🔍 Filtros avanzados: ${beforeAdvancedFilter} slots → ${filtered.length} slots`);
+    }
+    
     // 🆕 Filtro de instructores
     if (selectedInstructorIds.length > 0) {
       const beforeInstructorFilter = filtered.length;
@@ -621,7 +700,7 @@ export function ClassesDisplay({
     }
     
     return filtered;
-  }, [timeSlots, timeSlotFilter, viewPreference, selectedInstructorIds, localPlayerCounts, currentUser?.id]);
+  }, [timeSlots, timeSlotFilter, viewPreference, selectedInstructorIds, localPlayerCounts, currentUser?.id, hideEmpty, hideWithStudents, hideFull]);
 
   // Memoize slot conversion to avoid recalculating on every render
   const convertApiSlotToClassCard = useCallback((apiSlot: ApiTimeSlot): TimeSlot | null => {
@@ -817,9 +896,9 @@ export function ClassesDisplay({
   });
 
   return (
-    <div className="relative">
-      {/* FILTROS LATERALES - Lateral derecho con diseño de cápsula */}
-      <div className="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2 md:gap-3 items-center pr-1">
+    <div className={`relative transition-all duration-300 ${showMobileFilters ? 'pr-[80px] md:pr-0' : 'pr-0'}`} ref={scrollContainerRef}>
+
+      <div className={`fixed right-0 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2 md:gap-3 items-center pr-1 transition-transform duration-300 md:translate-x-0 ${showMobileFilters ? 'translate-x-0' : 'translate-x-full'}`}>
         {/* Título principal "Filtros" */}
         <div className="bg-white rounded-full px-2 py-1 md:px-3 md:py-1.5 shadow-md border border-gray-200">
           <span className="text-[7px] md:text-[9px] font-bold uppercase tracking-wider text-gray-600">
@@ -1404,7 +1483,7 @@ export function ClassesDisplay({
                     onClick={() => toggleViewFilter('withInscriptions')}
                     className={`
                       w-full py-4 px-6 rounded-xl font-semibold transition-all duration-200 flex items-center gap-3
-                      ${tempViewFilters.includes('withInscriptions')
+                      ${hideWithStudents
                         ? 'bg-blue-50 border-2 border-blue-500'
                         : 'bg-white border-2 border-gray-200 hover:border-gray-300'
                       }
@@ -1416,18 +1495,18 @@ export function ClassesDisplay({
                     </div>
                     <div className="flex-1 text-left">
                       <div className="text-gray-900">Ocultar inscripciones</div>
-                      <div className="text-xs md:text-sm text-gray-500">No mostrar clases sin pista asignada</div>
+                      <div className="text-xs md:text-sm text-gray-500">No mostrar clases con alumnos inscritos</div>
                     </div>
                     
                     {/* Checkbox */}
                     <div className={`
                       w-6 h-6 rounded border-2 flex items-center justify-center transition-all flex-shrink-0
-                      ${tempViewFilters.includes('withInscriptions')
+                      ${hideWithStudents
                         ? 'bg-green-500 border-green-500'
                         : 'bg-white border-gray-300'
                       }
                     `}>
-                      {tempViewFilters.includes('withInscriptions') && (
+                      {hideWithStudents && (
                         <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                         </svg>
@@ -1441,7 +1520,7 @@ export function ClassesDisplay({
                     onClick={() => toggleViewFilter('withReservations')}
                     className={`
                       w-full py-4 px-6 rounded-xl font-semibold transition-all duration-200 flex items-center gap-3
-                      ${tempViewFilters.includes('withReservations')
+                      ${hideFull
                         ? 'bg-red-50 border-2 border-red-500'
                         : 'bg-white border-2 border-gray-200 hover:border-gray-300'
                       }
@@ -1459,12 +1538,49 @@ export function ClassesDisplay({
                     {/* Checkbox */}
                     <div className={`
                       w-6 h-6 rounded border-2 flex items-center justify-center transition-all flex-shrink-0
-                      ${tempViewFilters.includes('withReservations')
+                      ${hideFull
                         ? 'bg-green-500 border-green-500'
                         : 'bg-white border-gray-300'
                       }
                     `}>
-                      {tempViewFilters.includes('withReservations') && (
+                      {hideFull && (
+                        <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Clases vacías */}
+                  <button
+                    type="button"
+                    onClick={() => toggleViewFilter('withEmpty')}
+                    className={`
+                      w-full py-4 px-6 rounded-xl font-semibold transition-all duration-200 flex items-center gap-3
+                      ${hideEmpty
+                        ? 'bg-gray-50 border-2 border-gray-500'
+                        : 'bg-white border-2 border-gray-200 hover:border-gray-300'
+                      }
+                    `}
+                  >
+                    {/* Círculo gris con "Ø" */}
+                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-gray-400 flex items-center justify-center flex-shrink-0">
+                      <span className="text-white font-bold text-lg md:text-xl">Ø</span>
+                    </div>
+                    <div className="flex-1 text-left">
+                      <div className="text-gray-900">Ocultar vacías</div>
+                      <div className="text-xs md:text-sm text-gray-500">No mostrar clases sin alumnos</div>
+                    </div>
+                    
+                    {/* Checkbox */}
+                    <div className={`
+                      w-6 h-6 rounded border-2 flex items-center justify-center transition-all flex-shrink-0
+                      ${hideEmpty
+                        ? 'bg-green-500 border-green-500'
+                        : 'bg-white border-gray-300'
+                      }
+                    `}>
+                      {hideEmpty && (
                         <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                         </svg>
@@ -1546,7 +1662,7 @@ export function ClassesDisplay({
       
       {/* Grid de tarjetas de clases */}
       {processedSlots.length > 0 && (
-        <div className="w-full px-2 md:px-8 lg:px-12">
+        <div className={`w-full transition-all duration-300 ${showMobileFilters ? 'px-1 md:px-8 lg:px-12' : 'px-2 md:px-8 lg:px-12'}`}>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-12 md:gap-12 justify-items-center">
             {processedSlots.map((slot) => {
               console.log(`🎴 Renderizando tarjeta ${slot.id.substring(0,8)} con allowedPlayerCounts:`, localPlayerCounts);

@@ -32,7 +32,7 @@ import { cn } from '@/lib/utils';
 import { CalendarIcon, Loader2, CalendarPlus, Euro, Users, BarChart, Hash, Info, AlertCircle, Users2 } from 'lucide-react'; // Added Users2
 import { useToast } from '@/hooks/use-toast';
 import { addTimeSlot, getMockClubs, getMockPadelCourts, calculateActivityPrice, getInstructorRate } from '@/lib/mockData';
-import type { User, TimeSlot, MatchPadelLevel, ClassPadelLevel, PadelLevelRange, Instructor as InstructorType, PadelCategoryForSlot, PadelCourt } from '@/types'; // Added PadelCategoryForSlot
+import type { User, TimeSlot, MatchPadelLevel, ClassPadelLevel, PadelLevelRange, Instructor as InstructorType, PadelCategoryForSlot } from '@/types'; // Removed PadelCourt
 import { matchPadelLevels, padelCategoryForSlotOptions, numericMatchPadelLevels, daysOfWeek as dayOfWeekArray } from '@/types'; // Added padelCategoryForSlotOptions and numericMatchPadelLevels
 import { Label } from '@/components/ui/label';
 
@@ -51,7 +51,6 @@ const formSchema = z.object({
   levelMin: z.enum(numericMatchPadelLevels).optional(), 
   levelMax: z.enum(numericMatchPadelLevels).optional(), 
   category: z.enum(['abierta', 'chica', 'chico'] as [PadelCategoryForSlot, ...PadelCategoryForSlot[]], { required_error: "Se requiere una categoría."}),
-  courtNumber: z.coerce.number().int().min(1, "Número de pista inválido.").optional(), // Made optional
   clubId: z.string().min(1, "Debes seleccionar un club."),
 }).refine(data => {
     if (data.isLevelAbierto) return true;
@@ -77,21 +76,20 @@ const timeOptions = Array.from({ length: 29 }, (_, i) => {
 const AddClassForm: React.FC<AddClassFormProps> = ({ instructor, onClassAdded }) => {
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
-  const [availableCourtsForSelectedClub, setAvailableCourtsForSelectedClub] = useState<PadelCourt[]>([]);
   const memoizedMockClubs = React.useMemo(() => getMockClubs(), []);
   const [calculatedPrice, setCalculatedPrice] = useState<number | null>(null);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
+    mode: 'onChange', // Validar en tiempo real
     defaultValues: {
-      date: null,
+      date: startOfDay(new Date()), // Inicializar con fecha de hoy
       startTime: "09:00",
       maxPlayers: 4,
       isLevelAbierto: true,
       levelMin: numericMatchPadelLevels[0],
       levelMax: numericMatchPadelLevels[numericMatchPadelLevels.length -1],
       category: 'abierta',
-      courtNumber: instructor.assignedCourtNumber, 
       clubId: instructor.assignedClubId || (memoizedMockClubs.length > 0 ? memoizedMockClubs[0].id : undefined),
     },
   });
@@ -105,36 +103,10 @@ const AddClassForm: React.FC<AddClassFormProps> = ({ instructor, onClassAdded })
     form.setValue('date', startOfDay(new Date()));
     if (instructor.assignedClubId && instructor.assignedClubId !== 'all') {
         form.setValue('clubId', instructor.assignedClubId);
-        if (instructor.assignedCourtNumber !== undefined) { 
-            form.setValue('courtNumber', instructor.assignedCourtNumber);
-        }
     } else if (memoizedMockClubs.length > 0 && !form.getValues('clubId')) {
         form.setValue('clubId', memoizedMockClubs[0].id);
     }
-  }, [form, memoizedMockClubs, instructor.assignedClubId, instructor.assignedCourtNumber]);
-
-  useEffect(() => {
-    if (selectedClubId) {
-        const courtsOfClub = getMockPadelCourts()
-            .filter(court => court.clubId === selectedClubId && court.isActive)
-            .sort((a, b) => a.courtNumber - b.courtNumber);
-        setAvailableCourtsForSelectedClub(courtsOfClub);
-
-        if (instructor.assignedClubId === selectedClubId && instructor.assignedCourtNumber !== undefined) {
-            form.setValue('courtNumber', instructor.assignedCourtNumber);
-        } else if (courtsOfClub.length > 0) {
-            const currentCourtVal = form.getValues('courtNumber');
-            if (currentCourtVal === undefined || !courtsOfClub.some(c => c.courtNumber === currentCourtVal)) {
-                 form.setValue('courtNumber', courtsOfClub[0].courtNumber);
-            }
-        } else {
-             form.setValue('courtNumber', undefined);
-        }
-    } else {
-        setAvailableCourtsForSelectedClub([]);
-        form.setValue('courtNumber', undefined);
-    }
-  }, [selectedClubId, form, instructor.assignedClubId, instructor.assignedCourtNumber]);
+  }, [form, memoizedMockClubs, instructor.assignedClubId]);
 
   useEffect(() => {
     if (watchedDate && watchedStartTime && selectedClubId) {
@@ -170,11 +142,6 @@ const AddClassForm: React.FC<AddClassFormProps> = ({ instructor, onClassAdded })
         toast({ title: 'Instructor No Disponible', description: 'Debes marcarte como disponible en tus ajustes para crear clases.', variant: 'destructive' });
         return;
     }
-    if (values.courtNumber === undefined) { 
-        toast({ title: 'Error de Validación', description: 'Por favor, selecciona una pista.', variant: 'destructive' });
-        return;
-    }
-
 
     startTransition(async () => {
       try {
@@ -200,55 +167,57 @@ const AddClassForm: React.FC<AddClassFormProps> = ({ instructor, onClassAdded })
 
         const slotDataPayload = {
           clubId: clubIdToUse,
-          startTime: startTimeDate,
+          startTime: startTimeDate.toISOString(),
           instructorId: instructor.id,
           maxPlayers: values.maxPlayers,
-          courtNumber: values.courtNumber!, 
           level: classLevel,
           category: values.category,
           durationMinutes: durationMinutes,
         };
 
-        const results = await addTimeSlot(slotDataPayload as any);
+        // ✅ USAR API REAL en lugar de mockData
+        const response = await fetch('/api/timeslots', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(slotDataPayload)
+        });
 
-        const firstResult = Array.isArray(results) ? results[0] : results;
-        const addedCount = Array.isArray(results) ? results.filter(r => !('error' in r)).length : ('error' in results ? 0 : 1);
-        const errorCount = Array.isArray(results) ? results.filter(r => 'error' in r).length : ('error' in results ? 1 : 0);
-
-        if (errorCount > 0) {
-           const firstErrorResult = Array.isArray(results) ? (results.find(r => 'error' in r) as { error: string }) : ('error' in results ? results : null);
-           toast({
-             title: `Error al Añadir Clase`,
-             description: firstErrorResult?.error || 'Se encontraron errores al añadir la clase.',
-             variant: 'destructive',
-           });
+        if (!response.ok) {
+          const errorData = await response.json();
+          toast({
+            title: 'Error al Añadir Clase',
+            description: errorData.error || 'No se pudo crear la clase',
+            variant: 'destructive',
+          });
+          return;
         }
 
-         if (addedCount > 0) {
-             const levelDisplay = typeof classLevel === 'string' ? classLevel : `${classLevel.min}-${classLevel.max}`;
-             const categoryDisplay = padelCategoryForSlotOptions.find(opt => opt.value === values.category)?.label || values.category;
-             toast({
-               title: `¡Clase Añadida!`,
-               description: `Se ha añadido 1 clase para el ${format(startTimeDate, "PPP 'a las' HH:mm", { locale: es })} (${durationMinutes} min) en Pista ${values.courtNumber} (Club ID: ${clubIdToUse}) con nivel: ${levelDisplay} y categoría: ${categoryDisplay}.`,
-               className: 'bg-primary text-primary-foreground',
-             });
-             form.reset({
-                date: startOfDay(new Date()),
-                startTime: "09:00",
-                maxPlayers: 4,
-                isLevelAbierto: true,
-                levelMin: numericMatchPadelLevels[0],
-                levelMax: numericMatchPadelLevels[numericMatchPadelLevels.length -1],
-                category: 'abierta',
-                courtNumber: instructor.assignedCourtNumber,
-                clubId: instructor.assignedClubId || (memoizedMockClubs.length > 0 ? memoizedMockClubs[0].id : undefined),
-             });
-             if (firstResult && !('error' in firstResult)) {
-                onClassAdded(firstResult as TimeSlot);
-             } else {
-                 onClassAdded({} as TimeSlot);
-             }
-         }
+        const result = await response.json();
+
+        if (result.success && result.timeSlot) {
+          const levelDisplay = typeof classLevel === 'string' ? classLevel : `${classLevel.min}-${classLevel.max}`;
+          const categoryDisplay = padelCategoryForSlotOptions.find(opt => opt.value === values.category)?.label || values.category;
+          toast({
+            title: '¡Propuesta de Clase Creada!',
+            description: `Se ha creado la propuesta de clase para el ${format(startTimeDate, "PPP 'a las' HH:mm", { locale: es })} (${durationMinutes} min). La pista se asignará automáticamente cuando se completen las inscripciones.`,
+            className: 'bg-primary text-primary-foreground',
+          });
+          
+          form.reset({
+            date: startOfDay(new Date()),
+            startTime: "09:00",
+            maxPlayers: 4,
+            isLevelAbierto: true,
+            levelMin: numericMatchPadelLevels[0],
+            levelMax: numericMatchPadelLevels[numericMatchPadelLevels.length -1],
+            category: 'abierta',
+            clubId: instructor.assignedClubId || (memoizedMockClubs.length > 0 ? memoizedMockClubs[0].id : undefined),
+          });
+          
+          onClassAdded(result.timeSlot as TimeSlot);
+        }
 
       } catch (error) {
         console.error("Error adding class:", error);
@@ -356,40 +325,6 @@ const AddClassForm: React.FC<AddClassFormProps> = ({ instructor, onClassAdded })
                 </SelectContent>
               </Select>
               {instructor.assignedClubId && instructor.assignedClubId !== 'all' && <FormDescription className="text-xs text-blue-600">Club asignado por defecto.</FormDescription>}
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="courtNumber"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Número de Pista</FormLabel>
-              <Select
-                onValueChange={(value) => field.onChange(value ? Number(value) : undefined)} 
-                value={field.value !== undefined ? String(field.value) : ""} 
-                disabled={availableCourtsForSelectedClub.length === 0 || !selectedClubId || (instructor.assignedClubId === selectedClubId && instructor.assignedCourtNumber !== undefined)}
-              >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona pista" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {availableCourtsForSelectedClub.length === 0 || !selectedClubId ? (
-                     <SelectItem value="no-courts" disabled>
-                        {selectedClubId ? "No hay pistas para este club" : "Selecciona un club primero"}
-                     </SelectItem>
-                  ) : (
-                    availableCourtsForSelectedClub.map(court => (
-                       <SelectItem key={court.id} value={String(court.courtNumber)}>{court.name || `Pista ${court.courtNumber}`}</SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-              {instructor.assignedClubId === selectedClubId && instructor.assignedCourtNumber !== undefined && <FormDescription className="text-xs text-blue-600">Pista asignada por defecto.</FormDescription>}
               <FormMessage />
             </FormItem>
           )}
@@ -510,14 +445,23 @@ const AddClassForm: React.FC<AddClassFormProps> = ({ instructor, onClassAdded })
         </div>
 
 
-        <Button type="submit" disabled={isPending || memoizedMockClubs.length === 0 || availableCourtsForSelectedClub.length === 0} className="w-full">
+        <Button 
+          type="submit" 
+          disabled={isPending || !form.formState.isValid} 
+          className="w-full"
+        >
           {isPending ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <CalendarPlus className="mr-2 h-4 w-4" />
           )}
-          Añadir Clase
+          Crear Propuesta de Clase
         </Button>
+        {!form.formState.isValid && form.formState.isSubmitted && (
+          <p className="text-xs text-red-500 text-center">
+            Completa todos los campos requeridos para continuar
+          </p>
+        )}
       </form>
     </Form>
   );

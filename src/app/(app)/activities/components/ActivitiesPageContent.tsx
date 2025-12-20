@@ -399,7 +399,17 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
                     />
                 </div>
                 
-                <main className="flex-1 overflow-y-auto px-2 md:px-6 pb-[70px] md:pb-6 space-y-2 md:space-y-4 md:pt-4">
+                <main className="flex-1 overflow-y-auto px-2 md:px-6 pb-6 space-y-2 md:space-y-4 md:pt-4">
+                    {/* Calendario móvil - arriba de la página solo en móvil */}
+                    <div className="block md:hidden bg-white border-b border-gray-100 -mx-2 sticky top-0 z-30">
+                        <DateSelector
+                            selectedDate={selectedDate}
+                            onDateChange={handleDateChange}
+                            daysToShow={30}
+                            userBookings={userBookings}
+                        />
+                    </div>
+
                     {/* 🎁 Botón Modo Puntos - Solo para instructores */}
                     {isInstructor && (
                         <div className="flex justify-end">
@@ -419,16 +429,6 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
                             </Button>
                         </div>
                     )}
-
-                    {/* Calendario móvil - mismo componente pero en posición fija abajo */}
-                    <div className="block md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-100">
-                        <DateSelector
-                            selectedDate={selectedDate}
-                            onDateChange={handleDateChange}
-                            daysToShow={30}
-                            userBookings={userBookings}
-                        />
-                    </div>
 
                     {renderContent()}
                 </main>

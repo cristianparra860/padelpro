@@ -128,8 +128,6 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
     router.push('/');
   };
 
-  const hideNavigationBars = pathname === '/admin/calendar';
-
   return (
     <>
       <div className="flex min-h-screen overflow-x-hidden" style={{position: 'relative', zIndex: 1}}>
@@ -138,8 +136,8 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
           <Footer />
         </main>
       </div>
-      {!hideNavigationBars && <LeftNavigationBar />}
-      {!hideNavigationBars && <AiHelpButton onMobileFiltersClick={() => setIsMobileFiltersOpen(true)} />}
+      <LeftNavigationBar />
+      <AiHelpButton onMobileFiltersClick={() => setIsMobileFiltersOpen(true)} />
 
       <LogoutConfirmationDialog
         isOpen={isLogoutConfirmOpen}

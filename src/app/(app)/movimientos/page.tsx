@@ -196,38 +196,56 @@ const MovimientosPage: React.FC = () => {
         </p>
       </div>
 
-      {/* Balance Summary */}
-      <div className="mb-3 p-2 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border border-gray-200">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+      {/* Balance Summary - Franja Superior Mejorada */}
+      <div className="mb-6 p-6 bg-gradient-to-r from-blue-50 to-green-50 rounded-xl border-2 border-gray-300 shadow-lg">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Columna izquierda: Euros */}
-          <div className="space-y-1">
-            <div className="flex items-center gap-1 mb-0.5">
-              <Wallet className="h-3 w-3 text-blue-600" />
-              <h3 className="font-bold text-[10px] text-gray-800">Saldo en Euros</h3>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Wallet className="h-5 w-5 text-blue-600" />
+              <h3 className="font-bold text-base text-gray-800">Saldo en Euros</h3>
             </div>
-            <div className="bg-white rounded-lg p-1.5 border border-gray-200">
-              <p className="text-[8px] text-gray-600 mb-0.5">Saldo</p>
-              <p className="text-sm font-bold text-gray-900">{availableCredit.toFixed(0)}€</p>
+            
+            {/* Saldo Total */}
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-4 border-2 border-blue-700 shadow-md">
+              <p className="text-xs text-white/80 mb-1">Saldo Total</p>
+              <p className="text-3xl font-bold text-white">{totalCredit.toFixed(0)}€</p>
             </div>
-            <div className="bg-white rounded-lg p-1.5 border border-gray-200">
-              <p className="text-[8px] text-gray-600 mb-0.5">Bloqueado</p>
-              <p className="text-xs font-semibold text-gray-700">{blockedCredit.toFixed(0)}€</p>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white rounded-lg p-3 border border-gray-200 shadow-sm">
+                <p className="text-xs text-gray-600 mb-1">Disponible</p>
+                <p className="text-xl font-bold text-green-600">{availableCredit.toFixed(0)}€</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-gray-200 shadow-sm">
+                <p className="text-xs text-gray-600 mb-1">Bloqueado</p>
+                <p className="text-xl font-bold text-orange-600">{blockedCredit.toFixed(0)}€</p>
+              </div>
             </div>
           </div>
           
           {/* Columna derecha: Puntos */}
-          <div className="space-y-1">
-            <div className="flex items-center gap-1 mb-0.5">
-              <Trophy className="h-3 w-3 text-yellow-600" />
-              <h3 className="font-bold text-[10px] text-gray-800">Saldo en Puntos</h3>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Trophy className="h-5 w-5 text-yellow-600" />
+              <h3 className="font-bold text-base text-gray-800">Saldo en Puntos</h3>
             </div>
-            <div className="bg-white rounded-lg p-1.5 border border-gray-200">
-              <p className="text-[8px] text-gray-600 mb-0.5">Saldo</p>
-              <p className="text-sm font-bold text-gray-900">{availablePoints} Ptos.</p>
+            
+            {/* Saldo Total */}
+            <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-lg p-4 border-2 border-yellow-700 shadow-md">
+              <p className="text-xs text-white/80 mb-1">Saldo Total</p>
+              <p className="text-3xl font-bold text-white">{totalPoints} Ptos.</p>
             </div>
-            <div className="bg-white rounded-lg p-1.5 border border-gray-200">
-              <p className="text-[8px] text-gray-600 mb-0.5">Bloqueado</p>
-              <p className="text-xs font-semibold text-gray-700">{blockedPoints} Ptos.</p>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white rounded-lg p-3 border border-gray-200 shadow-sm">
+                <p className="text-xs text-gray-600 mb-1">Disponible</p>
+                <p className="text-xl font-bold text-green-600">{availablePoints} Ptos.</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-gray-200 shadow-sm">
+                <p className="text-xs text-gray-600 mb-1">Bloqueado</p>
+                <p className="text-xl font-bold text-orange-600">{blockedPoints} Ptos.</p>
+              </div>
             </div>
           </div>
         </div>
