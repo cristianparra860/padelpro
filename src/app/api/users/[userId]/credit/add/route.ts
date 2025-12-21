@@ -17,8 +17,8 @@ export async function POST(
       );
     }
 
-    // Los créditos se almacenan en euros directamente
-    const amountInEuros = Number(amount);
+    // Los créditos se almacenan en céntimos (1€ = 100 céntimos)
+    const amountInCents = Math.round(Number(amount) * 100);
 
     // Buscar el usuario
     const user = await prisma.user.findUnique({
@@ -33,21 +33,39 @@ export async function POST(
       );
     }
 
-    // Actualizar el saldo
+    // Actualizar el saldo (sumar céntimos)
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
-        credits: (user.credits || 0) + amountInEuros
+        credits: (user.credits || 0) + amountInCents
       },
       select: { credits: true }
     });
 
-    const newBalance = updatedUser.credits || 0;
+    // Convertir céntimos a euros para la respuesta
+    const newBalanceInEuros = (updatedUser.credits || 0) / 100;
 
-    console.log(`✅ Añadidos ${amount}€ al usuario ${userId}. Nuevo saldo: ${newBalance}€`);
+    console.log(`✅ Añadidos ${amount}€ (${amountInCents} céntimos) al usuario ${userId}. Nuevo saldo: ${newBalanceInEuros}€`);
+
+    // Registrar transacción
+    try {
+      await prisma.transaction.create({
+        data: {
+          userId,
+          type: 'credit',
+          action: 'add',
+          amount: amountInCents,
+          balance: updatedUser.credits || 0,
+          concept: 'Recarga de saldo',
+          metadata: JSON.stringify({ method: 'manual', amountInEuros: amount })
+        }
+      });
+    } catch (txError) {
+      console.error('⚠️ Error al registrar transacción:', txError);
+    }
 
     return NextResponse.json({
-      newBalance
+      newBalance: newBalanceInEuros
     });
 
   } catch (error) {

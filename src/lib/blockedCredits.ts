@@ -10,7 +10,7 @@ import { prisma } from '@/lib/prisma';
  * pendientes (PENDING) cuyos TimeSlots NO tengan pista asignada (courtId = NULL).
  * 
  * @param userId - ID del usuario
- * @returns Monto en euros que debe estar bloqueado
+ * @returns Monto en CÉNTIMOS que debe estar bloqueado
  */
 export async function calculateBlockedCredits(userId: string): Promise<number> {
   // Obtener todas las inscripciones pendientes del usuario donde el TimeSlot NO tenga pista asignada
@@ -31,7 +31,7 @@ export async function calculateBlockedCredits(userId: string): Promise<number> {
     return 0;
   }
 
-  // Encontrar el monto MÁS ALTO (la clase más cara)
+  // Encontrar el monto MÁS ALTO (la clase más cara) en CÉNTIMOS
   const maxAmount = Math.max(...pendingBookings.map(b => b.amountBlocked || 0));
 
   return maxAmount;
@@ -58,7 +58,7 @@ export async function updateUserBlockedCredits(userId: string): Promise<number> 
  * Calcula el saldo disponible del usuario (credits - blockedCredits).
  * 
  * @param userId - ID del usuario
- * @returns Saldo disponible en euros
+ * @returns Saldo disponible en CÉNTIMOS
  */
 export async function getAvailableCredits(userId: string): Promise<number> {
   const user = await prisma.user.findUnique({
@@ -77,7 +77,7 @@ export async function getAvailableCredits(userId: string): Promise<number> {
  * Verifica si el usuario tiene suficiente saldo disponible para una inscripción.
  * 
  * @param userId - ID del usuario
- * @param amount - Monto requerido en euros
+ * @param amount - Monto requerido en CÉNTIMOS
  * @returns true si tiene saldo suficiente
  */
 export async function hasAvailableCredits(userId: string, amount: number): Promise<boolean> {

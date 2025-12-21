@@ -630,7 +630,9 @@ export async function POST(request: Request) {
         // 💳 PAGO CON CRÉDITOS (NORMAL)
         console.log('💳 Verificando saldo de CRÉDITOS para pago...');
         
-        const hasCredits = await hasAvailableCredits(userId, pricePerSlot);
+        // Convertir pricePerSlot (euros) a céntimos para la validación
+        const priceInCents = Math.round(pricePerSlot * 100);
+        const hasCredits = await hasAvailableCredits(userId, priceInCents);
         
         if (!hasCredits) {
           const userInfo = await prisma.user.findUnique({
@@ -638,13 +640,13 @@ export async function POST(request: Request) {
             select: { credits: true, blockedCredits: true }
           });
           
-          const available = userInfo!.credits - userInfo!.blockedCredits;
-          const required = pricePerSlot;
+          const available = userInfo!.credits - userInfo!.blockedCredits; // En céntimos
+          const required = priceInCents; // En céntimos
           
-          console.log(`❌ Saldo insuficiente: necesita €${required.toFixed(2)}, disponible €${available.toFixed(2)}`);
+          console.log(`❌ Saldo insuficiente: necesita €${(required/100).toFixed(2)}, disponible €${(available/100).toFixed(2)}`);
           return NextResponse.json({ 
             error: `Saldo insuficiente`,
-            details: `Necesitas €${required.toFixed(2)} disponibles pero solo tienes €${available.toFixed(2)}. Por favor, recarga tu saldo.`,
+            details: `Necesitas €${(required/100).toFixed(2)} disponibles pero solo tienes €${(available/100).toFixed(2)}. Por favor, recarga tu saldo.`,
             required: required,
             available: available,
             missing: required - available
@@ -690,9 +692,10 @@ export async function POST(request: Request) {
       // 💰 Calcular valores según método de pago
       // 🎁 Si es credits slot con puntos, usar creditsCost; si es reciclada, usar pricePerSlot
       const pointsToBlock = usePoints ? (isCreditsSlot ? creditsCost : Math.floor(pricePerSlot)) : 0;
-      const creditsToBlock = usePoints ? 0 : pricePerSlot; // Si paga con puntos, no bloqueamos créditos
+      // 💰 IMPORTANTE: pricePerSlot está en EUROS, pero amountBlocked debe guardarse en CÉNTIMOS
+      const creditsToBlock = usePoints ? 0 : Math.round(pricePerSlot * 100); // Convertir euros a céntimos
       
-      console.log(`💎 Creando booking: paidWithPoints=${usePoints ? 1 : 0}, pointsToBlock=${pointsToBlock}, creditsToBlock=${creditsToBlock}, isCreditsSlot=${isCreditsSlot}`);
+      console.log(`💎 Creando booking: paidWithPoints=${usePoints ? 1 : 0}, pointsToBlock=${pointsToBlock}, creditsToBlock=${creditsToBlock} céntimos (€${(creditsToBlock/100).toFixed(2)}), isCreditsSlot=${isCreditsSlot}`);
       
       await prisma.$executeRaw`
         INSERT INTO Booking (id, userId, timeSlotId, groupSize, status, amountBlocked, paidWithPoints, pointsUsed, isRecycled, createdAt, updatedAt)
@@ -753,12 +756,12 @@ export async function POST(request: Request) {
             });
           }
         } else {
-          // Transacción de bloqueo de créditos
+          // Transacción de bloqueo de créditos (en céntimos)
           await createTransaction({
             userId,
             type: 'credit',
             action: 'block',
-            amount: pricePerSlot,
+            amount: creditsToBlock, // Ya está en céntimos
             balance: userBalance.credits - userBalance.blockedCredits,
             concept: `Reserva pendiente - Clase ${new Date(slotDetails[0].start).toLocaleString('es-ES')}`,
             relatedId: bookingId,

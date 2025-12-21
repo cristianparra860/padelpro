@@ -14,17 +14,21 @@ export default function AgendaPage() {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const response = await fetch('/api/users/current');
+        console.log('🔍 Cargando usuario actual para agenda...');
+        const response = await fetch('/api/auth/me');
         if (response.ok) {
-          const userData = await response.json();
+          const data = await response.json();
+          const userData = data.user;
+          console.log('👤 Usuario cargado:', userData?.email);
           setCurrentUser(userData);
         } else {
+          console.warn('⚠️ No hay usuario autenticado, redirigiendo...');
           // Si no hay usuario autenticado, redirigir al login
-          router.push('/auth/login');
+          router.push('/');
         }
       } catch (error) {
-        console.error('Error fetching user:', error);
-        router.push('/auth/login');
+        console.error('❌ Error fetching user:', error);
+        router.push('/');
       } finally {
         setLoading(false);
       }

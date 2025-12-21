@@ -23,33 +23,24 @@ const MovimientosPage: React.FC = () => {
   useEffect(() => {
     const loadUserData = async () => {
       try {
-        // Obtener token del localStorage
-        const token = localStorage.getItem('auth_token');
-        
-        const headers: HeadersInit = {
-          'Content-Type': 'application/json'
-        };
-        
-        // Si hay token, agregarlo al header
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
-        
-        const response = await fetch('/api/users/current', { headers });
+        console.log('🔍 Cargando usuario actual para movimientos...');
+        const response = await fetch('/api/auth/me');
         
         if (response.status === 401) {
           // No autenticado, redirigir al login
-          localStorage.removeItem('auth_token');
+          console.warn('⚠️ Usuario no autenticado');
           router.push('/');
           return;
         }
         
         if (response.ok) {
-          const userData = await response.json();
+          const data = await response.json();
+          const userData = data.user;
+          console.log('👤 Usuario cargado:', userData?.email);
           setCurrentUser(userData);
         }
       } catch (error) {
-        console.error("Error loading user data:", error);
+        console.error("❌ Error loading user data:", error);
       }
     };
 
@@ -74,20 +65,23 @@ const MovimientosPage: React.FC = () => {
           const mappedTransactions: Transaction[] = allTransactions.map((tx: any) => {
             // Determinar si es entrada (+) o salida (-)
             const isPositive = tx.action === 'add' || tx.action === 'refund' || tx.action === 'unblock';
-            // El amount en la BD es siempre positivo, nosotros le ponemos el signo
-            const amount = tx.amount;
+            
+            // Convertir amount de céntimos a euros si es transacción de crédito
+            const amountInDisplayUnit = tx.type === 'credit' 
+              ? tx.amount / 100  // Convertir céntimos a euros
+              : tx.amount;       // Los puntos se quedan igual
             
             return {
               id: tx.id,
               userId: tx.userId,
               type: tx.concept,
               description: tx.concept,
-              amount: isPositive ? amount : -amount, // +X para add/refund, -X para subtract
+              amount: isPositive ? amountInDisplayUnit : -amountInDisplayUnit, // +X para add/refund, -X para subtract
               date: tx.createdAt,
-              balanceAfter: tx.balance, // NO usar, puede estar mal
+              balanceAfter: tx.type === 'credit' ? tx.balance / 100 : tx.balance, // Convertir balance también
               transactionType: tx.type, // 'credit' o 'points'
               action: tx.action, // 'add', 'subtract', 'block', 'unblock', 'refund'
-              rawAmount: amount // Guardar el amount original sin signo
+              rawAmount: amountInDisplayUnit // Guardar el amount original sin signo pero convertido
             };
           });
           
@@ -95,8 +89,8 @@ const MovimientosPage: React.FC = () => {
           // Las transacciones vienen DESC (más reciente primero)
           // Vamos a calcular HACIA ATRÁS desde el saldo actual
           
-          // Saldo actual real de la BD
-          const currentCreditBalance = currentUser.credit ?? 0;
+          // Saldo actual real de la BD (convertir céntimos a euros)
+          const currentCreditBalance = (currentUser.credits ?? 0) / 100;
           const currentPointsBalance = currentUser.points ?? 0;
           
           // Calcular hacia atrás: por cada transacción, restar el movimiento
@@ -138,9 +132,9 @@ const MovimientosPage: React.FC = () => {
           });
           
           // Filtrar solo transacciones con movimiento real (amount !== 0)
-          // Excluir 'block' y 'unblock' porque son gestión de bloqueos, no movimientos reales de dinero
+          // INCLUIR 'block' y 'unblock' para mostrar el historial completo de bloqueos
           const transactionsWithMovement = transactionsWithHistoricBalances.filter((tx: any) => 
-            tx.amount !== 0 && tx.action !== 'block' && tx.action !== 'unblock'
+            tx.amount !== 0
           );
           
           setTransactions(transactionsWithMovement);
@@ -169,9 +163,9 @@ const MovimientosPage: React.FC = () => {
     );
   }
 
-  // Usar blockedCredits (con 's') que es como viene de la API
-  const totalCredit = currentUser.credit ?? 0;
-  const blockedCredit = (currentUser as any).blockedCredits ?? 0;
+  // Usar credits (sin 's' en el total, con 's' en el bloqueado)
+  const totalCredit = ((currentUser as any).credits ?? 0) / 100; // Convertir céntimos a euros
+  const blockedCredit = ((currentUser as any).blockedCredits ?? 0) / 100;
   const availableCredit = totalCredit - blockedCredit;
   
   const totalPoints = currentUser.points ?? 0;
