@@ -30,15 +30,15 @@ export default function CalendarPage() {
         const data = await response.json();
         const userRole = data.user?.role;
         
-        // Solo CLUB_ADMIN y SUPER_ADMIN pueden acceder
-        if (userRole === 'CLUB_ADMIN' || userRole === 'SUPER_ADMIN') {
+        // Todos los usuarios autenticados pueden acceder al calendario
+        if (userRole) {
           setHasAccess(true);
           setCurrentUser(data.user);
         } else {
           setHasAccess(false);
           toast({
             title: "Acceso denegado",
-            description: "No tienes permisos para acceder al calendario del club",
+            description: "Debes iniciar sesión para acceder al calendario del club",
             variant: "destructive"
           });
         }
@@ -82,7 +82,7 @@ export default function CalendarPage() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">
-                Solo los usuarios con rol de <strong>Administrador del Club</strong> pueden acceder a esta sección.
+                Debes iniciar sesión para acceder a esta sección.
               </p>
               <Button 
                 onClick={() => router.push('/dashboard')} 

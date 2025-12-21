@@ -137,6 +137,7 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                                                 )}
                                                 <Separator />
                                                 <Link href="/agenda" className="w-full"><Button variant={pathname.startsWith('/agenda') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><ClipboardList className="mr-3 h-5 w-5" /> Mis Reservas</Button></Link>
+                                                <Link href="/admin/calendar" className="w-full"><Button variant={pathname.startsWith('/admin/calendar') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Calendar className="mr-3 h-5 w-5" /> Calendario Club</Button></Link>
                                                 {isMatchDayEnabled && (
                                                     <Link href="/match-day" className="w-full"><Button variant={pathname.startsWith('/match-day') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><PartyPopper className="mr-3 h-5 w-5" /> Match-Day</Button></Link>
                                                 )}
@@ -145,7 +146,6 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                                                     <>
                                                         <Separator />
                                                         <Link href="/admin/database" className="w-full"><Button variant={pathname.startsWith('/admin/database') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Database className="mr-3 h-5 w-5" /> Database Admin</Button></Link>
-                                                        <Link href="/admin/calendar" className="w-full"><Button variant={pathname.startsWith('/admin/calendar') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Calendar className="mr-3 h-5 w-5" /> Calendario Club</Button></Link>
                                                         <Link href="/admin" className="w-full"><Button variant={pathname === '/admin' ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Settings className="mr-3 h-5 w-5" /> Config Club</Button></Link>
                                                     </>
                                                 )}
