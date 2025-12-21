@@ -1,19 +1,15 @@
+// Verificar transacciones de Marc Parra
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-async function checkMarcParra() {
+async function checkMarcTransactions() {
   try {
-    console.log('=== CHECKING MARC PARRA\'S ACCOUNT ===\n');
+    console.log('📊 Verificando transacciones de Marc Parra...\n');
     
-    const marc = await prisma.user.findUnique({
-      where: { email: 'jugador1@padelpro.com' },
-      select: {
-        id: true,
-        name: true,
-        credits: true,
-        blockedCredits: true,
-        points: true,
-        blockedPoints: true
+    // Buscar a Marc Parra
+    const marc = await prisma.user.findFirst({
+      where: {
+        email: 'jugador1@padelpro.com'
       }
     });
     
@@ -22,105 +18,56 @@ async function checkMarcParra() {
       return;
     }
     
-    console.log('👤 Marc Parra (jugador1@padelpro.com)');
-    console.log(`   Total Credits: ${marc.credits}€`);
-    console.log(`   Blocked Credits: ${marc.blockedCredits}€`);
-    console.log(`   Available Credits: ${marc.credits - (marc.blockedCredits || 0)}€`);
-    console.log(`   Total Points: ${marc.points} pts`);
-    console.log(`   Blocked Points: ${marc.blockedPoints || 0} pts`);
-    console.log(`   Available Points: ${marc.points - (marc.blockedPoints || 0)} pts\n`);
+    console.log(`👤 Usuario: ${marc.name} (${marc.email})`);
+    console.log(`   ID: ${marc.id}`);
+    console.log(`   💳 Credits: ${marc.credits} céntimos (€${(marc.credits/100).toFixed(2)})`);
+    console.log(`   🔒 Blocked: ${marc.blockedCredits} céntimos (€${(marc.blockedCredits/100).toFixed(2)})\n`);
     
     // Obtener todas las transacciones
     const transactions = await prisma.transaction.findMany({
       where: { userId: marc.id },
-      orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        type: true,
-        action: true,
-        amount: true,
-        balance: true,
-        concept: true,
-        createdAt: true
-      }
+      orderBy: { createdAt: 'desc' }
     });
     
-    console.log(`📋 Total Transactions: ${transactions.length}\n`);
+    console.log(`📋 Total transacciones: ${transactions.length}\n`);
     
-    // Simular el cálculo del balance
-    let simulatedCredits = 0;
-    let simulatedPoints = 0;
+    if (transactions.length === 0) {
+      console.log('❌ No hay transacciones para este usuario');
+      return;
+    }
     
-    console.log('🔄 SIMULATING BALANCE CHANGES:\n');
+    // Mostrar las últimas 20 transacciones
+    console.log('🔍 Últimas 20 transacciones:\n');
     
-    transactions.forEach((tx, idx) => {
-      const isCredit = tx.type === 'credit';
-      const isAdd = tx.action === 'add' || tx.action === 'refund';
-      const isSubtract = tx.action === 'subtract';
-      
-      let balanceChange = 0;
-      
-      if (isCredit) {
-        if (isAdd) {
-          simulatedCredits += tx.amount;
-          balanceChange = tx.amount;
-        } else if (isSubtract) {
-          simulatedCredits -= tx.amount;
-          balanceChange = -tx.amount;
-        }
-      } else {
-        if (isAdd) {
-          simulatedPoints += tx.amount;
-          balanceChange = tx.amount;
-        } else if (isSubtract) {
-          simulatedPoints -= tx.amount;
-          balanceChange = -tx.amount;
-        }
-      }
-      
-      const date = new Date(tx.createdAt);
-      const typeSymbol = isCredit ? '💶' : '💎';
-      const changeSymbol = balanceChange > 0 ? '+' : '';
-      
-      console.log(`${idx + 1}. ${typeSymbol} ${tx.action.toUpperCase()} ${changeSymbol}${balanceChange}${isCredit ? '€' : ' pts'}`);
-      console.log(`   Concept: ${tx.concept}`);
-      console.log(`   Balance in DB: ${tx.balance}${isCredit ? '€' : ' pts'}`);
-      console.log(`   Simulated Balance: ${isCredit ? simulatedCredits + '€' : simulatedPoints + ' pts'}`);
-      console.log(`   Date: ${date.toLocaleString('es-ES')}`);
+    transactions.slice(0, 20).forEach((tx, idx) => {
+      const date = new Date(tx.createdAt).toLocaleString('es-ES');
+      console.log(`[${idx + 1}] ${date}`);
+      console.log(`    Type: ${tx.type} | Action: ${tx.action}`);
+      console.log(`    Amount: ${tx.amount} ${tx.amount < 100 && tx.amount > 0 ? '⚠️ (posible euros)' : '(céntimos)'} → €${(tx.amount/100).toFixed(2)}`);
+      console.log(`    Balance: ${tx.balance} céntimos → €${(tx.balance/100).toFixed(2)}`);
+      console.log(`    Concept: ${tx.concept}`);
+      console.log(`    Related: ${tx.relatedType || 'N/A'} | ${tx.relatedId || 'N/A'}`);
       console.log('');
     });
     
-    console.log('📊 FINAL COMPARISON:\n');
-    console.log(`   Simulated Credits: ${simulatedCredits}€`);
-    console.log(`   Actual Credits: ${marc.credits}€`);
-    console.log(`   Match: ${simulatedCredits === marc.credits ? '✅' : '❌'}\n`);
+    // Análisis de problemas
+    console.log('\n📊 ANÁLISIS:\n');
     
-    console.log(`   Simulated Points: ${simulatedPoints} pts`);
-    console.log(`   Actual Points: ${marc.points} pts`);
-    console.log(`   Match: ${simulatedPoints === marc.points ? '✅' : '❌'}\n`);
-    
-    // Verificar última transacción
-    if (transactions.length > 0) {
-      const lastTx = transactions[transactions.length - 1];
-      console.log('🔍 LAST TRANSACTION CHECK:\n');
-      
-      console.log(`   Last Transaction Type: ${lastTx.type}`);
-      console.log(`   Last Transaction Balance: ${lastTx.balance}${lastTx.type === 'credit' ? '€' : ' pts'}`);
-      
-      if (lastTx.type === 'credit') {
-        console.log(`   Current User Credits: ${marc.credits}€`);
-        console.log(`   Should Match: ${lastTx.balance === marc.credits ? '✅' : '❌'}`);
-      } else {
-        console.log(`   Current User Points: ${marc.points} pts`);
-        console.log(`   Should Match: ${lastTx.balance === marc.points ? '✅' : '❌'}`);
-      }
+    const problematicTxs = transactions.filter(tx => tx.amount > 0 && tx.amount < 100);
+    if (problematicTxs.length > 0) {
+      console.log(`⚠️ ${problematicTxs.length} transacciones con amount < 100 (posiblemente en euros):`);
+      problematicTxs.forEach(tx => {
+        console.log(`   - ID: ${tx.id} | Amount: ${tx.amount} | Type: ${tx.type} | Action: ${tx.action} | Date: ${new Date(tx.createdAt).toLocaleDateString('es-ES')}`);
+      });
+    } else {
+      console.log('✅ Todas las transacciones tienen amount >= 100 (formato correcto en céntimos)');
     }
     
   } catch (error) {
-    console.error('Error:', error);
+    console.error('❌ Error:', error);
   } finally {
     await prisma.$disconnect();
   }
 }
 
-checkMarcParra();
+checkMarcTransactions();
