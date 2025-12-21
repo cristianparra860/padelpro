@@ -257,8 +257,10 @@ export default function LoginPage() {
             <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-2">🟢 JUGADORES</p>
             <div className="space-y-2">
               {[
-                { name: 'Alex García', email: 'alex@example.com', password: 'Pass123!' },
-                { name: 'Ana Nueva', email: 'ana.nueva@padelpro.com', password: 'Pass123!' }
+                { name: 'Alex Garcia', email: 'alex@example.com', password: 'Pass123!' },
+                { name: 'Ana Nueva', email: 'ana.nueva@padelpro.com', password: 'Pass123!' },
+                { name: 'Marc Parra', email: 'jugador1@padelpro.com', password: 'Pass123!' },
+                { name: 'María García', email: 'jugador2@padelpro.com', password: 'Pass123!' }
               ].map((user, idx) => (
                 <button
                   key={idx}
