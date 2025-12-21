@@ -51,7 +51,7 @@ const ManagedSlotsList: React.FC<ManagedSlotsListProps> = ({ instructorId }) => 
 
   const dateStripDates = useMemo(() => {
     const todayAnchor = startOfDay(new Date());
-    return Array.from({ length: 15 }, (_, i) => addDays(todayAnchor, i));
+    return Array.from({ length: 30 }, (_, i) => addDays(todayAnchor, i));
   }, []);
 
   useEffect(() => {

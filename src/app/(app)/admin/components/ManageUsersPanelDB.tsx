@@ -127,10 +127,21 @@ const ManageUsersPanelDB: React.FC<ManageUsersPanelDBProps> = ({ clubId }) => {
 
       const method = editingUser ? 'PUT' : 'POST';
 
+      // Preparar los datos - NO enviar level al editar (el usuario lo configura en su perfil)
+      const dataToSend = editingUser 
+        ? { 
+            name: formData.name,
+            email: formData.email,
+            genderCategory: formData.genderCategory,
+            credits: formData.credits,
+            points: formData.points
+          }
+        : formData; // Al crear, enviar todo
+
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(dataToSend)
       });
 
       if (!response.ok) {
@@ -192,6 +203,18 @@ const ManageUsersPanelDB: React.FC<ManageUsersPanelDBProps> = ({ clubId }) => {
   );
 
   const getLevelBadgeColor = (level: string | null) => {
+    if (!level) return 'bg-gray-100 text-gray-800';
+    
+    // Si es numérico (0.0 a 7.0)
+    const numLevel = parseFloat(level);
+    if (!isNaN(numLevel)) {
+      if (numLevel < 3.0) return 'bg-green-100 text-green-800';
+      if (numLevel < 5.0) return 'bg-blue-100 text-blue-800';
+      if (numLevel < 6.5) return 'bg-orange-100 text-orange-800';
+      return 'bg-purple-100 text-purple-800';
+    }
+    
+    // Legacy: texto (principiante, intermedio, etc)
     switch (level) {
       case 'principiante': return 'bg-green-100 text-green-800';
       case 'intermedio': return 'bg-blue-100 text-blue-800';
@@ -384,21 +407,15 @@ const ManageUsersPanelDB: React.FC<ManageUsersPanelDBProps> = ({ clubId }) => {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="level">Nivel</Label>
-                <Select
-                  value={formData.level}
-                  onValueChange={(value) => setFormData({ ...formData, level: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="principiante">Principiante</SelectItem>
-                    <SelectItem value="intermedio">Intermedio</SelectItem>
-                    <SelectItem value="avanzado">Avanzado</SelectItem>
-                    <SelectItem value="abierto">Abierto</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="level">Nivel (0.0 - 7.0)</Label>
+                <Input
+                  id="level"
+                  value={formData.level || ''}
+                  disabled
+                  className="bg-gray-50 cursor-not-allowed"
+                  placeholder="Configurado por el usuario"
+                />
+                <p className="text-xs text-gray-500">El usuario configura su nivel en su perfil</p>
               </div>
 
               <div className="space-y-2">

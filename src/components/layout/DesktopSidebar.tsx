@@ -75,6 +75,10 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
     const isStoreEnabled = clubInfo?.isStoreEnabled ?? true;
     const navItemCount = 1 + (isClassesEnabled ? 1 : 0) + (isMatchesEnabled ? 1 : 0) + (isMatchDayEnabled ? 1 : 0) + (isStoreEnabled ? 1 : 0);
     const navGridClass = `grid-cols-${navItemCount}`;
+    
+    // Verificar si el usuario tiene permisos de admin
+    const isClubAdmin = currentUser?.role === 'CLUB_ADMIN' || currentUser?.role === 'SUPER_ADMIN';
+    const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
     const renderLoginPrompt = () => (
       <aside className="hidden md:block w-72 p-4">
         <Card className="p-4 flex flex-col gap-4 sticky top-6 h-fit w-full rounded-2xl">
@@ -136,9 +140,15 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                                                 {isMatchDayEnabled && (
                                                     <Link href="/match-day" className="w-full"><Button variant={pathname.startsWith('/match-day') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><PartyPopper className="mr-3 h-5 w-5" /> Match-Day</Button></Link>
                                                 )}
-                                                <Link href="/admin/database" className="w-full"><Button variant={pathname.startsWith('/admin/database') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Database className="mr-3 h-5 w-5" /> Database Admin</Button></Link>
-                                                <Link href="/admin/calendar" className="w-full"><Button variant={pathname.startsWith('/admin/calendar') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Calendar className="mr-3 h-5 w-5" /> Calendario Club</Button></Link>
-                                                <Link href="/admin" className="w-full"><Button variant={pathname === '/admin' ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Settings className="mr-3 h-5 w-5" /> Config Club</Button></Link>
+                                                {/* Enlaces de administración - solo para CLUB_ADMIN y SUPER_ADMIN */}
+                                                {isClubAdmin && (
+                                                    <>
+                                                        <Separator />
+                                                        <Link href="/admin/database" className="w-full"><Button variant={pathname.startsWith('/admin/database') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Database className="mr-3 h-5 w-5" /> Database Admin</Button></Link>
+                                                        <Link href="/admin/calendar" className="w-full"><Button variant={pathname.startsWith('/admin/calendar') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Calendar className="mr-3 h-5 w-5" /> Calendario Club</Button></Link>
+                                                        <Link href="/admin" className="w-full"><Button variant={pathname === '/admin' ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Settings className="mr-3 h-5 w-5" /> Config Club</Button></Link>
+                                                    </>
+                                                )}
                     </div>
                     {/* Botón +Puntos comentado por solicitud del usuario
                     {isActivitiesPage && (

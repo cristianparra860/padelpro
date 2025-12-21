@@ -43,12 +43,14 @@ export default function InstructorClassCards({ instructor }: InstructorClassCard
         const data = await response.json();
         const slotsArray = Array.isArray(data) ? data : data.slots || [];
         
-        // Extraer bookings confirmados de todas las clases
+        // Extraer bookings confirmados y cancelados de todas las clases
         const allBookings = slotsArray
           .filter((slot: ApiTimeSlot) => 
             slot.bookings && 
             slot.bookings.length > 0 &&
-            slot.bookings.some((booking: any) => booking.status === 'CONFIRMED')
+            slot.bookings.some((booking: any) => 
+              booking.status === 'CONFIRMED' || booking.status === 'CANCELLED'
+            )
           )
           .map((slot: ApiTimeSlot) => ({
             timeSlotId: slot.id,
@@ -97,13 +99,15 @@ export default function InstructorClassCards({ instructor }: InstructorClassCard
           date: dateStr
         });
         
-        // Filtrar solo las clases con bookings confirmados (alumnos inscritos)
+        // Filtrar clases con bookings confirmados O cancelados (plazas recicladas)
         const classesWithStudents = slotsArray.filter(
           (slot: ApiTimeSlot) => 
             slot.instructorId === instructor.id && 
             slot.bookings && 
             slot.bookings.length > 0 &&
-            slot.bookings.some((booking: any) => booking.status === 'CONFIRMED')
+            slot.bookings.some((booking: any) => 
+              booking.status === 'CONFIRMED' || booking.status === 'CANCELLED'
+            )
         );
         
         console.log('📊 Classes with students:', classesWithStudents.length);
@@ -183,7 +187,7 @@ export default function InstructorClassCards({ instructor }: InstructorClassCard
           </p>
         </div>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredSlots.map((slot) => (
             <ClassCardReal
               key={slot.id}

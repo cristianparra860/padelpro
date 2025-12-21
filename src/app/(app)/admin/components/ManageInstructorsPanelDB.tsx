@@ -331,17 +331,6 @@ const ManageInstructorsPanelDB: React.FC<ManageInstructorsPanelDBProps> = ({ clu
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="hourlyRate">Tarifa por hora (€) *</Label>
-                <Input
-                  id="hourlyRate"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.hourlyRate}
-                  onChange={(e) => setFormData({ ...formData, hourlyRate: Number(e.target.value) })}
-                />
-              </div>
             </div>
 
             <div className="space-y-2">

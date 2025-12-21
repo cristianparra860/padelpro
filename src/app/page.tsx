@@ -192,20 +192,37 @@ export default function LoginPage() {
             ⚡ Auto-Rellenador de Login
           </p>
           
-          {/* Admin */}
+          {/* Super Admin */}
           <div className="mb-4">
-            <p className="text-xs font-semibold text-red-700 dark:text-red-400 mb-2">🔴 ADMINISTRADOR</p>
+            <p className="text-xs font-semibold text-purple-700 dark:text-purple-400 mb-2">🟣 SUPER ADMINISTRADOR</p>
             <button
               type="button"
               onClick={() => {
                 setEmail('admin@padelpro.com');
-                setPassword('AdminPass123!');
+                setPassword('Pass123!');
+              }}
+              className="w-full text-left px-3 py-2 bg-white dark:bg-gray-800 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded border border-purple-200 dark:border-purple-800 text-xs transition-colors"
+            >
+              <span className="font-medium text-purple-900 dark:text-purple-100">Super Admin</span>
+              <br />
+              <span className="text-purple-600 dark:text-purple-400">admin@padelpro.com</span>
+            </button>
+          </div>
+
+          {/* Club Admins */}
+          <div className="mb-4">
+            <p className="text-xs font-semibold text-red-700 dark:text-red-400 mb-2">🔴 ADMINISTRADORES DE CLUB</p>
+            <button
+              type="button"
+              onClick={() => {
+                setEmail('clubadmin@padelpro.com');
+                setPassword('Pass123!');
               }}
               className="w-full text-left px-3 py-2 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 rounded border border-red-200 dark:border-red-800 text-xs transition-colors"
             >
-              <span className="font-medium text-red-900 dark:text-red-100">Admin PadelPro</span>
+              <span className="font-medium text-red-900 dark:text-red-100">Admin Club Madrid</span>
               <br />
-              <span className="text-red-600 dark:text-red-400">admin@padelpro.com</span>
+              <span className="text-red-600 dark:text-red-400">clubadmin@padelpro.com</span>
             </button>
           </div>
 
@@ -240,12 +257,8 @@ export default function LoginPage() {
             <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-2">🟢 JUGADORES</p>
             <div className="space-y-2">
               {[
-                { name: 'Marc Parra', email: 'jugador1@padelpro.com', password: 'Pass123!' },
-                { name: 'María García', email: 'jugador2@padelpro.com', password: 'Pass123!' },
-                { name: 'Ana Nueva', email: 'ana.nueva@padelpro.com', password: 'Pass123!' },
-                { name: 'Cristian Parra', email: 'cristian.parra@padelpro.com', password: 'Pass123!' },
-                { name: 'Alex García', email: 'alex.garcia@padelpro.com', password: 'Pass123!' },
-                { name: 'David Collado', email: 'david.collado@padelpro.com', password: 'Pass123!' }
+                { name: 'Alex García', email: 'alex@example.com', password: 'Pass123!' },
+                { name: 'Ana Nueva', email: 'ana.nueva@padelpro.com', password: 'Pass123!' }
               ].map((user, idx) => (
                 <button
                   key={idx}

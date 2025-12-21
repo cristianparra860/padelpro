@@ -240,21 +240,6 @@ const EditInstructorDialog: React.FC<EditInstructorDialogProps> = ({ instructor,
               )}
             />
 
-             <FormField
-                control={form.control}
-                name="defaultRatePerHour"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel className="flex items-center"><Euro className="mr-2 h-4 w-4 text-muted-foreground"/>Tarifa por Hora Predeterminada</FormLabel>
-                    <FormControl>
-                        <Input type="number" min="0" step="1" {...field} onChange={e => field.onChange(Number(e.target.value))} />
-                    </FormControl>
-                    <FormDescription>Esta tarifa se usará si la clase no cae en ninguna franja de tarifa especial.</FormDescription>
-                    <FormMessage />
-                    </FormItem>
-                )}
-            />
-
             <div className="space-y-4 rounded-lg border p-3 shadow-sm bg-secondary/20">
                 <FormLabel>Tarifas Especiales por Horario</FormLabel>
                 {fields.map((item, index) => (

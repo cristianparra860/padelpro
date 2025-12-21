@@ -271,7 +271,7 @@ function DashboardPageContent() {
                             />
                             <EditableInfoRow
                                 id="dashboard-level"
-                                label="Nivel de Juego"
+                                label="Nivel de Juego (0.0 - 7.0)"
                                 value={selectedLevel}
                                 isEditing={isEditingLevel}
                                 onEditClick={() => setIsEditingLevel(true)}
@@ -280,10 +280,21 @@ function DashboardPageContent() {
                                 onChange={(val) => handleLevelChange(val as MatchPadelLevel)}
                                 inputType="select"
                                 selectOptions={[
-                                    { label: 'Principiante', value: 'principiante' },
-                                    { label: 'Intermedio', value: 'intermedio' },
-                                    { label: 'Avanzado', value: 'avanzado' },
-                                    { label: 'Profesional', value: 'profesional' }
+                                    { label: '0.0 - Principiante', value: '0.0' },
+                                    { label: '0.5', value: '0.5' },
+                                    { label: '1.0', value: '1.0' },
+                                    { label: '1.5', value: '1.5' },
+                                    { label: '2.0', value: '2.0' },
+                                    { label: '2.5', value: '2.5' },
+                                    { label: '3.0 - Intermedio bajo', value: '3.0' },
+                                    { label: '3.5', value: '3.5' },
+                                    { label: '4.0 - Intermedio', value: '4.0' },
+                                    { label: '4.5', value: '4.5' },
+                                    { label: '5.0 - Intermedio alto', value: '5.0' },
+                                    { label: '5.5', value: '5.5' },
+                                    { label: '6.0 - Avanzado', value: '6.0' },
+                                    { label: '6.5', value: '6.5' },
+                                    { label: '7.0 - Profesional', value: '7.0' }
                                 ]}
                                 selectPlaceholder="Selecciona tu nivel"
                                 showSeparator={!isEditingLevel}

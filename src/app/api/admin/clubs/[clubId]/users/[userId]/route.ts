@@ -5,18 +5,20 @@ import { prisma } from '@/lib/prisma';
 // PUT - Actualizar usuario
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { clubId: string; id: string } }
+  { params }: { params: Promise<{ clubId: string; userId: string }> }
 ) {
   try {
-    const { clubId, id } = params;
+    const { clubId, userId } = await params;
     const body = await request.json();
 
-    const { name, email, level, genderCategory, credits, points } = body;
+    const { name, email, level, genderCategory, credits, points, loyaltyPoints } = body;
+
+    console.log('✏️ Actualizando usuario:', userId, 'con datos:', body);
 
     // Verificar que el usuario pertenece al club
     const existingUser = await prisma.user.findFirst({
       where: {
-        id,
+        id: userId,
         clubId
       }
     });
@@ -28,13 +30,17 @@ export async function PUT(
       );
     }
 
-    // Si se está cambiando el email, verificar que no esté en uso
+    // Si se está cambiando el email, verificar que no esté en uso por OTRO usuario
     if (email && email !== existingUser.email) {
-      const emailInUse = await prisma.user.findUnique({
-        where: { email }
+      const emailInUse = await prisma.user.findFirst({
+        where: {
+          email,
+          NOT: { id: userId }
+        }
       });
 
       if (emailInUse) {
+        console.log('❌ Email ya en uso por otro usuario');
         return NextResponse.json(
           { error: 'El email ya está en uso' },
           { status: 400 }
@@ -42,28 +48,36 @@ export async function PUT(
       }
     }
 
-    console.log('✏️ Actualizando usuario:', id);
-
     // Actualizar usuario
     const updatedUser = await prisma.user.update({
-      where: { id },
+      where: { id: userId },
       data: {
         ...(name && { name }),
         ...(email && { email }),
         ...(level && { level }),
         ...(genderCategory !== undefined && { genderCategory }),
         ...(credits !== undefined && { credits: Number(credits) }),
-        ...(points !== undefined && { points: Number(points) })
+        ...(points !== undefined && { points: Number(points) }),
+        ...(loyaltyPoints !== undefined && { points: Number(loyaltyPoints) })
       }
     });
 
-    console.log('✅ Usuario actualizado');
+    console.log('✅ Usuario actualizado exitosamente:', updatedUser.name);
 
     return NextResponse.json(updatedUser);
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error actualizando usuario:', error);
+    
+    // Manejar errores específicos de Prisma
+    if (error.code === 'P2002') {
+      return NextResponse.json(
+        { error: 'El email ya está en uso' },
+        { status: 400 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: 'Error al actualizar usuario' },
+      { error: error.message || 'Error al actualizar usuario' },
       { status: 500 }
     );
   }
@@ -72,15 +86,15 @@ export async function PUT(
 // DELETE - Eliminar usuario
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { clubId: string; id: string } }
+  { params }: { params: Promise<{ clubId: string; userId: string }> }
 ) {
   try {
-    const { clubId, id } = params;
+    const { clubId, userId } = await params;
 
     // Verificar que el usuario pertenece al club
     const existingUser = await prisma.user.findFirst({
       where: {
-        id,
+        id: userId,
         clubId
       }
     });
@@ -95,7 +109,7 @@ export async function DELETE(
     // Verificar si el usuario tiene reservas activas
     const activeBookings = await prisma.booking.count({
       where: {
-        userId: id,
+        userId: userId,
         status: {
           in: ['PENDING', 'CONFIRMED']
         }
@@ -109,11 +123,11 @@ export async function DELETE(
       );
     }
 
-    console.log('🗑️ Eliminando usuario:', id);
+    console.log('🗑️ Eliminando usuario:', userId);
 
     // Eliminar usuario
     await prisma.user.delete({
-      where: { id }
+      where: { id: userId }
     });
 
     console.log('✅ Usuario eliminado');

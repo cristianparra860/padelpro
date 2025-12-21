@@ -69,11 +69,21 @@ const EditLevelDialog: React.FC<EditLevelDialogProps> = ({
               <SelectValue placeholder="Selecciona tu nivel..." />
             </SelectTrigger>
             <SelectContent>
-              {matchPadelLevels.map(level => (
-                <SelectItem key={level} value={level} className="capitalize">
-                  {`Nivel ${level}`}
-                </SelectItem>
-              ))}
+              <SelectItem value="0.0">0.0 - Principiante</SelectItem>
+              <SelectItem value="0.5">0.5</SelectItem>
+              <SelectItem value="1.0">1.0</SelectItem>
+              <SelectItem value="1.5">1.5</SelectItem>
+              <SelectItem value="2.0">2.0</SelectItem>
+              <SelectItem value="2.5">2.5</SelectItem>
+              <SelectItem value="3.0">3.0 - Intermedio bajo</SelectItem>
+              <SelectItem value="3.5">3.5</SelectItem>
+              <SelectItem value="4.0">4.0 - Intermedio</SelectItem>
+              <SelectItem value="4.5">4.5</SelectItem>
+              <SelectItem value="5.0">5.0 - Intermedio alto</SelectItem>
+              <SelectItem value="5.5">5.5</SelectItem>
+              <SelectItem value="6.0">6.0 - Avanzado</SelectItem>
+              <SelectItem value="6.5">6.5</SelectItem>
+              <SelectItem value="7.0">7.0 - Profesional</SelectItem>
             </SelectContent>
           </Select>
         </div>

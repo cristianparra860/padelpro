@@ -83,6 +83,7 @@ export async function GET(request: NextRequest) {
     const classesRaw = await prisma.$queryRaw`
       SELECT 
         id, start, end, maxPlayers, totalPrice, level, category, 
+        levelRange,
         courtId, courtNumber, instructorId, clubId
       FROM TimeSlot
       WHERE start >= ${startTime} AND start <= ${endTime}
@@ -112,11 +113,11 @@ export async function GET(request: NextRequest) {
 
     const instructorMap = new Map(classInstructors.map(i => [i.id, i]));
 
-    // Cargar TODOS los bookings en una query
+    // Cargar TODOS los bookings en una query (incluye CANCELLED para mostrar en calendario)
     const allBookings = await prisma.booking.findMany({
       where: {
         timeSlotId: { in: timeSlotIds },
-        status: { in: ['PENDING', 'CONFIRMED'] }
+        status: { in: ['PENDING', 'CONFIRMED', 'CANCELLED'] } // ✅ Incluir CANCELLED
       },
       select: {
         id: true,
@@ -124,6 +125,7 @@ export async function GET(request: NextRequest) {
         timeSlotId: true,
         status: true,
         groupSize: true, // ⭐ EXPLICITLY SELECT groupSize
+        isRecycled: true, // ♻️ Campo para detectar plazas recicladas
         user: {
           select: {
             name: true,
@@ -217,6 +219,7 @@ export async function GET(request: NextRequest) {
           instructorPhoto: cls.instructor?.user?.profilePictureUrl,
           level: cls.level,
           category: cls.category,
+          levelRange: cls.levelRange,
           price: cls.totalPrice,
           playersCount: totalPlayers, // Total de jugadores inscritos (PENDING)
           maxPlayers: cls.maxPlayers,
@@ -242,6 +245,7 @@ export async function GET(request: NextRequest) {
           instructorPhoto: cls.instructor?.user?.profilePictureUrl,
           level: cls.level,
           category: cls.category,
+          levelRange: cls.levelRange,
           price: cls.totalPrice,
           playersCount: actualGroupSize, // Total de jugadores confirmados
           maxPlayers: actualGroupSize, // Capacidad = jugadores confirmados

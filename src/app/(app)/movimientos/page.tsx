@@ -4,17 +4,21 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Wallet, Trophy, ArrowLeft } from 'lucide-react';
+import { Wallet, Trophy, ArrowLeft, Plus, Repeat } from 'lucide-react';
 import type { User as UserType, Transaction } from '@/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useRouter } from 'next/navigation';
+import AddCreditDialog from '@/components/user/AddCreditDialog';
+import ConvertBalanceDialog from '@/components/user/ConvertBalanceDialog';
 
 const MovimientosPage: React.FC = () => {
   const router = useRouter();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
+  const [showAddCreditDialog, setShowAddCreditDialog] = useState(false);
+  const [showConvertBalanceDialog, setShowConvertBalanceDialog] = useState(false);
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -249,6 +253,27 @@ const MovimientosPage: React.FC = () => {
             </div>
           </div>
         </div>
+        
+        {/* Botones de Acciones */}
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <Button
+            onClick={() => setShowAddCreditDialog(true)}
+            className="bg-green-600 hover:bg-green-700 text-white font-semibold"
+            size="lg"
+          >
+            <Plus className="mr-2 h-5 w-5" />
+            Añadir Saldo
+          </Button>
+          <Button
+            onClick={() => setShowConvertBalanceDialog(true)}
+            variant="outline"
+            className="border-2 border-purple-600 text-purple-700 hover:bg-purple-50 font-semibold"
+            size="lg"
+          >
+            <Repeat className="mr-2 h-5 w-5" />
+            Convertir Euros a Puntos
+          </Button>
+        </div>
       </div>
 
       {/* Transaction History */}
@@ -381,6 +406,35 @@ const MovimientosPage: React.FC = () => {
           </div>
         )}
       </div>
+      
+      {/* Diálogos */}
+      {currentUser && (
+        <>
+          <AddCreditDialog
+            isOpen={showAddCreditDialog}
+            onOpenChange={setShowAddCreditDialog}
+            userId={currentUser.id}
+            onCreditAdded={(newBalance) => {
+              // Actualizar el saldo del usuario
+              setCurrentUser(prev => prev ? { ...prev, credit: newBalance } : null);
+              // Recargar transacciones
+              window.location.reload();
+            }}
+          />
+          
+          <ConvertBalanceDialog
+            isOpen={showConvertBalanceDialog}
+            onOpenChange={setShowConvertBalanceDialog}
+            currentUser={currentUser}
+            onConversionSuccess={(newCredit, newPoints) => {
+              // Actualizar el usuario
+              setCurrentUser(prev => prev ? { ...prev, credit: newCredit, points: newPoints } : null);
+              // Recargar transacciones
+              window.location.reload();
+            }}
+          />
+        </>
+      )}
     </div>
   );
 };

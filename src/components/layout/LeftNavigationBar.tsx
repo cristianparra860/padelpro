@@ -235,75 +235,26 @@ export function LeftNavigationBar() {
                 className="fixed left-0 top-1/2 -translate-y-1/2 flex flex-col gap-4 items-center ml-2" 
                 style={{ pointerEvents: 'auto', zIndex: 999999, position: 'fixed' }}
             >
-            {/* 📅 Botones de Vista de Calendario - Solo en página de calendario del club */}
-            {pathname === '/admin/calendar' && (
-                <>
-                    {/* Contenedor Botón Vista Horizontal */}
-                    <div className="relative bg-gradient-to-br from-white via-gray-50 to-gray-100 rounded-lg shadow-[8px_0_24px_rgba(0,0,0,0.12),inset_-2px_0_8px_rgba(0,0,0,0.06)] border border-gray-300 px-0.5 py-2 md:px-3 md:py-4 w-[48px] md:w-[68px]">
-                        <button
-                            onClick={() => {
-                                window.dispatchEvent(new CustomEvent('setCalendarLayout', { detail: 'horizontal' }));
-                            }}
-                            className="flex flex-col items-center gap-0.5 w-full hover:opacity-80 transition-opacity cursor-pointer"
-                            title="Vista Horizontal"
-                        >
-                            <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-[0_2px_8px_rgba(0,0,0,0.12)] md:shadow-[0_4px_12px_rgba(0,0,0,0.15)] flex items-center justify-center hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)] md:hover:shadow-[0_6px_16px_rgba(0,0,0,0.2)] transition-all duration-200">
-                                <svg className="w-5 h-5 md:w-7 md:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <rect x="3" y="4" width="18" height="4" strokeWidth="2" rx="1"/>
-                                    <rect x="3" y="10" width="18" height="4" strokeWidth="2" rx="1"/>
-                                    <rect x="3" y="16" width="18" height="4" strokeWidth="2" rx="1"/>
-                                </svg>
-                            </div>
-                            <span className="text-[6px] md:text-[7px] font-medium uppercase tracking-wide text-gray-600 max-w-[45px] md:max-w-[55px] text-center leading-tight">
-                                Horizontal
-                            </span>
-                        </button>
-                    </div>
-
-                    {/* Contenedor Botón Vista Vertical */}
-                    <div className="relative bg-gradient-to-br from-white via-gray-50 to-gray-100 rounded-lg shadow-[8px_0_24px_rgba(0,0,0,0.12),inset_-2px_0_8px_rgba(0,0,0,0.06)] border border-gray-300 px-0.5 py-2 md:px-3 md:py-4 w-[48px] md:w-[68px]">
-                        <button
-                            onClick={() => {
-                                window.dispatchEvent(new CustomEvent('setCalendarLayout', { detail: 'vertical' }));
-                            }}
-                            className="flex flex-col items-center gap-0.5 w-full hover:opacity-80 transition-opacity cursor-pointer"
-                            title="Vista Vertical"
-                        >
-                            <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-gradient-to-br from-purple-500 to-purple-600 shadow-[0_2px_8px_rgba(0,0,0,0.12)] md:shadow-[0_4px_12px_rgba(0,0,0,0.15)] flex items-center justify-center hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)] md:hover:shadow-[0_6px_16px_rgba(0,0,0,0.2)] transition-all duration-200">
-                                <svg className="w-5 h-5 md:w-7 md:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <rect x="4" y="3" width="4" height="18" strokeWidth="2" rx="1"/>
-                                    <rect x="10" y="3" width="4" height="18" strokeWidth="2" rx="1"/>
-                                    <rect x="16" y="3" width="4" height="18" strokeWidth="2" rx="1"/>
-                                </svg>
-                            </div>
-                            <span className="text-[6px] md:text-[7px] font-medium uppercase tracking-wide text-gray-600 max-w-[45px] md:max-w-[55px] text-center leading-tight">
-                                Vertical
-                            </span>
-                        </button>
-                    </div>
-                </>
-            )}
-
             {clubInfo && (
                 <div className="relative bg-gradient-to-br from-white via-gray-50 to-gray-100 rounded-lg shadow-[8px_0_24px_rgba(0,0,0,0.12),inset_-2px_0_8px_rgba(0,0,0,0.06)] border border-gray-300 px-0.5 py-2 md:px-3 md:py-4 w-[48px] md:w-[68px]">
                     <a 
                         href="/club"
                         className="flex flex-col items-center gap-0.5 w-full hover:opacity-80 transition-opacity cursor-pointer block"
                     >
-                        <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-white shadow-[0_2px_8px_rgba(0,0,0,0.12)] md:shadow-[0_4px_12px_rgba(0,0,0,0.15)] flex items-center justify-center overflow-hidden hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)] md:hover:shadow-[0_6px_16px_rgba(0,0,0,0.2)] transition-all duration-200">
+                        <div className="w-12 h-12 md:w-[72px] md:h-[72px] rounded-full bg-white shadow-[0_2px_8px_rgba(0,0,0,0.12)] md:shadow-[0_4px_12px_rgba(0,0,0,0.15)] flex items-center justify-center overflow-hidden hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)] md:hover:shadow-[0_6px_16px_rgba(0,0,0,0.2)] transition-all duration-200 ring-2 ring-white ring-offset-0 -mx-1 md:-mx-1">
                             {clubInfo.logoUrl ? (
                                 <img 
                                     src={clubInfo.logoUrl} 
                                     alt={clubInfo.name}
-                                    className="w-8 h-8 md:w-11 md:h-11 object-contain"
+                                    className="w-9 h-9 md:w-[60px] md:h-[60px] object-contain"
                                 />
                             ) : (
-                                <span className="text-xs md:text-base font-bold text-gray-600">
+                                <span className="text-xs md:text-lg font-bold text-gray-600">
                                     {clubInfo.name.substring(0, 2).toUpperCase()}
                                 </span>
                             )}
                         </div>
-                        <span className="text-[6px] md:text-[7px] font-medium uppercase tracking-wide text-gray-600 max-w-[45px] md:max-w-[55px] text-center leading-tight">
+                        <span className="text-[7px] md:text-[9px] font-bold uppercase tracking-wide text-gray-600 max-w-[45px] md:max-w-[55px] text-center leading-tight">
                             {clubInfo.name}
                         </span>
                     </a>
@@ -314,6 +265,14 @@ export function LeftNavigationBar() {
             <div className="relative bg-gradient-to-br from-white via-gray-50 to-gray-100 rounded-lg shadow-[8px_0_24px_rgba(0,0,0,0.12),inset_-2px_0_8px_rgba(0,0,0,0.06)] border border-gray-300 px-0.5 py-2 md:px-3 md:py-4 w-[48px] md:w-[68px]">
                 <div className="flex flex-col gap-1.5 items-center">
                     <div className="flex flex-col items-center gap-0.5">
+                        {/* Nombre del usuario en la parte superior */}
+                        {currentUser?.name && (
+                            <div className="text-center mb-1">
+                                <p className="text-[7px] md:text-[9px] font-bold text-gray-700 uppercase tracking-tight leading-tight">
+                                    {currentUser.name.split(' ')[0]}
+                                </p>
+                            </div>
+                        )}
                         <a
                             href={misDatosItem.href}
                             onClick={(e) => handleNavClick(e, misDatosItem.href, misDatosItem.label)}
@@ -340,7 +299,7 @@ export function LeftNavigationBar() {
                                 )}
                             </div>
                             <span className={cn(
-                                "text-[6px] md:text-[7px] font-medium uppercase tracking-wide",
+                                "text-[7px] md:text-[9px] font-bold uppercase tracking-wide",
                                 misDatosItem.isActive ? "text-green-600" : "text-gray-500"
                             )}>
                                 {misDatosItem.label}

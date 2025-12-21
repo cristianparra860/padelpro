@@ -5,21 +5,16 @@ import { prisma } from '@/lib/prisma';
 // GET - Obtener todos los usuarios de un club
 export async function GET(
   request: NextRequest,
-  { params }: { params: { clubId: string } }
+  { params }: { params: Promise<{ clubId: string }> }
 ) {
   try {
-    const { clubId } = params;
+    const { clubId } = await params;
 
     console.log('🔍 Obteniendo usuarios del club:', clubId);
 
-    // Obtener todos los usuarios del club
     const users = await prisma.user.findMany({
-      where: {
-        clubId: clubId
-      },
-      orderBy: {
-        name: 'asc'
-      },
+      where: { clubId },
+      orderBy: { name: 'asc' },
       select: {
         id: true,
         name: true,
@@ -49,10 +44,10 @@ export async function GET(
 // POST - Crear nuevo usuario
 export async function POST(
   request: NextRequest,
-  { params }: { params: { clubId: string } }
+  { params }: { params: Promise<{ clubId: string }> }
 ) {
   try {
-    const { clubId } = params;
+    const { clubId } = await params;
     const body = await request.json();
 
     const { name, email, level, genderCategory, credits, points } = body;

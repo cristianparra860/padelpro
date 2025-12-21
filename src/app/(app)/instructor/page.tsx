@@ -59,12 +59,12 @@ export default function InstructorPage() {
                             name: userData.name,
                             email: userData.email,
                             profilePictureUrl: userData.profilePictureUrl || null,
-                            isAvailable: userData.isAvailable ?? true,
+                            isAvailable: instructorRecord.instructor.isAvailable ?? true,
                             assignedClubId: instructorRecord.instructor.clubId || userData.assignedClubId || 'padel-estrella-madrid',
                             assignedCourtNumber: userData.assignedCourtNumber || undefined,
-                            defaultRatePerHour: userData.defaultRatePerHour || 28,
-                            rateTiers: userData.rateTiers || [],
-                            unavailableHours: userData.unavailableHours || {},
+                            defaultRatePerHour: instructorRecord.instructor.defaultRatePerHour || instructorRecord.instructor.hourlyRate || 28,
+                            rateTiers: instructorRecord.instructor.rateTiers ? (typeof instructorRecord.instructor.rateTiers === 'string' ? JSON.parse(instructorRecord.instructor.rateTiers) : instructorRecord.instructor.rateTiers) : [],
+                            unavailableHours: instructorRecord.instructor.unavailableHours ? (typeof instructorRecord.instructor.unavailableHours === 'string' ? JSON.parse(instructorRecord.instructor.unavailableHours) : instructorRecord.instructor.unavailableHours) : {},
                             levelRanges: instructorRecord.instructor.levelRanges || null
                         };
                         

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Trash2, PlusCircle, RefreshCw, Edit2, Euro } from 'lucide-react';
-import { getMockCurrentUser, getMockClubs } from '@/lib/mockData';
+import { getMockClubs } from '@/lib/mockData';
 import { Badge } from '@/components/ui/badge';
 import ClubOpeningHours from './ClubOpeningHours';
 import type { Club } from '@/types';
@@ -180,46 +180,71 @@ const ManageCourtRatesPanelDB: React.FC<ManageCourtRatesPanelDBProps> = ({ clubI
   };
 
   const handleUpdateFuturePrices = async () => {
-    const currentUser = getMockCurrentUser();
-    
-    if (!currentUser) {
-      toast({
-        title: "Error de autenticación",
-        description: "No se pudo obtener el usuario actual",
-        variant: "destructive"
-      });
-      return;
-    }
-
     setIsUpdatingPrices(true);
     
     try {
+      // Primero obtener el usuario actual
+      console.log('🔍 Obteniendo usuario actual...');
+      const authResponse = await fetch('/api/auth/me');
+      if (!authResponse.ok) {
+        const authError = await authResponse.text();
+        console.error('❌ Error auth:', authError);
+        throw new Error('No se pudo obtener el usuario actual');
+      }
+      
+      const authData = await authResponse.json();
+      console.log('👤 Usuario actual:', authData.user);
+      const userId = authData.user?.id;
+      
+      if (!userId) {
+        throw new Error('Usuario no autenticado');
+      }
+
+      // Ahora actualizar los precios con el userId
+      console.log('💰 Actualizando precios con:', { clubId, userId });
       const response = await fetch('/api/admin/update-future-prices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clubId,
-          userId: currentUser.id
+          userId
         })
       });
 
       const result = await response.json();
+      console.log('📊 Respuesta del servidor:', result);
 
       if (!response.ok) {
-        throw new Error(result.error || 'Error al actualizar precios');
+        console.error('❌ Error del servidor:', result);
+        console.error('❌ Detalles:', result.details);
+        console.error('❌ Stack:', result.stack);
+        throw new Error(result.details || result.error || `Error ${response.status}: ${response.statusText}`);
       }
 
       toast({
         title: "¡Precios actualizados!",
-        description: `Se actualizaron ${result.updated} clases futuras con las nuevas tarifas.`,
+        description: `Se actualizaron ${result.updated} clases sin usuarios. ${result.details?.withBookings > 0 ? `(${result.details.withBookings} clases con reservas no se modificaron)` : ''}`,
         className: "bg-green-600 text-white"
       });
 
+      // Disparar evento personalizado para notificar al calendario que debe refrescarse
+      window.dispatchEvent(new CustomEvent('pricesUpdated', { 
+        detail: { clubId, updated: result.updated } 
+      }));
+
+      // Recargar la página después de 2 segundos para mostrar los nuevos precios
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+
     } catch (error) {
-      console.error('Error actualizando precios futuros:', error);
+      console.error('❌ Error actualizando precios futuros:', error);
+      const errorMessage = error instanceof Error ? error.message : "Ocurrió un error inesperado";
+      console.error('📝 Mensaje de error:', errorMessage);
+      
       toast({
         title: "Error al actualizar precios",
-        description: error instanceof Error ? error.message : "Ocurrió un error inesperado",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
@@ -332,7 +357,7 @@ const ManageCourtRatesPanelDB: React.FC<ManageCourtRatesPanelDBProps> = ({ clubI
 
       <p className="text-sm text-muted-foreground">
         💡 <strong>Tip:</strong> Después de modificar las tarifas, usa el botón "Aplicar a Clases Futuras" 
-        para actualizar los precios de todas las clases ya generadas sin confirmar.
+        para actualizar los precios de clases sin usuarios inscritos (no afecta a clases con reservas confirmadas).
       </p>
 
       {/* Dialog para crear/editar */}

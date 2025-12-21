@@ -22,7 +22,7 @@ export async function GET(
         },
         bookings: {
           where: {
-            status: { in: ['PENDING', 'CONFIRMED'] }
+            status: { in: ['PENDING', 'CONFIRMED', 'CANCELLED'] } // ✅ Incluir CANCELLED para mostrar en tarjetas
           },
           include: {
             user: true
@@ -108,6 +108,7 @@ export async function GET(
           userGender: booking.user?.gender, // ✅ Género del usuario
           groupSize: booking.groupSize,
           status: booking.status,
+          isRecycled: booking.isRecycled || false, // ♻️ Campo isRecycled
           createdAt: bookingCreatedDate.toISOString()
         };
       }),

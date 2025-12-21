@@ -37,6 +37,7 @@ export async function POST(request: Request) {
       where: { id: userId },
       select: { 
         role: true,
+        clubId: true,
         instructorProfile: {
           select: { id: true, clubId: true }
         }
@@ -51,12 +52,14 @@ export async function POST(request: Request) {
     }
 
     // Validar que el usuario tenga permisos:
-    // - Es admin global, O
+    // - Es SUPER_ADMIN (acceso global), O
+    // - Es CLUB_ADMIN del club especificado, O
     // - Es instructor del club especificado
-    const isAdmin = user.role === 'admin';
+    const isSuperAdmin = user.role === 'SUPER_ADMIN';
+    const isClubAdmin = user.role === 'CLUB_ADMIN' && user.clubId === clubId;
     const isInstructorOfClub = user.instructorProfile?.clubId === clubId;
 
-    if (!isAdmin && !isInstructorOfClub) {
+    if (!isSuperAdmin && !isClubAdmin && !isInstructorOfClub) {
       return NextResponse.json(
         { error: 'No tienes permisos para actualizar precios de este club' },
         { status: 403 }
@@ -64,6 +67,7 @@ export async function POST(request: Request) {
     }
 
     // Obtener todas las clases futuras sin confirmar del club
+    // Solo actualizar clases SIN usuarios inscritos (sin bookings CONFIRMED)
     const now = Date.now();
     const futureSlots = await prisma.$queryRawUnsafe<any[]>(`
       SELECT 
@@ -71,7 +75,13 @@ export async function POST(request: Request) {
         ts.start,
         ts.instructorId,
         ts.clubId,
-        i.pricePerClass as instructorPrice
+        COALESCE(i.hourlyRate, i.defaultRatePerHour, 15) as instructorPrice,
+        (
+          SELECT COUNT(*) 
+          FROM Booking b 
+          WHERE b.timeSlotId = ts.id 
+            AND b.status = 'CONFIRMED'
+        ) as confirmedBookingsCount
       FROM TimeSlot ts
       LEFT JOIN Instructor i ON ts.instructorId = i.id
       WHERE ts.clubId = ?
@@ -82,16 +92,27 @@ export async function POST(request: Request) {
 
     console.log(`📊 Encontradas ${futureSlots.length} clases futuras sin confirmar`);
 
-    if (futureSlots.length === 0) {
+    // Filtrar solo clases sin bookings confirmados (sin usuarios inscritos)
+    const slotsWithoutBookings = futureSlots.filter(slot => 
+      Number(slot.confirmedBookingsCount) === 0
+    );
+    
+    console.log(`✅ De las cuales ${slotsWithoutBookings.length} NO tienen usuarios inscritos`);
+
+    if (slotsWithoutBookings.length === 0) {
       return NextResponse.json({
         success: true,
-        message: 'No hay clases futuras para actualizar',
-        updated: 0
+        message: 'No hay clases sin usuarios para actualizar',
+        updated: 0,
+        details: {
+          totalFound: futureSlots.length,
+          withBookings: futureSlots.length - slotsWithoutBookings.length
+        }
       });
     }
 
     // Filtrar por instructor si se especifica
-    let slotsToUpdate = futureSlots;
+    let slotsToUpdate = slotsWithoutBookings;
     if (instructorId) {
       slotsToUpdate = futureSlots.filter(slot => slot.instructorId === instructorId);
       console.log(`🎯 Filtrando por instructor ${instructorId}: ${slotsToUpdate.length} clases`);
@@ -154,10 +175,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Se actualizaron ${updatedCount} clases futuras`,
+      message: `Se actualizaron ${updatedCount} clases sin usuarios`,
       updated: updatedCount,
       details: {
         totalFound: futureSlots.length,
+        withoutBookings: slotsWithoutBookings.length,
+        withBookings: futureSlots.length - slotsWithoutBookings.length,
         filtered: slotsToUpdate.length,
         clubId,
         instructorId: instructorId || 'all',
@@ -174,10 +197,14 @@ export async function POST(request: Request) {
 
   } catch (error) {
     console.error('❌ Error actualizando precios futuros:', error);
+    console.error('📝 Stack trace:', error instanceof Error ? error.stack : 'No stack');
+    console.error('📝 Message:', error instanceof Error ? error.message : String(error));
+    
     return NextResponse.json(
       { 
         error: 'Error al actualizar precios',
-        details: error instanceof Error ? error.message : 'Error desconocido'
+        details: error instanceof Error ? error.message : 'Error desconocido',
+        stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined
       },
       { status: 500 }
     );

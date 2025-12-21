@@ -1771,8 +1771,9 @@ export async function POST(request: Request) {
                   // Marcar PISTA como ocupada en los 3 bloques
                   for (const block of blocks) {
                     const courtScheduleId = `cs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    // ✅ Usar INSERT OR IGNORE para prevenir errores de constraint duplicado
                     await prisma.$executeRaw`
-                      INSERT INTO CourtSchedule (
+                      INSERT OR IGNORE INTO CourtSchedule (
                         id, courtId, date, startTime, endTime, 
                         isOccupied, timeSlotId, reason, createdAt, updatedAt
                       )
@@ -1797,8 +1798,9 @@ export async function POST(request: Request) {
                 if (instructorId) {
                   for (const block of blocks) {
                     const instructorScheduleId = `is_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    // ✅ Usar INSERT OR IGNORE para prevenir errores de constraint duplicado
                     await prisma.$executeRaw`
-                      INSERT INTO InstructorSchedule (
+                      INSERT OR IGNORE INTO InstructorSchedule (
                         id, instructorId, date, startTime, endTime,
                         isOccupied, timeSlotId, reason, createdAt, updatedAt
                       )

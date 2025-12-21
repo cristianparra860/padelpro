@@ -7,10 +7,11 @@ import { prisma } from '@/lib/prisma';
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { clubId: string; id: string } }
+  { params }: { params: Promise<{ clubId: string; slotId: string }> }
 ) {
   try {
-    const { clubId, id } = params;
+    const { clubId, slotId } = await params;
+    const id = slotId;
     const body = await request.json();
     const { name, startTime, endTime, price, daysOfWeek, priority, isActive } = body;
 
@@ -58,10 +59,11 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { clubId: string; id: string } }
+  { params }: { params: Promise<{ clubId: string; slotId: string }> }
 ) {
   try {
-    const { clubId, id } = params;
+    const { clubId, slotId } = await params;
+    const id = slotId;
 
     // Verificar que existe
     const existing = await prisma.courtPriceSlot.findFirst({

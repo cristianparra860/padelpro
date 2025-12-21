@@ -219,10 +219,13 @@ model Instructor {
   specialties       String?
   experience        String?
   profilePictureUrl String?
-  hourlyRate        Float?
+  hourlyRate        Float?   // Tarifa por hora base
   club              Club     @relation(fields: [clubId], references: [id])
   clubId            String
   isActive          Boolean  @default(true)
+  isAvailable       Boolean  @default(true)  // Disponibilidad general del instructor
+  defaultRatePerHour Float?  // Tarifa por defecto (alias de hourlyRate para compatibilidad)
+  rateTiers         String?  // JSON con tarifas especiales por horario: [{"days":["monday"],"startTime":"09:00","endTime":"12:00","rate":25},...]
   levelRanges       String?  // JSON con rangos de nivel personalizados: [{"minLevel":0,"maxLevel":1},...]
   unavailableHours  String?  // JSON con horarios de NO disponibilidad por día: {"monday":[{"start":"09:00","end":"12:00"}],...]
   createdAt         DateTime @default(now())

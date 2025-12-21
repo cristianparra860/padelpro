@@ -554,36 +554,10 @@ export default function ClubCalendar2({
                 </h2>
               </div>
               
-              {/* Usuario logueado + Botones */}
+              {/* Botones de Vista + Usuario logueado */}
               <div className="flex items-center gap-4">
-                {/* Perfil del usuario */}
-                {currentUser && (
-                  <button 
-                    onClick={() => router.push('/dashboard')}
-                    className="flex items-center gap-3 bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 hover:bg-white/30 transition-all duration-200 cursor-pointer group"
-                    title="Ver mis datos"
-                  >
-                    {currentUser.profilePictureUrl ? (
-                      <img 
-                        src={currentUser.profilePictureUrl} 
-                        alt={currentUser.name}
-                        className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-md group-hover:scale-110 transition-transform duration-200"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-white/30 flex items-center justify-center border-2 border-white shadow-md group-hover:scale-110 transition-transform duration-200">
-                        <UserCircle className="h-6 w-6 text-white" />
-                      </div>
-                    )}
-                    <div className="text-left">
-                      <div className="text-white text-sm font-bold group-hover:text-yellow-200 transition-colors">{currentUser.name}</div>
-                      <div className="text-white/80 text-xs">{currentUser.email}</div>
-                    </div>
-                  </button>
-                )}
-                
-                {/* Botones */}
+                {/* Botones de Vista Horizontal/Vertical */}
                 <div className="flex gap-2">
-                  {/* Botón Vista Horizontal/Vertical */}
                   <Button
                     variant="secondary"
                     size="sm"
@@ -615,35 +589,32 @@ export default function ClubCalendar2({
                       </>
                     )}
                   </Button>
-
-                  {/* Botón Recargar */}
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="bg-white/80 hover:bg-white text-gray-600 font-semibold border-0 shadow-md"
-                    onClick={() => loadCalendarData(false, true)}
-                    title="Recargar Calendario"
-                  >
-                    <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    Recargar
-                  </Button>
-
-                  {/* Botón Hoy */}
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="bg-white/80 hover:bg-white text-gray-600 font-semibold border-0 shadow-md"
-                    onClick={() => setCurrentDate(new Date())}
-                    title="Ir a Hoy"
-                  >
-                    <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    Hoy
-                  </Button>
                 </div>
+
+                {/* Perfil del usuario */}
+                {currentUser && (
+                  <button 
+                    onClick={() => router.push('/dashboard')}
+                    className="flex items-center gap-3 bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 hover:bg-white/30 transition-all duration-200 cursor-pointer group"
+                    title="Ver mis datos"
+                  >
+                    {currentUser.profilePictureUrl ? (
+                      <img 
+                        src={currentUser.profilePictureUrl} 
+                        alt={currentUser.name}
+                        className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-md group-hover:scale-110 transition-transform duration-200"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-white/30 flex items-center justify-center border-2 border-white shadow-md group-hover:scale-110 transition-transform duration-200">
+                        <UserCircle className="h-6 w-6 text-white" />
+                      </div>
+                    )}
+                    <div className="text-left">
+                      <div className="text-white text-sm font-bold group-hover:text-yellow-200 transition-colors">{currentUser.name}</div>
+                      <div className="text-white/80 text-xs">{currentUser.email}</div>
+                    </div>
+                  </button>
+                )}
               </div>
             </div>
           </CardContent>
@@ -750,24 +721,6 @@ export default function ClubCalendar2({
         />
       </div>
 
-      {/* Selector de cantidad de jugadores */}
-      <div className="flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-gray-200 rounded-lg shadow-md mb-4">
-        <span className="text-base font-extrabold text-purple-700 uppercase tracking-wider">PRECIO POR PLAZA</span>
-        {[1, 2, 3, 4].map((size) => (
-          <button
-            key={size}
-            onClick={() => setSelectedGroupSize(size as 1 | 2 | 3 | 4)}
-            className={`px-4 py-2 rounded-lg font-bold transition-all ${
-              selectedGroupSize === size
-                ? 'bg-blue-600 text-white shadow-lg scale-105'
-                : 'bg-white text-gray-600 hover:bg-gray-100 border-2 border-gray-300'
-            }`}
-          >
-            {size} {size === 1 ? 'Jugador' : 'Jugadores'}
-          </button>
-        ))}
-      </div>
-
       {/* Vista del calendario basada en pistas - DISEÑO MEJORADO */}
       <Card className="shadow-xl border-gray-200">
         <CardContent className="p-0">
@@ -818,17 +771,37 @@ export default function ClubCalendar2({
             // VISTA HORIZONTAL (ORIGINAL): Instructores en filas, Horas en columnas
             layoutOrientation === 'horizontal' ? (
             <div className="flex flex-col overflow-x-auto md:overflow-x-visible md:rounded-lg md:border md:border-gray-200 -mx-4 md:mx-0">
-              {/* Columna de horas (izquierda) */}
+              {/* Franja superior con selector de precio */}
+              <div className="bg-gradient-to-r from-blue-600 to-purple-600 border-b-2 border-gray-300 py-2 px-4 flex items-center justify-center gap-3">
+                <span className="text-sm font-bold text-white uppercase tracking-wide">Precio Plazas:</span>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4].map((size) => (
+                    <button
+                      key={size}
+                      onClick={() => setSelectedGroupSize(size as 1 | 2 | 3 | 4)}
+                      className={`w-10 h-10 rounded-lg text-sm font-bold transition-all ${
+                        selectedGroupSize === size
+                          ? 'bg-white text-blue-600 shadow-lg scale-110'
+                          : 'bg-white/20 text-white hover:bg-white/30'
+                      }`}
+                      title={`${size} ${size === 1 ? 'Jugador' : 'Jugadores'}`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Header con instructores y horas */}
               <div className="flex border-b-2 border-gray-300 bg-gradient-to-r from-gray-100 to-gray-50 shadow-sm">
-                <div className="w-24 border-r-2 border-gray-300 bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center p-2 flex-shrink-0 sticky left-0 z-20 shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
-                  <span className="text-xs font-bold text-white">⏰ Horarios</span>
+                <div className="w-32 border-r-2 border-gray-300 bg-white flex items-center justify-center p-2 flex-shrink-0 sticky left-0 z-20 shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
+                  <span className="text-xs font-bold text-gray-600 uppercase">Instructor</span>
                 </div>
                 {/* Headers de slots de tiempo */}
                 <div className="flex min-w-max">
                   {timeSlots.map(time => {
                     const [hour, minute] = time.split(':');
                     return (
-                      <div key={time} className="w-8 md:w-11 border-r text-center py-1 flex-shrink-0 hover:bg-blue-50 transition-colors">
+                      <div key={time} className="w-12 md:w-14 border-r text-center py-1 flex-shrink-0 hover:bg-blue-50 transition-colors">
                         <div className="text-[14px] font-black text-gray-800 leading-none">{hour}</div>
                         <div className="text-[12px] font-bold text-gray-500 leading-none">{minute}</div>
                       </div>
@@ -840,7 +813,7 @@ export default function ClubCalendar2({
               {/* FILAS: Clases Propuestas por Instructor - DISEÑO MEJORADO */}
               {calendarData?.instructors.map(instructor => (
                 <div key={instructor.id} className="flex border-b bg-white hover:bg-blue-50 transition-colors relative">
-                  <div className="w-32 border-r border-blue-400 border-2 flex items-center px-2 py-2 flex-shrink-0 sticky left-0 bg-white z-20 shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
+                  <div className="w-32 border-r border-gray-200 flex items-center px-2 py-2 flex-shrink-0 sticky left-0 bg-white z-20 shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
                     <div className="flex items-center gap-2">
                       {instructor.photo ? (
                         <img 
@@ -937,7 +910,7 @@ export default function ClubCalendar2({
                         return (
                           <div
                             key={slotIndex}
-                            className="w-8 md:w-11 h-14 border-r relative flex-shrink-0 bg-gray-100 text-gray-400 flex flex-col items-center justify-center cursor-not-allowed select-none"
+                            className="w-12 md:w-14 h-24 border-r relative flex-shrink-0 bg-gray-100 text-gray-400 flex flex-col items-center justify-center cursor-not-allowed select-none"
                             title="Bloqueado por clase siguiente (buffer 30min)"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -955,59 +928,122 @@ export default function ClubCalendar2({
                         const [hourStr, minuteStr] = time.split(':');
                         return isSameInstructor && isSameDay && clsStart.getHours() === parseInt(hourStr) && clsStart.getMinutes() === parseInt(minuteStr);
                       });
-                      if (confirmedClassHorizontal) {
-                        // Calcula el ancho sumando dos celdas (w-8 o w-11)
-                        const cellWidth = typeof window !== 'undefined' && window.innerWidth >= 768 ? 44 : 32; // md:w-11=44px, w-8=32px
-                        const totalWidth = cellWidth * 2 - 4; // -4px por border
+                      // Detectar si este slot es el SEGUNDO de una clase confirmada (slot +30min)
+                      const isSecondSlotOfConfirmed = (calendarData?.confirmedClasses || []).some(cls => {
+                        const clsStart = new Date(cls.start);
+                        const clsSecondSlot = new Date(clsStart.getTime() + 30 * 60 * 1000); // +30 minutos
+                        const isSameInstructor = cls.instructorId === instructor.id;
+                        const isSameDay = clsSecondSlot.toDateString() === currentDate.toDateString();
+                        const [hourStr, minuteStr] = time.split(':');
+                        return isSameInstructor && isSameDay && clsSecondSlot.getHours() === parseInt(hourStr) && clsSecondSlot.getMinutes() === parseInt(minuteStr);
+                      });
+                      
+                      if (isSecondSlotOfConfirmed) {
+                        // Este slot es el segundo de una clase confirmada, renderizar div vacío (el bloque verde lo cubre)
                         return (
-                          <>
-                            <div key={slotIndex} className="w-8 md:w-11 h-14 border-r relative flex-shrink-0" style={{ zIndex: 1 }}></div>
-                            <div
-                              className="absolute top-0"
-                              style={{
-                                left: cellWidth * slotIndex,
-                                width: totalWidth,
-                                height: 56, // h-14 = 56px
-                                zIndex: 10,
-                                display: 'flex',
-                              }}
-                            >
+                          <div key={slotIndex} className="w-12 md:w-14 h-24 border-r relative flex-shrink-0" style={{ zIndex: 1 }}></div>
+                        );
+                      }
+                      
+                      if (confirmedClassHorizontal) {
+                        // Bloque verde ocupa exactamente 2 celdas (60 minutos)
+                        return (
+                          <div key={slotIndex} className="w-12 md:w-14 h-24 border-r relative flex-shrink-0" style={{ zIndex: 10 }}>
+                            <div className="absolute inset-0 w-[calc(200%-1px)] h-full z-10">
                               <div
-                                className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-md shadow-lg cursor-pointer hover:shadow-xl hover:scale-[1.02] transition-all flex flex-col items-center justify-center px-1 py-0.5 border-2 border-green-400 h-full w-full"
+                                className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-md shadow-lg cursor-pointer hover:shadow-2xl hover:scale-[1.35] transition-all duration-300 flex flex-col items-center justify-center px-1 py-0.5 border-2 border-green-400 h-full w-full hover:z-50"
                                 onClick={() => handleEventClick(confirmedClassHorizontal)}
                                 title={`✅ CONFIRMADA - Pista ${confirmedClassHorizontal.courtNumber} - ${confirmedClassHorizontal.playersCount}/${confirmedClassHorizontal.maxPlayers}`}
                               >
-                                <div className="flex items-center justify-between w-full">
-                                  <div className="flex-shrink-0">
+                                {/* Contenedor superior: Instructor centrado CON BORDE */}
+                                <div className="flex flex-col items-center w-full mb-1 border border-white/40 rounded p-1.5">
+                                  {/* Foto instructor */}
+                                  <div className="mb-1">
                                     {confirmedClassHorizontal.instructorPhoto ? (
                                       <img 
                                         src={confirmedClassHorizontal.instructorPhoto} 
                                         alt={confirmedClassHorizontal.instructorName}
-                                        className="w-6 h-6 rounded-full object-cover border border-white shadow-sm"
+                                        className="w-7 h-7 rounded-full object-cover border border-white shadow-md"
                                       />
                                     ) : (
-                                      <div className="w-6 h-6 rounded-full bg-white/30 flex items-center justify-center text-[8px] font-bold border border-white shadow-sm">
+                                      <div className="w-7 h-7 rounded-full bg-white/30 flex items-center justify-center text-[9px] font-bold border border-white shadow-md">
                                         {confirmedClassHorizontal.instructorName?.charAt(0) || '?'}
                                       </div>
                                     )}
                                   </div>
-                                  <div className="text-sm font-black leading-none">
-                                    {confirmedClassHorizontal.playersCount}/{confirmedClassHorizontal.maxPlayers}
+                                  
+                                  {/* Nombre */}
+                                  <div className="text-[8px] font-bold text-center leading-tight mb-0.5 truncate w-full px-0.5">
+                                    {confirmedClassHorizontal.instructorName}
+                                  </div>
+                                  
+                                  {/* Estrellas */}
+                                  <div className="flex items-center gap-0.5">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                      <svg
+                                        key={star}
+                                        className="w-1.5 h-1.5 fill-yellow-300"
+                                        viewBox="0 0 20 20"
+                                      >
+                                        <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+                                      </svg>
+                                    ))}
                                   </div>
                                 </div>
-                                <div className="text-[9px] font-bold truncate w-full text-center">
-                                  {confirmedClassHorizontal.instructorName?.split(' ')[0]}
+                                
+                                {/* Contenedor de usuarios y nivel CON BORDE */}
+                                <div className="border border-white/40 rounded p-1 w-full flex flex-col items-center">
+                                  {/* Avatares usuarios */}
+                                  {confirmedClassHorizontal.bookings && confirmedClassHorizontal.bookings.length > 0 && (
+                                    <div className="flex items-center justify-center gap-1 mb-1">
+                                      {confirmedClassHorizontal.bookings.filter((b: any) => b.status === 'CONFIRMED' || b.status === 'CANCELLED').slice(0, 4).map((booking: any) => {
+                                        const isCancelled = booking.status === 'CANCELLED';
+                                        return (
+                                          <div key={booking.id}>
+                                            {isCancelled ? (
+                                              <div 
+                                                className="w-6 h-6 rounded-full bg-yellow-400 flex items-center justify-center shadow-md border-2 border-yellow-500"
+                                                title={`Plaza Cancelada - ${booking.user?.name || 'Usuario'} (Reservable con puntos)`}
+                                              >
+                                                <span className="text-yellow-900 text-xs">♻️</span>
+                                              </div>
+                                            ) : booking.user?.profilePictureUrl ? (
+                                              <img
+                                                src={booking.user.profilePictureUrl}
+                                                alt={booking.user.name}
+                                                className="w-6 h-6 rounded-full object-cover shadow-md border border-white"
+                                                title={booking.user.name}
+                                              />
+                                            ) : (
+                                              <div 
+                                                className="w-6 h-6 rounded-full bg-white/40 flex items-center justify-center text-[8px] font-bold shadow-md border border-white"
+                                                title={booking.user?.name || 'Usuario'}
+                                              >
+                                                {booking.user?.name?.charAt(0) || '?'}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                  
+                                  {/* Nivel y Formato */}
+                                  <div className="text-[9px] font-bold text-white">
+                                    {(confirmedClassHorizontal as any).levelRange || confirmedClassHorizontal.category || confirmedClassHorizontal.level || 'Abierto'} • {confirmedClassHorizontal.bookings?.filter((b: any) => b.status === 'CONFIRMED' || b.status === 'CANCELLED').length || 0}p
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </>
+                          </div>
                         );
                       }
+                      
                       // (El slot posterior ya no se bloquea visualmente)
                       // 3. Si hay propuesta, mostrar bloque blanco
                       if (sortedClasses.length > 0) {
                         return (
-                          <div key={slotIndex} className={`w-8 md:w-11 h-14 border-r relative flex-shrink-0 ${!canStartClassHere ? 'bg-red-50/30' : ''}`} title={!canStartClassHere ? '⚠️ No hay 60min disponibles' : ''}>
+                          <div key={slotIndex} className={`w-12 md:w-14 h-24 border-r relative flex-shrink-0 ${!canStartClassHere ? 'bg-red-50/30' : ''}`} title={!canStartClassHere ? '⚠️ No hay 60min disponibles' : ''}>
                             <div className="absolute inset-0 p-0.5 overflow-hidden">
                               {sortedClasses.slice(0, 1).map(cls => {
                                 const hasPlayers = (cls.playersCount || 0) > 0;
@@ -1028,9 +1064,20 @@ export default function ClubCalendar2({
                                         {cls.playersCount}
                                       </div>
                                     ) : pricePerSlot ? (
-                                      <div className="text-xs font-bold leading-none">
-                                        {pricePerSlot.toFixed(0)}€
-                                      </div>
+                                      <>
+                                        <div className="text-xs font-bold leading-none mb-1">
+                                          {pricePerSlot.toFixed(0)}€
+                                        </div>
+                                        <div className={selectedGroupSize > 2 ? "grid grid-cols-2 gap-0.5" : "flex items-center gap-0.5"}>
+                                          {Array.from({ length: selectedGroupSize }).map((_, idx) => (
+                                            <div key={idx} className="w-2.5 h-2.5 rounded-full bg-white border border-gray-400 flex items-center justify-center">
+                                              <svg className="w-1.5 h-1.5 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                                              </svg>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </>
                                     ) : (
                                       <div className="text-xs font-black leading-none">
                                         {cls.playersCount || 0}
@@ -1050,7 +1097,7 @@ export default function ClubCalendar2({
                       }
                       // 4. Celda vacía
                       return (
-                        <div key={slotIndex} className="w-8 md:w-11 h-14 border-r relative flex-shrink-0"></div>
+                        <div key={slotIndex} className="w-12 md:w-14 h-24 border-r relative flex-shrink-0"></div>
                       );
                     })}
                   </div>
@@ -1060,10 +1107,30 @@ export default function ClubCalendar2({
             ) : (
             // VISTA VERTICAL: Horas en filas, Instructores en columnas
             <div className="flex flex-col h-[calc(100vh-280px)] overflow-hidden md:rounded-lg md:border md:border-gray-200">
+              {/* Franja superior con selector de precio */}
+              <div className="bg-gradient-to-r from-blue-600 to-purple-600 border-b-2 border-gray-300 py-2 px-4 flex items-center justify-center gap-3">
+                <span className="text-sm font-bold text-white uppercase tracking-wide">Precio Plazas:</span>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4].map((size) => (
+                    <button
+                      key={size}
+                      onClick={() => setSelectedGroupSize(size as 1 | 2 | 3 | 4)}
+                      className={`w-10 h-10 rounded-lg text-sm font-bold transition-all ${
+                        selectedGroupSize === size
+                          ? 'bg-white text-blue-600 shadow-lg scale-110'
+                          : 'bg-white/20 text-white hover:bg-white/30'
+                      }`}
+                      title={`${size} ${size === 1 ? 'Jugador' : 'Jugadores'}`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
               {/* Header fijo con instructores */}
               <div className="flex border-b-2 border-gray-300 bg-gradient-to-r from-gray-100 to-gray-50 shadow-sm sticky top-0 z-30">
-                <div className="w-20 border-r-2 border-gray-300 bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center p-2 flex-shrink-0">
-                  <span className="text-xs font-bold text-white">⏰</span>
+                <div className="w-20 border-r-2 border-gray-300 bg-white flex items-center justify-center p-2 flex-shrink-0">
+                  <span className="text-xs font-bold text-gray-600 uppercase">Hora</span>
                 </div>
                 {/* Headers de instructores */}
                 <div className="flex flex-1 overflow-x-auto">
@@ -1199,7 +1266,7 @@ export default function ClubCalendar2({
                                     return (
                                       <div
                                         key={cls.id}
-                                        className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded shadow-lg cursor-pointer hover:shadow-xl hover:scale-[1.02] transition-all flex flex-col items-center justify-center p-2 border-2 border-green-400"
+                                        className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded shadow-lg cursor-pointer hover:shadow-2xl hover:scale-[1.25] transition-all duration-300 flex flex-col items-center justify-center p-1 border-2 border-green-400 hover:z-50"
                                         style={{
                                           position: 'absolute',
                                           top: '4px',
@@ -1210,39 +1277,83 @@ export default function ClubCalendar2({
                                         onClick={() => handleEventClick(cls)}
                                         title={`✅ CONFIRMADA - Pista ${cls.courtNumber} - ${cls.playersCount}/${cls.maxPlayers} alumnos`}
                                       >
-                                        {/* Foto del instructor */}
-                                        <div className="mb-1">
-                                          {cls.instructorPhoto ? (
-                                            <img 
-                                              src={cls.instructorPhoto} 
-                                              alt={cls.instructorName}
-                                              className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-md"
-                                            />
-                                          ) : (
-                                            <div className="w-10 h-10 rounded-full bg-white/30 flex items-center justify-center text-sm font-bold border-2 border-white shadow-md">
-                                              {cls.instructorName?.charAt(0) || '?'}
+                                        {/* Contenedor superior: Instructor centrado CON BORDE */}
+                                        <div className="flex flex-col items-center w-full mb-1 border border-white/40 rounded p-1">
+                                          {/* Foto del instructor */}
+                                          <div className="mb-0.5">
+                                            {cls.instructorPhoto ? (
+                                              <img 
+                                                src={cls.instructorPhoto} 
+                                                alt={cls.instructorName}
+                                                className="w-8 h-8 rounded-full object-cover border border-white shadow-md"
+                                              />
+                                            ) : (
+                                              <div className="w-8 h-8 rounded-full bg-white/30 flex items-center justify-center text-xs font-bold border border-white shadow-md">
+                                                {cls.instructorName?.charAt(0) || '?'}
+                                              </div>
+                                            )}
+                                          </div>
+                                          
+                                          {/* Nombre */}
+                                          <div className="text-[8px] font-bold text-center leading-tight mb-0.5 truncate w-full px-0.5">
+                                            {cls.instructorName}
+                                          </div>
+                                          
+                                          {/* Estrellas centradas */}
+                                          <div className="flex items-center gap-0.5">
+                                            {[1, 2, 3, 4, 5].map((star) => (
+                                              <svg
+                                                key={star}
+                                                className="w-1.5 h-1.5 fill-yellow-300"
+                                                viewBox="0 0 20 20"
+                                              >
+                                                <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+                                              </svg>
+                                            ))}
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Contenedor de usuarios y nivel CON BORDE */}
+                                        <div className="border border-white/40 rounded p-1 w-full flex flex-col items-center">
+                                          {/* Avatares de usuarios inscritos */}
+                                          {cls.bookings && cls.bookings.length > 0 && (
+                                            <div className="flex items-center justify-center gap-0.5 mb-0.5">
+                                              {cls.bookings.filter((b: any) => b.status === 'CONFIRMED' || b.status === 'CANCELLED').slice(0, 4).map((booking: any) => {
+                                                const isCancelled = booking.status === 'CANCELLED';
+                                                return (
+                                                  <div key={booking.id}>
+                                                    {isCancelled ? (
+                                                      <div 
+                                                        className="w-7 h-7 rounded-full bg-yellow-400 flex items-center justify-center shadow-md border-2 border-yellow-500"
+                                                        title={`Plaza Cancelada - ${booking.user?.name || 'Usuario'} (Reservable con puntos)`}
+                                                      >
+                                                        <span className="text-yellow-900 text-sm">♻️</span>
+                                                      </div>
+                                                    ) : booking.user?.profilePictureUrl ? (
+                                                      <img
+                                                        src={booking.user.profilePictureUrl}
+                                                        alt={booking.user.name}
+                                                        className="w-7 h-7 rounded-full object-cover shadow-md border border-white"
+                                                        title={booking.user.name}
+                                                      />
+                                                    ) : (
+                                                      <div 
+                                                        className="w-7 h-7 rounded-full bg-white/40 flex items-center justify-center text-[8px] font-bold shadow-md border border-white"
+                                                        title={booking.user?.name || 'Usuario'}
+                                                      >
+                                                        {booking.user?.name?.charAt(0) || '?'}
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                );
+                                              })}
                                             </div>
                                           )}
-                                        </div>
-                                        
-                                        {/* Fila superior: Nivel + Pista */}
-                                        <div className="flex items-center gap-1 mb-1">
-                                          <div className="text-xs font-bold bg-white/30 px-1.5 py-0.5 rounded">
-                                            {cls.category || cls.level}
+                                          
+                                          {/* Nivel y Formato */}
+                                          <div className="text-[9px] font-bold text-white">
+                                            {(cls as any).levelRange || cls.category || cls.level || 'Abierto'} • {cls.bookings?.filter((b: any) => b.status === 'CONFIRMED' || b.status === 'CANCELLED').length || 0}p
                                           </div>
-                                          <div className="text-xs font-bold bg-white/30 px-1.5 py-0.5 rounded">
-                                            P{cls.courtNumber}
-                                          </div>
-                                        </div>
-                                        
-                                        {/* Número de inscritos */}
-                                        <div className="text-2xl font-black leading-none mb-1">
-                                          {cls.playersCount}/{cls.maxPlayers}
-                                        </div>
-                                        
-                                        {/* Nombre del instructor */}
-                                        <div className="text-xs font-semibold">
-                                          {cls.instructorName?.split(' ')[0]}
                                         </div>
                                       </div>
                                     );
@@ -1273,9 +1384,20 @@ export default function ClubCalendar2({
                                             {cls.playersCount}
                                           </div>
                                         ) : pricePerSlot ? (
-                                          <div className="text-sm font-bold leading-none">
-                                            {pricePerSlot.toFixed(0)}€
-                                          </div>
+                                          <>
+                                            <div className="text-sm font-bold leading-none mb-1">
+                                              {pricePerSlot.toFixed(0)}€
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                              {Array.from({ length: selectedGroupSize }).map((_, idx) => (
+                                                <div key={idx} className="w-4 h-4 rounded-full bg-white border border-gray-400 flex items-center justify-center">
+                                                  <svg className="w-2.5 h-2.5 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                                                  </svg>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </>
                                         ) : (
                                           <div className="text-sm font-black leading-none">
                                             {cls.playersCount || 0}

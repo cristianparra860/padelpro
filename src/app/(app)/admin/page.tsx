@@ -7,16 +7,57 @@ import UnifiedAdminPanel from '@/app/(app)/admin/components/UnifiedAdminPanel';
 import { getMockClubs } from '@/lib/mockData';
 import type { Club } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Building } from 'lucide-react';
+import { Building, ShieldAlert } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 export default function AdminPage() {
     const [adminClub, setAdminClub] = useState<Club | null>(null);
     const [loading, setLoading] = useState(true);
+    const [hasAccess, setHasAccess] = useState<boolean | null>(null);
     const router = useRouter();
     const { toast } = useToast();
 
     useEffect(() => {
+        // Verificar permisos de acceso
+        const checkAccess = async () => {
+            try {
+                const response = await fetch('/api/auth/me');
+                if (!response.ok) {
+                    setHasAccess(false);
+                    setLoading(false);
+                    return;
+                }
+                
+                const data = await response.json();
+                const userRole = data.user?.role;
+                
+                // Solo CLUB_ADMIN y SUPER_ADMIN pueden acceder
+                if (userRole === 'CLUB_ADMIN' || userRole === 'SUPER_ADMIN') {
+                    setHasAccess(true);
+                } else {
+                    setHasAccess(false);
+                    toast({
+                        title: "Acceso denegado",
+                        description: "No tienes permisos para acceder al panel de administración",
+                        variant: "destructive"
+                    });
+                }
+            } catch (error) {
+                console.error('Error verificando permisos:', error);
+                setHasAccess(false);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        checkAccess();
+    }, [toast]);
+
+    useEffect(() => {
+        if (hasAccess !== true) return;
+        
         // Forzar inicialización de datos mock
         try {
             const { performInitialization } = require('@/lib/mockDataSources/init');
@@ -58,22 +99,47 @@ export default function AdminPage() {
 
         if (selectedClub) {
             setAdminClub(selectedClub);
-            toast({ 
-                title: "Acceso Concedido", 
-                description: `Accediendo al panel de ${selectedClub.name}` 
-            });
         } else {
-            toast({ 
-                title: "Error", 
-                description: "No se encontraron clubs disponibles.", 
-                variant: "destructive" 
+            console.error('❌ No hay clubs disponibles');
+            toast({
+                title: "Error",
+                description: "No se encontraron clubs para administrar",
+                variant: "destructive"
             });
         }
-        
-        setLoading(false);
-    }, [router, toast]);
+    }, [hasAccess, toast]);
 
-    if (loading) {
+    // Mostrar mensaje de acceso denegado
+    if (hasAccess === false) {
+        return (
+            <div className="container mx-auto p-8 flex items-center justify-center min-h-screen">
+                <Card className="max-w-md w-full">
+                    <CardHeader className="text-center">
+                        <div className="mx-auto mb-4 w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center">
+                            <ShieldAlert className="w-8 h-8 text-destructive" />
+                        </div>
+                        <CardTitle className="text-2xl">Acceso Denegado</CardTitle>
+                        <CardDescription>
+                            No tienes permisos para acceder al panel de administración del club.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-sm text-muted-foreground mb-4">
+                            Solo los usuarios con rol de <strong>Administrador del Club</strong> pueden acceder a esta sección.
+                        </p>
+                        <Button 
+                            onClick={() => router.push('/dashboard')} 
+                            className="w-full"
+                        >
+                            Volver al inicio
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
+    if (loading || hasAccess === null) {
         return (
             <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 pl-16 md:pl-20 lg:pl-24">
                  <header>

@@ -7,10 +7,10 @@ import { prisma } from '@/lib/prisma';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { clubId: string } }
+  { params }: { params: Promise<{ clubId: string }> }
 ) {
   try {
-    const { clubId } = params;
+    const { clubId } = await params;
 
     const priceSlots = await prisma.courtPriceSlot.findMany({
       where: { clubId },
@@ -33,10 +33,10 @@ export async function GET(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { clubId: string } }
+  { params }: { params: Promise<{ clubId: string }> }
 ) {
   try {
-    const { clubId } = params;
+    const { clubId } = await params;
     const body = await request.json();
     const { name, startTime, endTime, price, daysOfWeek, priority } = body;
 
