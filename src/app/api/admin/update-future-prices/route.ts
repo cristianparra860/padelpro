@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     }
 
     // Obtener todas las clases futuras sin confirmar del club
-    // Solo actualizar clases SIN usuarios inscritos (sin bookings CONFIRMED)
+    // Solo actualizar clases SIN usuarios inscritos (sin bookings PENDING o CONFIRMED)
     const now = Date.now();
     const futureSlots = await prisma.$queryRawUnsafe<any[]>(`
       SELECT 
@@ -80,8 +80,8 @@ export async function POST(request: Request) {
           SELECT COUNT(*) 
           FROM Booking b 
           WHERE b.timeSlotId = ts.id 
-            AND b.status = 'CONFIRMED'
-        ) as confirmedBookingsCount
+            AND b.status IN ('PENDING', 'CONFIRMED')
+        ) as activeBookingsCount
       FROM TimeSlot ts
       LEFT JOIN Instructor i ON ts.instructorId = i.id
       WHERE ts.clubId = ?
@@ -92,12 +92,12 @@ export async function POST(request: Request) {
 
     console.log(`📊 Encontradas ${futureSlots.length} clases futuras sin confirmar`);
 
-    // Filtrar solo clases sin bookings confirmados (sin usuarios inscritos)
+    // Filtrar solo clases sin bookings activos (sin usuarios inscritos o pendientes)
     const slotsWithoutBookings = futureSlots.filter(slot => 
-      Number(slot.confirmedBookingsCount) === 0
+      Number(slot.activeBookingsCount) === 0
     );
     
-    console.log(`✅ De las cuales ${slotsWithoutBookings.length} NO tienen usuarios inscritos`);
+    console.log(`✅ De las cuales ${slotsWithoutBookings.length} NO tienen usuarios inscritos ni pendientes`);
 
     if (slotsWithoutBookings.length === 0) {
       return NextResponse.json({

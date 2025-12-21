@@ -1,53 +1,90 @@
+// Verificar bookings y blocked credits de Marc
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function checkMarcBookings() {
-  const userId = 'user-1763677035576-wv1t7iun0';
-  
-  console.log('🔍 Buscando bookings de Marc Parra (jugador1@padelpro.com)...\n');
-  
-  const bookings = await prisma.booking.findMany({
-    where: {
-      userId: userId
-    },
-    include: {
-      timeSlot: true
-    },
-    orderBy: {
-      createdAt: 'desc'
+  try {
+    console.log('📊 Verificando bookings de Marc Parra...\n');
+    
+    const marc = await prisma.user.findFirst({
+      where: { email: 'jugador1@padelpro.com' }
+    });
+    
+    if (!marc) {
+      console.log('❌ Marc no encontrado');
+      return;
     }
-  });
-  
-  console.log(`📋 Total bookings: ${bookings.length}\n`);
-  
-  if (bookings.length === 0) {
-    console.log('❌ NO HAY BOOKINGS para este usuario');
-    console.log('\nEsto confirma que cuando intentas reservar, NO se está creando el booking.');
-    console.log('El problema está en el endpoint de reserva.\n');
-  } else {
-    bookings.forEach(b => {
-      const date = new Date(b.timeSlot.start);
-      console.log(`${date.toLocaleDateString()} ${date.toLocaleTimeString()} - Status: ${b.status}`);
-      console.log(`   Booking ID: ${b.id.substring(0, 25)}...`);
-      console.log(`   TimeSlot ID: ${b.timeSlotId.substring(0, 25)}...`);
-      console.log(`   GroupSize: ${b.groupSize}, Pista: ${b.timeSlot.courtNumber || 'Pendiente'}`);
+    
+    console.log(`👤 Usuario: ${marc.name} (${marc.email})`);
+    console.log(`   💳 Credits: ${marc.credits} céntimos (€${(marc.credits/100).toFixed(2)})`);
+    console.log(`   🔒 Blocked: ${marc.blockedCredits} céntimos (€${(marc.blockedCredits/100).toFixed(2)})\n`);
+    
+    // Obtener bookings PENDING sin courtId
+    const pendingBookings = await prisma.booking.findMany({
+      where: {
+        userId: marc.id,
+        status: 'PENDING',
+        timeSlot: {
+          courtId: null
+        }
+      },
+      include: {
+        timeSlot: {
+          select: {
+            start: true,
+            totalPrice: true,
+            courtId: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    console.log(`📚 Bookings PENDING sin pista asignada: ${pendingBookings.length}\n`);
+    
+    if (pendingBookings.length === 0) {
+      console.log('✅ No hay bookings pendientes sin pista');
+      return;
+    }
+    
+    // Mostrar detalles
+    pendingBookings.forEach((booking, idx) => {
+      const date = new Date(booking.timeSlot.start).toLocaleString('es-ES');
+      console.log(`[${idx + 1}] Booking ID: ${booking.id}`);
+      console.log(`    Fecha: ${date}`);
+      console.log(`    Group size: ${booking.groupSize}`);
+      console.log(`    TimeSlot totalPrice: ${booking.timeSlot.totalPrice} céntimos (€${(booking.timeSlot.totalPrice/100).toFixed(2)})`);
+      console.log(`    Amount blocked: ${booking.amountBlocked} céntimos (€${(booking.amountBlocked/100).toFixed(2)})`);
+      console.log(`    Court ID: ${booking.timeSlot.courtId || 'NULL (sin asignar)'}`);
       console.log('');
     });
+    
+    // Calcular el máximo
+    const maxBlocked = Math.max(...pendingBookings.map(b => b.amountBlocked));
+    console.log(`\n📌 MÁXIMO amountBlocked: ${maxBlocked} céntimos (€${(maxBlocked/100).toFixed(2)})`);
+    console.log(`🔒 User blockedCredits actual: ${marc.blockedCredits} céntimos (€${(marc.blockedCredits/100).toFixed(2)})`);
+    
+    if (marc.blockedCredits !== maxBlocked) {
+      console.log(`\n⚠️ DISCREPANCIA DETECTADA!`);
+      console.log(`   Debería ser: ${maxBlocked} céntimos (€${(maxBlocked/100).toFixed(2)})`);
+      console.log(`   Pero es: ${marc.blockedCredits} céntimos (€${(marc.blockedCredits/100).toFixed(2)})`);
+      console.log(`\n🔧 Ejecutando updateUserBlockedCredits...`);
+      
+      await prisma.user.update({
+        where: { id: marc.id },
+        data: { blockedCredits: maxBlocked }
+      });
+      
+      console.log(`✅ blockedCredits actualizado a ${maxBlocked} céntimos (€${(maxBlocked/100).toFixed(2)})`);
+    } else {
+      console.log(`\n✅ blockedCredits es correcto!`);
+    }
+    
+  } catch (error) {
+    console.error('❌ Error:', error);
+  } finally {
+    await prisma.$disconnect();
   }
-  
-  // Verificar datos del usuario
-  const user = await prisma.user.findUnique({
-    where: { id: userId }
-  });
-  
-  console.log('\n👤 Datos del usuario:');
-  console.log(`   Nombre: ${user.name}`);
-  console.log(`   Email: ${user.email}`);
-  console.log(`   Credits: ${user.credits}`);
-  console.log(`   Level: ${user.level}`);
-  console.log(`   Gender: ${user.genderCategory}`);
-  
-  await prisma.$disconnect();
 }
 
 checkMarcBookings();
