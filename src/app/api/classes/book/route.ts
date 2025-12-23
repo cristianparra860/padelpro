@@ -485,21 +485,37 @@ export async function POST(request: Request) {
       }
 
       // Verificar si la modalidad específica ya está completa
+      // ♻️ EXCLUIR PLAZAS CANCELADAS (recicladas) del conteo
       const modalityBookings = await prisma.$queryRaw`
         SELECT COUNT(*) as count FROM Booking 
         WHERE timeSlotId = ${timeSlotId} 
         AND groupSize = ${Number(groupSize) || 1}
         AND status IN ('PENDING', 'CONFIRMED')
       `;
+      
+      // ♻️ Contar plazas recicladas (CANCELLED con isRecycled=true) en esta modalidad
+      const recycledModalityBookings = await prisma.$queryRaw`
+        SELECT COUNT(*) as count FROM Booking 
+        WHERE timeSlotId = ${timeSlotId} 
+        AND groupSize = ${Number(groupSize) || 1}
+        AND status = 'CANCELLED'
+        AND isRecycled = 1
+      `;
 
       const currentModalityBookings = Number((modalityBookings as any[])[0].count);
+      const recycledSlots = Number((recycledModalityBookings as any[])[0].count);
       const requiredBookingsForModality = Number(groupSize) || 1;
+      
+      // ♻️ RESTAR plazas recicladas del total requerido (libera espacios)
+      const availableSlots = requiredBookingsForModality - (currentModalityBookings - recycledSlots);
 
-      console.log(`📊 Modalidad ${groupSize}: ${currentModalityBookings}/${requiredBookingsForModality} reservas`);
+      console.log(`📊 Modalidad ${groupSize}: ${currentModalityBookings} activas, ${recycledSlots} recicladas = ${currentModalityBookings - recycledSlots} ocupadas / ${requiredBookingsForModality} total`);
+      console.log(`♻️ Espacios disponibles: ${availableSlots}`);
 
-      if (currentModalityBookings >= requiredBookingsForModality) {
+      // ♻️ Solo bloquear si NO hay espacios disponibles (considerando recicladas)
+      if (availableSlots <= 0 && recycledSlots === 0) {
         return NextResponse.json({ 
-          error: `La modalidad de ${groupSize} jugador${groupSize > 1 ? 'es' : ''} ya está completa (${currentModalityBookings}/${requiredBookingsForModality})` 
+          error: `La modalidad de ${groupSize} jugador${groupSize > 1 ? 'es' : ''} ya está completa (${currentModalityBookings - recycledSlots}/${requiredBookingsForModality})` 
         }, { status: 400 });
       }
 
@@ -514,12 +530,15 @@ export async function POST(request: Request) {
 
       const totalPrice = Number((priceInfo as any[])[0].totalPrice) || 55;
       const creditsSlots = (priceInfo as any[])[0].creditsSlots;
-      const creditsCost = Number((priceInfo as any[])[0].creditsCost) || 50;
+      // ♻️ IMPORTANTE: creditsCost del TimeSlot es para plazas normales con puntos
+      // Para plazas recicladas, calcular precio por persona
+      const creditsCostFromDB = Number((priceInfo as any[])[0].creditsCost) || 50;
       
       // 🎁 Verificar si este groupSize es una plaza con puntos
       // IMPORTANTE: creditsSlots ahora contiene índices absolutos (0-9), no groupSize (1-4)
       // Necesitamos calcular qué índice ocupará esta nueva reserva
       let isCreditsSlot = false;
+      let isRecycledSlot = false;
       
       // Calcular el rango de índices para esta modalidad
       const groupSizeNum = Number(groupSize) || 1;
@@ -541,6 +560,7 @@ export async function POST(request: Request) {
       if (hasRecycledSlots) {
         // ♻️ Si hay plazas recicladas, esta modalidad SOLO se puede reservar con puntos
         isCreditsSlot = true;
+        isRecycledSlot = true;
         console.log(`♻️ Modalidad ${groupSizeNum} tiene plazas recicladas - SOLO PUNTOS`);
       } else if (creditsSlots) {
         try {
@@ -572,19 +592,24 @@ export async function POST(request: Request) {
         }
       }
       
-      console.log(`🎁 Es plaza con puntos: ${isCreditsSlot}, Coste: ${creditsCost} puntos`);
+      // ♻️ Calcular coste correcto según tipo de plaza
+      const creditsCost = isRecycledSlot 
+        ? Math.ceil(totalPrice / groupSizeNum) // Plazas recicladas: precio por persona
+        : creditsCostFromDB; // Plazas normales con puntos: coste fijo del TimeSlot
+      
+      console.log(`🎁 Es plaza con puntos: ${isCreditsSlot}, Es reciclada: ${isRecycledSlot}, Coste: ${creditsCost} puntos`);
       
       // 🚫 VALIDACIÓN: Si es credits slot o plaza reciclada, DEBE pagar con puntos
       if (isCreditsSlot && !usePoints) {
         console.log('❌ Intento de reservar credits slot/plaza reciclada sin usar puntos');
         return NextResponse.json({ 
           error: `Esta plaza solo se puede reservar con puntos`,
-          details: hasRecycledSlots 
+          details: isRecycledSlot 
             ? `Esta plaza fue reciclada y solo se puede reservar con ${creditsCost} puntos.`
             : `Esta plaza requiere ${creditsCost} puntos. No se puede pagar con créditos.`,
           required: creditsCost,
           isCreditsSlot: true,
-          isRecycled: hasRecycledSlots
+          isRecycled: isRecycledSlot
         }, { status: 400 });
       }
       
@@ -686,20 +711,23 @@ export async function POST(request: Request) {
         }, { status: 400 });
       }
 
-      // Crear la reserva como PENDING con amountBlocked
+      // ♻️ PLAZAS RECICLADAS: COBRAR inmediatamente y crear como CONFIRMED
+      // PLAZAS NORMALES: Crear como PENDING con amountBlocked
       const bookingId = `booking-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const bookingStatus = isRecycledSlot ? 'CONFIRMED' : 'PENDING';
       
       // 💰 Calcular valores según método de pago
-      // 🎁 Si es credits slot con puntos, usar creditsCost; si es reciclada, usar pricePerSlot
-      const pointsToBlock = usePoints ? (isCreditsSlot ? creditsCost : Math.floor(pricePerSlot)) : 0;
+      // ♻️ Si es reciclada: COBRAR puntos (0 bloqueados), si es normal: BLOQUEAR
+      const pointsToCharge = (usePoints && isRecycledSlot) ? creditsCost : 0;
+      const pointsToBlock = (usePoints && !isRecycledSlot) ? creditsCost : 0;
       // 💰 IMPORTANTE: pricePerSlot está en EUROS, pero amountBlocked debe guardarse en CÉNTIMOS
       const creditsToBlock = usePoints ? 0 : Math.round(pricePerSlot * 100); // Convertir euros a céntimos
       
-      console.log(`💎 Creando booking: paidWithPoints=${usePoints ? 1 : 0}, pointsToBlock=${pointsToBlock}, creditsToBlock=${creditsToBlock} céntimos (€${(creditsToBlock/100).toFixed(2)}), isCreditsSlot=${isCreditsSlot}`);
+      console.log(`💎 Creando booking (${bookingStatus}): paidWithPoints=${usePoints ? 1 : 0}, isRecycled=${isRecycledSlot}, pointsToCharge=${pointsToCharge}, pointsToBlock=${pointsToBlock}, creditsToBlock=${creditsToBlock} céntimos`);
       
       await prisma.$executeRaw`
         INSERT INTO Booking (id, userId, timeSlotId, groupSize, status, amountBlocked, paidWithPoints, pointsUsed, isRecycled, createdAt, updatedAt)
-        VALUES (${bookingId}, ${userId}, ${timeSlotId}, ${Number(groupSize) || 1}, 'PENDING', ${creditsToBlock}, ${usePoints ? 1 : 0}, ${pointsToBlock}, 0, datetime('now'), datetime('now'))
+        VALUES (${bookingId}, ${userId}, ${timeSlotId}, ${Number(groupSize) || 1}, ${bookingStatus}, ${creditsToBlock}, ${usePoints ? 1 : 0}, ${pointsToCharge}, 0, datetime('now'), datetime('now'))
       `;
       
       // 💎 Sistema de puntos eliminado - ahora todo usa créditos bloqueados
@@ -707,15 +735,25 @@ export async function POST(request: Request) {
 
       console.log('✅ Booking created successfully:', bookingId);
 
-      // 🔒 ACTUALIZAR SALDO BLOQUEADO DEL USUARIO
+      // 🔒 ACTUALIZAR SALDO DEL USUARIO
       if (usePoints) {
-        // Bloquear puntos
-        await prisma.$executeRaw`
-          UPDATE User 
-          SET blockedPoints = blockedPoints + ${pointsToBlock}, updatedAt = datetime('now')
-          WHERE id = ${userId}
-        `;
-        console.log(`🔒 Usuario blockedPoints actualizado: +${pointsToBlock} pts`);
+        if (isRecycledSlot) {
+          // ♻️ Plaza reciclada: COBRAR puntos inmediatamente
+          await prisma.$executeRaw`
+            UPDATE User 
+            SET points = points - ${pointsToCharge}, updatedAt = datetime('now')
+            WHERE id = ${userId}
+          `;
+          console.log(`💰 Usuario puntos COBRADOS: -${pointsToCharge} pts (plaza reciclada)`);
+        } else {
+          // Plaza normal: BLOQUEAR puntos
+          await prisma.$executeRaw`
+            UPDATE User 
+            SET blockedPoints = blockedPoints + ${pointsToBlock}, updatedAt = datetime('now')
+            WHERE id = ${userId}
+          `;
+          console.log(`🔒 Usuario blockedPoints actualizado: +${pointsToBlock} pts`);
+        }
       } else {
         // Bloquear créditos
         const newBlockedAmount = await updateUserBlockedCredits(userId);
@@ -730,30 +768,49 @@ export async function POST(request: Request) {
       
       if (userBalance) {
         if (usePoints) {
-          // Transacción de BLOQUEO de PUNTOS
+          // Transacción de PUNTOS (bloqueo o cargo según tipo de plaza)
           const userPoints = await prisma.user.findUnique({
             where: { id: userId },
             select: { points: true, blockedPoints: true }
           });
           
           if (userPoints) {
-            await createTransaction({
-              userId,
-              type: 'points',
-              action: 'block',
-              amount: pointsToBlock,
-              balance: userPoints.points - (userPoints.blockedPoints || 0),
-              concept: `Reserva pendiente con puntos - Clase ${new Date(slotDetails[0].start).toLocaleString('es-ES')}`,
-              relatedId: bookingId,
-              relatedType: 'booking',
-              metadata: {
-                timeSlotId,
-                groupSize,
-                status: 'PENDING',
-                paidWithPoints: true,
-                pointsBlocked: pointsToBlock
-              }
-            });
+            if (isRecycledSlot) {
+              // ♻️ Plaza reciclada: CARGO inmediato
+              await createTransaction({
+                userId,
+                type: 'points',
+                action: 'charge',
+                amount: pointsToCharge,
+                balance: userPoints.points,
+                concept: `Reserva confirmada con puntos (plaza reciclada) - Clase ${new Date(slotDetails[0].start).toLocaleString('es-ES')}`,
+                relatedId: bookingId,
+                relatedType: 'booking',
+                metadata: {
+                  timeSlotId,
+                  isRecycledSlot: true
+                }
+              });
+            } else {
+              // Plaza normal: BLOQUEO
+              await createTransaction({
+                userId,
+                type: 'points',
+                action: 'block',
+                amount: pointsToBlock,
+                balance: userPoints.points - (userPoints.blockedPoints || 0),
+                concept: `Reserva pendiente con puntos - Clase ${new Date(slotDetails[0].start).toLocaleString('es-ES')}`,
+                relatedId: bookingId,
+                relatedType: 'booking',
+                metadata: {
+                  timeSlotId,
+                  groupSize,
+                  status: 'PENDING',
+                  paidWithPoints: true,
+                  pointsBlocked: pointsToBlock
+                }
+              });
+            }
           }
         } else {
           // Transacción de bloqueo de créditos (en céntimos)

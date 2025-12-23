@@ -157,9 +157,15 @@ export default function InstructorCreditsManager({ instructorId }: { instructorI
             Actualizar
           </Button>
         </div>
-        <p className="text-blue-100 text-sm">
+        <p className="text-blue-100 text-sm mb-2">
           Busca y activa plazas específicas para que tus alumnos reserven con puntos
         </p>
+        <div className="bg-blue-700/30 rounded-lg p-3 mb-3 border border-blue-400/30">
+          <p className="text-xs text-blue-50 flex items-start gap-2">
+            <span className="text-lg">🎯</span>
+            <span><strong>Regla importante:</strong> Solo puedes activar puntos en la <strong>última plaza</strong> que completa el grupo (cuando falte exactamente 1 reserva). Para grupos de 1 jugador siempre puedes activar.</span>
+          </p>
+        </div>
         <div className="mt-3 flex items-center gap-4 text-sm">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-green-400"></div>
@@ -323,18 +329,30 @@ export default function InstructorCreditsManager({ instructorId }: { instructorI
                       const filledSpots = bookings.length;
                       const freeSpots = modalitySize - filledSpots;
                       
+                      // 🎯 NUEVA VALIDACIÓN: Solo permitir activar si falta exactamente 1 plaza
+                      const canActivate = modalitySize === 1 || freeSpots === 1;
+                      const isDisabled = !canActivate && !isActive; // Deshabilitar si no se puede activar (excepto si ya está activo para poder desactivar)
+                      const disabledReason = !canActivate && freeSpots > 1 
+                        ? `Faltan ${freeSpots} plazas. Solo puedes activar puntos cuando falte 1 plaza.`
+                        : freeSpots === 0 
+                        ? 'Clase completa. No puedes activar puntos.'
+                        : '';
+                      
                       return (
                         <button
                           key={modalitySize}
-                          onClick={() => toggleCreditsSlot(slot.id, modalitySize, creditsSlots)}
-                          disabled={isUpdating}
+                          onClick={() => !isDisabled && toggleCreditsSlot(slot.id, modalitySize, creditsSlots)}
+                          disabled={isUpdating || isDisabled}
+                          title={isDisabled ? disabledReason : isActive ? 'Click para desactivar' : 'Click para activar puntos'}
                           className={`
                             relative p-2.5 rounded-lg border-2 transition-all
                             ${isActive
                               ? 'bg-gradient-to-br from-amber-400 via-yellow-400 to-amber-500 border-amber-500 text-white shadow-md'
+                              : isDisabled
+                              ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-50'
                               : 'bg-gray-50 border-gray-300 text-gray-700 hover:border-amber-400 hover:bg-amber-50'
                             }
-                            ${isUpdating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                            ${isUpdating ? 'opacity-50 cursor-not-allowed' : isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}
                           `}
                         >
                           {isActive && (
@@ -365,12 +383,20 @@ export default function InstructorCreditsManager({ instructorId }: { instructorI
                             ))}
                           </div>
                           
-                          <p className="text-[9px] opacity-90">
+                          <p className="text-[9px] opacity-90 font-medium">
                             {freeSpots > 0 
-                              ? `${freeSpots} ${freeSpots === 1 ? 'libre' : 'libres'}`
+                              ? freeSpots === 1 && !isActive
+                                ? '🎯 1 libre' // Última plaza - puede activar
+                                : `${freeSpots} ${freeSpots === 1 ? 'libre' : 'libres'}`
                               : 'Completa'
                             }
                           </p>
+                          
+                          {/* Indicador visual para última plaza */}
+                          {freeSpots === 1 && !isActive && modalitySize > 1 && (
+                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white animate-pulse" 
+                                 title="✅ Última plaza - Puedes activar puntos" />
+                          )}
                           
                           {isUpdating && (
                             <div className="absolute inset-0 flex items-center justify-center bg-black/10 rounded-lg">

@@ -73,17 +73,48 @@ export async function PATCH(
       );
     }
 
-    // ✅ CORREGIDO: Verificar que NO haya reservas con ese groupSize específico
+    // ✅ VALIDACIÓN: Solo se puede marcar como "con puntos" la ÚLTIMA plaza que completa la clase
     // slotIndex representa el groupSize (1, 2, 3 o 4 jugadores)
-    const isGroupSizeOccupied = timeSlot.bookings.some(
-      (booking: any) => booking.groupSize === slotIndex
-    );
-
-    if (isGroupSizeOccupied && action === 'add') {
+    
+    // Contar cuántas reservas activas hay para este groupSize
+    const activeBookingsForGroupSize = timeSlot.bookings.filter(
+      (booking: any) => booking.groupSize === slotIndex && booking.status !== 'CANCELLED'
+    ).length;
+    
+    // 🚫 Si ya hay reservas para este groupSize, no permitir marcar como "con puntos"
+    if (activeBookingsForGroupSize > 0 && action === 'add') {
       return NextResponse.json(
-        { error: `Ya existe una reserva para ${slotIndex} jugador(es). No puedes marcar esta modalidad como "con puntos" mientras esté ocupada.` },
+        { 
+          error: `Ya existe una reserva para ${slotIndex} jugador(es). No puedes marcar esta modalidad como "con puntos" mientras esté ocupada.` 
+        },
         { status: 400 }
       );
+    }
+    
+    // 🎯 VALIDACIÓN CRÍTICA: Solo permitir marcar la ÚLTIMA plaza que completa el grupo
+    // Ejemplo: Si es clase de 3 jugadores, solo se puede marcar cuando hay 2 reservas (falta 1)
+    if (action === 'add') {
+      // Para groupSize 1: Siempre se puede (es la única plaza)
+      // Para groupSize 2-4: Solo si falta exactamente 1 plaza para completar
+      if (slotIndex > 1) {
+        // Calcular cuántas plazas faltan para completar este grupo
+        const requiredBookings = slotIndex; // Si slotIndex=3, necesita 3 reservas
+        const missingSlots = requiredBookings - activeBookingsForGroupSize;
+        
+        if (missingSlots !== 1) {
+          return NextResponse.json(
+            { 
+              error: `Solo puedes marcar como "con puntos" la ÚLTIMA plaza que completa el grupo.\n\nActualmente hay ${activeBookingsForGroupSize}/${requiredBookings} reservas.\n\n${missingSlots > 1 ? `Faltan ${missingSlots} plazas, espera a que solo falte 1.` : 'El grupo ya está completo.'}`,
+              current: activeBookingsForGroupSize,
+              required: requiredBookings,
+              missing: missingSlots
+            },
+            { status: 400 }
+          );
+        }
+        
+        console.log(`✅ Validación OK: Falta exactamente 1 plaza de ${slotIndex} para completar grupo (${activeBookingsForGroupSize}/${requiredBookings})`);
+      }
     }
 
     // Parsear creditsSlots existente

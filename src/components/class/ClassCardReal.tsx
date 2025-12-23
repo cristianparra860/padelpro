@@ -580,21 +580,21 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
       }
     }
     
-    // ♻️ VERIFICAR SI HAY PLAZAS RECICLADAS EN ESTA OPCIÓN (solo si no es credits slot)
+    // ♻️ VERIFICAR SI HAY PLAZAS RECICLADAS EN ESTA CLASE (solo si no es credits slot)
     if (!isCreditsSlot) {
-      const hasRecycledInOption = bookings.some(b => 
-        b.groupSize === groupSize && 
+      // Verificar si HAY CUALQUIER plaza reciclada en la clase, sin importar groupSize
+      const hasRecycledSlots = bookings.some(b => 
         b.status === 'CANCELLED' && 
         b.isRecycled === true
       );
       
-      if (hasRecycledInOption) {
+      if (hasRecycledSlots) {
         // ♻️ Hay plazas recicladas - OBLIGATORIO usar puntos
         const userPoints = (currentUser as any).points || 0;
         const pricePerSlot = ((currentSlotData.totalPrice || 25) / groupSize);
         const pointsRequired = Math.floor(pricePerSlot);
         
-        console.log(`♻️ Plaza reciclada detectada. Puntos usuario: ${userPoints}, Requeridos: ${pointsRequired}`);
+        console.log(`♻️ Plaza reciclada detectada en clase. Puntos usuario: ${userPoints}, Requeridos: ${pointsRequired}`);
         
         if (userPoints >= pointsRequired) {
           // Usuario tiene suficientes puntos - usar automáticamente
@@ -1725,7 +1725,8 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
               }}
             >
               {/* Capa transparente para bloquear clics en clase confirmada */}
-              {courtAssignment.isAssigned && (
+              {/* ♻️ SOLO bloquear si NO hay plazas recicladas en esta modalidad */}
+              {courtAssignment.isAssigned && !thisModalityHasRecycling && (
                 <div 
                   className="absolute inset-0 z-10 cursor-not-allowed" 
                   onClick={(e) => {
@@ -1752,7 +1753,35 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                   // 🎁 NUEVA LÓGICA: Calcular índice absoluto para verificar creditsSlots (incluye recicladas)
                   const startIndex = [1,2,3,4].slice(0, players - 1).reduce((sum, p) => sum + p, 0);
                   const absoluteIndex = startIndex + index;
-                  const isThisCircleCredits = Array.isArray(effectiveCreditsSlots) && effectiveCreditsSlots.includes(absoluteIndex);
+                  
+                  // 🎯 VERIFICAR SI ESTA PLAZA ESPECÍFICA PUEDE SER CONVERTIDA A PUNTOS
+                  // Solo la ÚLTIMA plaza libre puede ser convertida a puntos
+                  // Contar plazas ocupadas (bookings activos, excluyendo cancelados)
+                  const activeBookingsCount = modalityBookings.length;
+                  const isLastFreeSlot = !isOccupied && activeBookingsCount === players - 1; // Falta exactamente 1 plaza
+                  
+                  // Si es plaza de 1 jugador (players=1), siempre puede ser con puntos
+                  // Si es grupo (players>1), solo la última plaza libre
+                  const canBeCreditsSlot = players === 1 || isLastFreeSlot;
+                  
+                  // Verificar si esta plaza está marcada como creditsSlot en el sistema
+                  const isMarkedAsCreditsSlot = Array.isArray(effectiveCreditsSlots) && effectiveCreditsSlots.includes(absoluteIndex);
+                  
+                  // Solo mostrar como creditsSlot si está marcada Y cumple la condición de última plaza
+                  const isThisCircleCredits = isMarkedAsCreditsSlot && canBeCreditsSlot;
+                  
+                  // 🐛 DEBUG para ver la lógica
+                  if (isMarkedAsCreditsSlot && index === 0) {
+                    console.log(`🎯 Plaza ${players}p, círculo ${index + 1}:`, {
+                      absoluteIndex,
+                      activeBookingsCount,
+                      players,
+                      isLastFreeSlot,
+                      canBeCreditsSlot,
+                      isThisCircleCredits,
+                      isOccupied
+                    });
+                  }
                   
                   // � DEBUG: Ver si este círculo debería ser amarillo
                   if (players === 2 && index < 2 && currentSlotData.hasRecycledSlots) {

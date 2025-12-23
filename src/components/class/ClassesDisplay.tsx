@@ -609,11 +609,13 @@ export function ClassesDisplay({
         const isEmpty = playersCount === 0; // Clase vacía (sin alumnos)
         const hasStudentsNotConfirmed = playersCount > 0 && !hasCourtAssigned; // Clase con alumnos pero sin confirmar
         const isFull = hasCourtAssigned; // Clase confirmada/completa (con pista asignada)
+        const hasRecycledSlots = slot.hasRecycledSlots === true || slot.hasRecycledSlots === 1 || (slot.availableRecycledSlots && slot.availableRecycledSlots > 0);
         
         // Aplicar filtros
         if (hideEmpty && isEmpty) return false;
         if (hideWithStudents && hasStudentsNotConfirmed) return false;
-        if (hideFull && isFull) return false;
+        // ♻️ No ocultar clases confirmadas si tienen plazas recicladas disponibles
+        if (hideFull && isFull && !hasRecycledSlots) return false;
         
         return true;
       });
