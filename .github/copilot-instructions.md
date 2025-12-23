@@ -53,7 +53,16 @@ This singleton prevents the 300+ query N+1 problem documented in `OPTIMIZATION-S
 - Configured in `vercel.json` to run daily at 00:00 UTC
 - Checks `CourtSchedule` and `InstructorSchedule` for availability before creating slots
 - Generates 30-minute intervals (09:00, 09:30, etc.) for 7 days ahead
+- **Level-based class generation**: Creates **multiple TimeSlots per horario** (one for each instructor's configured level range)
+- Instructors configure level ranges in their preferences panel (e.g., 0-1, 1.5-2.5, 3-4.5, 5-7)
 - **Do not** suggest manual class creation—the system is automated
+
+### 5. Level Range Classification System
+- Each instructor configures custom level ranges in `Instructor.levelRanges` (JSON field)
+- When generating classes, system creates **one TimeSlot per level range** (e.g., 4 classes per time slot if instructor has 4 ranges)
+- `TimeSlot.levelRange` stores the assigned range (e.g., "5-7")
+- Users automatically see only classes matching their level via `/api/timeslots` filtering
+- See `SISTEMA-RANGOS-NIVEL-INSTRUCTOR.md` for complete documentation
 
 ## Developer Workflows
 

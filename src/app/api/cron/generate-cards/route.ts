@@ -310,7 +310,7 @@ async function generateCardsForDay(date: string, clubId: string) {
         continue;
       }
 
-      // CREAR TARJETA
+      // CREAR TARJETA ABIERTA
       const timeSlotId = `ts_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       // Calcular precio basado en franjas horarias

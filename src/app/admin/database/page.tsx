@@ -305,14 +305,14 @@ export default function DatabaseAdminPanel() {
         const data = await response.json();
         const userRole = data.user?.role;
         
-        // Solo CLUB_ADMIN y SUPER_ADMIN pueden acceder
-        if (userRole === 'CLUB_ADMIN' || userRole === 'SUPER_ADMIN') {
+        // Solo SUPER_ADMIN puede acceder
+        if (userRole === 'SUPER_ADMIN') {
           setHasAccess(true);
         } else {
           setHasAccess(false);
           toast({
             title: "Acceso denegado",
-            description: "No tienes permisos para acceder al panel de base de datos",
+            description: "Solo Super Administradores pueden acceder al panel de base de datos",
             variant: "destructive"
           });
         }
@@ -1871,23 +1871,49 @@ export default function DatabaseAdminPanel() {
               Manage users, classes, and bookings
             </p>
           </div>
-          <div className="flex gap-3">
-            <Button 
-              onClick={() => window.location.href = '/'} 
-              variant="default" 
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
-            >
-              <Play className="h-4 w-4" />
-              Ir a la Web
-            </Button>
-            <Button onClick={exportData} variant="outline" className="flex items-center gap-2">
-              <Download className="h-4 w-4" />
-              Export Data
-            </Button>
-            <Button onClick={() => loadData()} variant="outline" className="flex items-center gap-2">
-              <RefreshCw className="h-4 w-4" />
-              Refresh
-            </Button>
+          <div className="flex flex-col gap-4">
+            <div className="flex gap-3">
+              <Button 
+                onClick={() => window.location.href = '/'} 
+                variant="default" 
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+              >
+                <Play className="h-4 w-4" />
+                Ir a la Web
+              </Button>
+              <Button onClick={exportData} variant="outline" className="flex items-center gap-2">
+                <Download className="h-4 w-4" />
+                Export Data
+              </Button>
+              <Button onClick={() => loadData()} variant="outline" className="flex items-center gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Refresh
+              </Button>
+            </div>
+            
+            {/* URLs de Clubes */}
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-sm font-medium text-gray-700">🏢 URLs de Clubes:</span>
+              <Button 
+                onClick={() => window.location.href = '/clubs'} 
+                variant="outline" 
+                size="sm"
+                className="text-xs"
+              >
+                📋 Selección de Clubes (/clubs)
+              </Button>
+              {clubs.map((club) => (
+                <Button 
+                  key={club.id}
+                  onClick={() => window.location.href = `/club/${club.id}`} 
+                  variant="outline" 
+                  size="sm"
+                  className="text-xs"
+                >
+                  🎾 {club.name} (/club/{club.id})
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -3756,9 +3782,6 @@ export default function DatabaseAdminPanel() {
                       <TableCell>{instructor.specialties || 'N/A'}</TableCell>
                       <TableCell>{instructor.yearsExperience || 0} años</TableCell>
                       <TableCell>
-                        <span className="font-medium">€{instructor.hourlyRate || 0}</span>
-                      </TableCell>
-                      <TableCell>
                         <Badge variant={instructor.isActive ? 'default' : 'secondary'}>
                           {instructor.isActive ? 'Active' : 'Inactive'}
                         </Badge>
@@ -5060,23 +5083,25 @@ export default function DatabaseAdminPanel() {
             }}
           />
           
-          <ConvertBalanceDialog
-            isOpen={showConvertBalanceDialog}
-            onOpenChange={setShowConvertBalanceDialog}
-            currentUser={users.find(u => u.id === selectedUserId) as any}
-            onConversionSuccess={(newCredit, newPoints) => {
-              // Actualizar el usuario en el estado local
-              setUsers(prevUsers => 
-                prevUsers.map(u => 
-                  u.id === selectedUserId 
-                    ? { ...u, credits: newCredit, points: newPoints } 
-                    : u
-                )
-              );
-              // Recargar datos
-              loadData();
-            }}
-          />
+          {selectedUserId && users.find(u => u.id === selectedUserId) && (
+            <ConvertBalanceDialog
+              isOpen={showConvertBalanceDialog}
+              onOpenChange={setShowConvertBalanceDialog}
+              currentUser={users.find(u => u.id === selectedUserId) as any}
+              onConversionSuccess={(newCredit, newPoints) => {
+                // Actualizar el usuario en el estado local
+                setUsers(prevUsers => 
+                  prevUsers.map(u => 
+                    u.id === selectedUserId 
+                      ? { ...u, credits: newCredit, points: newPoints } 
+                      : u
+                  )
+                );
+                // Recargar datos
+                loadData();
+              }}
+            />
+          )}
         </>
       )}
     </div>

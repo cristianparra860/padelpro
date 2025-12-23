@@ -249,9 +249,42 @@ const ClubAdminView: React.FC<{
         </TabsContent>
 
         <TabsContent value="settings" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => window.location.href = '/admin/club-info'}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  Información del Club
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Configura el nombre, logo, descripción y datos de contacto del club que aparecen en la página informativa.
+                </p>
+                <Button className="w-full">
+                  Editar Información
+                </Button>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5" />
+                  Tarifas de Pistas
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Gestiona los precios y horarios de las pistas del club.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+          
           <Card>
             <CardHeader>
-              <CardTitle>Configuración del Club</CardTitle>
+              <CardTitle>Configuración de Tarifas</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <ManageCourtRatesPanelDB clubId={club.id} />

@@ -58,23 +58,25 @@ const ManagedSlotsList: React.FC<ManagedSlotsListProps> = ({ instructorId }) => 
     const loadSlots = async () => {
       try {
         setLoading(true);
-        let fetchedSlots = await getMockTimeSlots();
-        // Filter by instructor
-        const instructor = (await getMockInstructors()).find(i => i.id === instructorId);
-        if (instructor) {
-            fetchedSlots = fetchedSlots.filter(slot => slot.instructorId === instructor.id);
-        } else {
-            fetchedSlots = [];
+        
+        // ✅ USAR API REAL en lugar de mockData
+        const dateStr = format(selectedDate, 'yyyy-MM-dd');
+        const response = await fetch(`/api/timeslots?instructorId=${instructorId}&date=${dateStr}`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch time slots');
         }
         
-        // Filter by selected date
-        fetchedSlots = fetchedSlots.filter(slot => isSameDay(new Date(slot.startTime), selectedDate));
+        const result = await response.json();
+        let fetchedSlots = result.timeSlots || [];
         
-        // Sort remaining slots
-        fetchedSlots.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+        // Sort by start time
+        fetchedSlots.sort((a, b) => Number(a.start) - Number(b.start));
         
         setSlots(fetchedSlots.map(s => ({
             ...s,
+            startTime: new Date(Number(s.start)).toISOString(),
+            endTime: new Date(Number(s.end)).toISOString(),
             designatedGratisSpotPlaceholderIndexForOption: s.designatedGratisSpotPlaceholderIndexForOption || {},
         })));
         setError(null);

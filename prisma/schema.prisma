@@ -119,6 +119,7 @@ model Club {
   email              String?
   website            String?
   logo               String?
+  heroImage          String?  // Imagen de fondo para la página informativa
   description        String?
   courtRentalPrice   Float    @default(10.0) // Precio por hora de alquiler de pista
   openingHours       String?  // JSON array de 19 booleanos (6:00 AM a 12:00 AM)
@@ -283,6 +284,7 @@ model Booking {
   status          BookingStatus @default(CONFIRMED)
   wasConfirmed    Boolean       @default(false) // Si alguna vez tuvo status CONFIRMED (para tracking de cancelaciones)
   paidWithPoints  Boolean       @default(false) // Si la reserva fue pagada con puntos
+  paymentMethod   String        @default("CREDITS") // Método de pago: "CREDITS" o "POINTS"
   pointsUsed      Int           @default(0) // Cantidad de puntos usados
   amountBlocked   Int           @default(0) // Cantidad bloqueada en céntimos
   isRecycled      Boolean       @default(false) // Si es una plaza reciclada (solo reservable con puntos)
@@ -394,4 +396,25 @@ model Transaction {
   createdAt   DateTime @default(now())
 
   @@map("Transaction")
+}
+
+// Log de auditoría para impersonation (super admin suplantando usuarios)
+model ImpersonationLog {
+  id                String   @id @default(cuid())
+  superAdminId      String   // ID del super admin que inició la suplantación
+  superAdminEmail   String   // Email del super admin
+  targetUserId      String   // ID del usuario suplantado
+  targetUserEmail   String   // Email del usuario suplantado
+  targetUserRole    String   // Rol del usuario suplantado
+  startedAt         DateTime @default(now())
+  endedAt           DateTime?
+  durationMinutes   Int?     // Duración en minutos (calculado al terminar)
+  ipAddress         String?  // IP desde donde se hizo la suplantación
+  userAgent         String?  // Navegador/dispositivo usado
+  reason            String?  // Razón opcional para la suplantación
+  
+  @@map("ImpersonationLog")
+  @@index([superAdminId])
+  @@index([targetUserId])
+  @@index([startedAt])
 }

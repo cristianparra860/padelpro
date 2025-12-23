@@ -9,7 +9,7 @@ import type { User, Club, TimeOfDayFilterType, MatchPadelLevel, ActivityViewType
 import { timeSlotFilterOptions } from '@/types';
 import {
     Activity, Users, Gift, Clock, BarChartHorizontal,
-    Briefcase, LogOut, Building, CalendarDays, Eye, ClipboardList, CheckCircle, LogIn, PartyPopper, Star, Sparkles, Plus, Calendar, User as UserIcon, Wallet, Trophy, Database, Settings, Target
+    Briefcase, LogOut, Building, CalendarDays, Eye, ClipboardList, CheckCircle, LogIn, PartyPopper, Star, Sparkles, Plus, Calendar, User as UserIcon, Wallet, Trophy, Database, Settings, Target, UserCog
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from '@/components/ui/badge';
@@ -78,6 +78,7 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
     
     // Verificar si el usuario tiene permisos de admin
     const isClubAdmin = currentUser?.role === 'CLUB_ADMIN' || currentUser?.role === 'SUPER_ADMIN';
+    const isInstructor = currentUser?.role === 'INSTRUCTOR';
     const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
     const renderLoginPrompt = () => (
       <aside className="hidden md:block w-72 p-4">
@@ -141,12 +142,26 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                                                 {isMatchDayEnabled && (
                                                     <Link href="/match-day" className="w-full"><Button variant={pathname.startsWith('/match-day') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><PartyPopper className="mr-3 h-5 w-5" /> Match-Day</Button></Link>
                                                 )}
-                                                {/* Enlaces de administración - solo para CLUB_ADMIN y SUPER_ADMIN */}
-                                                {isClubAdmin && (
+                                                {/* Enlaces de administración */}
+                                                {(isClubAdmin || isInstructor) && (
                                                     <>
                                                         <Separator />
-                                                        <Link href="/admin/database" className="w-full"><Button variant={pathname.startsWith('/admin/database') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Database className="mr-3 h-5 w-5" /> Database Admin</Button></Link>
-                                                        <Link href="/admin" className="w-full"><Button variant={pathname === '/admin' ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Settings className="mr-3 h-5 w-5" /> Config Club</Button></Link>
+                                                        {/* Panel Super Admin - Solo SUPER_ADMIN */}
+                                                        {isSuperAdmin && (
+                                                            <Link href="/superadmin" className="w-full"><Button variant={pathname.startsWith('/superadmin') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Settings className="mr-3 h-5 w-5 text-yellow-600" /> Super Admin</Button></Link>
+                                                        )}
+                                                        {/* Config Instructor - Solo SUPER_ADMIN e INSTRUCTOR */}
+                                                        {(isSuperAdmin || isInstructor) && (
+                                                            <Link href="/instructor" className="w-full"><Button variant={pathname.startsWith('/instructor') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><UserCog className="mr-3 h-5 w-5" /> Config Instructor</Button></Link>
+                                                        )}
+                                                        {/* Config Club - Solo SUPER_ADMIN y CLUB_ADMIN */}
+                                                        {isClubAdmin && (
+                                                            <Link href="/admin" className="w-full"><Button variant={pathname === '/admin' ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Settings className="mr-3 h-5 w-5" /> Config Club</Button></Link>
+                                                        )}
+                                                        {/* Database Admin - Solo SUPER_ADMIN */}
+                                                        {isSuperAdmin && (
+                                                            <Link href="/admin/database" className="w-full"><Button variant={pathname.startsWith('/admin/database') ? "default" : "outline"} className="w-full justify-start text-base h-12 rounded-md" style={navButtonShadowStyle}><Database className="mr-3 h-5 w-5" /> Database Admin</Button></Link>
+                                                        )}
                                                     </>
                                                 )}
                     </div>

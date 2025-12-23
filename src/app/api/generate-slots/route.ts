@@ -73,7 +73,7 @@ function generateSlotsForTimeRange(
       maxPlayers: config.maxPlayersPerSlot,
       totalPrice: config.defaultPricePerSlot,
       level: 'abierto',
-      category: 'mixto'
+      category: 'ABIERTO'
     });
   }
   

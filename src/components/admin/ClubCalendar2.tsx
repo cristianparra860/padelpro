@@ -524,38 +524,38 @@ export default function ClubCalendar2({
   const timeSlots = getTimeSlots();
 
   return (
-    <div className="space-y-6 relative">
+    <div className="space-y-3 relative max-h-screen overflow-hidden">
       
       {/* Header unificado con estadísticas - DESKTOP */}
       {calendarData && (
         <Card className="hidden md:block bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 border-0 shadow-2xl overflow-hidden">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between gap-6">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between gap-4">
               {/* Título con Logo (clickeable) */}
-              <div className="flex items-center gap-4 min-w-fit">
+              <div className="flex items-center gap-3 min-w-fit">
                 <button
                   onClick={() => router.push('/club')}
-                  className="bg-white/20 p-2 rounded-lg backdrop-blur-sm hover:bg-white/30 transition-all cursor-pointer"
+                  className="bg-white/20 p-1.5 rounded-lg backdrop-blur-sm hover:bg-white/30 transition-all cursor-pointer"
                   title="Ir a la página del club"
                 >
                   {calendarData.courts[0]?.clubLogo ? (
                     <img 
                       src={calendarData.courts[0].clubLogo} 
                       alt={calendarData.courts[0]?.clubName || 'Club'} 
-                      className="h-16 w-16 object-contain"
+                      className="h-12 w-12 object-contain"
                     />
                   ) : (
-                    <CalendarIcon className="h-6 w-6 text-white" />
+                    <CalendarIcon className="h-5 w-5 text-white" />
                   )}
                 </button>
-                <h2 className="text-white text-xl font-bold whitespace-nowrap">
+                <h2 className="text-white text-base font-bold whitespace-nowrap leading-tight">
                   Calendario del Club<br />
-                  <span className="text-lg font-semibold text-white/80">{calendarData.courts[0]?.clubName || 'Club'}</span>
+                  <span className="text-sm font-semibold text-white/80">{calendarData.courts[0]?.clubName || 'Club'}</span>
                 </h2>
               </div>
               
               {/* Botones de Vista + Usuario logueado */}
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 {/* Botones de Vista Horizontal/Vertical */}
                 <div className="flex gap-2">
                   <Button
@@ -565,13 +565,13 @@ export default function ClubCalendar2({
                       layoutOrientation === 'horizontal'
                         ? 'bg-white text-blue-600'
                         : 'bg-white/80 text-gray-600'
-                    } hover:bg-white font-semibold border-0 shadow-md`}
+                    } hover:bg-white font-semibold border-0 shadow-md h-8 px-3`}
                     onClick={() => setLayoutOrientation(layoutOrientation === 'horizontal' ? 'vertical' : 'horizontal')}
                     title={layoutOrientation === 'horizontal' ? 'Cambiar a Vista Vertical' : 'Cambiar a Vista Horizontal'}
                   >
                     {layoutOrientation === 'horizontal' ? (
                       <>
-                        <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="mr-1.5 h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <rect x="3" y="4" width="18" height="4" strokeWidth="2" rx="1"/>
                           <rect x="3" y="10" width="18" height="4" strokeWidth="2" rx="1"/>
                           <rect x="3" y="16" width="18" height="4" strokeWidth="2" rx="1"/>
@@ -580,7 +580,7 @@ export default function ClubCalendar2({
                       </>
                     ) : (
                       <>
-                        <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="mr-1.5 h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <rect x="4" y="3" width="4" height="18" strokeWidth="2" rx="1"/>
                           <rect x="10" y="3" width="4" height="18" strokeWidth="2" rx="1"/>
                           <rect x="16" y="3" width="4" height="18" strokeWidth="2" rx="1"/>
@@ -589,29 +589,47 @@ export default function ClubCalendar2({
                       </>
                     )}
                   </Button>
+
+                  {/* Botón de filtro: Ver mis clases / Ver todo */}
+                  {currentUser && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className={`${
+                        bookingFilter === 'mine'
+                          ? 'bg-yellow-400 text-gray-900 hover:bg-yellow-300'
+                          : 'bg-white/80 text-gray-600 hover:bg-white'
+                      } font-semibold border-0 shadow-md transition-all h-8 px-3`}
+                      onClick={() => setBookingFilter(bookingFilter === 'all' ? 'mine' : 'all')}
+                      title={bookingFilter === 'all' ? 'Ver solo mis clases' : 'Ver todas las clases'}
+                    >
+                      <Users className="mr-1.5 h-3.5 w-3.5" />
+                      {bookingFilter === 'all' ? 'Ver mis clases' : 'Ver todo'}
+                    </Button>
+                  )}
                 </div>
 
                 {/* Perfil del usuario */}
                 {currentUser && (
                   <button 
                     onClick={() => router.push('/dashboard')}
-                    className="flex items-center gap-3 bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 hover:bg-white/30 transition-all duration-200 cursor-pointer group"
+                    className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-lg px-3 py-1.5 hover:bg-white/30 transition-all duration-200 cursor-pointer group"
                     title="Ver mis datos"
                   >
                     {currentUser.profilePictureUrl ? (
                       <img 
                         src={currentUser.profilePictureUrl} 
                         alt={currentUser.name}
-                        className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-md group-hover:scale-110 transition-transform duration-200"
+                        className="w-8 h-8 rounded-full object-cover border-2 border-white shadow-md group-hover:scale-110 transition-transform duration-200"
                       />
                     ) : (
-                      <div className="w-10 h-10 rounded-full bg-white/30 flex items-center justify-center border-2 border-white shadow-md group-hover:scale-110 transition-transform duration-200">
-                        <UserCircle className="h-6 w-6 text-white" />
+                      <div className="w-8 h-8 rounded-full bg-white/30 flex items-center justify-center border-2 border-white shadow-md group-hover:scale-110 transition-transform duration-200">
+                        <UserCircle className="h-5 w-5 text-white" />
                       </div>
                     )}
                     <div className="text-left">
-                      <div className="text-white text-sm font-bold group-hover:text-yellow-200 transition-colors">{currentUser.name}</div>
-                      <div className="text-white/80 text-xs">{currentUser.email}</div>
+                      <div className="text-white text-xs font-bold group-hover:text-yellow-200 transition-colors leading-tight">{currentUser.name}</div>
+                      <div className="text-white/80 text-[10px] leading-tight">{currentUser.email}</div>
                     </div>
                   </button>
                 )}
@@ -904,7 +922,16 @@ export default function ClubCalendar2({
                           const [h, m] = t.split(':');
                           return clsStart.getHours() === parseInt(h) && clsStart.getMinutes() === parseInt(m);
                         });
-                        return isSameInstructor && isSameDay && slotIndex === startIndex - 1;
+                        
+                        // 🆕 Aplicar filtro de usuario
+                        let matchesUserFilter = true;
+                        if (bookingFilter === 'mine' && currentUser?.id) {
+                          const isParticipant = cls.bookings?.some((b: any) => b.userId === currentUser.id) || false;
+                          const isInstructor = cls.instructorId === currentUser.id;
+                          matchesUserFilter = isParticipant || isInstructor;
+                        }
+                        
+                        return isSameInstructor && isSameDay && slotIndex === startIndex - 1 && matchesUserFilter;
                       });
                       if (isBufferCell) {
                         return (
@@ -926,7 +953,16 @@ export default function ClubCalendar2({
                         const isSameInstructor = cls.instructorId === instructor.id;
                         const isSameDay = clsStart.toDateString() === currentDate.toDateString();
                         const [hourStr, minuteStr] = time.split(':');
-                        return isSameInstructor && isSameDay && clsStart.getHours() === parseInt(hourStr) && clsStart.getMinutes() === parseInt(minuteStr);
+                        
+                        // 🆕 Aplicar filtro de usuario
+                        let matchesUserFilter = true;
+                        if (bookingFilter === 'mine' && currentUser?.id) {
+                          const isParticipant = cls.bookings?.some((b: any) => b.userId === currentUser.id) || false;
+                          const isInstructor = cls.instructorId === currentUser.id;
+                          matchesUserFilter = isParticipant || isInstructor;
+                        }
+                        
+                        return isSameInstructor && isSameDay && clsStart.getHours() === parseInt(hourStr) && clsStart.getMinutes() === parseInt(minuteStr) && matchesUserFilter;
                       });
                       // Detectar si este slot es el SEGUNDO de una clase confirmada (slot +30min)
                       const isSecondSlotOfConfirmed = (calendarData?.confirmedClasses || []).some(cls => {
@@ -935,7 +971,16 @@ export default function ClubCalendar2({
                         const isSameInstructor = cls.instructorId === instructor.id;
                         const isSameDay = clsSecondSlot.toDateString() === currentDate.toDateString();
                         const [hourStr, minuteStr] = time.split(':');
-                        return isSameInstructor && isSameDay && clsSecondSlot.getHours() === parseInt(hourStr) && clsSecondSlot.getMinutes() === parseInt(minuteStr);
+                        
+                        // 🆕 Aplicar filtro de usuario
+                        let matchesUserFilter = true;
+                        if (bookingFilter === 'mine' && currentUser?.id) {
+                          const isParticipant = cls.bookings?.some((b: any) => b.userId === currentUser.id) || false;
+                          const isInstructor = cls.instructorId === currentUser.id;
+                          matchesUserFilter = isParticipant || isInstructor;
+                        }
+                        
+                        return isSameInstructor && isSameDay && clsSecondSlot.getHours() === parseInt(hourStr) && clsSecondSlot.getMinutes() === parseInt(minuteStr) && matchesUserFilter;
                       });
                       
                       if (isSecondSlotOfConfirmed) {
@@ -1106,16 +1151,16 @@ export default function ClubCalendar2({
             </div>
             ) : (
             // VISTA VERTICAL: Horas en filas, Instructores en columnas
-            <div className="flex flex-col h-[calc(100vh-280px)] overflow-hidden md:rounded-lg md:border md:border-gray-200">
+            <div className="flex flex-col max-h-[calc(100vh-180px)] overflow-hidden md:rounded-lg md:border md:border-gray-200">
               {/* Franja superior con selector de precio */}
-              <div className="bg-gradient-to-r from-blue-600 to-purple-600 border-b-2 border-gray-300 py-2 px-4 flex items-center justify-center gap-3">
-                <span className="text-sm font-bold text-white uppercase tracking-wide">Precio Plazas:</span>
+              <div className="bg-gradient-to-r from-blue-600 to-purple-600 border-b-2 border-gray-300 py-1.5 px-4 flex items-center justify-center gap-3">
+                <span className="text-xs font-bold text-white uppercase tracking-wide">Precio Plazas:</span>
                 <div className="flex gap-2">
                   {[1, 2, 3, 4].map((size) => (
                     <button
                       key={size}
                       onClick={() => setSelectedGroupSize(size as 1 | 2 | 3 | 4)}
-                      className={`w-10 h-10 rounded-lg text-sm font-bold transition-all ${
+                      className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
                         selectedGroupSize === size
                           ? 'bg-white text-blue-600 shadow-lg scale-110'
                           : 'bg-white/20 text-white hover:bg-white/30'
@@ -1185,7 +1230,15 @@ export default function ClubCalendar2({
                             // Clase confirmada = tiene courtId (pista asignada) O tiene courtNumber
                             const isConfirmed = cls.courtId || cls.courtNumber;
                             
-                            return isSameDay && isSameTime && isSameInstructor && isConfirmed;
+                            // 🆕 Aplicar filtro de usuario
+                            let matchesUserFilter = true;
+                            if (bookingFilter === 'mine' && currentUser?.id) {
+                              const isParticipant = cls.bookings?.some((b: any) => b.userId === currentUser.id) || false;
+                              const isInstructor = cls.instructorId === currentUser.id;
+                              matchesUserFilter = isParticipant || isInstructor;
+                            }
+                            
+                            return isSameDay && isSameTime && isSameInstructor && isConfirmed && matchesUserFilter;
                           });
                           
                           // Verificar si este slot está ocupado por el SEGUNDO slot de una clase (30-60min)
@@ -1202,7 +1255,15 @@ export default function ClubCalendar2({
                             const isSecondSlot = slotTime.getTime() === secondSlotStart.getTime();
                             const isConfirmed = cls.courtId || cls.courtNumber;
                             
-                            return isSameDay && isSameInstructor && isSecondSlot && isConfirmed;
+                            // 🆕 Aplicar filtro de usuario
+                            let matchesUserFilter = true;
+                            if (bookingFilter === 'mine' && currentUser?.id) {
+                              const isParticipant = cls.bookings?.some((b: any) => b.userId === currentUser.id) || false;
+                              const isInstructor = cls.instructorId === currentUser.id;
+                              matchesUserFilter = isParticipant || isInstructor;
+                            }
+                            
+                            return isSameDay && isSameInstructor && isSecondSlot && isConfirmed && matchesUserFilter;
                           });
                           
                           // Verificar si este slot es 30min ANTES de una clase confirmada (buffer previo)
@@ -1219,7 +1280,15 @@ export default function ClubCalendar2({
                             const is30MinBefore = slotTime.getTime() === thirtyMinBefore.getTime();
                             const isConfirmed = cls.courtId || cls.courtNumber;
                             
-                            return isSameDay && isSameInstructor && is30MinBefore && isConfirmed;
+                            // 🆕 Aplicar filtro de usuario
+                            let matchesUserFilter = true;
+                            if (bookingFilter === 'mine' && currentUser?.id) {
+                              const isParticipant = cls.bookings?.some((b: any) => b.userId === currentUser.id) || false;
+                              const isInstructor = cls.instructorId === currentUser.id;
+                              matchesUserFilter = isParticipant || isInstructor;
+                            }
+                            
+                            return isSameDay && isSameInstructor && is30MinBefore && isConfirmed && matchesUserFilter;
                           });
                           
                           // Buscar clases propuestas de este instructor en este slot
@@ -1233,7 +1302,15 @@ export default function ClubCalendar2({
                             const isSameTime = clsStart.getHours() === slotHour && clsStart.getMinutes() === slotMinute;
                             const isSameInstructor = cls.instructorId === instructor.id;
                             
-                            return isSameDay && isSameTime && isSameInstructor;
+                            // 🆕 Aplicar filtro de usuario
+                            let matchesUserFilter = true;
+                            if (bookingFilter === 'mine' && currentUser?.id) {
+                              const isParticipant = cls.bookings?.some((b: any) => b.userId === currentUser.id) || false;
+                              const isInstructor = cls.instructorId === currentUser.id;
+                              matchesUserFilter = isParticipant || isInstructor;
+                            }
+                            
+                            return isSameDay && isSameTime && isSameInstructor && matchesUserFilter;
                           }).sort((a, b) => {
                             const aHasBookings = (a.bookings?.length || 0) > 0;
                             const bHasBookings = (b.bookings?.length || 0) > 0;

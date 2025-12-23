@@ -16,53 +16,43 @@ export async function GET(request: NextRequest) {
 
     console.log('🔍 API Request params:', { clubId, date, instructorId, userLevel, userGender, timeSlotFilter, page, limit });
 
-    // Build SQL query with proper date filtering
-    let query = `SELECT * FROM TimeSlot WHERE 1=1`;
-    const params: any[] = [];
+    // Build filter conditions for Prisma
+    const whereConditions: any = {};
     
     if (clubId) {
-      query += ` AND clubId = ?`;
-      params.push(clubId);
+      whereConditions.clubId = clubId;
     }
     
     if (date) {
-      // Use only timestamp format (BigInt milliseconds since epoch)
+      // Use Date objects for filtering
       const startOfDay = new Date(date + 'T00:00:00.000Z');
       const endOfDay = new Date(date + 'T23:59:59.999Z');
       
-      const startTimestamp = startOfDay.getTime();
-      const endTimestamp = endOfDay.getTime();
+      whereConditions.start = {
+        gte: startOfDay,
+        lte: endOfDay
+      };
       
-      // Only check timestamp format (matches Prisma BigInt storage)
-      query += ` AND start >= ? AND start <= ?`;
-      params.push(startTimestamp, endTimestamp);
-      
-      console.log('📅 Date filter (timestamps):', {
+      console.log('📅 Date filter:', {
         date,
-        startTimestamp,
-        endTimestamp,
         startISO: startOfDay.toISOString(),
         endISO: endOfDay.toISOString()
       });
     }
     
     if (instructorId) {
-      query += ` AND instructorId = ?`;
-      params.push(instructorId);
+      whereConditions.instructorId = instructorId;
     }
-    
-    // NOTE: We show ALL classes (both proposals and confirmed)
-    // Users should see confirmed classes to book them
-    
-    query += ` ORDER BY start ASC`;
 
-    console.log('📝 SQL Query:', query);
-    console.log('📝 Params:', params);
+    console.log('📝 Where conditions:', whereConditions);
 
-    // Execute raw SQL query to get TimeSlots
-    let timeSlots = await prisma.$queryRawUnsafe(query, ...params) as any[];
+    // Execute Prisma query
+    let timeSlots = await prisma.timeSlot.findMany({
+      where: whereConditions,
+      orderBy: { start: 'asc' }
+    });
 
-    console.log(`📊 Found ${timeSlots.length} time slots with SQL query`);
+    console.log(`📊 Found ${timeSlots.length} time slots with Prisma query`);
     
     // ♻️ AGREGAR TimeSlots con bookings recicladas (aunque tengan courtId)
     const recycledBookings = await prisma.booking.findMany({
@@ -80,30 +70,32 @@ export async function GET(request: NextRequest) {
       const recycledTimeSlotIds = recycledBookings.map(b => b.timeSlotId);
       console.log(`♻️ Found ${recycledTimeSlotIds.length} TimeSlots with recycled bookings`);
       
-      // Obtener esos TimeSlots adicionales con los mismos filtros
-      let recycledQuery = `SELECT * FROM TimeSlot WHERE id IN (${recycledTimeSlotIds.map(() => '?').join(',')})`;
-      const recycledParams: any[] = [...recycledTimeSlotIds];
+      // Obtener esos TimeSlots adicionales con los mismos filtros usando Prisma
+      const recycledWhereConditions: any = {
+        id: { in: recycledTimeSlotIds }
+      };
       
       if (clubId) {
-        recycledQuery += ` AND clubId = ?`;
-        recycledParams.push(clubId);
+        recycledWhereConditions.clubId = clubId;
       }
       
       if (date) {
         const startOfDay = new Date(date + 'T00:00:00.000Z');
         const endOfDay = new Date(date + 'T23:59:59.999Z');
-        const startTimestamp = startOfDay.getTime();
-        const endTimestamp = endOfDay.getTime();
-        recycledQuery += ` AND start >= ? AND start <= ?`;
-        recycledParams.push(startTimestamp, endTimestamp);
+        recycledWhereConditions.start = {
+          gte: startOfDay,
+          lte: endOfDay
+        };
       }
       
       if (instructorId) {
-        recycledQuery += ` AND instructorId = ?`;
-        recycledParams.push(instructorId);
+        recycledWhereConditions.instructorId = instructorId;
       }
       
-      const recycledTimeSlots = await prisma.$queryRawUnsafe(recycledQuery, ...recycledParams) as any[];
+      const recycledTimeSlots = await prisma.timeSlot.findMany({
+        where: recycledWhereConditions
+      });
+      
       console.log(`♻️ Found ${recycledTimeSlots.length} recycled TimeSlots matching filters`);
       
       // Combinar y eliminar duplicados
@@ -479,8 +471,7 @@ export async function GET(request: NextRequest) {
       const userId = searchParams.get('userId');
       
       filteredSlots = rawTimeSlotsFiltered.filter(slot => {
-        // 🎯 IMPORTANTE: Si el usuario tiene una reserva en esta clase, SIEMPRE mostrarla
-        // independientemente del nivel, porque ya pasó la verificación al reservar
+        // 🎯 REGLA 1: Si el usuario tiene una reserva en esta clase, SIEMPRE mostrarla
         if (userId) {
           const userHasBooking = bookingsBySlot.get(slot.id)?.some(
             b => b.userId === userId && b.status !== 'CANCELLED'
@@ -491,40 +482,59 @@ export async function GET(request: NextRequest) {
           }
         }
         
-        // If class is 'abierto' (case-insensitive), it's accessible to everyone
-        if (typeof slot.level === 'string' && slot.level.toLowerCase() === 'abierto') {
-          return true;
+        // 🎯 REGLA 2: Obtener bookings activos de esta clase (no cancelados)
+        const activeBookings = bookingsBySlot.get(slot.id)?.filter(
+          b => b.status !== 'CANCELLED'
+        ) || [];
+        
+        const hasActiveBookings = activeBookings.length > 0;
+        
+        // 🎯 REGLA 3: Si la clase NO tiene inscripciones, solo mostrar si es ABIERTA
+        if (!hasActiveBookings) {
+          const isOpen = typeof slot.level === 'string' && slot.level.toLowerCase() === 'abierto';
+          if (!isOpen) {
+            console.log(`⏭️  Filtrado: Clase ${slot.id.substring(0,8)} sin inscripciones y nivel ${slot.level} (no ABIERTO)`);
+          }
+          return isOpen;
         }
         
-        // If class has a level range, check if user level falls within it
-        if (typeof slot.level === 'object' && slot.level !== null) {
-          const levelRange = slot.level as { min: string; max: string };
-          const minLevel = parseFloat(levelRange.min);
-          const maxLevel = parseFloat(levelRange.max);
-          
-          // User level must be within the class level range
-          return userLevelNum >= minLevel && userLevelNum <= maxLevel;
+        // 🎯 REGLA 4: Si la clase SÍ tiene inscripciones, verificar si el usuario encaja en el rango
+        // Usar levelRange del slot si está disponible
+        if (slot.levelRange && typeof slot.levelRange === 'string' && slot.levelRange !== 'ABIERTO') {
+          if (slot.levelRange.includes('-')) {
+            const [minStr, maxStr] = slot.levelRange.split('-');
+            const minLevel = parseFloat(minStr);
+            const maxLevel = parseFloat(maxStr);
+            if (!isNaN(minLevel) && !isNaN(maxLevel)) {
+              const isInRange = userLevelNum >= minLevel && userLevelNum <= maxLevel;
+              if (!isInRange) {
+                console.log(`⏭️  Filtrado: Usuario nivel ${userLevelNum} NO está en rango ${slot.levelRange} (clase con ${activeBookings.length} inscripciones)`);
+              }
+              return isInRange;
+            }
+          }
         }
         
-        // If class level is a string range like "5-7", parse and check
-        if (typeof slot.level === 'string' && slot.level.includes('-')) {
+        // Usar level del slot si levelRange no está disponible
+        if (typeof slot.level === 'string' && slot.level !== 'ABIERTO' && slot.level.includes('-')) {
           const [minStr, maxStr] = slot.level.split('-');
           const minLevel = parseFloat(minStr);
           const maxLevel = parseFloat(maxStr);
           if (!isNaN(minLevel) && !isNaN(maxLevel)) {
-            return userLevelNum >= minLevel && userLevelNum <= maxLevel;
+            const isInRange = userLevelNum >= minLevel && userLevelNum <= maxLevel;
+            if (!isInRange) {
+              console.log(`⏭️  Filtrado: Usuario nivel ${userLevelNum} NO está en rango ${slot.level} (clase con ${activeBookings.length} inscripciones)`);
+            }
+            return isInRange;
           }
         }
         
-        // If class has a single numeric level string, allow ±0.5 range
-        if (typeof slot.level === 'string') {
-          const classLevel = parseFloat(slot.level);
-          if (!isNaN(classLevel)) {
-            return Math.abs(userLevelNum - classLevel) <= 0.5;
-          }
+        // Si la clase tiene inscripciones pero nivel ABIERTO, mostrarla
+        if (typeof slot.level === 'string' && slot.level.toLowerCase() === 'abierto') {
+          return true;
         }
         
-        // Default: show the class if we can't determine level compatibility
+        // Por defecto, si no podemos determinar, mostrar la clase
         return true;
       });
       
@@ -534,7 +544,7 @@ export async function GET(request: NextRequest) {
     // ℹ️ CATEGORÍA DE GÉNERO: Solo informativa, NO restrictiva
     // Todos los usuarios pueden ver todas las clases independientemente de su género
     // La categoría se muestra en la UI pero no filtra resultados
-    if (userGender && userGender !== 'mixto') {
+    if (userGender && userGender !== 'abierto') {
       console.log(`ℹ️ Género del usuario: ${userGender} (solo informativo, no se aplica filtro restrictivo)`);
     }
 

@@ -114,7 +114,7 @@ export async function GET(
           start: booking.timeSlot.start.toISOString(),
           end: booking.timeSlot.end.toISOString(),
           level: booking.timeSlot.level || 'intermedio',
-          category: booking.timeSlot.genderCategory || 'mixto',
+          category: booking.timeSlot.genderCategory || 'ABIERTO',
           genderCategory: booking.timeSlot.genderCategory || null,
           totalPrice: Number(booking.timeSlot.totalPrice),
           maxPlayers: booking.timeSlot.maxPlayers || 4,

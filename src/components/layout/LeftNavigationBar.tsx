@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ClipboardList, Calendar, CalendarDays, UserCircle, Database, Settings, Target, GraduationCap, Wallet, SlidersHorizontal } from 'lucide-react';
+import { ClipboardList, Calendar, CalendarDays, UserCircle, Database, Settings, Target, GraduationCap, Wallet, SlidersHorizontal, UserCog } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { User, Club } from '@/types';
@@ -36,11 +36,39 @@ export function LeftNavigationBar() {
         
         const fetchClub = async () => {
             try {
+                // Primero intentar obtener el usuario para saber su clubId
+                let clubId = 'padel-estrella-madrid'; // Default
+                try {
+                    const userResponse = await fetch('/api/users/current');
+                    if (userResponse.ok) {
+                        const userData = await userResponse.json();
+                        if (userData.clubId) {
+                            clubId = userData.clubId;
+                        }
+                    }
+                } catch (e) {
+                    // Ignorar errores de usuario no autenticado
+                }
+                
                 const response = await fetch('/api/clubs');
                 if (response.ok) {
                     const clubs = await response.json();
-                    if (clubs.length > 0) {
-                        setClubInfo(clubs[0]);
+                    
+                    // Buscar el club del usuario
+                    let club = clubs.find((c: any) => c.id === clubId);
+                    
+                    // Si no encuentra, buscar "Padel Estrella Madrid"
+                    if (!club) {
+                        club = clubs.find((c: any) => c.id === 'padel-estrella-madrid');
+                    }
+                    
+                    // Si tampoco, usar el primero
+                    if (!club && clubs.length > 0) {
+                        club = clubs[0];
+                    }
+                    
+                    if (club) {
+                        setClubInfo(club);
                     }
                 }
             } catch (error) {
@@ -173,7 +201,7 @@ export function LeftNavigationBar() {
             icon: GraduationCap,
             label: 'Clases',
             isActive: pathname === '/activities',
-            allowedRoles: ['ADMIN', 'CLUB_ADMIN', 'INSTRUCTOR', 'PLAYER'], // Todos pueden ver
+            allowedRoles: ['SUPER_ADMIN', 'CLUB_ADMIN', 'INSTRUCTOR', 'PLAYER'], // Todos pueden ver
         },
         {
             key: 'calendario-club',
@@ -181,15 +209,23 @@ export function LeftNavigationBar() {
             icon: CalendarDays,
             label: 'Calendario',
             isActive: pathname === '/admin/calendar',
-            allowedRoles: ['ADMIN', 'CLUB_ADMIN', 'INSTRUCTOR', 'PLAYER'], // Todos pueden ver
+            allowedRoles: ['SUPER_ADMIN', 'CLUB_ADMIN', 'INSTRUCTOR', 'PLAYER'], // Todos pueden ver
         },
         {
-            key: 'base-datos',
-            href: '/admin/database',
-            icon: Database,
-            label: 'Base Datos',
-            isActive: pathname === '/admin/database',
-            allowedRoles: ['ADMIN'], // Solo administrador de PadelPro
+            key: 'super-admin',
+            href: '/superadmin',
+            icon: Target,
+            label: 'Super Admin',
+            isActive: pathname === '/superadmin',
+            allowedRoles: ['SUPER_ADMIN'], // Solo Super Admin
+        },
+        {
+            key: 'config-instructor',
+            href: '/instructor',
+            icon: UserCog,
+            label: 'Config Instructor',
+            isActive: pathname === '/instructor',
+            allowedRoles: ['SUPER_ADMIN', 'INSTRUCTOR'], // Solo Super Admin e Instructor
         },
         {
             key: 'config-club',
@@ -197,7 +233,15 @@ export function LeftNavigationBar() {
             icon: Settings,
             label: 'Config',
             isActive: pathname === '/admin',
-            allowedRoles: ['ADMIN', 'CLUB_ADMIN', 'INSTRUCTOR'], // Admins del club y de PadelPro
+            allowedRoles: ['SUPER_ADMIN', 'CLUB_ADMIN'], // Solo Super Admin y Club Admin
+        },
+        {
+            key: 'base-datos',
+            href: '/admin/database',
+            icon: Database,
+            label: 'Base Datos',
+            isActive: pathname === '/admin/database',
+            allowedRoles: ['SUPER_ADMIN'], // Solo Super Admin
         },
     ];
 

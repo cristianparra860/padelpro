@@ -1,35 +1,92 @@
 'use client';
 
-import React from 'react';
-import { MapPin, Phone, Mail, Clock, Users, Calendar, ArrowLeft, ExternalLink, GraduationCap, CalendarDays, ClipboardList } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { MapPin, Phone, Mail, Clock, Users, Calendar, ArrowLeft, ExternalLink, GraduationCap, CalendarDays, ClipboardList, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
-// Datos estáticos del club
-const CLUB_DATA = {
-  id: 'padel-estrella',
-  name: 'Padel Estrella Barcelona',
-  logoUrl: '/images/clubs/padel-estrella-logo.jpg',
-  description: 'Centro deportivo de pádel premium en el corazón de Barcelona. Ofrecemos instalaciones de primera clase con pistas cubiertas y al aire libre, profesores certificados y un ambiente acogedor para jugadores de todos los niveles.',
-  address: 'Carrer de la Marina, 16',
-  city: 'Barcelona',
-  state: 'Cataluña',
-  country: 'España',
-  postalCode: '08005',
-  phone: '+34 933 123 456',
-  email: 'info@padelestrella.com',
-  websiteUrl: 'https://padelestrella.com',
-  openingTime: '07:00',
-  closingTime: '23:00',
-  courtCount: 8,
-  instructorCount: 12,
-  latitude: 41.3851,
-  longitude: 2.1734
-};
-
 export default function ClubProfilePage() {
-  const clubData = CLUB_DATA;
+  const [clubData, setClubData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [courtCount, setCourtCount] = useState(0);
+  const [instructorCount, setInstructorCount] = useState(0);
+
+  useEffect(() => {
+    fetchClubData();
+  }, []);
+
+  const fetchClubData = async () => {
+    try {
+      // Obtener datos del usuario autenticado para saber su clubId
+      const userResponse = await fetch('/api/users/current');
+      let clubId = 'padel-estrella-madrid'; // Default
+      
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        if (userData.clubId) {
+          clubId = userData.clubId;
+        }
+      }
+      
+      // Obtener datos del club
+      const clubsResponse = await fetch('/api/clubs');
+      const clubs = await clubsResponse.json();
+      
+      // Buscar el club específico del usuario, o "Padel Estrella Madrid" por defecto
+      let club = clubs.find((c: any) => c.id === clubId);
+      if (!club) {
+        // Si no encuentra el club del usuario, buscar "Padel Estrella Madrid"
+        club = clubs.find((c: any) => c.id === 'padel-estrella-madrid');
+      }
+      if (!club && clubs.length > 0) {
+        // Si tampoco existe, usar el primero
+        club = clubs[0];
+      }
+
+      if (club) {
+        setClubData({
+          id: club.id,
+          name: club.name,
+          logoUrl: club.logoUrl,
+          heroImage: club.heroImage || null,
+          description: club.description || 'Tu club de pádel de referencia',
+          address: club.location || 'Sin dirección',
+          phone: club.phone || 'Sin teléfono',
+          email: club.email || 'Sin email',
+          websiteUrl: club.website || null,
+          latitude: 41.3851,
+          longitude: 2.1734
+        });
+
+        // Contar pistas del club
+        const courtsResponse = await fetch(`/api/courts?clubId=${club.id}`);
+        if (courtsResponse.ok) {
+          const courts = await courtsResponse.json();
+          setCourtCount(courts.length || 0);
+        }
+
+        // Contar instructores del club
+        const instructorsResponse = await fetch(`/api/instructors?clubId=${club.id}`);
+        if (instructorsResponse.ok) {
+          const instructors = await instructorsResponse.json();
+          setInstructorCount(instructors.length || 0);
+        }
+      }
+    } catch (error) {
+      console.error('Error al cargar datos del club:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading || !clubData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 flex items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const mapUrl = `https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2993.4!2d${clubData.longitude}!3d${clubData.latitude}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDHCsDIzJzA2LjQiTiAywrAxMCcyNC4yIkU!5e0!3m2!1ses!2ses!4v1234567890123!5m2!1ses!2ses`;
 
@@ -40,7 +97,7 @@ export default function ClubProfilePage() {
         {/* Imagen de fondo de pistas de padel */}
         <div className="absolute inset-0">
           <img 
-            src="https://images.unsplash.com/photo-1554068865-24cecd4e34b8?q=80&w=2070&auto=format&fit=crop"
+            src={clubData.heroImage || "https://images.unsplash.com/photo-1554068865-24cecd4e34b8?q=80&w=2070&auto=format&fit=crop"}
             alt="Pistas de padel"
             className="w-full h-full object-cover"
           />
@@ -59,16 +116,16 @@ export default function ClubProfilePage() {
             )}
             <h1 className="text-5xl font-bold mb-4">{clubData.name}</h1>
             <p className="text-xl text-white/90 max-w-2xl mx-auto">
-              Tu club de pádel de referencia en {clubData.city}
+              {clubData.description}
             </p>
             <div className="mt-6 flex gap-4 justify-center">
               <Badge className="bg-white/20 backdrop-blur text-white px-4 py-2 text-base">
                 <Users className="w-4 h-4 mr-2" />
-                {clubData.courtCount} Pistas
+                {courtCount} Pistas
               </Badge>
               <Badge className="bg-white/20 backdrop-blur text-white px-4 py-2 text-base">
                 <Calendar className="w-4 h-4 mr-2" />
-                {clubData.instructorCount} Instructores
+                {instructorCount} Instructores
               </Badge>
             </div>
           </div>

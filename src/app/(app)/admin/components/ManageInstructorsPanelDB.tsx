@@ -265,13 +265,7 @@ const ManageInstructorsPanelDB: React.FC<ManageInstructorsPanelDBProps> = ({ clu
                   <Mail className="h-4 w-4" />
                   <span className="truncate">{instructor.email}</span>
                 </div>
-                
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-green-600" />
-                  <span className="font-semibold text-green-600">
-                    €{instructor.hourlyRate.toFixed(2)}/hora
-                  </span>
-                </div>
+
 
                 {instructor.bio && (
                   <CardDescription className="text-xs line-clamp-2">

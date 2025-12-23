@@ -127,6 +127,17 @@ export default function LoginPage() {
             <CardDescription className="text-sm sm:text-base">
               Introduce tus datos para acceder a tu agenda.
             </CardDescription>
+            
+            {/* Botón para ver clubes */}
+            <div className="pt-4 border-t border-gray-200/50 mt-4">
+              <button
+                type="button"
+                onClick={() => router.push('/clubs')}
+                className="w-full py-2.5 px-4 bg-gradient-to-r from-blue-50 to-purple-50 hover:from-blue-100 hover:to-purple-100 text-blue-700 rounded-lg font-medium text-sm transition-all duration-200 border border-blue-200 hover:border-blue-300 shadow-sm hover:shadow-md"
+              >
+                🏢 Ver todos los clubes disponibles
+              </button>
+            </div>
           </CardHeader>
            <form onSubmit={handleLogin}>
               <CardContent className="space-y-3 sm:space-y-4 px-4 sm:px-6">
@@ -198,14 +209,14 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => {
-                setEmail('admin@padelpro.com');
+                setEmail('superadmin@padelapp.com');
                 setPassword('Pass123!');
               }}
               className="w-full text-left px-3 py-2 bg-white dark:bg-gray-800 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded border border-purple-200 dark:border-purple-800 text-xs transition-colors"
             >
-              <span className="font-medium text-purple-900 dark:text-purple-100">Super Admin</span>
+              <span className="font-medium text-purple-900 dark:text-purple-100">Super Administrador</span>
               <br />
-              <span className="text-purple-600 dark:text-purple-400">admin@padelpro.com</span>
+              <span className="text-purple-600 dark:text-purple-400">superadmin@padelapp.com</span>
             </button>
           </div>
 
@@ -215,14 +226,14 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => {
-                setEmail('clubadmin@padelpro.com');
+                setEmail('club.admin@padelpro.com');
                 setPassword('Pass123!');
               }}
               className="w-full text-left px-3 py-2 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 rounded border border-red-200 dark:border-red-800 text-xs transition-colors"
             >
-              <span className="font-medium text-red-900 dark:text-red-100">Admin Club Madrid</span>
+              <span className="font-medium text-red-900 dark:text-red-100">Admin Padel Estrella Madrid</span>
               <br />
-              <span className="text-red-600 dark:text-red-400">clubadmin@padelpro.com</span>
+              <span className="text-red-600 dark:text-red-400">club.admin@padelpro.com</span>
             </button>
           </div>
 
@@ -231,9 +242,13 @@ export default function LoginPage() {
             <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-2">🟡 INSTRUCTORES</p>
             <div className="space-y-2">
               {[
-                { name: 'Carlos Ruiz', email: 'instructor@padelpro.com', password: 'Pass123!' },
-                { name: 'Ana Lopez', email: 'ana@padelclub.com', password: 'Pass123!' },
-                { name: 'Carlos Martinez', email: 'carlos@padelclub.com', password: 'Pass123!' }
+                { name: 'Pedro López', email: 'instructor@gmail.com', password: 'Pass123!' },
+                { name: 'Ana González', email: 'david.collado@padelpro.com', password: 'Pass123!' },
+                { name: 'Carlos Rodriguez', email: 'carlos@padelclub.com', password: 'Pass123!' },
+                { name: 'Diego Martinez', email: 'alex.garcia@padelpro.com', password: 'Pass123!' },
+                { name: 'Instructor 5', email: 'cristian.parra@padelpro.com', password: 'Pass123!' },
+                { name: 'Instructor 6', email: 'instructor@padelpro.com', password: 'Pass123!' },
+                { name: 'Maria Fernández', email: 'ana@padelclub.com', password: 'Pass123!' }
               ].map((user, idx) => (
                 <button
                   key={idx}
@@ -257,10 +272,10 @@ export default function LoginPage() {
             <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-2">🟢 JUGADORES</p>
             <div className="space-y-2">
               {[
-                { name: 'Alex Garcia', email: 'alex@example.com', password: 'Pass123!' },
-                { name: 'Ana Nueva', email: 'ana.nueva@padelpro.com', password: 'Pass123!' },
-                { name: 'Marc Parra', email: 'jugador1@padelpro.com', password: 'Pass123!' },
-                { name: 'María García', email: 'jugador2@padelpro.com', password: 'Pass123!' }
+                { name: 'Alex García', email: 'alex@example.com', password: 'Pass123!' },
+                { name: 'Carlos Rodríguez', email: 'jugador1@gmail.com', password: 'Pass123!' },
+                { name: 'Juan Martínez', email: 'jugador3@gmail.com', password: 'Pass123!' },
+                { name: 'María González', email: 'jugador2@gmail.com', password: 'Pass123!' }
               ].map((user, idx) => (
                 <button
                   key={idx}

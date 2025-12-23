@@ -24,7 +24,7 @@ import type { User } from '@/types';
 interface ConvertBalanceDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  currentUser: User;
+  currentUser?: User;
   onConversionSuccess: (newCredit: number, newPoints: number) => void;
 }
 
@@ -47,6 +47,12 @@ const ConvertBalanceDialog: React.FC<ConvertBalanceDialogProps> = ({
 }) => {
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
+  
+  // Validación temprana - no renderizar si no hay usuario
+  if (!currentUser) {
+    return null;
+  }
+  
   // Convertir céntimos a euros para mostrar correctamente
   const currentCredit = ((currentUser.credits ?? currentUser.credit ?? 0) / 100);
 

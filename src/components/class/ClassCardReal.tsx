@@ -44,6 +44,8 @@ interface ClassCardRealProps {
   isCancelled?: boolean; // Si es true, la clase está cancelada y se muestra badge rojo
   cancelledGroupSize?: number; // Tamaño del grupo que fue cancelado (para marcar plaza específica)
   cancelledUserData?: { name?: string; profilePictureUrl?: string }; // Datos del usuario que canceló
+  // Props para modo instructor
+  instructorView?: boolean; // Si es true, muestra opciones de gestión para instructor
 }
 
 interface Booking {
@@ -75,7 +77,9 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   isPastClass = false,
   isCancelled = false,
   cancelledGroupSize,
-  cancelledUserData
+  cancelledUserData,
+  // Props para modo instructor
+  instructorView = false
 }) => {
   const { toast } = useToast();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -83,6 +87,8 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   const [showPrivateDialog, setShowPrivateDialog] = useState(false);
   const [privateAttendees, setPrivateAttendees] = useState<number>(4);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showCancelClassDialog, setShowCancelClassDialog] = useState(false);
+  const [isCancellingClass, setIsCancellingClass] = useState(false);
   
   // ✅ Validar que classData tiene los datos mínimos necesarios
   if (!classData || !classData.start || !classData.end) {
@@ -790,6 +796,86 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     }
   };
 
+  // 🎓 Anular clase por instructor
+  const handleCancelClass = async () => {
+    if (!instructorView || !classData.id) return;
+    
+    setIsCancellingClass(true);
+    try {
+      const response = await fetch(`/api/instructor/cancel-class/${classData.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "✅ Clase anulada",
+          description: result.message || "La clase ha sido cancelada y los alumnos reembolsados",
+          className: "bg-green-600 text-white"
+        });
+        setShowCancelClassDialog(false);
+        onBookingSuccess();
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "No se pudo anular la clase",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error de conexión",
+        description: "No se pudo conectar con el servidor",
+        variant: "destructive"
+      });
+    } finally {
+      setIsCancellingClass(false);
+    }
+  };
+
+  // 🎓 Cambiar método de pago de una reserva (euros ↔ puntos)
+  const handleTogglePaymentMethod = async (booking: Booking) => {
+    if (!instructorView || !booking.userId) return;
+    
+    try {
+      const response = await fetch(`/api/instructor/toggle-payment/${classData.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: booking.userId,
+          groupSize: booking.groupSize
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "✅ Método de pago cambiado",
+          description: result.message || "El método de pago ha sido actualizado",
+          className: "bg-blue-600 text-white"
+        });
+        // Recargar bookings
+        loadBookings();
+        onBookingSuccess();
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "No se pudo cambiar el método de pago",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error de conexión",
+        description: "No se pudo conectar con el servidor",
+        variant: "destructive"
+      });
+    }
+  };
+
   const getAvailableSpots = (groupSize: number) => {
     if (!Array.isArray(bookings)) return groupSize;
     // Contar cuántos usuarios han reservado específicamente para este groupSize
@@ -987,14 +1073,14 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   // Determinar categoría dinámica basada en el primer usuario inscrito
   const getDynamicCategory = () => {
     // PRIMERO: Verificar si el TimeSlot ya tiene una categoría asignada (de la BD)
-    if (currentSlotData.genderCategory && currentSlotData.genderCategory !== 'mixto') {
+    if (currentSlotData.genderCategory && currentSlotData.genderCategory !== 'ABIERTO' && currentSlotData.genderCategory.toLowerCase() !== 'abierto') {
       const genderMapping: Record<string, string> = {
         'femenino': 'Chica',
         'masculino': 'Chico',
         'mujer': 'Chica',
         'hombre': 'Chico'
       };
-      const category = genderMapping[currentSlotData.genderCategory.toLowerCase()] || 'Mixto';
+      const category = genderMapping[currentSlotData.genderCategory.toLowerCase()] || 'Abierta';
       return { category, isAssigned: true };
     }
 
@@ -1021,7 +1107,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
       };
       
       const gender = firstUser.userGender.toLowerCase();
-      const category = genderMapping[gender] || 'Mixto';
+      const category = genderMapping[gender] || 'Abierta';
       
       return { category, isAssigned: true };
     }
@@ -1043,7 +1129,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
 
     // 🎯 PRIORIDAD 1: Usar levelRange del TimeSlot si está definido (usar classData que viene del API)
     const levelRange = (classData as any).levelRange || (currentSlotData as any).levelRange;
-    if (levelRange && levelRange !== 'null') {
+    if (levelRange && levelRange !== 'null' && levelRange.toLowerCase() !== 'abierto') {
       console.log('✅ Using levelRange:', levelRange);
       return { 
         level: levelRange, 
@@ -1058,6 +1144,48 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     if (slotLevel && slotLevel !== 'abierto' && slotLevel !== 'ABIERTO' && slotLevel !== 'null') {
       return { level: slotLevel, isAssigned: true };
     }
+    
+    // 🎯 PRIORIDAD 3: Si hay bookings confirmados/pendientes, calcular el nivel dinámicamente
+    const bookingsWithLevel = currentSlotData.bookings?.filter((b: any) => 
+      (b.status === 'CONFIRMED' || b.status === 'PENDING') && b.userLevel && b.userLevel !== 'abierto'
+    ) || [];
+    
+    console.log('🔍 Bookings con nivel:', { 
+      total: currentSlotData.bookings?.length, 
+      withLevel: bookingsWithLevel.length,
+      levels: bookingsWithLevel.map((b: any) => ({ name: b.userName, level: b.userLevel }))
+    });
+    
+    if (bookingsWithLevel.length > 0) {
+      // Extraer solo niveles numéricos (0.0 - 7.0)
+      const userLevels = bookingsWithLevel
+        .map((b: any) => {
+          const numericLevel = parseFloat(b.userLevel);
+          // Validar rango 0.0 a 7.0
+          return (isNaN(numericLevel) || numericLevel < 0 || numericLevel > 7) ? null : numericLevel;
+        })
+        .filter((l: number | null): l is number => l !== null);
+      
+      if (userLevels.length > 0) {
+        const minLevel = Math.min(...userLevels);
+        const maxLevel = Math.max(...userLevels);
+        
+        // Formatear con un decimal (ej: 5.0, 5.5, 6.0)
+        const formatLevel = (level: number) => level.toFixed(1);
+        
+        // Si solo hay un usuario o todos tienen el mismo nivel
+        if (minLevel === maxLevel) {
+          const singleLevelText = formatLevel(minLevel);
+          console.log('📊 Nivel único:', singleLevelText);
+          return { level: singleLevelText, isAssigned: true };
+        }
+        
+        const calculatedRange = `${formatLevel(minLevel)} a ${formatLevel(maxLevel)}`;
+        console.log('📊 Rango calculado:', calculatedRange);
+        return { level: calculatedRange, isAssigned: true };
+      }
+    }
+    
     return { level: 'Abierto', isAssigned: false };
   };
 
@@ -1234,6 +1362,61 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                     className="bg-red-600 hover:bg-red-700"
                   >
                     Sí, eliminar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : instructorView ? (
+            // Botón de Anular Clase/Propuesta para instructores
+            <AlertDialog open={showCancelClassDialog} onOpenChange={setShowCancelClassDialog}>
+              <AlertDialogTrigger asChild>
+                <button
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg font-medium text-xs transition-colors shadow-lg flex items-center gap-2",
+                    isCancellingClass
+                      ? "bg-gray-400 cursor-not-allowed opacity-50"
+                      : "bg-red-600 hover:bg-red-700 text-white"
+                  )}
+                  disabled={isCancellingClass}
+                >
+                  {isCancellingClass ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                  <div className="flex flex-col items-start leading-tight">
+                    <span>Anular</span>
+                    <span>{courtAssignment.isAssigned ? 'Clase' : 'Propuesta'}</span>
+                  </div>
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Anular {courtAssignment.isAssigned ? 'clase' : 'propuesta'}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {courtAssignment.isAssigned ? (
+                      <>
+                        Esta acción cancelará la clase y reembolsará automáticamente a todos los alumnos inscritos.
+                        <br /><br />
+                        <strong>Clase:</strong> {levelInfo.level}
+                        <br />
+                        <strong>Fecha:</strong> {format(new Date(currentSlotData.start), "d 'de' MMMM 'a las' HH:mm", { locale: es })}
+                        <br />
+                        <strong>Alumnos inscritos:</strong> {bookings?.filter(b => b.status === 'CONFIRMED').length || 0}
+                      </>
+                    ) : (
+                      <>
+                        Esta acción eliminará permanentemente esta propuesta de clase. Si hay alumnos inscritos, serán reembolsados automáticamente.
+                        <br /><br />
+                        <strong>Propuesta:</strong> {levelInfo.level}
+                        <br />
+                        <strong>Fecha:</strong> {format(new Date(currentSlotData.start), "d 'de' MMMM 'a las' HH:mm", { locale: es })}
+                        <br />
+                        <strong>Alumnos interesados:</strong> {bookings?.filter(b => b.status === 'CONFIRMED').length || 0}
+                      </>
+                    )}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleCancelClass} className="bg-red-600 hover:bg-red-700">
+                    Confirmar Anulación
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -1944,6 +2127,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           )}
         </div>
       </div>
+
       
       {/* Diálogo de Confirmación */}
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>

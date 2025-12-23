@@ -194,7 +194,22 @@ export function useUserProfile(initialUser: UserType | null) {
   };
 
   const handleSaveGenderCategory = useCallback(async () => {
-    if (!user || !selectedGenderCategory) return;
+    if (!user) {
+      console.log('❌ No hay usuario para guardar categoría');
+      return;
+    }
+    
+    if (!selectedGenderCategory || selectedGenderCategory === 'no_especificado') {
+      console.log('❌ No se ha seleccionado una categoría válida:', selectedGenderCategory);
+      toast({ 
+        title: "Error", 
+        description: "Debes seleccionar una categoría de género válida", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    console.log('💾 Guardando categoría:', { userId: user.id, selectedGenderCategory });
     
     try {
       const token = localStorage.getItem('auth_token');
@@ -217,6 +232,19 @@ export function useUserProfile(initialUser: UserType | null) {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Respuesta del servidor:', data);
+        
+        if (!data || !data.user) {
+          console.error('❌ Respuesta del servidor no contiene usuario:', data);
+          toast({ 
+            title: "Error", 
+            description: "Respuesta del servidor inválida", 
+            variant: "destructive" 
+          });
+          setSelectedGenderCategory(user.genderCategory);
+          return;
+        }
+        
         const updatedUser = data.user;
         
         setIsEditingGenderCategory(false);
@@ -229,6 +257,7 @@ export function useUserProfile(initialUser: UserType | null) {
         toast({ title: "Categoría Actualizada", description: `Tu categoría de género se ha establecido a ${selectedGenderCategory}.` });
       } else {
         const error = await response.json();
+        console.error('❌ Error del servidor:', error);
         toast({ title: "Error", description: error.error || "No se pudo actualizar la categoría", variant: "destructive" });
         setSelectedGenderCategory(user.genderCategory); // Revertir cambio
       }

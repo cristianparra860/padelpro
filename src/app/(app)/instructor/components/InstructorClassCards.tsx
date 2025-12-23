@@ -153,14 +153,35 @@ export default function InstructorClassCards({ instructor }: InstructorClassCard
     }
   });
 
+  // Calcular contadores para cada pestaña
+  const upcomingCount = timeSlots.filter((slot) => {
+    const slotDate = new Date(slot.start);
+    const now = new Date();
+    return !isPast(slotDate) || format(slotDate, 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd');
+  }).length;
+
+  const pastCount = timeSlots.filter((slot) => {
+    const slotDate = new Date(slot.start);
+    const now = new Date();
+    return isPast(slotDate) && format(slotDate, 'yyyy-MM-dd') !== format(now, 'yyyy-MM-dd');
+  }).length;
+
+  const allCount = timeSlots.length;
+
   return (
     <div className="space-y-6">
       {/* Tabs para filtrar clases */}
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="upcoming">Reservadas</TabsTrigger>
-          <TabsTrigger value="past">Pasadas</TabsTrigger>
-          <TabsTrigger value="all">Todas</TabsTrigger>
+          <TabsTrigger value="upcoming">
+            Reservadas <span className="ml-1.5 text-xs opacity-70">({upcomingCount})</span>
+          </TabsTrigger>
+          <TabsTrigger value="past">
+            Pasadas <span className="ml-1.5 text-xs opacity-70">({pastCount})</span>
+          </TabsTrigger>
+          <TabsTrigger value="all">
+            Todas <span className="ml-1.5 text-xs opacity-70">({allCount})</span>
+          </TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -204,7 +225,7 @@ export default function InstructorClassCards({ instructor }: InstructorClassCard
               currentUser={null} // El instructor no necesita reservar como usuario
               onBookingSuccess={handleBookingSuccess}
               allowedPlayerCounts={[1, 2, 3, 4]} // Mostrar todas las opciones
-              instructorView={true} // Modo vista de instructor (opcional, podrías añadir esta prop)
+              instructorView={true} // ✅ Modo vista de instructor con opciones de gestión
             />
           ))}
         </div>

@@ -338,8 +338,8 @@ async function autoGenerateOpenSlot(originalTimeSlotId: string, prisma: any) {
           ${slot.end}, 
           ${slot.maxPlayers || 4}, 
           ${slot.totalPrice}, 
-          'abierto', 
-          'mixto', 
+          'ABIERTO', 
+          'ABIERTO', 
           datetime('now'), 
           datetime('now')
         )
@@ -776,7 +776,8 @@ export async function POST(request: Request) {
       }
 
       // 🏷️ CLASIFICAR Y CREAR DUPLICADA EN EL PRIMER BOOKING
-      // REGLA CRÍTICA: La primera persona que se inscribe determina la categoría (masculino/femenino/mixto)
+      // REGLA CRÍTICA: La primera persona que se inscribe determina la categoría (masculino/femenino)
+      // NOTA: La categoría es INFORMATIVA, no restrictiva. Cualquier usuario puede inscribirse.
       console.log(`🔍 isFirstBooking = ${isFirstBooking}`);
       
       if (isFirstBooking) {
@@ -843,10 +844,10 @@ export async function POST(request: Request) {
           console.log(`   ℹ️ Usuario sin nivel definido - usando ABIERTO`);
         }
         
-        // Convertir género a categoría de clase (OBLIGATORIO)
+        // Convertir género a categoría de clase (INFORMATIVO, no restrictivo)
         const classCategory = userGender === 'masculino' ? 'masculino' : 
                             userGender === 'femenino' ? 'femenino' : 
-                            'mixto';
+                            'ABIERTO';
         
         console.log(`   🏷️ ASIGNANDO categoría: ${classCategory.toUpperCase()}`);
         console.log(`   🏷️ MANTENIENDO nivel como rango del instructor: ${instructorLevelRange}`);
@@ -880,7 +881,7 @@ export async function POST(request: Request) {
 
       // 🆕 GARANTIZAR TARJETA ABIERTO DISPONIBLE (SIEMPRE, NO SOLO EN PRIMERA RESERVA)
       // Esto se ejecuta en CADA reserva para asegurar que siempre haya una alternativa ABIERTO
-      console.log('🆕 Ensuring ABIERTO/mixto slot exists for this timeslot...');
+      console.log('🆕 Ensuring ABIERTO slot exists for this timeslot...');
       
       try {
         const originalSlot = await prisma.$queryRaw`
@@ -910,7 +911,7 @@ export async function POST(request: Request) {
             AND start = ${slot.start}
             AND level = 'ABIERTO'
             AND courtId IS NULL
-            AND (genderCategory = 'mixto' OR genderCategory IS NULL OR genderCategory = 'ABIERTO')
+            AND (genderCategory IS NULL OR genderCategory = 'ABIERTO')
           ` as Array<{id: string}>;
           
           if (existingOpen.length === 0) {

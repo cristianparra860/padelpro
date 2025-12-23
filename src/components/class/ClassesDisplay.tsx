@@ -1692,6 +1692,7 @@ export function ClassesDisplay({
                     instructorId={instructorId}
                     creditsSlots={creditsSlotsMap[slot.id] || []}
                     isInscriptionSelected={selectedInscriptionSlotIds.includes(slot.id)}
+                    instructorView={canEditCreditsSlots}
                   />
                 </div>
               );

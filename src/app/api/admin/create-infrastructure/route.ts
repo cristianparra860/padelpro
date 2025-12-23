@@ -81,7 +81,7 @@ export async function POST() {
       VALUES (
         ${openSlot1Id}, ${clubId}, ${court1Id}, ${instructor1Id}, 
         ${startTime1}, ${endTime1}, 
-        4, 25.0, 'abierto', 'mixto', datetime('now'), datetime('now')
+        4, 25.0, 'ABIERTO', 'ABIERTO', datetime('now'), datetime('now')
       )
     `;
 
@@ -93,7 +93,7 @@ export async function POST() {
       VALUES (
         ${openSlot2Id}, ${clubId}, ${court2Id}, ${instructor2Id}, 
         ${startTime2}, ${endTime2}, 
-        4, 25.0, 'abierto', 'mixto', datetime('now'), datetime('now')
+        4, 25.0, 'ABIERTO', 'ABIERTO', datetime('now'), datetime('now')
       )
     `;
     console.log('✅ Open time slots created');
