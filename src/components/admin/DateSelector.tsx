@@ -120,7 +120,7 @@ export default function DateSelector({
   return (
     <div className={`relative w-full rounded-lg py-2 md:py-3`}>
       {/* Grid de fechas - horizontal o vertical según orientación */}
-      <div className={`flex ${layoutOrientation === 'vertical' ? 'flex-col space-y-2' : 'justify-between overflow-x-auto scrollbar-hide touch-pan-x'} py-2 px-1`}>
+      <div className={`flex ${layoutOrientation === 'vertical' ? 'flex-col space-y-2' : 'justify-between overflow-x-auto scrollbar-hide touch-pan-x'} py-2 px-4 md:px-1`}>
         {dates.map((date, index) => {
           const selected = isSelected(date);
           const today = isToday(date);

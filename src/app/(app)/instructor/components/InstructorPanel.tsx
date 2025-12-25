@@ -68,8 +68,6 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
   const [availableClubs, setAvailableClubs] = useState<Club[]>([]);
   const [availableCourtsForSelectedClub, setAvailableCourtsForSelectedClub] = useState<PadelCourt[]>([]);
   const [isSavingSettings, startSettingsTransition] = useTransition();
-  const [hasActiveClasses, setHasActiveClasses] = useState<boolean>(false);
-  const [isCheckingClasses, setIsCheckingClasses] = useState<boolean>(true);
   const { toast } = useToast();
 
   const preferencesForm = useForm<PreferencesFormData>({
@@ -113,42 +111,6 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
     
     loadCurrentUser();
   }, []);
-
-  // Verificar si el instructor tiene clases activas/habilitadas
-  useEffect(() => {
-    const checkActiveClasses = async () => {
-      setIsCheckingClasses(true);
-      try {
-        const token = localStorage.getItem('auth_token');
-        const now = new Date();
-        const futureDate = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000); // 1 año adelante
-        
-        const response = await fetch(
-          `/api/timeslots?instructorId=${instructorData.id}&startDate=${now.toISOString()}&endDate=${futureDate.toISOString()}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-        
-        if (response.ok) {
-          const slots = await response.json();
-          // Verificar si hay clases sin pista asignada (courtId === null) que son propuestas activas
-          const activeProposals = slots.filter((slot: any) => slot.courtId === null);
-          setHasActiveClasses(activeProposals.length > 0);
-        }
-      } catch (error) {
-        console.error('Error checking active classes:', error);
-        setHasActiveClasses(false);
-      } finally {
-        setIsCheckingClasses(false);
-      }
-    };
-    
-    checkActiveClasses();
-  }, [instructorData.id, refreshKey]);
 
   useEffect(() => {
     setInstructorData(initialInstructor);
@@ -301,59 +263,33 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <InstructorClassCards instructor={instructorData} />
+            <Tabs defaultValue="all" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsTrigger value="all">Todas las Clases</TabsTrigger>
+                <TabsTrigger value="withStudents">Con Alumnos Inscritos</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="all">
+                <InstructorClassCards instructor={instructorData} />
+              </TabsContent>
+              
+              <TabsContent value="withStudents">
+                <InstructorClassCards instructor={instructorData} onlyWithBookings={true} />
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       </TabsContent>
 
       <TabsContent value="manageClasses">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-1">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center text-lg">
-                  <CalendarPlus className="mr-2 h-5 w-5 text-primary" /> Añadir Nueva Clase
-                </CardTitle>
-                {hasActiveClasses && (
-                  <CardDescription className="text-amber-600 flex items-center gap-2 mt-2">
-                    <AlertCircle className="h-4 w-4" />
-                    Ya tienes clases habilitadas. Solo puedes tener una clase activa a la vez.
-                  </CardDescription>
-                )}
-              </CardHeader>
-              <CardContent>
-                {isCheckingClasses ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                    <span className="ml-2 text-sm text-muted-foreground">Verificando clases...</span>
-                  </div>
-                ) : hasActiveClasses ? (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center">
-                    <AlertCircle className="h-8 w-8 text-amber-500 mx-auto mb-2" />
-                    <p className="text-sm text-amber-800 font-medium">
-                      No puedes añadir más clases mientras tengas clases activas.
-                    </p>
-                    <p className="text-xs text-amber-700 mt-1">
-                      Elimina o confirma tus clases actuales en el panel "Clases Gestionadas" para poder crear nuevas.
-                    </p>
-                  </div>
-                ) : (
-                  <AddClassForm instructor={instructorData} onClassAdded={handleClassAdded} />
-                )}
-              </CardContent>
-            </Card>
-          </div>
-          <div className="lg:col-span-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center text-lg"><ListChecks className="mr-2 h-5 w-5 text-primary" /> Clases Gestionadas</CardTitle>
-              </CardHeader>
-              <CardContent>
-                  <ManagedSlotsList key={refreshKey} instructorId={instructorData.id} />
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center text-lg"><ListChecks className="mr-2 h-5 w-5 text-primary" /> Clases Gestionadas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ManagedSlotsList key={refreshKey} instructorId={instructorData.id} />
+          </CardContent>
+        </Card>
       </TabsContent>
 
       <TabsContent value="addCredits">

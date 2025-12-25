@@ -719,6 +719,19 @@ export default function ClubCalendar2({
 
 
 
+      {/* Botón de volver solo en móvil */}
+      <div className="md:hidden mb-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.back()}
+          className="flex items-center gap-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+        >
+          <ChevronLeft className="h-5 w-5" />
+          <span className="text-base font-medium">Volver</span>
+        </Button>
+      </div>
+
       {/* Selector de Fecha Lineal - Sin fondo, solo contenido */}
       <div className="hidden md:block">
         <DateSelector 
@@ -730,7 +743,7 @@ export default function ClubCalendar2({
       </div>
       
       {/* Versión móvil del selector de fecha (sin Card) */}
-      <div className="md:hidden w-full mt-2">
+      <div className="md:hidden w-[186%] -mb-[108px] scale-[1.0] origin-top-left">
         <DateSelector 
           selectedDate={currentDate}
           onDateChange={setCurrentDate}
@@ -740,7 +753,7 @@ export default function ClubCalendar2({
       </div>
 
       {/* Vista del calendario basada en pistas - DISEÑO MEJORADO */}
-      <Card className="shadow-xl border-gray-200">
+      <Card className="shadow-xl border-gray-200 -mt-28 md:mt-4">
         <CardContent className="p-0">
           {view === 'month' ? (
             // Vista mensual - grid compacto (mantener original)
@@ -788,7 +801,7 @@ export default function ClubCalendar2({
           ) : (
             // VISTA HORIZONTAL (ORIGINAL): Instructores en filas, Horas en columnas
             layoutOrientation === 'horizontal' ? (
-            <div className="flex flex-col overflow-x-auto md:overflow-x-visible md:rounded-lg md:border md:border-gray-200 -mx-4 md:mx-0">
+            <div className="flex flex-col md:overflow-x-visible md:rounded-lg md:border md:border-gray-200 -mx-4 md:mx-0">
               {/* Franja superior con selector de precio */}
               <div className="bg-gradient-to-r from-blue-600 to-purple-600 border-b-2 border-gray-300 py-2 px-4 flex items-center justify-center gap-3">
                 <span className="text-sm font-bold text-white uppercase tracking-wide">Precio Plazas:</span>
@@ -1151,16 +1164,16 @@ export default function ClubCalendar2({
             </div>
             ) : (
             // VISTA VERTICAL: Horas en filas, Instructores en columnas
-            <div className="flex flex-col max-h-[calc(100vh-180px)] overflow-hidden md:rounded-lg md:border md:border-gray-200">
+            <div className="flex flex-col max-h-[calc(200vh-360px)] md:max-h-[calc(100vh-180px)] overflow-hidden md:rounded-lg md:border md:border-gray-200 w-[200%] scale-50 origin-top-left md:w-full md:scale-100">
               {/* Franja superior con selector de precio */}
-              <div className="bg-gradient-to-r from-blue-600 to-purple-600 border-b-2 border-gray-300 py-1.5 px-4 flex items-center justify-center gap-3">
-                <span className="text-xs font-bold text-white uppercase tracking-wide">Precio Plazas:</span>
-                <div className="flex gap-2">
+              <div className="bg-gradient-to-r from-blue-600 to-purple-600 border-b-2 border-gray-300 py-3 md:py-1.5 px-4 flex items-center justify-center gap-3">
+                <span className="text-base md:text-xs font-bold text-white uppercase tracking-wide">Precio Plazas:</span>
+                <div className="flex gap-3 md:gap-2">
                   {[1, 2, 3, 4].map((size) => (
                     <button
                       key={size}
                       onClick={() => setSelectedGroupSize(size as 1 | 2 | 3 | 4)}
-                      className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                      className={`w-12 h-12 md:w-8 md:h-8 rounded-lg text-base md:text-xs font-bold transition-all ${
                         selectedGroupSize === size
                           ? 'bg-white text-blue-600 shadow-lg scale-110'
                           : 'bg-white/20 text-white hover:bg-white/30'
@@ -1173,41 +1186,57 @@ export default function ClubCalendar2({
                 </div>
               </div>
               {/* Header fijo con instructores */}
-              <div className="flex border-b-2 border-gray-300 bg-gradient-to-r from-gray-100 to-gray-50 shadow-sm sticky top-0 z-30">
-                <div className="w-20 border-r-2 border-gray-300 bg-white flex items-center justify-center p-2 flex-shrink-0">
-                  <span className="text-xs font-bold text-gray-600 uppercase">Hora</span>
+              <div>
+                <div className="flex border-b-2 border-gray-300 bg-gradient-to-r from-gray-100 to-gray-50 shadow-sm sticky top-0 z-30">
+                <div className="w-24 md:w-20 border-r-2 border-gray-300 bg-white flex items-center justify-center py-3 px-2 md:p-2 flex-shrink-0">
+                  <span className="text-lg md:text-xs font-black text-gray-700 uppercase tracking-wider">Hora</span>
                 </div>
                 {/* Headers de instructores */}
-                <div className="flex flex-1 overflow-x-auto">
+                <div className="flex flex-1">
                   {calendarData?.instructors.map(instructor => (
-                    <div key={instructor.id} className="min-w-[120px] border-r bg-white px-2 py-2 flex flex-col items-center">
-                      {instructor.photo ? (
-                        <img 
-                          src={instructor.photo} 
-                          alt={instructor.name}
-                          className="w-12 h-12 rounded-full object-cover border-2 border-blue-500 shadow-md mb-1"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-sm font-bold text-white shadow-md mb-1">
-                          {instructor.name.charAt(0)}
+                    <div
+                      key={instructor.id}
+                      className="min-w-[140px] md:min-w-[120px] border-r-2 border-gray-200 bg-white px-1 py-1 flex flex-col items-center gap-1"
+                    >
+                      <div className="w-full h-full flex flex-col items-center justify-center">
+                        {instructor.photo ? (
+                          <img
+                            src={instructor.photo}
+                            alt={instructor.name}
+                            className="w-14 h-14 md:w-12 md:h-12 rounded-full object-cover border-2 border-blue-500 shadow-lg"
+                          />
+                        ) : (
+                          <div className="w-14 h-14 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-xl md:text-sm font-black text-white shadow-lg">
+                            {instructor.name.charAt(0)}
+                          </div>
+                        )}
+                        <div className="w-full flex flex-col items-center justify-center">
+                          <div className="text-base md:text-xs font-black text-gray-900 text-center leading-tight">
+                            {abbreviateName(instructor.name)}
+                          </div>
                         </div>
-                      )}
-                      <div className="text-xs font-bold text-gray-900 text-center">{abbreviateName(instructor.name)}</div>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
+              </div>
 
               {/* Body scrollable con slots de tiempo */}
               <div className="flex-1 overflow-y-auto">
+                <div>
                 {timeSlots.map((time, slotIndex) => {
                   const [hour, minute] = time.split(':');
+                  const isFullHour = minute === '00';
+                  const isHalfHour = minute === '30';
+                  const bgClass = isFullHour ? 'bg-gray-200' : isHalfHour ? 'bg-gray-100' : 'bg-white';
+                  const hourBgClass = isFullHour ? 'bg-gray-300 md:bg-gradient-to-r md:from-gray-100 md:to-gray-50' : isHalfHour ? 'bg-gray-200 md:bg-gradient-to-r md:from-gray-100 md:to-gray-50' : 'bg-gradient-to-r from-gray-100 to-gray-50';
                   return (
-                    <div key={time} className="flex border-b hover:bg-blue-50/30 transition-colors">
+                    <div key={time} className={`flex border-b hover:bg-blue-50/30 transition-colors ${bgClass}`}>
                       {/* Columna de hora */}
-                      <div className="w-20 border-r-2 border-gray-300 bg-gradient-to-r from-gray-100 to-gray-50 flex flex-col items-center justify-center py-2 flex-shrink-0 sticky left-0 z-20">
-                        <div className="text-lg font-black text-gray-800 leading-none">{hour}</div>
-                        <div className="text-sm font-bold text-gray-500 leading-none">{minute}</div>
+                      <div className={`w-24 md:w-20 border-r-2 border-gray-300 ${hourBgClass} flex flex-col items-center justify-center py-4 md:py-2 gap-1 flex-shrink-0 sticky left-0 z-20 shadow-sm`}>
+                        <div className="text-4xl md:text-lg font-black text-gray-900 leading-none">{hour}</div>
+                        <div className="text-2xl md:text-sm font-black text-gray-600 leading-none">{minute}</div>
                       </div>
                       
                       {/* Celdas de instructores */}
@@ -1326,41 +1355,41 @@ export default function ClubCalendar2({
                               title={!canStartClassHere ? '⚠️ No hay 60min disponibles' : isSecondSlotOfClass ? '🔒 Ocupado por clase en curso' : isBufferBeforeClass ? '⏳ Buffer 30min antes de clase' : ''}
                               style={isBufferBeforeClass ? { 
                                 backgroundImage: 'repeating-linear-gradient(45deg, #e5e7eb 0, #e5e7eb 10px, #f3f4f6 10px, #f3f4f6 20px)',
-                                opacity: 0.6 
-                              } : {}}
-                            >
-                              {/* BLOQUES VERDES: Clases confirmadas - OCUPAN 2 SLOTS (60min) */}
-                              {confirmedInSlot.length > 0 && (
-                                <div className="absolute inset-0 p-1 overflow-visible z-10">
-                                  {confirmedInSlot.map(cls => {
-                                    // Verificar si es el slot de inicio
-                                    const clsStart = new Date(cls.start);
-                                    const isStartSlot = clsStart.getHours() === parseInt(time.split(':')[0]) && 
-                                                       clsStart.getMinutes() === parseInt(time.split(':')[1]);
-                                    
-                                    if (!isStartSlot) return null;
-                                    
-                                    return (
-                                      <div
-                                        key={cls.id}
-                                        className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded shadow-lg cursor-pointer hover:shadow-2xl hover:scale-[1.25] transition-all duration-300 flex flex-col items-center justify-center p-1 border-2 border-green-400 hover:z-50"
-                                        style={{
-                                          position: 'absolute',
-                                          top: '4px',
-                                          left: '4px',
-                                          right: '4px',
-                                          height: 'calc(200% - 8px)', // Ocupa exactamente 2 filas
-                                        }}
-                                        onClick={() => handleEventClick(cls)}
-                                        title={`✅ CONFIRMADA - Pista ${cls.courtNumber} - ${cls.playersCount}/${cls.maxPlayers} alumnos`}
-                                      >
-                                        {/* Contenedor superior: Instructor centrado CON BORDE */}
-                                        <div className="flex flex-col items-center w-full mb-1 border border-white/40 rounded p-1">
-                                          {/* Foto del instructor */}
-                                          <div className="mb-0.5">
-                                            {cls.instructorPhoto ? (
-                                              <img 
-                                                src={cls.instructorPhoto} 
+                                <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100">
+                                  <div className="flex border-b-2 border-gray-300 bg-gradient-to-r from-gray-100 to-gray-50 shadow-sm sticky top-0 z-30 min-w-fit">
+                                    <div className="w-24 md:w-20 border-r-2 border-gray-300 bg-white flex items-center justify-center py-3 px-2 md:p-2 flex-shrink-0 sticky left-0 z-20 shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
+                                      <span className="text-lg md:text-xs font-black text-gray-700 uppercase tracking-wider">Hora</span>
+                                    </div>
+                                    {/* Headers de instructores */}
+                                    <div className="flex flex-1">
+                                      {calendarData?.instructors.map(instructor => (
+                                        <div
+                                          key={instructor.id}
+                                          className="min-w-[140px] md:min-w-[120px] border-r-2 border-gray-200 bg-white px-1 py-1 flex flex-col items-center gap-1"
+                                        >
+                                          <div className="w-full h-full flex flex-col items-center justify-center">
+                                            {instructor.photo ? (
+                                              <img
+                                                src={instructor.photo}
+                                                alt={instructor.name}
+                                                className="w-14 h-14 md:w-12 md:h-12 rounded-full object-cover border-2 border-blue-500 shadow-lg"
+                                              />
+                                            ) : (
+                                              <div className="w-14 h-14 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-xl md:text-sm font-black text-white shadow-lg">
+                                                {instructor.name.charAt(0)}
+                                              </div>
+                                            )}
+                                            <div className="w-full flex flex-col items-center justify-center">
+                                              <div className="text-base md:text-xs font-black text-gray-900 text-center leading-tight">
+                                                {abbreviateName(instructor.name)}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
                                                 alt={cls.instructorName}
                                                 className="w-8 h-8 rounded-full object-cover border border-white shadow-md"
                                               />
@@ -1372,7 +1401,7 @@ export default function ClubCalendar2({
                                           </div>
                                           
                                           {/* Nombre */}
-                                          <div className="text-[8px] font-bold text-center leading-tight mb-0.5 truncate w-full px-0.5">
+                                          <div className="text-base md:text-[8px] font-black text-center leading-tight mb-0.5 truncate w-full px-0.5">
                                             {cls.instructorName}
                                           </div>
                                           
@@ -1428,7 +1457,7 @@ export default function ClubCalendar2({
                                           )}
                                           
                                           {/* Nivel y Formato */}
-                                          <div className="text-[9px] font-bold text-white">
+                                          <div className="text-lg md:text-[9px] font-black text-white">
                                             {(cls as any).levelRange || cls.category || cls.level || 'Abierto'} • {cls.bookings?.filter((b: any) => b.status === 'CONFIRMED' || b.status === 'CANCELLED').length || 0}p
                                           </div>
                                         </div>
@@ -1497,6 +1526,7 @@ export default function ClubCalendar2({
                     </div>
                   );
                 })}
+                </div>
               </div>
             </div>
             )
@@ -1673,9 +1703,6 @@ function ClassCardWrapper({ classId, onClose, onBookingSuccess }: { classId: str
       currentUser={currentUser}
       onBookingSuccess={handleBookingSuccess}
       showPointsBonus={true}
-      instructorView={currentUser?.role === 'INSTRUCTOR'}
-      isInstructor={currentUser?.role === 'INSTRUCTOR'}
-      instructorId={currentUser?.role === 'INSTRUCTOR' ? currentUser?.instructorId : undefined}
     />
   );
 }
@@ -1762,7 +1789,7 @@ function ProposalCardsWrapper({
         </div>
       )}
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4">
         {proposals.map((proposal) => (
           <ClassCardReal
             key={proposal.id}
@@ -1770,9 +1797,6 @@ function ProposalCardsWrapper({
             currentUser={currentUser}
             onBookingSuccess={handleBookingSuccess}
             showPointsBonus={true}
-            instructorView={currentUser?.role === 'INSTRUCTOR'}
-            isInstructor={currentUser?.role === 'INSTRUCTOR'}
-            instructorId={currentUser?.role === 'INSTRUCTOR' ? currentUser?.instructorId : undefined}
           />
         ))}
       </div>

@@ -1,22 +1,28 @@
-// src/app/api/admin/clubs/[clubId]/instructors/[id]/route.ts
+// src/app/api/admin/clubs/[clubId]/instructors/[instructorId]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 // PUT - Actualizar instructor
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { clubId: string; id: string } }
+  { params }: { params: Promise<{ clubId: string; instructorId: string }> }
 ) {
   try {
-    const { clubId, id } = params;
+    const { clubId, instructorId } = await params;
     const body = await request.json();
 
     const { name, email, specialty, hourlyRate, bio } = body;
 
+    console.log('✏️ PUT /api/admin/clubs/[clubId]/instructors/[instructorId]', {
+      clubId,
+      instructorId,
+      body
+    });
+
     // Verificar que el instructor pertenece al club
     const existingInstructor = await prisma.instructor.findFirst({
       where: {
-        id,
+        id: instructorId,
         clubId
       },
       include: {
@@ -32,20 +38,35 @@ export async function PUT(
     }
 
     // Si se está cambiando el email, verificar que no esté en uso
-    if (email && email !== existingInstructor.user.email) {
+    // Normalizar emails para comparación (case-insensitive)
+    if (email && email.toLowerCase() !== existingInstructor.user.email.toLowerCase()) {
+      console.log('🔍 Verificando email:', { 
+        emailNuevo: email, 
+        emailActual: existingInstructor.user.email,
+        userId: existingInstructor.userId 
+      });
+      
       const emailInUse = await prisma.user.findUnique({
-        where: { email }
+        where: { email: email } // Buscar con el email tal cual viene
       });
 
-      if (emailInUse) {
+      console.log('📧 Email en uso?', emailInUse ? `Sí (userId: ${emailInUse.id})` : 'No');
+
+      // Solo es error si el email está en uso por OTRO usuario
+      if (emailInUse && emailInUse.id !== existingInstructor.userId) {
+        console.log('❌ Email en uso por otro usuario');
         return NextResponse.json(
           { error: 'El email ya está en uso' },
           { status: 400 }
         );
       }
+      
+      console.log('✅ Email disponible o es del mismo usuario');
+    } else {
+      console.log('ℹ️ Email no cambió, no se valida');
     }
 
-    console.log('✏️ Actualizando instructor:', id);
+    console.log('✏️ Actualizando instructor:', instructorId);
 
     // Actualizar en transacción
     const result = await prisma.$transaction(async (tx) => {
@@ -62,7 +83,7 @@ export async function PUT(
 
       // Actualizar instructor
       const updatedInstructor = await tx.instructor.update({
-        where: { id },
+        where: { id: instructorId },
         data: {
           ...(name && { name }),
           ...(specialty !== undefined && { specialties: specialty }),
@@ -101,15 +122,15 @@ export async function PUT(
 // DELETE - Desactivar instructor (marcar como inactivo)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { clubId: string; id: string } }
+  { params }: { params: Promise<{ clubId: string; instructorId: string }> }
 ) {
   try {
-    const { clubId, id } = params;
+    const { clubId, instructorId } = await params;
 
     // Verificar que el instructor pertenece al club
     const existingInstructor = await prisma.instructor.findFirst({
       where: {
-        id,
+        id: instructorId,
         clubId
       }
     });
@@ -124,7 +145,7 @@ export async function DELETE(
     // Verificar si el instructor tiene clases asignadas en el futuro
     const futureClasses = await prisma.timeSlot.count({
       where: {
-        instructorId: id,
+        instructorId: instructorId,
         start: {
           gte: new Date()
         }
@@ -138,11 +159,11 @@ export async function DELETE(
       );
     }
 
-    console.log('🗑️ Desactivando instructor:', id);
+    console.log('🗑️ Desactivando instructor:', instructorId);
 
     // Marcar instructor como inactivo (no eliminar)
     await prisma.instructor.update({
-      where: { id },
+      where: { id: instructorId },
       data: {
         isActive: false
       }

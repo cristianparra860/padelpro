@@ -31,8 +31,9 @@ async function addClassesForUpcomingDays() {
       { startHour: 20, endHour: 21.5, name: 'Clase Noche' }
     ];
 
-    // Crear clases para los próximos 7 días (25 septiembre - 1 octubre)
-    const startDate = new Date('2025-09-25'); // Empezar desde mañana
+    // Crear clases para los próximos 7 días desde HOY
+    const startDate = new Date(); // Empezar desde hoy
+    startDate.setHours(0, 0, 0, 0); // Resetear a medianoche
     const classesToCreate = [];
 
     for (let dayOffset = 0; dayOffset < 7; dayOffset++) {

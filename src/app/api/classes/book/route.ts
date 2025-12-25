@@ -360,6 +360,160 @@ async function autoGenerateOpenSlot(originalTimeSlotId: string, prisma: any) {
   }
 }
 
+// 🎾 FUNCIÓN REUTILIZABLE PARA ASIGNAR PISTA
+async function assignCourtToClass(timeSlotId: string, raceWinner: number): Promise<{courtAssigned: number | null, success: boolean}> {
+  try {
+    console.log(`\n🎾 === ASIGNACIÓN DE PISTA ===`);
+    console.log(`   📍 TimeSlot: ${timeSlotId}`);
+    console.log(`   🏆 Winner: ${raceWinner} player(s)`);
+
+    // Verificar si el timeSlot ya tiene pista asignada
+    const currentTimeSlot = await prisma.$queryRaw`
+      SELECT courtNumber FROM TimeSlot WHERE id = ${timeSlotId}
+    ` as Array<{courtNumber: number | null}>;
+    
+    if (currentTimeSlot[0]?.courtNumber) {
+      console.log(`   ℹ️ Court already assigned: ${currentTimeSlot[0].courtNumber}`);
+      return { courtAssigned: currentTimeSlot[0].courtNumber, success: true };
+    }
+
+    // Obtener el horario de esta clase
+    const timeSlotTiming = await prisma.$queryRaw`
+      SELECT start, end, clubId FROM TimeSlot WHERE id = ${timeSlotId}
+    ` as Array<{start: string, end: string, clubId: string}>;
+    
+    const { clubId } = timeSlotTiming[0];
+    const slotStart = new Date(timeSlotTiming[0].start);
+    
+    // 🔒 SIEMPRE ASUMIR 60 MINUTOS DE DURACIÓN para la verificación de pistas
+    const slotEnd = new Date(slotStart.getTime() + (60 * 60 * 1000)); // +60 min
+    const start = slotStart.toISOString();
+    const end = slotEnd.toISOString();
+    
+    console.log(`   📏 Verificando disponibilidad para rango COMPLETO: ${start} - ${end} (60 min)`);
+    
+    // 1. Buscar pistas ocupadas por OTRAS CLASES
+    const occupiedByClasses = await prisma.$queryRaw`
+      SELECT courtNumber FROM TimeSlot 
+      WHERE clubId = ${clubId}
+      AND courtNumber IS NOT NULL
+      AND id != ${timeSlotId}
+      AND start < ${end}
+      AND end > ${start}
+      GROUP BY courtNumber
+    ` as Array<{courtNumber: number}>;
+    
+    // 2. Buscar pistas bloqueadas en CourtSchedule
+    const occupiedBySchedule = await prisma.$queryRaw`
+      SELECT c.number as courtNumber
+      FROM CourtSchedule cs
+      JOIN Court c ON cs.courtId = c.id
+      WHERE c.clubId = ${clubId}
+      AND cs.isOccupied = 1
+      AND cs.startTime < ${end}
+      AND cs.endTime > ${start}
+    ` as Array<{courtNumber: number}>;
+    
+    // Combinar ambas listas de pistas ocupadas
+    const occupiedCourtNumbers = [
+      ...occupiedByClasses.map(c => c.courtNumber),
+      ...occupiedBySchedule.map(c => c.courtNumber)
+    ];
+    
+    console.log(`   🔍 Occupied courts for ${start} - ${end}:`, occupiedCourtNumbers);
+    
+    // Obtener el número total de pistas del club
+    const clubCourts = await prisma.$queryRaw`
+      SELECT number FROM Court 
+      WHERE clubId = ${clubId}
+      AND isActive = 1
+      ORDER BY number ASC
+    ` as Array<{number: number}>;
+    
+    const totalCourts = clubCourts.length;
+    console.log(`   🏟️ Total courts in club: ${totalCourts}`);
+    
+    // Encontrar la primera pista disponible
+    let courtAssigned: number | null = null;
+    for (const court of clubCourts) {
+      if (!occupiedCourtNumbers.includes(court.number)) {
+        courtAssigned = court.number;
+        console.log(`   ✅ Assigning first available court: ${courtAssigned}`);
+        break;
+      }
+    }
+    
+    if (!courtAssigned) {
+      console.log(`   ⚠️ NO AVAILABLE COURTS! All ${totalCourts} courts are occupied`);
+      return { courtAssigned: null, success: false };
+    }
+
+    // Obtener el courtId de la pista asignada
+    const courtInfo = await prisma.$queryRaw`
+      SELECT id FROM Court WHERE number = ${courtAssigned} AND clubId = ${clubId} LIMIT 1
+    ` as Array<{id: string}>;
+    
+    const assignedCourtId = courtInfo && courtInfo.length > 0 ? courtInfo[0].id : null;
+    
+    // 🕒 EXTENDER SLOT A 60 MINUTOS (si es de 30 min)
+    const slotDetails = await prisma.$queryRaw`
+      SELECT start, end, instructorId FROM TimeSlot WHERE id = ${timeSlotId}
+    ` as Array<{start: Date, end: Date, instructorId: string}>;
+    
+    if (slotDetails.length > 0) {
+      const currentStart = slotDetails[0].start;
+      const currentEnd = slotDetails[0].end;
+      const durationMinutes = (Number(currentEnd) - Number(currentStart)) / (1000 * 60);
+      
+      console.log(`   📏 Duración actual del slot: ${durationMinutes} minutos`);
+      
+      // Si el slot es de 30 minutos, extenderlo a 60 minutos
+      if (durationMinutes === 30) {
+        const newEndTimestamp = Number(currentStart) + (60 * 60 * 1000); // +60 minutos
+        console.log(`   🔄 Extendiendo slot de 30min a 60min`);
+        
+        await prisma.$executeRaw`
+          UPDATE TimeSlot 
+          SET end = ${newEndTimestamp}, courtId = ${assignedCourtId}, courtNumber = ${courtAssigned}, updatedAt = datetime('now')
+          WHERE id = ${timeSlotId}
+        `;
+      } else {
+        // Si ya es de 60 minutos, solo asignar pista
+        await prisma.$executeRaw`
+          UPDATE TimeSlot 
+          SET courtId = ${assignedCourtId}, courtNumber = ${courtAssigned}, updatedAt = datetime('now')
+          WHERE id = ${timeSlotId}
+        `;
+      }
+
+      // 🔒 MARCAR PISTA OCUPADA EN SCHEDULE
+      const instructorId = slotDetails[0].instructorId;
+      
+      // Crear registro en CourtSchedule
+      const courtScheduleId = `cs-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      await prisma.$executeRaw`
+        INSERT INTO CourtSchedule (id, courtId, startTime, endTime, isOccupied, createdAt, updatedAt)
+        VALUES (${courtScheduleId}, ${assignedCourtId}, ${start}, ${end}, 1, datetime('now'), datetime('now'))
+      `;
+      
+      // Crear registro en InstructorSchedule
+      const instructorScheduleId = `is-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      await prisma.$executeRaw`
+        INSERT INTO InstructorSchedule (id, instructorId, startTime, endTime, isOccupied, createdAt, updatedAt)
+        VALUES (${instructorScheduleId}, ${instructorId}, ${start}, ${end}, 1, datetime('now'), datetime('now'))
+      `;
+      
+      console.log(`   ✅ Court ${courtAssigned} assigned and marked occupied`);
+    }
+
+    return { courtAssigned, success: true };
+    
+  } catch (error) {
+    console.error(`   ❌ Error assigning court:`, error);
+    return { courtAssigned: null, success: false };
+  }
+}
+
 export async function POST(request: Request) {
   try {
     console.log('');
@@ -472,6 +626,7 @@ export async function POST(request: Request) {
       }
 
       // Verificar si ya existe una reserva PARA ESTA MODALIDAD ESPECÍFICA
+      // 🎁 EXCEPCIÓN: Si es pago con puntos (plazas individuales), permitir múltiples reservas
       const existingBookingForGroupSize = await prisma.$queryRaw`
         SELECT id FROM Booking 
         WHERE userId = ${userId} 
@@ -480,7 +635,8 @@ export async function POST(request: Request) {
         AND status IN ('PENDING', 'CONFIRMED')
       `;
 
-      if (existingBookingForGroupSize && (existingBookingForGroupSize as any[]).length > 0) {
+      // 🎁 Solo bloquear si NO es pago con puntos (plazas individuales)
+      if (!usePoints && existingBookingForGroupSize && (existingBookingForGroupSize as any[]).length > 0) {
         return NextResponse.json({ error: `Ya tienes una reserva para la modalidad de ${groupSize} jugador${groupSize > 1 ? 'es' : ''} en esta clase` }, { status: 400 });
       }
 
@@ -709,6 +865,61 @@ export async function POST(request: Request) {
         return NextResponse.json({ 
           error: 'Ya tienes una reserva activa en esta clase con este número de jugadores' 
         }, { status: 400 });
+      }
+
+      // 🎁 REEMPLAZO DE BOOKING DEL INSTRUCTOR SUBSIDIO
+      // Si estamos reservando con puntos (usePoints=true), verificar si existe un booking del instructor con subsidio
+      if (usePoints && groupSize === 1) {
+        console.log(`🔍 Verificando si existe booking de subsidio del instructor...`);
+        const instructorSubsidy = await prisma.$queryRaw`
+          SELECT id, userId, amountBlocked
+          FROM Booking
+          WHERE timeSlotId = ${timeSlotId}
+          AND groupSize = 1
+          AND isInstructorSubsidy = 1
+          AND status = 'CONFIRMED'
+          LIMIT 1
+        ` as Array<{ id: string; userId: string; amountBlocked: number }>;
+
+        if (instructorSubsidy.length > 0) {
+          const subsidyBooking = instructorSubsidy[0];
+          console.log(`🎁 Encontrado booking de subsidio: ${subsidyBooking.id}, instructor: ${subsidyBooking.userId}, monto: ${subsidyBooking.amountBlocked}`);
+          
+          // Cancelar booking del instructor
+          await prisma.$executeRaw`
+            UPDATE Booking
+            SET status = 'CANCELLED', updatedAt = datetime('now')
+            WHERE id = ${subsidyBooking.id}
+          `;
+          console.log(`✅ Booking de subsidio cancelado`);
+          
+          // Devolver créditos al instructor
+          await prisma.$executeRaw`
+            UPDATE User
+            SET credits = credits + ${subsidyBooking.amountBlocked}, updatedAt = datetime('now')
+            WHERE id = ${subsidyBooking.userId}
+          `;
+          console.log(`💰 Créditos devueltos al instructor: +${subsidyBooking.amountBlocked} céntimos`);
+          
+          // Crear transacción de reembolso
+          const transactionId = `txn-refund-subsidy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          await prisma.$executeRaw`
+            INSERT INTO Transaction (id, userId, type, amount, description, status, createdAt, updatedAt)
+            VALUES (
+              ${transactionId},
+              ${subsidyBooking.userId},
+              'REFUND',
+              ${subsidyBooking.amountBlocked},
+              'Reembolso por booking de subsidio reemplazado por usuario',
+              'COMPLETED',
+              datetime('now'),
+              datetime('now')
+            )
+          `;
+          console.log(`📝 Transacción de reembolso creada: ${transactionId}`);
+        } else {
+          console.log(`ℹ️ No se encontró booking de subsidio del instructor`);
+        }
       }
 
       // ♻️ PLAZAS RECICLADAS: COBRAR inmediatamente y crear como CONFIRMED
@@ -1003,22 +1214,6 @@ export async function POST(request: Request) {
       // 🏁 SISTEMA DE CARRERAS: Verificar si alguna modalidad se completa
       console.log('🏁 RACE SYSTEM: Checking if any group option is complete...');
       
-      // ⚠️ SI ES LA PRIMERA RESERVA Y GRUPO > 1, NO COMPLETAR LA CARRERA
-      // Para grupos de 1 jugador, completar inmediatamente
-      // Para grupos de 2-4 jugadores, esperar más inscripciones
-      if (isFirstBooking && groupSize > 1) {
-        console.log('   ℹ️ First booking detected (group size > 1) - race will NOT complete yet');
-        console.log('   ⏳ Waiting for more players to join...');
-        
-        return NextResponse.json({
-          success: true,
-          bookingId,
-          message: 'Reserva creada exitosamente',
-          classComplete: false,
-          status: 'PENDING'
-        });
-      }
-      
       // 🚨 NORMA #1: VERIFICAR SI YA TIENE UNA RESERVA CONFIRMADA HOY
       // Esta verificación DEBE hacerse ANTES de confirmar la nueva reserva
       const slotDateForCheck = new Date(slotDetails[0].start);
@@ -1079,6 +1274,11 @@ export async function POST(request: Request) {
 
       console.log('📈 Bookings by groupSize:', Object.fromEntries(bookingsByGroupSize));
 
+      // 🎁 CONTAR PLAZAS INDIVIDUALES: Para cada modalidad (1,2,3,4), contar cuántas plazas hay
+      // Una plaza individual cuenta como 1/N de esa modalidad
+      const totalSlotsBooked = allBookingsForSlot.reduce((sum, b) => sum + b.groupSize, 0);
+      console.log(`🎁 Total slots booked: ${totalSlotsBooked} / ${slotDetails[0].maxPlayers}`);
+      
       // Verificar cada opción de grupo para ver si alguna está completa
       let raceWinner: number | null = null;
       let courtAssigned: number | null = null;
@@ -1088,13 +1288,31 @@ export async function POST(request: Request) {
         console.log(`   🎫 PRIVATE RESERVATION WINS! Auto-completing race for ${groupSize} players`);
         raceWinner = groupSize;
       } else {
-        // Lógica normal de carrera para reservas normales
-        for (const [groupSize, count] of bookingsByGroupSize.entries()) {
-          console.log(`   🔍 Option ${groupSize} players: ${count}/${groupSize} bookings`);
+        // 🎁 VERIFICAR MODALIDADES INCLUYENDO PLAZAS INDIVIDUALES
+        // Para cada modalidad posible (1, 2, 3, 4), verificar si se completó
+        for (let modalidad = 1; modalidad <= 4; modalidad++) {
+          // Contar bookings normales de esta modalidad (cada booking = 1 persona)
+          const bookingsNormales = bookingsByGroupSize.get(modalidad) || 0;
           
-          if (count >= groupSize) {
-            console.log(`   ✅ WINNER! Option for ${groupSize} player(s) is COMPLETE!`);
-            raceWinner = groupSize;
+          // Contar bookings individuales (groupSize=1 que llenan esta modalidad)
+          // Solo si la modalidad es mayor que 1 (las individuales pueden llenar modalidades 2,3,4)
+          let plazasIndividuales = 0;
+          if (modalidad > 1) {
+            // Contar cuántas plazas individuales hay (groupSize=1)
+            plazasIndividuales = bookingsByGroupSize.get(1) || 0;
+          }
+          
+          // Total de plazas para esta modalidad
+          // IMPORTANTE: Cada booking = 1 persona, NO multiplicar por modalidad
+          // Ejemplo: 2 bookings con groupSize=2 = 2 personas (completa modalidad 2)
+          const totalPlazas = bookingsNormales + plazasIndividuales;
+          
+          console.log(`   🔍 Modalidad ${modalidad} jugadores: ${bookingsNormales} bookings + ${plazasIndividuales} individuales = ${totalPlazas}/${modalidad} plazas`);
+          
+          // Si esta modalidad se completó (tiene suficientes plazas)
+          if (totalPlazas >= modalidad) {
+            console.log(`   ✅ WINNER! Modalidad ${modalidad} jugador(es) COMPLETADA!`);
+            raceWinner = modalidad;
             break;
           }
         }
@@ -1106,8 +1324,27 @@ export async function POST(request: Request) {
           console.log(`   💰 PROCESSING WINNER - Confirming and charging winning bookings...`);
           
           // ✅ PASO 1: CONFIRMAR Y COBRAR RESERVAS GANADORAS (SIEMPRE, independiente de si hay pista)
-          const winningBookings = allBookingsForSlot.filter(b => b.groupSize === raceWinner);
-          console.log(`   ✅ Winning bookings (${raceWinner} players):`, winningBookings.length);
+          // 🎁 Si la modalidad ganadora fue completada con plazas individuales, confirmar todos los bookings involucrados
+          let winningBookings;
+          
+          if (raceWinner === 1) {
+            // Modalidad de 1 jugador: solo confirmar bookings con groupSize=1
+            winningBookings = allBookingsForSlot.filter(b => b.groupSize === 1);
+          } else {
+            // Modalidad de 2, 3 o 4: confirmar bookings normales de esa modalidad + individuales si los hay
+            const bookingsNormales = allBookingsForSlot.filter(b => b.groupSize === raceWinner);
+            const bookingsIndividuales = allBookingsForSlot.filter(b => b.groupSize === 1);
+            
+            // Si hay bookings individuales, confirmar todos (normales + individuales)
+            if (bookingsIndividuales.length > 0) {
+              winningBookings = [...bookingsNormales, ...bookingsIndividuales];
+            } else {
+              // Solo hay bookings normales
+              winningBookings = bookingsNormales;
+            }
+          }
+          
+          console.log(`   ✅ Winning bookings (modalidad ${raceWinner} jugadores):`, winningBookings.length);
           
           // Obtener detalles del slot para transacciones
           const slotDetailsForCharging = await prisma.$queryRaw`

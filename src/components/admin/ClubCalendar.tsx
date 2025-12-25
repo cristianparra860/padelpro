@@ -1631,6 +1631,9 @@ function ClassCardWrapper({ classId, onClose, onBookingSuccess }: { classId: str
       currentUser={currentUser}
       onBookingSuccess={handleBookingSuccess}
       showPointsBonus={true}
+      instructorView={currentUser?.role === 'INSTRUCTOR'}
+      isInstructor={currentUser?.role === 'INSTRUCTOR'}
+      instructorId={currentUser?.role === 'INSTRUCTOR' ? currentUser?.instructorId : undefined}
     />
   );
 }
@@ -1725,6 +1728,9 @@ function ProposalCardsWrapper({
             currentUser={currentUser}
             onBookingSuccess={handleBookingSuccess}
             showPointsBonus={true}
+            instructorView={currentUser?.role === 'INSTRUCTOR'}
+            isInstructor={currentUser?.role === 'INSTRUCTOR'}
+            instructorId={currentUser?.role === 'INSTRUCTOR' ? currentUser?.instructorId : undefined}
           />
         ))}
       </div>

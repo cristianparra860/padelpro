@@ -95,11 +95,14 @@ export default function InstructorCreditsManager({ instructorId }: { instructorI
   };
 
   const toggleCreditsSlot = async (slotId: string, modalitySize: number, currentCreditsSlots: number[]) => {
+    console.log('🔥 toggleCreditsSlot CALLED', { slotId, modalitySize, currentCreditsSlots });
     setUpdating(`${slotId}-${modalitySize}`);
     
     try {
       const isActive = currentCreditsSlots.includes(modalitySize);
       const action = isActive ? 'remove' : 'add';
+      
+      console.log('📤 Sending PATCH request', { slotId, modalitySize, action });
       
       const response = await fetch(`/api/timeslots/${slotId}/credits-slots`, {
         method: 'PATCH',
@@ -107,7 +110,13 @@ export default function InstructorCreditsManager({ instructorId }: { instructorI
         body: JSON.stringify({ slotIndex: modalitySize, action })
       });
       
-      if (!response.ok) throw new Error('Error al actualizar');
+      console.log('📥 Response received', { ok: response.ok, status: response.status });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ API Error:', errorData);
+        throw new Error(errorData.error || 'Error al actualizar');
+      }
       
       toast({
         title: action === 'add' ? '✅ Plaza Activada con Puntos' : '❌ Plaza Desactivada',
@@ -341,7 +350,16 @@ export default function InstructorCreditsManager({ instructorId }: { instructorI
                       return (
                         <button
                           key={modalitySize}
-                          onClick={() => !isDisabled && toggleCreditsSlot(slot.id, modalitySize, creditsSlots)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log('🖱️ Button clicked!', { modalitySize, isDisabled, isUpdating });
+                            if (!isDisabled && !isUpdating) {
+                              toggleCreditsSlot(slot.id, modalitySize, creditsSlots);
+                            } else {
+                              console.warn('⚠️ Button disabled or updating', { isDisabled, isUpdating, disabledReason });
+                            }
+                          }}
                           disabled={isUpdating || isDisabled}
                           title={isDisabled ? disabledReason : isActive ? 'Click para desactivar' : 'Click para activar puntos'}
                           className={`

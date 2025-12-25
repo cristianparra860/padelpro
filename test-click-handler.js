@@ -1,0 +1,35 @@
+// Test simple: verificar si el click ejecuta la función
+
+console.log('🧪 TEST: Verificar ejecución del handler');
+console.log('');
+console.log('INSTRUCCIONES:');
+console.log('1. Abre el Panel de Instructor en http://localhost:9002/instructor');
+console.log('2. Abre la consola del navegador (F12)');
+console.log('3. Limpia la consola');
+console.log('4. Haz clic en el botón € verde de cualquier clase');
+console.log('');
+console.log('LOGS ESPERADOS (en orden):');
+console.log('  🔥 Botón clicked! { players: X, index: Y, groupSize: X }');
+console.log('  🔥 handleToggleIndividualSlot CALLED { players: X, circleIndex: Y }');
+console.log('  🎁 Toggle plaza individual: { modalidad: X, groupSize: X, ... }');
+console.log('  🔧 effectiveCreditsSlots calculando: { ... }');
+console.log('  ✅ creditsSlots actualizados: [...]');
+console.log('');
+console.log('DESPUÉS DEL CLICK:');
+console.log('  - Los círculos de esa modalidad deberían tener borde amarillo grueso');
+console.log('  - Deberían tener glow dorado pulsante');
+console.log('  - El texto debajo debería decir "XXp" (puntos)');
+console.log('');
+console.log('SI NO VES LOS LOGS:');
+console.log('  ❌ El handler no se está ejecutando');
+console.log('  ➡️  Verifica que isInstructor={true} en las props');
+console.log('');
+console.log('SI VES LOS LOGS PERO NO CAMBIA EL COLOR:');
+console.log('  ❌ El estado se actualiza pero el render no refleja el cambio');
+console.log('  ➡️  Verifica effectiveCreditsSlots en el log');
+console.log('  ➡️  Verifica que isMarkedAsCreditsSlot sea true después del update');
+console.log('');
+console.log('VERIFICACIÓN EN BASE DE DATOS:');
+console.log('  Ejecuta: node check-credits-slots.js');
+console.log('  Deberías ver el slot con el nuevo creditsSlots');
+console.log('');

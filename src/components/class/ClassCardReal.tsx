@@ -88,6 +88,12 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   const [privateAttendees, setPrivateAttendees] = useState<number>(4);
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCancelClassDialog, setShowCancelClassDialog] = useState(false);
+
+  // 🔍 DEBUG: Verificar props de instructor
+  useEffect(() => {
+    console.log('🎓 ClassCardReal - instructorView:', instructorView, 'classId:', classData.id, 'start:', classData.start);
+  }, [instructorView, classData.id]);
+
   const [isCancellingClass, setIsCancellingClass] = useState(false);
   
   // ✅ Validar que classData tiene los datos mínimos necesarios
@@ -97,42 +103,53 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   }
   
   // 🔄 State local para el slot (permite actualización inmediata tras booking)
-  const [currentSlotData, setCurrentSlotData] = useState<TimeSlot>(classData);
+  // Usar classData directamente en lugar de state para evitar loops infinitos
+  const currentSlotData = classData;
   
-  // 🔄 Sincronizar currentSlotData cuando classData cambie desde el padre
-  useEffect(() => {
-    // ♻️ DEBUG RECICLAJE - Log al montar componente
-    console.log('🔍 ClassCardReal MONTADO:', {
-      id: classData.id?.substring(0, 20),
-      instructor: classData.instructorName,
-      courtNumber: classData.courtNumber,
-      hasRecycledSlots: classData.hasRecycledSlots,
-      availableRecycledSlots: classData.availableRecycledSlots,
-      recycledSlotsOnlyPoints: classData.recycledSlotsOnlyPoints,
-      bookings: classData.bookings?.length || 0
-    });
+  // � Parsear creditsSlots desde classData o desde prop
+  const parsedCreditsSlots = useMemo(() => {
+    console.log('🎁 parsedCreditsSlots - Props recibidos:', JSON.stringify({
+      'creditsSlotsProps (prop directo)': creditsSlotsProps,
+      'classData.creditsSlots (de data)': classData.creditsSlots,
+      'classData.creditsCost': classData.creditsCost,
+      'type de creditsSlots': typeof classData.creditsSlots,
+      'isArray creditsSlots': Array.isArray(classData.creditsSlots),
+      'classData.id': classData.id?.substring(0, 20)
+    }, null, 2));
     
-    // 🔍 Log extendido para debug
-    const debugInfo = {
-      id: classData.id?.substring(0, 12),
-      instructor: classData.instructorName || 'N/A',
-      start: classData.start ? new Date(classData.start).toLocaleString() : 'N/A',
-      hasRecycledSlots: classData.hasRecycledSlots,
-      availableRecycledSlots: classData.availableRecycledSlots,
-      recycledSlotsOnlyPoints: classData.recycledSlotsOnlyPoints,
-      keys: Object.keys(classData).join(', ')
-    };
-    
-    // Log siempre para slots con recycled data
-    if (classData.hasRecycledSlots || classData.availableRecycledSlots) {
-      console.log('🎯 SLOT RECICLADO:', debugInfo);
+    // Prioridad 1: creditsSlotsProps (si se pasa explícitamente desde padre)
+    if (creditsSlotsProps && creditsSlotsProps.length > 0) {
+      console.log('✅ Usando creditsSlotsProps:', creditsSlotsProps);
+      return creditsSlotsProps;
     }
     
-    setCurrentSlotData(classData);
-  }, [classData]);
+    // Prioridad 2: classData.creditsSlots (string JSON desde DB) - USAR classData, NO currentSlotData
+    if (classData.creditsSlots) {
+      // Si ya es un array, devolverlo directamente
+      if (Array.isArray(classData.creditsSlots)) {
+        console.log('✅ creditsSlots ya es array:', classData.creditsSlots);
+        return classData.creditsSlots;
+      }
+      
+      // Si es string, intentar parsearlo
+      if (typeof classData.creditsSlots === 'string' && classData.creditsSlots.trim() !== '') {
+        try {
+          const parsed = JSON.parse(classData.creditsSlots);
+          console.log('✅ creditsSlots parseado:', parsed);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          console.warn('⚠️ Error parseando creditsSlots:', e, 'Value:', classData.creditsSlots);
+          return [];
+        }
+      }
+    }
+    
+    console.log('⚠️ No hay creditsSlots válidos, retornando []');
+    return [];
+  }, [creditsSlotsProps, classData.creditsSlots]);
   
-  // 🎓 Estados para edición de creditsSlots (recibidos desde padre, pero mantenemos estado local para updates)
-  const [creditsSlots, setCreditsSlots] = useState<number[]>(creditsSlotsProps);
+  // 🎓 Use parsedCreditsSlots directly instead of state to avoid infinite loops
+  const creditsSlots = parsedCreditsSlots;
   const [loadingSlot, setLoadingSlot] = useState<number | null>(null);
   
   // ♻️ Combinar creditsSlots del padre con plazas recicladas
@@ -141,12 +158,16 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     const combined = new Set(creditsSlots);
     
     // 🐛 DEBUG: Mostrar siempre qué está recibiendo
-    console.log('🔧 effectiveCreditsSlots calculando:', {
+    console.log('🔧 effectiveCreditsSlots calculando:', JSON.stringify({
+      creditsSlots: creditsSlots,
+      creditsSlotsTYPE: typeof creditsSlots,
+      creditsSlotslength: creditsSlots?.length,
       hasRecycledSlots: currentSlotData.hasRecycledSlots,
       availableRecycledSlots: currentSlotData.availableRecycledSlots,
       bookingsCount: currentSlotData.bookings?.length || 0,
-      instructor: currentSlotData.instructorName
-    });
+      instructor: currentSlotData.instructorName,
+      slotId: currentSlotData.id?.substring(0, 15)
+    }, null, 2));
     
     // ♻️ Si hay plazas recicladas, agregar TODOS los círculos de esa modalidad
     if (currentSlotData.hasRecycledSlots && currentSlotData.availableRecycledSlots > 0) {
@@ -192,147 +213,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   if (availableOptions.length === 0) {
     return null; // Ocultar completamente la tarjeta
   }
-  
-  // 🎁 Función para toggle de PLAZAS INDIVIDUALES (euros ↔ puntos)
-  // Nueva lógica: cada círculo puede ser activado individualmente
-  const handleToggleIndividualSlot = async (players: number, circleIndex: number, event: React.MouseEvent) => {
-    console.log('🔥 handleToggleIndividualSlot CALLED', { players, circleIndex });
-    event.stopPropagation();
-    event.preventDefault();
-    
-    if (!isInstructorProp || !instructorIdProp) {
-      console.log('❌ No es instructor o falta instructorId', { isInstructorProp, instructorIdProp });
-      return;
-    }
-    
-    // Calcular índice absoluto basado en modalidad y posición del círculo
-    // Modalidad 1: círculo 0 → índice 0
-    // Modalidad 2: círculos 0,1 → índices 1,2  
-    // Modalidad 3: círculos 0,1,2 → índices 3,4,5
-    // Modalidad 4: círculos 0,1,2,3 → índices 6,7,8,9
-    const startIndex = [1,2,3,4].slice(0, players - 1).reduce((sum, p) => sum + p, 0);
-    const absoluteIndex = startIndex + circleIndex;
-    
-    setLoadingSlot(absoluteIndex);
-    
-    try {
-      const isCurrentlyCreditsSlot = creditsSlots.includes(absoluteIndex);
-      const action = isCurrentlyCreditsSlot ? 'remove' : 'add';
 
-      // Calcular el precio por persona de esta modalidad (en euros = puntos)
-      const totalPrice = classData.totalPrice || 25;
-      const pricePerPerson = Math.ceil(totalPrice / players); // Redondear hacia arriba
-      
-      console.log(`🎁 Toggle plaza individual:`, {
-        modalidad: players,
-        circuloEnModalidad: circleIndex,
-        indiceAbsoluto: absoluteIndex,
-        accion: action,
-        precioTotal: totalPrice,
-        precioPorPersona: pricePerPerson,
-        currentCreditsSlots: creditsSlots
-      });
-
-      const response = await fetch(`/api/timeslots/${classData.id}/credits-slots`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          slotIndex: absoluteIndex, 
-          action, 
-          creditsCost: pricePerPerson, // Usar precio por persona
-          instructorId: instructorIdProp
-        })
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Error al actualizar plaza');
-      }
-
-      // Actualizar estado local
-      const newCreditsSlots = action === 'add' 
-        ? [...creditsSlots, absoluteIndex].sort((a, b) => a - b)
-        : creditsSlots.filter(s => s !== absoluteIndex);
-      
-      setCreditsSlots(newCreditsSlots);
-
-      toast({
-        title: action === 'add' ? '🎁 Plaza Individual Activada' : '💰 Plaza Restaurada a Euros',
-        description: `Plaza ${circleIndex + 1} de modalidad ${players} jugador${players > 1 ? 'es' : ''}`,
-        className: action === 'add' ? 'bg-amber-500 text-white' : 'bg-green-500 text-white'
-      });
-
-      onBookingSuccess();
-
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'No se pudo actualizar',
-        variant: 'destructive'
-      });
-    } finally {
-      setLoadingSlot(null);
-    }
-  };
-  
-  // 🎁 Función para toggle de creditsSlots (euros ↔ puntos)
-  const handleToggleCreditsSlot = async (modalitySize: number, event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevenir que active el booking
-    
-    if (!isInstructorProp) return;
-    
-    setLoadingSlot(modalitySize);
-    
-    try {
-      const isCurrentlyCreditsSlot = creditsSlots.includes(modalitySize);
-      const action = isCurrentlyCreditsSlot ? 'remove' : 'add';
-
-      const response = await fetch(`/api/timeslots/${classData.id}/credits-slots`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          slotIndex: modalitySize, 
-          action, 
-          creditsCost: 50,
-          instructorId: classData.instructorId // 🎓 Enviar ID del instructor de la clase
-        })
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Error al actualizar modalidad');
-      }
-
-      // Actualizar estado local INMEDIATAMENTE
-      const newCreditsSlots = action === 'add' 
-        ? [...creditsSlots, modalitySize].sort((a, b) => a - b)
-        : creditsSlots.filter(s => s !== modalitySize);
-      
-      setCreditsSlots(newCreditsSlots);
-      console.log(`🎁 Estado local actualizado para slot ${classData.id.substring(0,8)}:`, newCreditsSlots);
-
-      toast({
-        title: action === 'add' ? '🎁 Plaza con Puntos Activada' : '💰 Plaza de Pago Restaurada',
-        description: `${modalitySize} jugador${modalitySize > 1 ? 'es' : ''}: ${action === 'add' ? 'Ahora cuesta 50 puntos' : 'Vuelve a pago normal'}`,
-        className: action === 'add' ? 'bg-amber-500 text-white' : 'bg-green-500 text-white'
-      });
-
-      // Notificar al padre para refrescar datos (esto recargará los creditsSlots desde el servidor)
-      console.log(`📞 Llamando onBookingSuccess para recargar creditsSlots...`);
-      onBookingSuccess();
-
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Error desconocido',
-        variant: 'destructive'
-      });
-    } finally {
-      setLoadingSlot(null);
-    }
-  };
   const [loading, setLoading] = useState(false); // Ya no necesitamos loading inicial
   const [booking, setBooking] = useState(false);
   const [hasConfirmedBookingToday, setHasConfirmedBookingToday] = useState(false);
@@ -439,7 +320,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     }
 
     setShowPrivateDialog(false);
-    setIsBooking(true);
+    setBooking(true);
 
     try {
       const response = await fetch('/api/classes/book', {
@@ -497,7 +378,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         variant: "destructive"
       });
     } finally {
-      setIsBooking(false);
+      setBooking(false);
     }
   };
 
@@ -798,16 +679,28 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
 
   // 🎓 Anular clase por instructor
   const handleCancelClass = async () => {
-    if (!instructorView || !classData.id) return;
+    console.log('🔍 handleCancelClass - instructorView:', instructorView, 'classData.id:', classData.id);
+    
+    if (!instructorView || !classData.id) {
+      console.error('❌ No se puede anular: instructorView =', instructorView, ', classData.id =', classData.id);
+      toast({
+        title: "Error",
+        description: `No se puede anular la clase. instructorView: ${instructorView}, classId: ${classData.id}`,
+        variant: "destructive"
+      });
+      return;
+    }
     
     setIsCancellingClass(true);
     try {
+      console.log('📤 Enviando petición POST a /api/instructor/cancel-class/' + classData.id);
       const response = await fetch(`/api/instructor/cancel-class/${classData.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
 
       const result = await response.json();
+      console.log('📥 Respuesta del servidor:', { ok: response.ok, status: response.status, result });
 
       if (response.ok) {
         toast({
@@ -835,46 +728,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     }
   };
 
-  // 🎓 Cambiar método de pago de una reserva (euros ↔ puntos)
-  const handleTogglePaymentMethod = async (booking: Booking) => {
-    if (!instructorView || !booking.userId) return;
-    
-    try {
-      const response = await fetch(`/api/instructor/toggle-payment/${classData.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: booking.userId,
-          groupSize: booking.groupSize
-        })
-      });
 
-      const result = await response.json();
-
-      if (response.ok) {
-        toast({
-          title: "✅ Método de pago cambiado",
-          description: result.message || "El método de pago ha sido actualizado",
-          className: "bg-blue-600 text-white"
-        });
-        // Recargar bookings
-        loadBookings();
-        onBookingSuccess();
-      } else {
-        toast({
-          title: "Error",
-          description: result.error || "No se pudo cambiar el método de pago",
-          variant: "destructive"
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error de conexión",
-        description: "No se pudo conectar con el servidor",
-        variant: "destructive"
-      });
-    }
-  };
 
   const getAvailableSpots = (groupSize: number) => {
     if (!Array.isArray(bookings)) return groupSize;
@@ -1220,7 +1074,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   }
 
   return (
-    <div className={`bg-white rounded-2xl shadow-[0_8px_16px_rgba(0,0,0,0.3)] border overflow-hidden w-full max-w-[304px] min-w-[256px] mx-auto scale-[0.80] relative ${
+    <div className={`bg-white rounded-2xl shadow-[0_8px_16px_rgba(0,0,0,0.3)] border overflow-hidden w-full max-w-[304px] min-w-[256px] mx-auto scale-[0.72] md:scale-[0.80] relative ${
       isInscriptionSelected 
         ? 'border-4 border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.5)]' 
         : 'border-gray-100'
@@ -1628,6 +1482,15 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           const hasAnyCreditSlot = creditsSlotIndicesForThisModality.length > 0 || thisModalityHasRecycling;
           const hasAllCreditSlots = creditsSlotIndicesForThisModality.length === players || thisModalityHasRecycling;
           
+          // 🔍 DEBUG: Mostrar datos antes de calcular isCreditsSlot
+          console.log(`🔍 Pre-isCreditsSlot check (${players}p):`, JSON.stringify({
+            players,
+            effectiveCreditsSlots,
+            includesPlayers: effectiveCreditsSlots?.includes(players),
+            hasAllCreditSlots,
+            thisModalityHasRecycling
+          }, null, 2));
+          
           // ♻️ Si hay plazas recicladas, toda la modalidad debe ser de puntos
           const isCreditsSlot = thisModalityHasRecycling || (Array.isArray(effectiveCreditsSlots) && 
             (effectiveCreditsSlots.includes(players) || hasAllCreditSlots));
@@ -1750,47 +1613,26 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                   const isRecycled = booking?.status === 'CANCELLED' && booking?.isRecycled === true;
                   const displayName = booking?.name ? booking.name.substring(0, 5) : '';
                   
-                  // 🎁 NUEVA LÓGICA: Calcular índice absoluto para verificar creditsSlots (incluye recicladas)
-                  const startIndex = [1,2,3,4].slice(0, players - 1).reduce((sum, p) => sum + p, 0);
-                  const absoluteIndex = startIndex + index;
+                  // 🎁 CAMBIO CRÍTICO: creditsSlots guarda groupSize (1-4), no absoluteIndex
+                  // Si la modalidad de 2 jugadores está marcada, creditsSlots = [2]
+                  const groupSize = players;
                   
-                  // 🎯 VERIFICAR SI ESTA PLAZA ESPECÍFICA PUEDE SER CONVERTIDA A PUNTOS
-                  // Solo la ÚLTIMA plaza libre puede ser convertida a puntos
-                  // Contar plazas ocupadas (bookings activos, excluyendo cancelados)
-                  const activeBookingsCount = modalityBookings.length;
-                  const isLastFreeSlot = !isOccupied && activeBookingsCount === players - 1; // Falta exactamente 1 plaza
+                  // Verificar si TODA la modalidad (groupSize) está marcada como creditsSlot
+                  const isMarkedAsCreditsSlot = Array.isArray(effectiveCreditsSlots) && effectiveCreditsSlots.includes(groupSize);
                   
-                  // Si es plaza de 1 jugador (players=1), siempre puede ser con puntos
-                  // Si es grupo (players>1), solo la última plaza libre
-                  const canBeCreditsSlot = players === 1 || isLastFreeSlot;
+                  // Si la modalidad está marcada como credits, TODOS los círculos de esa modalidad se muestran en verde
+                  const isThisCircleCredits = isMarkedAsCreditsSlot;
                   
-                  // Verificar si esta plaza está marcada como creditsSlot en el sistema
-                  const isMarkedAsCreditsSlot = Array.isArray(effectiveCreditsSlots) && effectiveCreditsSlots.includes(absoluteIndex);
-                  
-                  // Solo mostrar como creditsSlot si está marcada Y cumple la condición de última plaza
-                  const isThisCircleCredits = isMarkedAsCreditsSlot && canBeCreditsSlot;
-                  
-                  // 🐛 DEBUG para ver la lógica
-                  if (isMarkedAsCreditsSlot && index === 0) {
-                    console.log(`🎯 Plaza ${players}p, círculo ${index + 1}:`, {
-                      absoluteIndex,
-                      activeBookingsCount,
+                  // 🐛 DEBUG para ver la lógica - LOG SIEMPRE para debug
+                  if (index === 0) {
+                    console.log(`🎯 Plaza ${players}p:`, {
+                      groupSize,
                       players,
-                      isLastFreeSlot,
-                      canBeCreditsSlot,
-                      isThisCircleCredits,
-                      isOccupied
-                    });
-                  }
-                  
-                  // � DEBUG: Ver si este círculo debería ser amarillo
-                  if (players === 2 && index < 2 && currentSlotData.hasRecycledSlots) {
-                    console.log(`🟡 Círculo ${index} de modalidad 2p:`, {
-                      absoluteIndex,
-                      effectiveCreditsSlots,
+                      isMarkedAsCreditsSlot,
                       isThisCircleCredits,
                       isOccupied,
-                      hasRecycledSlots: currentSlotData.hasRecycledSlots
+                      effectiveCreditsSlots: Array.from(effectiveCreditsSlots),
+                      creditsSlotsState: creditsSlots
                     });
                   }
                   
@@ -1830,7 +1672,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                   }
                   
                   return (
-                    <div key={index} className="flex flex-col items-center gap-1 relative">
+                    <div key={index} className="flex flex-col items-center gap-1 relative w-12">
                       <div
                         className={cn(
                           "w-12 h-12 rounded-full border-2 flex items-center justify-center text-lg font-bold transition-all shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]",
@@ -1859,33 +1701,6 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                               : isOccupied ? booking.name : 'Disponible'
                         }
                       >
-                      
-                      {/* 🎓 Botón de edición para instructores (AHORA EN CADA CÍRCULO VACÍO) */}
-                      {isInstructorProp && !isOccupied && !isAnotherModalityConfirmed && (
-                        <button
-                          onClick={(e) => {
-                            console.log('🔥 Botón clicked!', { players, index, absoluteIndex });
-                            handleToggleIndividualSlot(players, index, e);
-                          }}
-                          disabled={loadingSlot === absoluteIndex}
-                          className={cn(
-                            "absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md z-10 transition-all",
-                            loadingSlot === absoluteIndex ? "bg-gray-400" : isThisCircleCredits 
-                              ? "bg-green-500 hover:bg-green-600" 
-                              : "bg-amber-500 hover:bg-amber-600"
-                          )}
-                          title={isThisCircleCredits ? "Cambiar a pago en euros" : "Cambiar a pago con puntos"}
-                        >
-                          {loadingSlot === absoluteIndex ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : isThisCircleCredits ? (
-                            "€"
-                          ) : (
-                            <Gift className="w-3 h-3" />
-                          )}
-                        </button>
-                      )}
-                      
                         {isCancelledSlot ? (
                           // 🔴 Plaza cancelada: foto con overlay rojo + X blanca (PRIORIDAD sobre reciclada)
                           <div className="relative w-full h-full rounded-full overflow-hidden">

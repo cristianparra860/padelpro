@@ -14,6 +14,10 @@ interface BookingCardProps {
   isCancelled?: boolean;
 }
 
+// Constantes estables fuera del componente para evitar recreación
+const EMPTY_ARRAY: never[] = [];
+const ALLOWED_PLAYER_COUNTS = [1, 2, 3, 4];
+
 // Wrapper component que memoriza la conversión de Booking → TimeSlot
 const BookingCard = React.memo<BookingCardProps>(({ 
   booking, 
@@ -37,10 +41,10 @@ const BookingCard = React.memo<BookingCardProps>(({
     courtNumber: booking.timeSlot.courtNumber || booking.timeSlot.court?.number || null,
     clubId: '',
     totalPrice: booking.timeSlot.totalPrice || 55,
-    creditsSlots: booking.timeSlot.creditsSlots || [],
-    bookings: booking.timeSlot.bookings || [],
-    bookedPlayers: booking.timeSlot.bookings || [],
-    courtsAvailability: []
+    creditsSlots: booking.timeSlot.creditsSlots || EMPTY_ARRAY,
+    bookings: booking.timeSlot.bookings || EMPTY_ARRAY,
+    bookedPlayers: booking.timeSlot.bookings || EMPTY_ARRAY,
+    courtsAvailability: EMPTY_ARRAY
   }), [
     booking.id, 
     booking.timeSlot.id,
@@ -48,15 +52,13 @@ const BookingCard = React.memo<BookingCardProps>(({
     booking.timeSlot.bookings?.length
   ]); // NO incluir start/end para evitar cambios de referencia
 
-  const allowedPlayerCounts = useMemo(() => [1, 2, 3, 4], []);
-
   return (
     <ClassCardReal
       classData={timeSlotData}
       currentUser={currentUser}
       onBookingSuccess={onBookingSuccess}
       showPointsBonus={false}
-      allowedPlayerCounts={allowedPlayerCounts}
+      allowedPlayerCounts={ALLOWED_PLAYER_COUNTS}
       agendaMode={true}
       bookingId={booking.id}
       onCancelBooking={onCancelBooking}

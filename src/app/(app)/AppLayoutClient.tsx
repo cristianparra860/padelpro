@@ -136,7 +136,9 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
           <Footer />
         </main>
       </div>
-      <LeftNavigationBar />
+      <div className={pathname === '/admin/calendar' ? 'hidden md:block' : ''}>
+        <LeftNavigationBar />
+      </div>
       <AiHelpButton onMobileFiltersClick={() => setIsMobileFiltersOpen(true)} />
 
       <LogoutConfirmationDialog

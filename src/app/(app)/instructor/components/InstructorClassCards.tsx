@@ -14,9 +14,10 @@ import DateSelector from '@/components/admin/DateSelector';
 
 interface InstructorClassCardsProps {
   instructor: InstructorType;
+  onlyWithBookings?: boolean;
 }
 
-export default function InstructorClassCards({ instructor }: InstructorClassCardsProps) {
+export default function InstructorClassCards({ instructor, onlyWithBookings = false }: InstructorClassCardsProps) {
   const [timeSlots, setTimeSlots] = useState<ApiTimeSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -96,24 +97,37 @@ export default function InstructorClassCards({ instructor }: InstructorClassCard
         console.log('📊 InstructorClassCards - Data received:', {
           totalSlots: slotsArray.length,
           instructorId: instructor.id,
-          date: dateStr
+          date: dateStr,
+          onlyWithBookings
         });
         
-        // Filtrar clases con bookings confirmados O cancelados (plazas recicladas)
-        const classesWithStudents = slotsArray.filter(
-          (slot: ApiTimeSlot) => 
-            slot.instructorId === instructor.id && 
-            slot.bookings && 
-            slot.bookings.length > 0 &&
-            slot.bookings.some((booking: any) => 
-              booking.status === 'CONFIRMED' || booking.status === 'CANCELLED'
-            )
-        );
+        // Filtrar según el modo
+        let filteredClasses;
+        if (onlyWithBookings) {
+          // Solo clases con bookings (PENDING, CONFIRMED o CANCELLED)
+          filteredClasses = slotsArray.filter(
+            (slot: ApiTimeSlot) => 
+              slot.instructorId === instructor.id && 
+              slot.bookings && 
+              slot.bookings.length > 0 &&
+              slot.bookings.some((booking: any) => 
+                booking.status === 'PENDING' || booking.status === 'CONFIRMED' || booking.status === 'CANCELLED'
+              )
+          );
+        } else {
+          // Todas las clases del instructor (con y sin bookings)
+          filteredClasses = slotsArray.filter(
+            (slot: ApiTimeSlot) => slot.instructorId === instructor.id
+          );
+        }
         
-        console.log('📊 Classes with students:', classesWithStudents.length);
+        console.log('📊 Filtered classes:', {
+          total: filteredClasses.length,
+          withBookings: filteredClasses.filter((s: ApiTimeSlot) => s.bookings && s.bookings.length > 0).length
+        });
         
         // Debug: verificar las fechas de cada slot
-        console.table(classesWithStudents.map(slot => ({
+        console.table(filteredClasses.map(slot => ({
           id: slot.id.substring(0, 20),
           start: slot.start,
           startType: typeof slot.start,
@@ -121,7 +135,7 @@ export default function InstructorClassCards({ instructor }: InstructorClassCard
           bookings: slot.bookings?.length || 0
         })));
         
-        setTimeSlots(classesWithStudents);
+        setTimeSlots(filteredClasses);
       } catch (error) {
         console.error('Error loading instructor classes:', error);
         setTimeSlots([]);
@@ -131,14 +145,14 @@ export default function InstructorClassCards({ instructor }: InstructorClassCard
     };
 
     loadInstructorClasses();
-  }, [instructor.id, instructor.assignedClubId, selectedDate, refreshKey]);
+  }, [instructor.id, instructor.assignedClubId, selectedDate, refreshKey, onlyWithBookings]);
 
   const handleBookingSuccess = () => {
     setRefreshKey(prev => prev + 1);
   };
 
-  // Filtrar clases según la pestaña activa
-  const filteredSlots = timeSlots.filter((slot) => {
+  // Filtrar clases según la pestaña activa (solo si no está en modo "solo con bookings")
+  const filteredSlots = onlyWithBookings ? timeSlots : timeSlots.filter((slot) => {
     const slotDate = new Date(slot.start);
     const now = new Date();
     
@@ -170,20 +184,22 @@ export default function InstructorClassCards({ instructor }: InstructorClassCard
 
   return (
     <div className="space-y-6">
-      {/* Tabs para filtrar clases */}
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="upcoming">
-            Reservadas <span className="ml-1.5 text-xs opacity-70">({upcomingCount})</span>
-          </TabsTrigger>
-          <TabsTrigger value="past">
-            Pasadas <span className="ml-1.5 text-xs opacity-70">({pastCount})</span>
-          </TabsTrigger>
-          <TabsTrigger value="all">
-            Todas <span className="ml-1.5 text-xs opacity-70">({allCount})</span>
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      {/* Tabs para filtrar clases - Solo mostrar si NO está en modo "solo con bookings" */}
+      {!onlyWithBookings && (
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="upcoming">
+              Próximas <span className="ml-1.5 text-xs opacity-70">({upcomingCount})</span>
+            </TabsTrigger>
+            <TabsTrigger value="past">
+              Pasadas <span className="ml-1.5 text-xs opacity-70">({pastCount})</span>
+            </TabsTrigger>
+            <TabsTrigger value="all">
+              Todas <span className="ml-1.5 text-xs opacity-70">({allCount})</span>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      )}
 
       {/* Selector de fecha horizontal con scroll */}
       <DateSelector
@@ -202,9 +218,15 @@ export default function InstructorClassCards({ instructor }: InstructorClassCard
         <div className="text-center py-12 text-muted-foreground">
           <CalendarIcon className="mx-auto h-12 w-12 mb-4 opacity-50" />
           <p>
-            {activeTab === 'upcoming' && 'No tienes clases reservadas próximas.'}
-            {activeTab === 'past' && 'No tienes clases pasadas.'}
-            {activeTab === 'all' && 'No tienes clases con alumnos inscritos para este día.'}
+            {onlyWithBookings ? (
+              <>No tienes clases con alumnos inscritos para este día.</>
+            ) : (
+              <>
+                {activeTab === 'upcoming' && 'No tienes clases reservadas próximas.'}
+                {activeTab === 'past' && 'No tienes clases pasadas.'}
+                {activeTab === 'all' && 'No tienes clases programadas para este día.'}
+              </>
+            )}
           </p>
         </div>
       ) : (
@@ -226,6 +248,8 @@ export default function InstructorClassCards({ instructor }: InstructorClassCard
               onBookingSuccess={handleBookingSuccess}
               allowedPlayerCounts={[1, 2, 3, 4]} // Mostrar todas las opciones
               instructorView={true} // ✅ Modo vista de instructor con opciones de gestión
+              isInstructor={true} // 🎓 Habilitar botones de conversión € → 🎁
+              instructorId={instructor.id} // 🎓 ID del instructor para validación
             />
           ))}
         </div>

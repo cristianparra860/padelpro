@@ -70,14 +70,6 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
     }
   }, [tabParam]);
 
-  // Callback memoizado para onBookingSuccess
-  const handleBookingSuccess = useCallback(() => {
-    loadBookings();
-    if (onBookingActionSuccess) {
-      onBookingActionSuccess();
-    }
-  }, [onBookingActionSuccess]); // loadBookings es estable por useCallback
-
   // Cargar reservas del usuario - Memoizada con useCallback
   const loadBookings = useCallback(async () => {
     if (!currentUser?.id) {
@@ -105,6 +97,14 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
       setIsLoading(false);
     }
   }, [currentUser?.id]);
+
+  // Callback memoizado para onBookingSuccess (después de loadBookings)
+  const handleBookingSuccess = useCallback(() => {
+    loadBookings();
+    if (onBookingActionSuccess) {
+      onBookingActionSuccess();
+    }
+  }, [loadBookings, onBookingActionSuccess]);
 
   // Función para cancelar booking
   const handleCancelBooking = async (bookingId: string) => {
@@ -180,8 +180,8 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
         return bookings.filter(b => {
           const hasCourtAssigned = b.timeSlot.court !== null || b.timeSlot.courtId !== null || b.timeSlot.courtNumber !== null;
           const isFuture = new Date(b.timeSlot.start) >= now;
-          const isNotCancelled = b.status !== 'CANCELLED';
-          return hasCourtAssigned && isFuture && isNotCancelled;
+          const isBookingConfirmed = b.status === 'CONFIRMED'; // ✅ Verificar que el booking esté CONFIRMED
+          return hasCourtAssigned && isFuture && isBookingConfirmed;
         });
       
       case 'pending':
@@ -218,8 +218,8 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
       confirmed: bookings.filter(b => {
         const hasCourtAssigned = b.timeSlot.court !== null || b.timeSlot.courtId !== null || b.timeSlot.courtNumber !== null;
         const isFuture = new Date(b.timeSlot.start) >= now;
-        const isNotCancelled = b.status !== 'CANCELLED';
-        return hasCourtAssigned && isFuture && isNotCancelled;
+        const isBookingConfirmed = b.status === 'CONFIRMED'; // ✅ Verificar que el booking esté CONFIRMED
+        return hasCourtAssigned && isFuture && isBookingConfirmed;
       }).length,
       pending: bookings.filter(b => {
         const noCourtAssigned = b.timeSlot.court === null && (b.timeSlot.courtId === null || b.timeSlot.courtId === undefined) && (b.timeSlot.courtNumber === null || b.timeSlot.courtNumber === undefined);
@@ -282,8 +282,8 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
     const confirmedBookings = bookings.filter(b => {
       const hasCourtAssigned = b.timeSlot.court !== null || b.timeSlot.courtId !== null || b.timeSlot.courtNumber !== null;
       const isFuture = new Date(b.timeSlot.start) >= now;
-      const isNotCancelled = b.status !== 'CANCELLED';
-      return hasCourtAssigned && isFuture && isNotCancelled;
+      const isBookingConfirmed = b.status === 'CONFIRMED'; // ✅ Verificar que el booking esté CONFIRMED
+      return hasCourtAssigned && isFuture && isBookingConfirmed;
     });
 
     // Agrupar por fecha y calcular monto pagado

@@ -55,7 +55,7 @@ export default function CalendarPage() {
 
   if (loading || hasAccess === null) {
     return (
-      <div className="w-full py-2 md:py-6 px-2 md:px-6 pb-20 md:pb-6 pl-16 md:pl-24">
+      <div className="w-full py-2 md:py-6 px-2 md:px-6 pb-20 md:pb-6 md:pl-24">
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -68,7 +68,7 @@ export default function CalendarPage() {
 
   if (hasAccess === false) {
     return (
-      <div className="w-full py-2 md:py-6 px-2 md:px-6 pb-20 md:pb-6 pl-16 md:pl-24">
+      <div className="w-full py-2 md:py-6 px-2 md:px-6 pb-20 md:pb-6 md:pl-24">
         <div className="container mx-auto p-8 flex items-center justify-center min-h-[400px]">
           <Card className="max-w-md w-full">
             <CardHeader className="text-center">
@@ -98,7 +98,7 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="w-full py-2 md:py-6 px-2 md:px-6 pb-20 md:pb-6 pl-16 md:pl-24">
+    <div className="w-full py-2 md:py-6 px-2 md:px-6 pb-20 md:pb-6 md:pl-24">
       <ClubCalendar clubId={clubId} currentUser={currentUser} viewMode="club" />
     </div>
   );

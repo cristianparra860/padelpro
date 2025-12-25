@@ -93,6 +93,16 @@ export async function GET(request: NextRequest) {
       const createdDate = new Date(timeSlot.createdAt);
       const updatedDate = new Date(timeSlot.updatedAt);
 
+      // 🎁 Parsear creditsSlots (plazas reservables con puntos)
+      let creditsSlots: number[] = [];
+      if (timeSlot.creditsSlots) {
+        try {
+          creditsSlots = JSON.parse(timeSlot.creditsSlots);
+        } catch (e) {
+          console.warn('⚠️ Error parseando creditsSlots para slot:', timeSlot.id);
+        }
+      }
+
       return {
         id: timeSlot.id,
         clubId: timeSlot.clubId,
@@ -131,7 +141,10 @@ export async function GET(request: NextRequest) {
             createdAt: bookingCreatedDate.toISOString()
           };
         }),
-        description: ''
+        description: '',
+        // 🎁 CRÉDITOS: Incluir plazas reservables con puntos
+        creditsSlots: creditsSlots,
+        creditsCost: Number(timeSlot.creditsCost || 50)
       };
     });
 

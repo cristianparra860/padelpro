@@ -1,13 +1,14 @@
 // src/app/api/instructor/cancel-class/[classId]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { updateUserBlockedCredits } from '@/lib/blockedCredits';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { classId: string } }
+  context: { params: Promise<{ classId: string }> }
 ) {
   try {
-    const { classId } = params;
+    const { classId } = await context.params;
 
     // Verificar que la clase existe
     const timeSlot = await prisma.timeSlot.findUnique({
@@ -65,15 +66,13 @@ export async function POST(
             }
           });
         } else {
-          // Devolver créditos en céntimos
+          // Devolver créditos en céntimos (solo incrementar credit, no tocar blockedCredit)
+          // Las reservas CONFIRMED no tienen crédito bloqueado, se liberó al confirmar
           await prisma.user.update({
             where: { id: booking.userId },
             data: {
               credit: {
                 increment: amountToRefund
-              },
-              blockedCredit: {
-                decrement: amountToRefund
               }
             }
           });
@@ -100,25 +99,29 @@ export async function POST(
           }
         });
 
+        // Recalcular blockedCredits del usuario (limpia créditos bloqueados de reservas canceladas)
+        await updateUserBlockedCredits(booking.userId);
+
         refundedUsers.push(booking.user.name || booking.user.email);
       } catch (error) {
         console.error(`Error procesando reembolso para usuario ${booking.userId}:`, error);
       }
     }
 
-    // Eliminar el TimeSlot o marcarlo como cancelado
-    // Opción 1: Eliminar completamente
+    // Eliminar las reservas canceladas para evitar errores de foreign key
+    await prisma.booking.deleteMany({
+      where: {
+        timeSlotId: classId,
+        status: 'CANCELLED'
+      }
+    });
+
+    // Eliminar el TimeSlot para que la clase desaparezca del panel
     await prisma.timeSlot.delete({
       where: { id: classId }
     });
 
-    // Opción 2 (comentada): Marcar como cancelado
-    // await prisma.timeSlot.update({
-    //   where: { id: classId },
-    //   data: { courtId: null } // Esto lo hace no visible en listados
-    // });
-
-    console.log('✅ Clase anulada:', {
+    console.log('✅ Clase anulada y eliminada:', {
       classId,
       refundedUsers: refundedUsers.length,
       timestamp: new Date().toISOString()

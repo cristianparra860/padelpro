@@ -65,11 +65,6 @@ export function ClassesDisplay({
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   
-  // 🎁 Estados para optimización de botones de puntos
-  const [isInstructor, setIsInstructor] = useState(false);
-  const [instructorId, setInstructorId] = useState<string | null>(null);
-  const [creditsSlotsMap, setCreditsSlotsMap] = useState<Record<string, number[]>>({});
-  
   // 📱 Estado para mostrar/ocultar filtros en móvil
   const [showMobileFilters, setShowMobileFilters] = useState(true);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -294,31 +289,6 @@ export function ClassesDisplay({
   // 🎯 Abrir y cerrar panel de filtros
   const closeFilterPanel = () => setShowFilterPanel(false);
   
-  // 🎓 Detectar si usuario es instructor (una sola vez)
-  useEffect(() => {
-    const checkInstructor = async () => {
-      if (!currentUser?.id) return;
-      
-      try {
-        const response = await fetch(`/api/instructors/by-user/${currentUser.id}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.isInstructor && data.instructor) {
-            setIsInstructor(true);
-            setInstructorId(data.instructor.id);
-            console.log('🎓 Usuario es instructor - habilitando edición de plazas');
-          } else {
-            console.log('👤 Usuario no es instructor');
-          }
-        }
-      } catch (error) {
-        console.error('Error checking instructor status:', error);
-      }
-    };
-    
-    checkInstructor();
-  }, [currentUser?.id]);
-  
   // 🔥 LIMPIAR CACHÉ AL MONTAR EL COMPONENTE
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -371,6 +341,12 @@ export function ClassesDisplay({
       console.log('📥 API returned slots:', slots.length);
       console.log('📄 Pagination info:', pagination);
       console.log('📝 First slot completo:', slots[0]);
+      console.log('🎁 VERIFICAR CREDITSSLOTS EN API RESPONSE:', JSON.stringify({
+        hasField: 'creditsSlots' in slots[0],
+        value: slots[0]?.creditsSlots,
+        type: typeof slots[0]?.creditsSlots,
+        creditsCost: slots[0]?.creditsCost
+      }, null, 2));
       
       // ♻️ VERIFICAR DATOS DE RECICLAJE
       const recycledSlots = slots.filter(s => s.hasRecycledSlots === true || s.availableRecycledSlots > 0);
@@ -424,36 +400,6 @@ export function ClassesDisplay({
         setTimeSlots(prev => [...prev, ...slots]);
       } else {
         setTimeSlots(slots);
-      }
-      
-      // 🎁 Cargar creditsSlots en batch para TODOS los usuarios (ver plazas con puntos)
-      if (slots.length > 0) {
-        const slotIds = slots.map(s => s.id);
-        try {
-          const creditsResponse = await fetch(`/api/timeslots/credits-slots-batch`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ slotIds })
-          });
-          
-          if (creditsResponse.ok) {
-            const creditsData = await creditsResponse.json();
-            setCreditsSlotsMap(prev => ({ ...prev, ...creditsData }));
-            console.log(`🎁 Cargados creditsSlots para ${Object.keys(creditsData).length} slots:`, creditsData);
-            // DEBUG: Mostrar específicamente el slot de Cristian
-            const cristianSlot = Object.keys(creditsData).find(k => k.includes('z9y4veby1rd'));
-            if (cristianSlot) {
-              console.log(`   ✨ Slot Cristian Parra encontrado:`, {
-                id: cristianSlot,
-                creditsSlots: creditsData[cristianSlot]
-              });
-            }
-          } else {
-            console.error('❌ Error en batch response:', creditsResponse.status);
-          }
-        } catch (error) {
-          console.error('Error cargando creditsSlots batch:', error);
-        }
       }
       
       // 📄 Actualizar estado de paginación
@@ -752,6 +698,9 @@ export function ClassesDisplay({
       hasRecycledSlots: apiSlot.hasRecycledSlots,
       availableRecycledSlots: apiSlot.availableRecycledSlots,
       recycledSlotsOnlyPoints: apiSlot.recycledSlotsOnlyPoints,
+      // 🎁 CRÉDITOS: Pasar datos de plazas reservables con puntos
+      creditsSlots: apiSlot.creditsSlots || [],
+      creditsCost: apiSlot.creditsCost || 50,
       designatedGratisSpotPlaceholderIndexForOption: undefined,
       privateShareCode: undefined,
     };
@@ -795,32 +744,6 @@ export function ClassesDisplay({
     }
   }, [timeSlotFilter]);
 
-  // 🎁 Función para recargar creditsSlots en batch (TODOS los usuarios ven plazas con puntos)
-  const reloadCreditsSlots = useCallback(async () => {
-    if (timeSlots.length === 0) {
-      console.log('⏭️ Saltando recarga creditsSlots: sin slots');
-      return;
-    }
-    
-    console.log('🔄 Recargando creditsSlots para', timeSlots.length, 'slots...');
-    const slotIds = timeSlots.map(s => s.id);
-    try {
-      const creditsResponse = await fetch(`/api/timeslots/credits-slots-batch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slotIds })
-      });
-      
-      if (creditsResponse.ok) {
-        const creditsData = await creditsResponse.json();
-        setCreditsSlotsMap(creditsData); // Reemplazar completamente el mapa
-        console.log(`✅ Recargados creditsSlots:`, creditsData);
-      }
-    } catch (error) {
-      console.error('❌ Error recargando creditsSlots batch:', error);
-    }
-  }, [timeSlots]);
-
   // Memoize handleBookingSuccess to prevent prop changes
   const handleBookingSuccess = useCallback(async (updatedSlot?: TimeSlot) => {
     console.log('🔄 ========================================');
@@ -843,14 +766,11 @@ export function ClassesDisplay({
     // Recargar datos desde el API
     await loadTimeSlots(1, false);
     
-    // 🎁 Recargar creditsSlots después de cualquier cambio
-    await reloadCreditsSlots();
-    
     console.log('✅ Recarga completa finalizada');
     console.log('🔄 ========================================');
     
     onBookingSuccess?.();
-  }, [loadTimeSlots, onBookingSuccess, reloadCreditsSlots]);
+  }, [loadTimeSlots, onBookingSuccess]);
 
   if (loading) {
     return (
@@ -898,9 +818,9 @@ export function ClassesDisplay({
   });
 
   return (
-    <div className={`relative transition-all duration-300 ${showMobileFilters ? 'pr-[80px] md:pr-0' : 'pr-0'}`} ref={scrollContainerRef}>
+    <div className="relative" ref={scrollContainerRef}>
 
-      <div className={`fixed right-0 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2 md:gap-3 items-center pr-1 transition-transform duration-300 md:translate-x-0 ${showMobileFilters ? 'translate-x-0' : 'translate-x-full'}`}>
+      <div className="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2 md:gap-3 items-center pr-1">
         {/* Título principal "Filtros" */}
         <div className="bg-white rounded-full px-2 py-1 md:px-3 md:py-1.5 shadow-md border border-gray-200">
           <span className="text-[7px] md:text-[9px] font-bold uppercase tracking-wider text-gray-600">
@@ -925,7 +845,7 @@ export function ClassesDisplay({
                 type="button"
                 onClick={openInstructorPanel}
                 className={`
-                  w-6 h-6 md:w-11 md:h-11 rounded-full transition-all duration-200 cursor-pointer overflow-hidden
+                  w-7 h-7 md:w-11 md:h-11 rounded-full transition-all duration-200 cursor-pointer overflow-hidden
                   ${selectedInstructorIds.length === 0 || selectedInstructorIds.includes(instructor.id)
                     ? 'border border-green-500 shadow-[inset_0_1px_3px_rgba(34,197,94,0.2)]'
                     : 'border border-gray-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] opacity-40 hover:opacity-70 hover:border-gray-400'
@@ -959,7 +879,7 @@ export function ClassesDisplay({
             type="button"
             onClick={() => setShowTimeFilterPanel(true)}
             className={`
-              w-8 h-8 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer
+              w-10 h-10 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer
               ${timeSlotFilter !== 'all'
                 ? 'bg-white border border-green-500 shadow-[inset_0_1px_3px_rgba(34,197,94,0.2)]'
                 : 'bg-white border border-gray-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] hover:border-gray-400'
@@ -1016,7 +936,7 @@ export function ClassesDisplay({
               openViewFilterPanel();
             }}
             className={`
-              w-8 h-8 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer
+              w-10 h-10 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer
               ${viewPreference === 'withBookings'
                 ? 'bg-white border border-blue-500 shadow-[inset_0_1px_3px_rgba(59,130,246,0.2)]'
                 : viewPreference === 'myConfirmed'
@@ -1088,7 +1008,7 @@ export function ClassesDisplay({
               type="button"
               onClick={openPlayerCountPanel}
               className={`
-                w-6 h-6 md:w-11 md:h-11 rounded-full font-bold text-[10px] md:text-base transition-all duration-200 cursor-pointer bg-white
+                w-7 h-7 md:w-11 md:h-11 rounded-full font-bold text-[11px] md:text-base transition-all duration-200 cursor-pointer bg-white
                 ${localPlayerCounts.includes(count)
                   ? 'border border-green-600 text-green-600 shadow-[inset_0_1px_3px_rgba(0,0,0,0.2)]'
                   : 'border border-gray-300 text-gray-400 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] hover:border-gray-400 hover:text-gray-500'
@@ -1664,24 +1584,28 @@ export function ClassesDisplay({
       
       {/* Grid de tarjetas de clases */}
       {processedSlots.length > 0 && (
-        <div className={`w-full transition-all duration-300 ${showMobileFilters ? 'px-1 md:px-8 lg:px-12' : 'px-2 md:px-8 lg:px-12'}`}>
+        <div className="w-full pl-6 pr-1 md:px-8 lg:px-12">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-12 md:gap-12 justify-items-center">
             {processedSlots.map((slot) => {
               console.log(`🎴 Renderizando tarjeta ${slot.id.substring(0,8)} con allowedPlayerCounts:`, localPlayerCounts);
               
-              // 🐛 DEBUG RECICLAJE: Mostrar si tiene plazas recicladas
+              // � DEBUG CREDITS SLOTS: Ver qué propiedades tiene el slot
+              console.log(`🎁 DEBUG slot ${slot.id.substring(0,8)}:`, JSON.stringify({
+                hasCreditsSlots: 'creditsSlots' in slot,
+                creditsSlotsValue: slot.creditsSlots,
+                creditsSlotsType: typeof slot.creditsSlots,
+                hasCreditsCost: 'creditsCost' in slot,
+                creditsCostValue: slot.creditsCost,
+                instructor: slot.instructorName
+              }, null, 2));
+              
+              // �🐛 DEBUG RECICLAJE: Mostrar si tiene plazas recicladas
               if (slot.hasRecycledSlots) {
                 console.log(`♻️ TARJETA CON RECICLAJE: ${slot.instructorName} - hasRecycledSlots=${slot.hasRecycledSlots}, availableRecycledSlots=${slot.availableRecycledSlots}`);
               }
               
-              // 🎓 Solo permitir edición si el instructor es el de esta clase
-              const canEditCreditsSlots = isInstructor && instructorId === slot.instructorId;
-              console.log(`🔍 Verificación de permisos para slot ${slot.id.substring(0,8)}:`, {
-                isInstructor,
-                instructorIdUsuario: instructorId,
-                instructorIdClase: slot.instructorId,
-                canEditCreditsSlots
-              });
+              // 🎓 Los botones de conversión € → 🎁 solo se muestran en el Panel del Instructor
+              // No se pasan isInstructor ni instructorView aquí para evitar mostrar botones en vista principal
               return (
                 <div key={`slot-${slot.id}-refresh-${refreshKey}-bookings-${slot.bookings?.length || 0}-players-${localPlayerCounts.join('-')}`} className="flex justify-center">
                   <ClassCardReal
@@ -1690,11 +1614,8 @@ export function ClassesDisplay({
                     onBookingSuccess={handleBookingSuccess}
                     showPointsBonus={true}
                     allowedPlayerCounts={localPlayerCounts}
-                    isInstructor={canEditCreditsSlots}
-                    instructorId={instructorId}
-                    creditsSlots={creditsSlotsMap[slot.id] || []}
                     isInscriptionSelected={selectedInscriptionSlotIds.includes(slot.id)}
-                    instructorView={canEditCreditsSlots}
+                    creditsSlots={slot.creditsSlots || []}
                   />
                 </div>
               );

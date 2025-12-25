@@ -444,25 +444,6 @@ export function LeftNavigationBar() {
                             Saldo
                         </span>
                     </div>
-
-                    {/* 🎚️ Botón Filtros - Solo móvil y solo en página de clases */}
-                    {pathname === '/activities' && (
-                        <div className="flex flex-col items-center gap-0.5 md:hidden">
-                            <button
-                                onClick={() => {
-                                    // Disparar evento personalizado para toggle de filtros
-                                    window.dispatchEvent(new CustomEvent('toggleMobileFilters'));
-                                }}
-                                className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-[0_2px_8px_rgba(0,0,0,0.12)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)] transition-all duration-200 flex items-center justify-center"
-                                title="Mostrar/Ocultar Filtros"
-                            >
-                                <SlidersHorizontal className="w-4 h-4" />
-                            </button>
-                            <span className="text-[6px] font-medium uppercase tracking-wide text-gray-500">
-                                Filtros
-                            </span>
-                        </div>
-                    )}
                     
                     {/* Resto de botones (Calendario, Base Datos, Config) excepto Clases */}
                     {visibleNavItems.filter(item => item.key !== 'clases').map((item) => {

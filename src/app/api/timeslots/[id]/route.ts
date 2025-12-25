@@ -115,6 +115,43 @@ export async function GET(
       description: ''
     };
 
+    // ♻️ CALCULAR PLAZAS RECICLADAS
+    // Buscar bookings cancelados con isRecycled=true
+    const recycledBookings = timeSlot.bookings.filter(b => 
+      b.status === 'CANCELLED' && b.isRecycled === true
+    );
+    
+    if (recycledBookings.length > 0) {
+      console.log(`♻️ Plazas recicladas encontradas: ${recycledBookings.length}`);
+      
+      // Determinar la modalidad (groupSize del booking reciclado)
+      const groupSize = recycledBookings[0].groupSize;
+      
+      // Contar cuántas plazas están disponibles (canceladas recicladas)
+      const availableRecycledSlots = recycledBookings.length;
+      
+      // Verificar si TODAS las plazas recicladas son solo por puntos
+      const allRecycledArePoints = recycledBookings.every(b => 
+        b.paidWithPoints === 1 || b.paidWithPoints === true
+      );
+      
+      // Agregar campos de reciclaje al response
+      formattedSlot.hasRecycledSlots = true;
+      formattedSlot.availableRecycledSlots = availableRecycledSlots;
+      formattedSlot.recycledSlotsOnlyPoints = allRecycledArePoints;
+      
+      console.log(`♻️ Datos reciclados:`, {
+        hasRecycledSlots: true,
+        availableRecycledSlots,
+        recycledSlotsOnlyPoints: allRecycledArePoints,
+        groupSize
+      });
+    } else {
+      formattedSlot.hasRecycledSlots = false;
+      formattedSlot.availableRecycledSlots = 0;
+      formattedSlot.recycledSlotsOnlyPoints = false;
+    }
+
     return NextResponse.json(formattedSlot);
 
   } catch (error) {
