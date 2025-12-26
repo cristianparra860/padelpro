@@ -90,6 +90,7 @@ model User {
   playerMatches     MatchPlayer[]
   instructorProfile Instructor?
   bookings          Booking[]
+  matchGameBookings MatchGameBooking[]
   transactions      Transaction[]
 
   @@map("User")
@@ -132,6 +133,7 @@ model Club {
   users      User[]
   courts     Court[]
   matches    Match[]
+  matchGames MatchGame[]
   timeSlots  TimeSlot[]
   instructors Instructor[]
   schedules  ClubSchedule[]
@@ -171,6 +173,7 @@ model Court {
 
   // Relaciones
   matches   Match[]
+  matchGames MatchGame[]
   timeSlots TimeSlot[]
   schedule  CourtSchedule[] // Calendario de ocupación de esta pista
 
@@ -197,6 +200,57 @@ model Match {
   players MatchPlayer[]
 
   @@map("Match")
+}
+
+// Partidas de 4 jugadores (sistema de reserva similar a clases)
+model MatchGame {
+  id                String   @id @default(cuid())
+  club              Club     @relation(fields: [clubId], references: [id])
+  clubId            String
+  court             Court?   @relation(fields: [courtId], references: [id])
+  courtId           String?
+  courtNumber       Int?     // Número de pista asignada cuando se confirma
+  start             DateTime
+  end               DateTime
+  duration          Int      @default(60) // 60 o 90 minutos
+  maxPlayers        Int      @default(4)
+  courtRentalPrice  Float    @default(0) // Precio total de alquiler de pista
+  pricePerPlayer    Float    @default(0) // courtRentalPrice / 4
+  level             String?  // Se define con primera reserva (0.0-7.0)
+  genderCategory    String?  // masculino, femenino, mixto - se define con primera reserva
+  isOpen            Boolean  @default(true) // true = partida abierta (sin clasificar)
+  hasRecycledSlots  Boolean  @default(false)
+  availableRecycledSlots Int?
+  recycledSlotsOnlyPoints Boolean @default(true)
+  creditsSlots      String? // JSON array de índices [1,2,3,4]
+  creditsCost       Int      @default(50)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relaciones
+  bookings MatchGameBooking[]
+
+  @@map("MatchGame")
+}
+
+// Reservas de partidas de 4 jugadores
+model MatchGameBooking {
+  id                   String        @id @default(cuid())
+  user                 User          @relation(fields: [userId], references: [id])
+  userId               String
+  matchGame            MatchGame     @relation(fields: [matchGameId], references: [id])
+  matchGameId          String
+  status               BookingStatus @default(PENDING)
+  wasConfirmed         Boolean       @default(false)
+  paidWithPoints       Boolean       @default(false)
+  paymentMethod        String        @default("CREDITS") // "CREDITS" o "POINTS"
+  pointsUsed           Int           @default(0)
+  amountBlocked        Int           @default(0)
+  isRecycled           Boolean       @default(false)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  @@map("MatchGameBooking")
 }
 
 model MatchPlayer {

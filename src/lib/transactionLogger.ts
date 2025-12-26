@@ -8,7 +8,7 @@ interface CreateTransactionParams {
   type: TransactionType;
   action: TransactionAction;
   amount: number;
-  balance: number;
+  balance?: number;  // Opcional - se calculará automáticamente si no se proporciona
   concept: string;
   relatedId?: string;
   relatedType?: string;

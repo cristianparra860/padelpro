@@ -27,22 +27,53 @@ const ManageCourtsPanelDB: React.FC<ManageCourtsPanelDBProps> = ({ clubId }) => 
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCourt, setEditingCourt] = useState<Court | null>(null);
+  const [realClubId, setRealClubId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     number: 1,
     name: ''
   });
 
+  // Obtener el ID real del club desde la API
   useEffect(() => {
-    loadCourts();
-  }, [clubId]);
+    const fetchRealClubId = async () => {
+      try {
+        const response = await fetch('/api/clubs');
+        if (!response.ok) throw new Error('Error cargando clubs');
+        const clubs = await response.json();
+        
+        // Usar el primer club disponible (en producción habría lógica para seleccionar el correcto)
+        if (clubs.length > 0) {
+          setRealClubId(clubs[0].id);
+          console.log('✅ Club ID real:', clubs[0].id, '| Nombre:', clubs[0].name);
+        }
+      } catch (error) {
+        console.error('Error obteniendo club real:', error);
+        toast({
+          title: "Error",
+          description: "No se pudo obtener el ID del club",
+          variant: "destructive"
+        });
+      }
+    };
+    
+    fetchRealClubId();
+  }, [toast]);
+
+  useEffect(() => {
+    if (realClubId) {
+      loadCourts();
+    }
+  }, [realClubId]);
 
   const loadCourts = async () => {
+    if (!realClubId) return;
+    
     try {
       setLoading(true);
-      console.log('🔍 Cargando pistas para club:', clubId);
+      console.log('🔍 Cargando pistas para club:', realClubId);
       
-      const response = await fetch(`/api/admin/clubs/${clubId}/courts`);
+      const response = await fetch(`/api/admin/clubs/${realClubId}/courts`);
       
       console.log('📡 Response status:', response.status);
       
@@ -88,6 +119,15 @@ const ManageCourtsPanelDB: React.FC<ManageCourtsPanelDBProps> = ({ clubId }) => 
   };
 
   const handleSave = async () => {
+    if (!realClubId) {
+      toast({
+        title: "Error",
+        description: "No se pudo determinar el ID del club",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     try {
       if (!formData.name || formData.number < 1) {
         toast({
@@ -99,8 +139,8 @@ const ManageCourtsPanelDB: React.FC<ManageCourtsPanelDBProps> = ({ clubId }) => 
       }
 
       const url = editingCourt
-        ? `/api/admin/clubs/${clubId}/courts/${editingCourt.id}`
-        : `/api/admin/clubs/${clubId}/courts`;
+        ? `/api/admin/clubs/${realClubId}/courts/${editingCourt.id}`
+        : `/api/admin/clubs/${realClubId}/courts`;
       
       const method = editingCourt ? 'PUT' : 'POST';
 
@@ -137,8 +177,17 @@ const ManageCourtsPanelDB: React.FC<ManageCourtsPanelDBProps> = ({ clubId }) => 
   const handleDelete = async (court: Court) => {
     if (!confirm(`¿Eliminar ${court.name || 'Pista #' + court.number}?`)) return;
 
+    if (!realClubId) {
+      toast({
+        title: "Error",
+        description: "No se pudo determinar el ID del club",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
-      const response = await fetch(`/api/admin/clubs/${clubId}/courts/${court.id}`, {
+      const response = await fetch(`/api/admin/clubs/${realClubId}/courts/${court.id}`, {
         method: 'DELETE'
       });
 

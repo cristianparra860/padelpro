@@ -7,10 +7,10 @@ import { prisma } from '@/lib/prisma';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { clubId: string } }
+  { params }: { params: Promise<{ clubId: string }> }
 ) {
   try {
-    const { clubId } = params;
+    const { clubId } = await params;
 
     const courts = await prisma.court.findMany({
       where: { clubId },
@@ -33,10 +33,10 @@ export async function GET(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { clubId: string } }
+  { params }: { params: Promise<{ clubId: string }> }
 ) {
   try {
-    const { clubId } = params;
+    const { clubId } = await params;
     const body = await request.json();
     const { number, name } = body;
 
@@ -60,6 +60,18 @@ export async function POST(
       );
     }
 
+    // Verificar que el club existe
+    const club = await prisma.club.findUnique({
+      where: { id: clubId }
+    });
+
+    if (!club) {
+      return NextResponse.json(
+        { error: `El club con ID '${clubId}' no existe en la base de datos` },
+        { status: 404 }
+      );
+    }
+
     // Crear la pista
     const court = await prisma.court.create({
       data: {
@@ -69,13 +81,14 @@ export async function POST(
       }
     });
 
-    console.log(`✅ Pista creada: ${name} (#${number})`);
+    console.log(`✅ Pista creada: ${name} (#${number}) para club ${club.name}`);
 
     return NextResponse.json(court);
   } catch (error) {
     console.error('Error creando pista:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Error al crear la pista';
     return NextResponse.json(
-      { error: 'Error al crear la pista' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

@@ -7,10 +7,10 @@ import { prisma } from '@/lib/prisma';
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { clubId: string; courtId: string } }
+  { params }: { params: Promise<{ clubId: string; courtId: string }> }
 ) {
   try {
-    const { clubId, courtId: id } = params;
+    const { clubId, courtId: id } = await params;
     const body = await request.json();
     const { number, name } = body;
 
@@ -71,10 +71,10 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { clubId: string; courtId: string } }
+  { params }: { params: Promise<{ clubId: string; courtId: string }> }
 ) {
   try {
-    const { clubId, courtId: id } = params;
+    const { clubId, courtId: id } = await params;
 
     // Verificar que existe
     const existing = await prisma.court.findFirst({

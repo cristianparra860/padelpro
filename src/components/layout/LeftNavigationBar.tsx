@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ClipboardList, Calendar, CalendarDays, UserCircle, Database, Settings, Target, GraduationCap, Wallet, SlidersHorizontal, UserCog } from 'lucide-react';
+import { ClipboardList, Calendar, CalendarDays, UserCircle, Database, Settings, Target, GraduationCap, Wallet, SlidersHorizontal, UserCog, Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { User, Club } from '@/types';
@@ -204,6 +204,14 @@ export function LeftNavigationBar() {
             allowedRoles: ['SUPER_ADMIN', 'CLUB_ADMIN', 'INSTRUCTOR', 'PLAYER'], // Todos pueden ver
         },
         {
+            key: 'partidas',
+            href: '/matchgames',
+            icon: Trophy,
+            label: 'Partidas',
+            isActive: pathname === '/matchgames',
+            allowedRoles: ['SUPER_ADMIN', 'CLUB_ADMIN', 'INSTRUCTOR', 'PLAYER'], // Todos pueden ver
+        },
+        {
             key: 'calendario-club',
             href: '/admin/calendar',
             icon: CalendarDays,
@@ -353,10 +361,10 @@ export function LeftNavigationBar() {
                 </div>
             </div>
             
-            {/* Contenedor individual para Clases (antes estaba en el contenedor de múltiples botones) */}
+            {/* Contenedor individual para Clases y Partidas */}
             <div className="relative bg-gradient-to-br from-white via-gray-50 to-gray-100 rounded-lg shadow-[8px_0_24px_rgba(0,0,0,0.12),inset_-2px_0_8px_rgba(0,0,0,0.06)] border border-gray-300 px-0.5 py-2 md:px-3 md:py-4 w-[48px] md:w-[68px]">
                 <div className="flex flex-col gap-1.5 items-center">
-                    {visibleNavItems.filter(item => item.key === 'clases').map((item) => {
+                    {visibleNavItems.filter(item => item.key === 'clases' || item.key === 'partidas').map((item) => {
                         const IconComponent = item.icon;
                         
                         return (
