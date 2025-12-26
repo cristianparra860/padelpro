@@ -244,6 +244,14 @@ export function LeftNavigationBar() {
             allowedRoles: ['SUPER_ADMIN', 'CLUB_ADMIN'], // Solo Super Admin y Club Admin
         },
         {
+            key: 'admin-partidas',
+            href: '/admin/matchgames',
+            icon: Trophy,
+            label: 'Partidas',
+            isActive: pathname === '/admin/matchgames' || pathname.startsWith('/admin/matchgames/'),
+            allowedRoles: ['SUPER_ADMIN', 'CLUB_ADMIN'], // Solo Super Admin y Club Admin
+        },
+        {
             key: 'base-datos',
             href: '/admin/database',
             icon: Database,
