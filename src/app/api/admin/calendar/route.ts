@@ -153,36 +153,43 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // 4. Obtener partidas
-    const matches = await prisma.match.findMany({
+    // 4. Obtener partidas (MatchGames)
+    const matchGames = await prisma.matchGame.findMany({
       where: {
-        ...(clubId && { 
-          court: {
-            clubId: clubId
-          }
-        }),
-        startTime: { 
-          gte: new Date(startDate),
-          lte: new Date(endDate)
+        ...(clubId && { clubId }),
+        start: { 
+          gte: new Date(startTime),
+          lte: new Date(endTime)
         }
       },
-      select: {
-        id: true,
-        startTime: true,
-        endTime: true,
-        court: {
+      include: {
+        bookings: {
+          where: {
+            status: { in: ['PENDING', 'CONFIRMED', 'CANCELLED'] }
+          },
           select: {
             id: true,
-            number: true
+            userId: true,
+            status: true,
+            user: {
+              select: {
+                name: true,
+                profilePictureUrl: true
+              }
+            }
           }
         }
       },
-      orderBy: { startTime: 'asc' }
+      orderBy: { start: 'asc' }
     });
 
     // Separar clases propuestas de confirmadas
     const proposedClasses = classes.filter((c: any) => c.courtId === null);
     const confirmedClasses = classes.filter((c: any) => c.courtId !== null);
+
+    // Separar partidas propuestas de confirmadas
+    const proposedMatches = matchGames.filter((m: any) => m.courtNumber === null);
+    const confirmedMatches = matchGames.filter((m: any) => m.courtNumber !== null);
 
     // Construir respuesta simplificada
     const calendarData = {
@@ -254,6 +261,48 @@ export async function GET(request: NextRequest) {
           color: '#10B981' // Verde para confirmadas
         };
       }),
+      proposedMatches: proposedMatches.map((match: any) => {
+        const confirmedBookings = match.bookings?.filter((b: any) => b.status === 'CONFIRMED') || [];
+        const pendingBookings = match.bookings?.filter((b: any) => b.status === 'PENDING') || [];
+        const totalPlayers = confirmedBookings.length + pendingBookings.length;
+        
+        return {
+          id: `match-${match.id}`,
+          type: 'match-proposal',
+          title: `Partida ${match.isOpen ? 'Abierta' : 'Clasificada'} (${totalPlayers}/4)`,
+          start: new Date(match.start).toISOString(),
+          end: new Date(match.end).toISOString(),
+          level: match.level,
+          isOpen: match.isOpen,
+          genderCategory: match.genderCategory,
+          playersCount: totalPlayers,
+          maxPlayers: 4,
+          availableSpots: 4 - totalPlayers,
+          bookings: match.bookings,
+          color: '#9333EA' // Morado para partidas propuestas
+        };
+      }),
+      confirmedMatches: confirmedMatches.map((match: any) => {
+        const confirmedBookings = match.bookings?.filter((b: any) => b.status === 'CONFIRMED') || [];
+        const totalPlayers = confirmedBookings.length;
+        
+        return {
+          id: `match-${match.id}`,
+          type: 'match-confirmed',
+          title: `Partida - Pista ${match.courtNumber}`,
+          start: new Date(match.start).toISOString(),
+          end: new Date(match.end).toISOString(),
+          courtNumber: match.courtNumber,
+          level: match.level,
+          isOpen: match.isOpen,
+          genderCategory: match.genderCategory,
+          playersCount: totalPlayers,
+          maxPlayers: 4,
+          availableSpots: 0,
+          bookings: match.bookings,
+          color: '#7C3AED' // Morado oscuro para partidas confirmadas
+        };
+      }),
       events: [
         // Clases (TimeSlots) - mantener por compatibilidad
         ...classes.map((cls: any) => {
@@ -286,20 +335,31 @@ export async function GET(request: NextRequest) {
           };
         }),
         
-        // Partidas (Matches)
-        ...matches.map((match: any) => ({
-          id: `match-${match.id}`,
-          type: 'match',
-          title: `Partido - Pista ${match.court?.number || 'N/A'}`,
-          start: match.startTime.toISOString(),
-          end: match.endTime.toISOString(),
-          courtId: match.courtId,
-          courtNumber: match.court?.number,
-          courtName: match.court?.name,
-          status: match.status,
-          resourceId: `court-${match.court?.number}`,
-          color: '#3B82F6' // Azul para partidas
-        }))
+        // Partidas (MatchGames)
+        ...matchGames.map((match: any) => {
+          const confirmedBookings = match.bookings?.filter((b: any) => b.status === 'CONFIRMED') || [];
+          const pendingBookings = match.bookings?.filter((b: any) => b.status === 'PENDING') || [];
+          const totalPlayers = confirmedBookings.length + pendingBookings.length;
+          
+          return {
+            id: `match-${match.id}`,
+            type: 'match',
+            title: `Partida ${match.isOpen ? 'Abierta' : 'Clasificada'} (${totalPlayers}/4)${match.courtNumber ? ` - Pista ${match.courtNumber}` : ''}`,
+            start: new Date(match.start).toISOString(),
+            end: new Date(match.end).toISOString(),
+            courtId: match.courtId,
+            courtNumber: match.courtNumber,
+            level: match.level,
+            isOpen: match.isOpen,
+            genderCategory: match.genderCategory,
+            playersCount: totalPlayers,
+            maxPlayers: 4,
+            availableSpots: 4 - totalPlayers,
+            bookings: match.bookings,
+            resourceId: match.courtNumber ? `court-${match.courtNumber}` : `match-${match.id}`,
+            color: '#9333EA' // Morado para partidas (matches del sistema de competición)
+          };
+        })
       ],
       summary: {
         totalCourts: courts.length,
@@ -307,7 +367,9 @@ export async function GET(request: NextRequest) {
         totalClasses: classes.length,
         confirmedClasses: confirmedClasses.length,
         proposedClasses: proposedClasses.length,
-        totalMatches: matches.length,
+        totalMatches: matchGames.length,
+        confirmedMatches: confirmedMatches.length,
+        proposedMatches: proposedMatches.length,
         emptyClasses: classes.filter((c: any) => (c.bookings?.length || 0) === 0).length,
         fullClasses: classes.filter((c: any) => (c.bookings?.length || 0) >= c.maxPlayers).length
       },

@@ -54,11 +54,41 @@ interface BookingWithTimeSlot {
   };
 }
 
+interface MatchGameBookingWithDetails {
+  id: string;
+  userId: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    name: string;
+    email: string;
+    profilePictureUrl?: string;
+  };
+  matchGame: {
+    id: string;
+    start: string;
+    end: string;
+    level: string | null;
+    isOpen: boolean;
+    genderCategory: string | null;
+    price: number;
+    courtNumber: number | null;
+    clubId: string;
+    bookings?: any[];
+  };
+}
+
+type CombinedBooking = 
+  | { type: 'class'; data: BookingWithTimeSlot }
+  | { type: 'match'; data: MatchGameBookingWithDetails };
+
 const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActionSuccess }) => {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab') as 'confirmed' | 'pending' | 'past' | 'cancelled' | null;
   
   const [bookings, setBookings] = useState<BookingWithTimeSlot[]>([]);
+  const [matchBookings, setMatchBookings] = useState<MatchGameBookingWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<'confirmed' | 'pending' | 'past' | 'cancelled'>(tabParam || 'pending');
   const { toast } = useToast();
@@ -81,18 +111,32 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
     setIsLoading(true);
     try {
       console.log('📚 Cargando bookings para usuario:', currentUser.id);
-      const response = await fetch(`/api/users/${currentUser.id}/bookings`);
-      if (response.ok) {
-        const data = await response.json();
-        setBookings(data);
-        console.log(`✅ Cargadas ${data.length} reservas del usuario`);
+      
+      // Cargar bookings de clases
+      const classBookingsResponse = await fetch(`/api/users/${currentUser.id}/bookings`);
+      if (classBookingsResponse.ok) {
+        const classData = await classBookingsResponse.json();
+        setBookings(classData);
+        console.log(`✅ Cargadas ${classData.length} reservas de clases`);
       } else {
-        console.error('❌ Error al cargar reservas:', response.statusText);
+        console.error('❌ Error al cargar reservas de clases:', classBookingsResponse.statusText);
         setBookings([]);
+      }
+      
+      // Cargar bookings de partidas
+      const matchBookingsResponse = await fetch(`/api/users/${currentUser.id}/match-bookings`);
+      if (matchBookingsResponse.ok) {
+        const matchData = await matchBookingsResponse.json();
+        setMatchBookings(matchData);
+        console.log(`✅ Cargadas ${matchData.length} reservas de partidas`);
+      } else {
+        console.error('❌ Error al cargar reservas de partidas:', matchBookingsResponse.statusText);
+        setMatchBookings([]);
       }
     } catch (error) {
       console.error('❌ Error al cargar reservas:', error);
       setBookings([]);
+      setMatchBookings([]);
     } finally {
       setIsLoading(false);
     }
@@ -171,45 +215,83 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
     }
   }, [currentUser?.id]);
 
-  // Memoizar filtrado para evitar recalcular en cada render
-  const filteredBookings = useMemo(() => {
+  // Memoizar filtrado combinado (clases + partidas)
+  const filteredCombinedBookings = useMemo((): CombinedBooking[] => {
     const now = new Date();
+    const combined: CombinedBooking[] = [];
     
-    switch (activeFilter) {
-      case 'confirmed':
-        return bookings.filter(b => {
+    // Filtrar bookings de clases
+    const filteredClassBookings = bookings.filter(b => {
+      switch (activeFilter) {
+        case 'confirmed': {
           const hasCourtAssigned = b.timeSlot.court !== null || b.timeSlot.courtId !== null || b.timeSlot.courtNumber !== null;
           const isFuture = new Date(b.timeSlot.start) >= now;
-          const isBookingConfirmed = b.status === 'CONFIRMED'; // ✅ Verificar que el booking esté CONFIRMED
+          const isBookingConfirmed = b.status === 'CONFIRMED';
           return hasCourtAssigned && isFuture && isBookingConfirmed;
-        });
-      
-      case 'pending':
-        return bookings.filter(b => {
+        }
+        case 'pending': {
           const noCourtAssigned = b.timeSlot.court === null && (b.timeSlot.courtId === null || b.timeSlot.courtId === undefined) && (b.timeSlot.courtNumber === null || b.timeSlot.courtNumber === undefined);
           const isFuture = new Date(b.timeSlot.start) >= now;
           const isNotCancelled = b.status !== 'CANCELLED';
           return noCourtAssigned && isFuture && isNotCancelled;
-        });
-      
-      case 'past':
-        return bookings.filter(b => {
+        }
+        case 'past': {
           const isPast = new Date(b.timeSlot.start) < now;
           const isNotCancelled = b.status !== 'CANCELLED';
           return isPast && isNotCancelled;
-        });
-      
-      case 'cancelled':
-        return bookings.filter(b => {
+        }
+        case 'cancelled': {
           const isCancelled = b.status === 'CANCELLED';
-          const wasConfirmed = (b as any).wasConfirmed === true; // Solo las que fueron confirmadas
+          const wasConfirmed = (b as any).wasConfirmed === true;
           return isCancelled && wasConfirmed;
-        });
-      
-      default:
-        return bookings;
-    }
-  }, [bookings, activeFilter]);
+        }
+        default:
+          return true;
+      }
+    });
+    
+    // Filtrar bookings de partidas
+    const filteredMatchBookings = matchBookings.filter(mb => {
+      switch (activeFilter) {
+        case 'confirmed': {
+          const hasCourtAssigned = mb.matchGame.courtNumber !== null;
+          const isFuture = new Date(mb.matchGame.start) >= now;
+          const isBookingConfirmed = mb.status === 'CONFIRMED';
+          return hasCourtAssigned && isFuture && isBookingConfirmed;
+        }
+        case 'pending': {
+          const noCourtAssigned = mb.matchGame.courtNumber === null;
+          const isFuture = new Date(mb.matchGame.start) >= now;
+          const isNotCancelled = mb.status !== 'CANCELLED';
+          return noCourtAssigned && isFuture && isNotCancelled;
+        }
+        case 'past': {
+          const isPast = new Date(mb.matchGame.start) < now;
+          const isNotCancelled = mb.status !== 'CANCELLED';
+          return isPast && isNotCancelled;
+        }
+        case 'cancelled': {
+          const isCancelled = mb.status === 'CANCELLED';
+          return isCancelled;
+        }
+        default:
+          return true;
+      }
+    });
+    
+    // Combinar y convertir a formato unificado
+    filteredClassBookings.forEach(b => combined.push({ type: 'class', data: b }));
+    filteredMatchBookings.forEach(mb => combined.push({ type: 'match', data: mb }));
+    
+    // Ordenar por fecha de inicio
+    combined.sort((a, b) => {
+      const dateA = new Date(a.type === 'class' ? a.data.timeSlot.start : a.data.matchGame.start);
+      const dateB = new Date(b.type === 'class' ? b.data.timeSlot.start : b.data.matchGame.start);
+      return dateA.getTime() - dateB.getTime();
+    });
+    
+    return combined;
+  }, [bookings, matchBookings, activeFilter]);
 
   // Memoizar contadores para evitar recalcular en cada render
   const counts = useMemo(() => {
@@ -218,7 +300,12 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
       confirmed: bookings.filter(b => {
         const hasCourtAssigned = b.timeSlot.court !== null || b.timeSlot.courtId !== null || b.timeSlot.courtNumber !== null;
         const isFuture = new Date(b.timeSlot.start) >= now;
-        const isBookingConfirmed = b.status === 'CONFIRMED'; // ✅ Verificar que el booking esté CONFIRMED
+        const isBookingConfirmed = b.status === 'CONFIRMED';
+        return hasCourtAssigned && isFuture && isBookingConfirmed;
+      }).length + matchBookings.filter(mb => {
+        const hasCourtAssigned = mb.matchGame.courtNumber !== null;
+        const isFuture = new Date(mb.matchGame.start) >= now;
+        const isBookingConfirmed = mb.status === 'CONFIRMED';
         return hasCourtAssigned && isFuture && isBookingConfirmed;
       }).length,
       pending: bookings.filter(b => {
@@ -226,19 +313,30 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
         const isFuture = new Date(b.timeSlot.start) >= now;
         const isNotCancelled = b.status !== 'CANCELLED';
         return noCourtAssigned && isFuture && isNotCancelled;
+      }).length + matchBookings.filter(mb => {
+        const noCourtAssigned = mb.matchGame.courtNumber === null;
+        const isFuture = new Date(mb.matchGame.start) >= now;
+        const isNotCancelled = mb.status !== 'CANCELLED';
+        return noCourtAssigned && isFuture && isNotCancelled;
       }).length,
       past: bookings.filter(b => {
         const isPast = new Date(b.timeSlot.start) < now;
         const isNotCancelled = b.status !== 'CANCELLED';
+        return isPast && isNotCancelled;
+      }).length + matchBookings.filter(mb => {
+        const isPast = new Date(mb.matchGame.start) < now;
+        const isNotCancelled = mb.status !== 'CANCELLED';
         return isPast && isNotCancelled;
       }).length,
       cancelled: bookings.filter(b => {
         const isCancelled = b.status === 'CANCELLED';
         const wasConfirmed = (b as any).wasConfirmed === true;
         return isCancelled && wasConfirmed;
+      }).length + matchBookings.filter(mb => {
+        return mb.status === 'CANCELLED';
       }).length,
     };
-  }, [bookings]);
+  }, [bookings, matchBookings]);
 
   // Calcular saldos bloqueados por fecha (inscripciones pendientes)
   // ⚠️ REGLA: Solo se bloquea el precio MÁS ALTO del día, porque solo puede tener 1 reserva confirmada por día
@@ -677,7 +775,7 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
                 <span className="ml-2 text-gray-600">Cargando reservas...</span>
               </div>
-            ) : filteredBookings.length === 0 ? (
+            ) : filteredCombinedBookings.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-6xl mb-4">
                   {activeFilter === 'confirmed' && '✅'}
@@ -688,26 +786,100 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
                 <p className="text-xl sm:text-2xl font-semibold text-gray-700">
                   {activeFilter === 'confirmed' && 'No tienes reservas con pista asignada'}
                   {activeFilter === 'pending' && 'No tienes inscripciones pendientes'}
-                  {activeFilter === 'past' && 'No tienes clases pasadas'}
-                  {activeFilter === 'cancelled' && 'No tienes clases canceladas'}
+                  {activeFilter === 'past' && 'No tienes clases o partidas pasadas'}
+                  {activeFilter === 'cancelled' && 'No tienes reservas canceladas'}
                 </p>
                 <p className="text-sm text-gray-500 mt-2">
-                  {activeFilter === 'cancelled' ? 'Las clases canceladas aparecerán aquí' : 'Inscríbete en una clase para verla aquí'}
+                  {activeFilter === 'cancelled' ? 'Las reservas canceladas aparecerán aquí' : 'Inscríbete en una clase o partida para verla aquí'}
                 </p>
               </div>
             ) : (
               <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-                {filteredBookings.map((booking) => (
-                  <BookingCard
-                    key={booking.id}
-                    booking={booking}
-                    currentUser={currentUser}
-                    onBookingSuccess={handleBookingSuccess}
-                    onCancelBooking={handleCancelBooking}
-                    isPastClass={activeFilter === 'past'}
-                    isCancelled={booking.status === 'CANCELLED'}
-                  />
-                ))}
+                {filteredCombinedBookings.map((combinedBooking) => {
+                  if (combinedBooking.type === 'class') {
+                    return (
+                      <BookingCard
+                        key={`class-${combinedBooking.data.id}`}
+                        booking={combinedBooking.data}
+                        currentUser={currentUser}
+                        onBookingSuccess={handleBookingSuccess}
+                        onCancelBooking={handleCancelBooking}
+                        isPastClass={activeFilter === 'past'}
+                        isCancelled={combinedBooking.data.status === 'CANCELLED'}
+                      />
+                    );
+                  } else {
+                    // Renderizar tarjeta de partida (MatchGameBooking)
+                    const mb = combinedBooking.data;
+                    const startDate = new Date(mb.matchGame.start);
+                    const totalPlayers = mb.matchGame.bookings?.filter((b: any) => 
+                      b.status === 'CONFIRMED' || b.status === 'PENDING'
+                    ).length || 0;
+                    
+                    return (
+                      <Card key={`match-${mb.id}`} className="border-l-4 border-l-purple-500">
+                        <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 pb-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <CardTitle className="text-base font-bold text-purple-900 flex items-center gap-2">
+                                🎾 Partida {mb.matchGame.isOpen ? 'Abierta' : 'Clasificada'}
+                              </CardTitle>
+                              <CardDescription className="text-xs mt-1">
+                                {startDate.toLocaleDateString('es-ES', { 
+                                  weekday: 'short', 
+                                  day: 'numeric', 
+                                  month: 'short' 
+                                })} • {startDate.toLocaleTimeString('es-ES', { 
+                                  hour: '2-digit', 
+                                  minute: '2-digit' 
+                                })}
+                              </CardDescription>
+                            </div>
+                            {mb.matchGame.courtNumber && (
+                              <div className="bg-purple-100 px-2 py-1 rounded text-xs font-bold text-purple-700">
+                                Pista {mb.matchGame.courtNumber}
+                              </div>
+                            )}
+                          </div>
+                        </CardHeader>
+                        <CardContent className="pt-3 space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-600">Jugadores:</span>
+                            <span className="font-semibold">{totalPlayers}/4</span>
+                          </div>
+                          {mb.matchGame.level && (
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-gray-600">Nivel:</span>
+                              <span className="font-semibold">{mb.matchGame.level}</span>
+                            </div>
+                          )}
+                          {mb.matchGame.genderCategory && (
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-gray-600">Categoría:</span>
+                              <span className="font-semibold capitalize">{mb.matchGame.genderCategory}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-600">Precio:</span>
+                            <span className="font-semibold">{mb.matchGame.price} créditos</span>
+                          </div>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-600">Estado:</span>
+                            <span className={`font-semibold ${
+                              mb.status === 'CONFIRMED' ? 'text-green-600' : 
+                              mb.status === 'PENDING' ? 'text-orange-600' : 
+                              'text-red-600'
+                            }`}>
+                              {mb.status === 'CONFIRMED' ? 'Confirmada' : 
+                               mb.status === 'PENDING' ? 'Pendiente' : 
+                               'Cancelada'}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  }
+                })}
               </div>
             )}
           </TabsContent>

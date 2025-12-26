@@ -28,7 +28,7 @@ import {
 
 interface CalendarEvent {
   id: string;
-  type: 'class-proposal' | 'class-confirmed' | 'match' | 'instructor-blocked' | 'court-blocked';
+  type: 'class-proposal' | 'class-confirmed' | 'match-proposal' | 'match-confirmed' | 'instructor-blocked' | 'court-blocked';
   title: string;
   start: string;
   end: string;
@@ -44,6 +44,8 @@ interface CalendarEvent {
   category?: string;
   price?: number;
   bookings?: any[];
+  isOpen?: boolean;
+  genderCategory?: string;
 }
 
 interface CalendarData {
@@ -64,6 +66,8 @@ interface CalendarData {
   }>;
   proposedClasses: CalendarEvent[];
   confirmedClasses: CalendarEvent[];
+  proposedMatches: CalendarEvent[];
+  confirmedMatches: CalendarEvent[];
   events: CalendarEvent[];
   summary: {
     totalCourts: number;
@@ -72,6 +76,8 @@ interface CalendarData {
     confirmedClasses: number;
     proposedClasses: number;
     totalMatches: number;
+    confirmedMatches: number;
+    proposedMatches: number;
     totalBookings?: number;
     emptyClasses?: number;
     fullClasses?: number;
@@ -144,6 +150,11 @@ export default function ClubCalendar2({
         instructorId: event.instructorId, // ✅ Filtrar por instructor específico
       });
       setShowProposalCards(true);
+    } else if (event.type === 'match-confirmed' || event.type === 'match-proposal') {
+      // Para partidas, mostrar información de la partida
+      console.log('🎮 Match clicked:', event);
+      setSelectedEvent(event);
+      setShowEventDetails(true);
     } else {
       // Para otros tipos, mostrar el detalle de admin
       setSelectedEvent(event);
@@ -329,7 +340,7 @@ export default function ClubCalendar2({
           case 'classes':
             return event.type.includes('class');
           case 'matches':
-            return event.type === 'match';
+            return event.type.includes('match');
           case 'instructors':
             return event.instructorId !== undefined;
           case 'courts':
@@ -698,6 +709,18 @@ export default function ClubCalendar2({
                     <p className="text-xl font-bold text-white">{calendarData.summary.totalInstructors || 0}</p>
                   </div>
                   <Users className="h-6 w-6 text-white/80" />
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card className="bg-gradient-to-br from-purple-500 to-pink-500 border-0 shadow-lg">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] text-white/80 font-medium">Partidas</p>
+                    <p className="text-xl font-bold text-white">{(calendarData.summary.proposedMatches || 0) + (calendarData.summary.confirmedMatches || 0)}</p>
+                  </div>
+                  <GraduationCap className="h-6 w-6 text-white/80" />
                 </div>
               </CardContent>
             </Card>
