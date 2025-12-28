@@ -82,7 +82,7 @@ export default function InstructorClassCards({ instructor, onlyWithBookings = fa
         // Usar el endpoint de timeslots con instructorId para obtener todas las clases
         // El instructorId en TimeSlots es una referencia a la tabla Instructor
         const response = await fetch(
-          `/api/timeslots?date=${dateStr}&clubId=${clubId}&instructorId=${instructor.id}`
+          `/api/timeslots?date=${dateStr}&clubId=${clubId}&instructorId=${instructor.id}&limit=1000`
         );
         
         if (!response.ok) {

@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import MatchGameCard from '@/components/match/MatchGameCard';
+import DateSelector from '@/components/admin/DateSelector';
 import type { User as UserType } from '@/types';
 
 interface MatchGameBooking {
@@ -55,18 +56,87 @@ export default function MatchGamesPage() {
   const [viewFilter, setViewFilter] = useState<ViewFilter>('all');
   const [showTimeFilterPanel, setShowTimeFilterPanel] = useState(false);
   const [showViewFilterPanel, setShowViewFilterPanel] = useState(false);
+  const [userBookings, setUserBookings] = useState<any[]>([]);
 
   useEffect(() => {
     // Obtener usuario actual
-    fetch('/api/users/current')
-      .then(res => res.json())
-      .then(data => {
-        if (data.user) {
-          setCurrentUser(data.user);
+    const fetchCurrentUser = async () => {
+      try {
+        const res = await fetch('/api/users/current', {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            console.log('✅ Usuario autenticado:', data.user.name);
+            setCurrentUser(data.user);
+          } else {
+            console.log('⚠️ No hay usuario en la respuesta');
+          }
+        } else {
+          console.log('❌ Error obteniendo usuario:', res.status);
         }
-      })
-      .catch(console.error);
+      } catch (error) {
+        console.error('❌ Error en fetch de usuario:', error);
+      }
+    };
+    
+    fetchCurrentUser();
   }, []);
+
+  // Cargar bookings del usuario para el calendario
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    
+    const fetchUserBookings = async () => {
+      try {
+        // Obtener bookings de clases (próximos 30 días)
+        const thirtyDaysLater = new Date();
+        thirtyDaysLater.setDate(thirtyDaysLater.getDate() + 30);
+        
+        const classBookingsRes = await fetch(`/api/bookings?userId=${currentUser.id}`);
+        const classBookingsData = await classBookingsRes.json();
+        const classBookings = (classBookingsData.bookings || []).filter((b: any) => {
+          const bookingDate = new Date(b.timeSlot?.start || new Date());
+          return bookingDate <= thirtyDaysLater;
+        });
+
+        // Obtener todas las partidas del club para extraer los bookings del usuario
+        const matchGamesRes = await fetch(`/api/matchgames?clubId=club-1`);
+        const matchGamesData = await matchGamesRes.json();
+        const matchGames = matchGamesData.matchGames || [];
+        
+        // Filtrar solo los bookings del usuario en partidas
+        const matchBookings = matchGames
+          .filter((mg: MatchGame) => mg.bookings.some(b => b.userId === currentUser.id))
+          .map((mg: MatchGame) => ({
+            timeSlotId: mg.id,
+            status: 'PENDING', // Las partidas son inscripciones (I azul), no reservas (R rojo)
+            date: mg.start
+          }));
+
+        // Combinar bookings para el calendario
+        const allBookings = [
+          ...classBookings.map((b: any) => ({
+            timeSlotId: b.timeSlotId,
+            status: b.status,
+            date: b.timeSlot?.start || new Date()
+          })),
+          ...matchBookings
+        ];
+
+        setUserBookings(allBookings);
+      } catch (error) {
+        console.error('Error cargando bookings del usuario:', error);
+      }
+    };
+
+    fetchUserBookings();
+  }, [currentUser?.id]);
 
   const loadMatches = async () => {
     setLoading(true);
@@ -249,27 +319,20 @@ export default function MatchGamesPage() {
       )}
 
       {/* Contenedor principal */}
-      <div className="container mx-auto px-4 py-8 max-w-7xl ml-20 mr-32 lg:ml-24 lg:mr-40">
-        <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <Trophy className="h-8 w-8 text-orange-500" />
-              Partidas 4 Jugadores
-            </h1>
-            <p className="text-gray-600 mt-2">
-              Únete a partidas o completa tu grupo de 4 jugadores
-            </p>
-          </div>
-          
-          <Button onClick={loadMatches} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Actualizar
-          </Button>
+      <div className="container mx-auto px-4 py-2 max-w-6xl ml-24 mr-64 lg:ml-32 lg:mr-72">
+        {/* Calendario Lineal */}
+        <div className="mb-2">
+          <DateSelector 
+            selectedDate={selectedDate}
+            onDateChange={setSelectedDate}
+            userBookings={userBookings}
+            daysToShow={30}
+          />
         </div>
 
+        <div className="mb-2">
         {/* Selector de fecha */}
-        <div className="flex gap-2 mb-4">
+        <div className="flex gap-2 mb-2">
           <Button
             variant={format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'default' : 'outline'}
             onClick={() => setSelectedDate(new Date())}
@@ -283,15 +346,6 @@ export default function MatchGamesPage() {
             Mañana
           </Button>
         </div>
-
-        {/* Tabs para filtrar */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="all">Todas</TabsTrigger>
-            <TabsTrigger value="available">Disponibles</TabsTrigger>
-            <TabsTrigger value="myMatches">Mis Partidas</TabsTrigger>
-          </TabsList>
-        </Tabs>
       </div>
 
       {/* Lista de partidas */}
@@ -312,7 +366,7 @@ export default function MatchGamesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pr-20 lg:pr-24">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-16 lg:gap-20 pr-48 lg:pr-56 py-0">
           {filteredMatches.map(match => (
             <MatchGameCard
               key={match.id}

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import ClubCalendar from '@/components/admin/ClubCalendar2';
+import ClubCalendarImproved from '@/components/admin/ClubCalendarImproved';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ShieldAlert } from 'lucide-react';
@@ -14,7 +14,7 @@ export default function CalendarPage() {
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const router = useRouter();
   const { toast } = useToast();
-  const clubId = 'padel-estrella-madrid';
+  const clubId = 'club-1'; // ID real del club en la base de datos
 
   useEffect(() => {
     const loadUser = async () => {
@@ -99,7 +99,7 @@ export default function CalendarPage() {
 
   return (
     <div className="w-full py-2 md:py-6 px-2 md:px-6 pb-20 md:pb-6 md:pl-24">
-      <ClubCalendar clubId={clubId} currentUser={currentUser} viewMode="club" />
+      <ClubCalendarImproved clubId={clubId} currentUser={currentUser} viewMode="club" />
     </div>
   );
 }

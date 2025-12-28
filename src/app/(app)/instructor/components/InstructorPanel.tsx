@@ -6,14 +6,13 @@ import type { User, TimeSlot, Match, Instructor as InstructorType, PadelCourt, C
 import AddClassForm from '../../add-class/components/AddClassForm';
 import ManagedSlotsList from './ManagedSlotsList';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { CalendarPlus, ListChecks, Wallet, PlayCircle, Settings2, ToggleLeft, ToggleRight, Loader2, ClockIcon as ClockIconLucide, CalendarSearch, Euro, Save, PlusCircle, Trash2, AlertCircle } from 'lucide-react';
+import { CalendarPlus, ListChecks, Wallet, Settings2, ToggleLeft, ToggleRight, Loader2, ClockIcon as ClockIconLucide, CalendarSearch, Euro, Save, PlusCircle, Trash2, AlertCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { useForm, useFieldArray } from 'react-hook-form';
 import * as z from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import AddCreditForm from '../../add-credit/components/AddCreditForm';
-import OpenMatchForm from './OpenMatchForm';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -146,10 +145,6 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
     setRefreshKey(prevKey => prevKey + 1);
   }, []);
 
-  const handleMatchOpened = useCallback((newMatch: Match) => {
-    setRefreshMatchesKey(prevKey => prevKey + 1);
-  }, []);
-
   const handleSaveInstructorPreferences = (values: PreferencesFormData) => {
     startSettingsTransition(async () => {
       try {
@@ -233,24 +228,22 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
   const clubCalendarLink = instructorData.assignedClubId ? `/club-calendar/${instructorData.assignedClubId}` : '#';
 
   return (
-    <Tabs defaultValue="myClasses" className="space-y-4">
-      <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-1 h-auto flex-wrap">
-        <TabsTrigger value="myClasses" className="text-xs sm:text-sm py-1.5 px-2">
-          <ListChecks className="mr-1.5 h-4 w-4" /> Mis Clases
-        </TabsTrigger>
-        <TabsTrigger value="manageClasses" className="text-xs sm:text-sm py-1.5 px-2">
-          <CalendarPlus className="mr-1.5 h-4 w-4" /> Gestionar Clases
-        </TabsTrigger>
-        <TabsTrigger value="openMatch" className="text-xs sm:text-sm py-1.5 px-2">
-          <PlayCircle className="mr-1.5 h-4 w-4" /> Abrir Partida
-        </TabsTrigger>
-        <TabsTrigger value="clubCalendar" className="text-xs sm:text-sm py-1.5 px-2">
-          <CalendarSearch className="mr-1 h-4 w-4"/> Calendario Club
-        </TabsTrigger>
-        <TabsTrigger value="instructorPreferences" className="text-xs sm:text-sm py-1.5 px-2">
-          <Settings2 className="mr-1.5 h-4 w-4" /> Preferencias
-        </TabsTrigger>
-      </TabsList>
+    <div className="pl-16 md:pl-20 lg:pl-24 pr-4 md:pr-8 py-6 md:py-8 max-w-7xl">
+      <Tabs defaultValue="myClasses" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-1 h-auto">
+          <TabsTrigger value="myClasses" className="text-xs sm:text-sm py-1.5 px-2">
+            <ListChecks className="mr-1.5 h-4 w-4" /> Mis Clases
+          </TabsTrigger>
+          <TabsTrigger value="manageClasses" className="text-xs sm:text-sm py-1.5 px-2">
+            <CalendarPlus className="mr-1.5 h-4 w-4" /> Gestionar Clases
+          </TabsTrigger>
+          <TabsTrigger value="clubCalendar" className="text-xs sm:text-sm py-1.5 px-2">
+            <CalendarSearch className="mr-1 h-4 w-4"/> Calendario Club
+          </TabsTrigger>
+          <TabsTrigger value="instructorPreferences" className="text-xs sm:text-sm py-1.5 px-2">
+            <Settings2 className="mr-1.5 h-4 w-4" /> Preferencias
+          </TabsTrigger>
+        </TabsList>
 
       <TabsContent value="myClasses">
         <Card>
@@ -310,17 +303,6 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
                 </Button>
              </div>
               <AddCreditForm instructor={instructorData} />
-           </CardContent>
-        </Card>
-      </TabsContent>
-
-      <TabsContent value="openMatch">
-        <Card>
-           <CardHeader>
-             <CardTitle className="flex items-center text-lg"><PlayCircle className="mr-2 h-5 w-5 text-primary" /> Abrir Nueva Partida</CardTitle>
-           </CardHeader>
-           <CardContent>
-              <OpenMatchForm instructor={instructorData} onMatchOpened={handleMatchOpened} />
            </CardContent>
         </Card>
       </TabsContent>
@@ -428,17 +410,6 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
                       </Button>
                     </div>
 
-                  <Separator />
-
-                  <div>
-                     <FormLabel>Horario de Disponibilidad</FormLabel>
-                     <FormDescription>Define los bloques horarios en los que SÍ estarás disponible para dar clases. Si no defines ninguno, se asumirá que estás disponible todo el día.</FormDescription>
-                     <div className="mt-2">
-                        <InstructorAvailabilitySettings instructor={instructorData} onSaveUnavailableHours={handleSaveUnavailableHours} />
-                     </div>
-                  </div>
-
-
                   <Button type="submit" disabled={isSavingSettings || !preferencesForm.formState.isDirty} className="w-full sm:w-auto">
                       {isSavingSettings && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Guardar Preferencias y Tarifas
@@ -450,6 +421,7 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
         </div>
       </TabsContent>
     </Tabs>
+    </div>
   );
 };
 

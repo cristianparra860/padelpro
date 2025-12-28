@@ -1,5 +1,6 @@
-import ClubCalendar from '@/components/admin/ClubCalendar2';
+import ClubCalendarImproved from '@/components/admin/ClubCalendarImproved';
 
 export default function CalendarioPage() {
-  return <ClubCalendar />;
+  // Usar el club demo "club-1" por defecto
+  return <ClubCalendarImproved clubId="club-1" viewMode="club" />;
 }

@@ -6,7 +6,7 @@ import React, { Suspense, useEffect, useState, useCallback } from 'react';
 import { getMockCurrentUser, setGlobalCurrentUser, updateUserLevel, updateUserGenderCategory } from '@/lib/mockData';
 import type { User, MatchPadelLevel, UserGenderCategory } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Settings, Edit } from 'lucide-react';
+import { Settings, Edit, UserCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import PageSkeleton from '@/components/layout/PageSkeleton';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -19,7 +19,7 @@ import SimpleAvatar from '@/components/user/profile/SimpleAvatar';
 import ChangePasswordDialog from '@/components/user/profile/ChangePasswordDialog';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
-import { Wallet, Star, History, Repeat, PlusCircle, PiggyBank, Lock, Sparkles, CalendarDays, User, Gift, LogOut } from 'lucide-react';
+import { Wallet, Star, History, Repeat, PlusCircle, PiggyBank, Lock, Sparkles, CalendarDays, Gift, LogOut, GraduationCap, Shield, Crown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import AddCreditDialog from '@/components/user/AddCreditDialog';
 import ConvertBalanceDialog from '@/components/user/ConvertBalanceDialog';
@@ -98,11 +98,12 @@ function DashboardPageContent() {
                 }
                 
                 if (response.ok) {
-                    const userData = await response.json();
+                    const data = await response.json();
+                    const userData = data.user || data; // Soportar ambos formatos
                     console.log('✅ Usuario cargado desde API:', {
                         id: userData.id,
                         email: userData.email,
-                        credits: userData.credit,
+                        credits: userData.credits,
                         blockedCredits: userData.blockedCredits,
                         points: userData.points
                     });
@@ -207,18 +208,70 @@ function DashboardPageContent() {
     const availablePoints = (user.points ?? user.loyaltyPoints ?? 0) - (user.blockedLoyaltyPoints ?? 0);
     const hasPendingPoints = (user.pendingBonusPoints ?? 0) > 0;
 
+    // Determinar el rol y sus características
+    const userRole = user.role || 'PLAYER';
+    const getRoleConfig = () => {
+        switch (userRole) {
+            case 'SUPER_ADMIN':
+                return {
+                    title: 'Super Administrador',
+                    icon: Crown,
+                    gradient: 'from-purple-500 via-pink-500 to-red-500',
+                    badge: 'destructive',
+                    description: 'Acceso completo al sistema'
+                };
+            case 'CLUB_ADMIN':
+                return {
+                    title: 'Administrador del Club',
+                    icon: Shield,
+                    gradient: 'from-orange-400 via-red-500 to-pink-500',
+                    badge: 'default',
+                    description: 'Gestión del club'
+                };
+            case 'INSTRUCTOR':
+                return {
+                    title: 'Instructor',
+                    icon: GraduationCap,
+                    gradient: 'from-green-400 via-teal-500 to-blue-500',
+                    badge: 'secondary',
+                    description: 'Gestión de clases y partidas'
+                };
+            default:
+                return {
+                    title: 'Jugador',
+                    icon: UserCircle2,
+                    gradient: 'from-blue-400 via-blue-500 to-blue-600',
+                    badge: 'outline',
+                    description: 'Información de tu perfil'
+                };
+        }
+    };
+
+    const roleConfig = getRoleConfig();
+    const RoleIcon = roleConfig.icon;
+
     return (
         <div className="flex-1 space-y-2 sm:space-y-6 lg:space-y-8 pl-20 sm:pl-20 md:pl-24 pr-2 sm:pr-4 md:pr-6 py-2 sm:py-4 md:py-6 lg:py-8 pointer-events-auto">
             <main className="space-y-2 sm:space-y-6 lg:space-y-8 pointer-events-auto">
                 {/* Panel de Datos del Usuario */}
                 <Card className="shadow-md">
-                    <CardHeader className="pb-3 pt-4 px-4 bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600 border-b rounded-t-lg">
+                    <CardHeader className={`pb-3 pt-4 px-4 bg-gradient-to-r ${roleConfig.gradient} border-b rounded-t-lg`}>
                         <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <User className="h-5 w-5 text-white" />
-                                <CardTitle className="text-lg text-white">
-                                    Hola, {user.name}
-                                </CardTitle>
+                            <div className="flex items-center gap-3">
+                                <div className="bg-white/20 backdrop-blur-sm p-2 rounded-lg">
+                                    <RoleIcon className="h-6 w-6 text-white" />
+                                </div>
+                                <div>
+                                    <CardTitle className="text-lg text-white flex items-center gap-2">
+                                        Hola, {user.name}
+                                        <Badge variant={roleConfig.badge as any} className="text-xs">
+                                            {roleConfig.title}
+                                        </Badge>
+                                    </CardTitle>
+                                    <CardDescription className="text-sm text-white/90">
+                                        {roleConfig.description}
+                                    </CardDescription>
+                                </div>
                             </div>
                             <Button 
                                 onClick={() => setIsLogoutDialogOpen(true)}
@@ -230,9 +283,6 @@ function DashboardPageContent() {
                                 Cerrar Sesión
                             </Button>
                         </div>
-                        <CardDescription className="text-sm text-white/90">
-                            Información de tu perfil
-                        </CardDescription>
                     </CardHeader>
                     <CardContent className="p-4">
                         {/* Avatar del usuario */}
@@ -243,6 +293,60 @@ function DashboardPageContent() {
                                 fileInputRef={fileInputRef}
                             />
                         </div>
+
+                        {/* Información específica del rol */}
+                        {userRole !== 'PLAYER' && (
+                            <div className={`mb-4 p-3 rounded-lg border-2 ${
+                                userRole === 'SUPER_ADMIN' ? 'bg-purple-50 border-purple-200' :
+                                userRole === 'CLUB_ADMIN' ? 'bg-orange-50 border-orange-200' :
+                                'bg-green-50 border-green-200'
+                            }`}>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <RoleIcon className={`h-5 w-5 ${
+                                        userRole === 'SUPER_ADMIN' ? 'text-purple-600' :
+                                        userRole === 'CLUB_ADMIN' ? 'text-orange-600' :
+                                        'text-green-600'
+                                    }`} />
+                                    <h3 className={`font-semibold ${
+                                        userRole === 'SUPER_ADMIN' ? 'text-purple-900' :
+                                        userRole === 'CLUB_ADMIN' ? 'text-orange-900' :
+                                        'text-green-900'
+                                    }`}>
+                                        Privilegios de {roleConfig.title}
+                                    </h3>
+                                </div>
+                                <div className={`text-sm space-y-1 ${
+                                    userRole === 'SUPER_ADMIN' ? 'text-purple-700' :
+                                    userRole === 'CLUB_ADMIN' ? 'text-orange-700' :
+                                    'text-green-700'
+                                }`}>
+                                    {userRole === 'SUPER_ADMIN' && (
+                                        <>
+                                            <p>✓ Acceso completo al sistema</p>
+                                            <p>✓ Gestión de todos los clubes</p>
+                                            <p>✓ Administración de usuarios globales</p>
+                                            <p>✓ Configuración avanzada del sistema</p>
+                                        </>
+                                    )}
+                                    {userRole === 'CLUB_ADMIN' && (
+                                        <>
+                                            <p>✓ Gestión completa del club</p>
+                                            <p>✓ Administración de pistas e instructores</p>
+                                            <p>✓ Gestión de clases y partidas</p>
+                                            <p>✓ Reportes y estadísticas del club</p>
+                                        </>
+                                    )}
+                                    {userRole === 'INSTRUCTOR' && (
+                                        <>
+                                            <p>✓ Gestión de tus clases programadas</p>
+                                            <p>✓ Organización de partidas de 4 jugadores</p>
+                                            <p>✓ Configuración de preferencias de enseñanza</p>
+                                            <p>✓ Acceso al calendario del club</p>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                         
                         <div className="bg-white rounded-lg overflow-hidden border">
                             <EditableInfoRow
@@ -327,6 +431,63 @@ function DashboardPageContent() {
                                 <span className="text-sm text-gray-500">••••••••</span>
                             </button>
                         </div>
+
+                        {/* Accesos rápidos según el rol */}
+                        {userRole !== 'PLAYER' && (
+                            <div className="mt-4">
+                                <h3 className="text-sm font-semibold text-gray-700 mb-2">Accesos Rápidos</h3>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {userRole === 'SUPER_ADMIN' && (
+                                        <>
+                                            <Link href="/superadmin">
+                                                <Button variant="outline" className="w-full justify-start gap-2" size="sm">
+                                                    <Crown className="h-4 w-4 text-purple-600" />
+                                                    Panel Super Admin
+                                                </Button>
+                                            </Link>
+                                            <Link href="/admin/database">
+                                                <Button variant="outline" className="w-full justify-start gap-2" size="sm">
+                                                    <Shield className="h-4 w-4 text-orange-600" />
+                                                    Base de Datos
+                                                </Button>
+                                            </Link>
+                                        </>
+                                    )}
+                                    {userRole === 'CLUB_ADMIN' && (
+                                        <>
+                                            <Link href="/admin">
+                                                <Button variant="outline" className="w-full justify-start gap-2" size="sm">
+                                                    <Shield className="h-4 w-4 text-orange-600" />
+                                                    Panel Admin
+                                                </Button>
+                                            </Link>
+                                            <Link href="/admin/calendar">
+                                                <Button variant="outline" className="w-full justify-start gap-2" size="sm">
+                                                    <CalendarDays className="h-4 w-4 text-blue-600" />
+                                                    Calendario
+                                                </Button>
+                                            </Link>
+                                        </>
+                                    )}
+                                    {userRole === 'INSTRUCTOR' && (
+                                        <>
+                                            <Link href="/instructor">
+                                                <Button variant="outline" className="w-full justify-start gap-2" size="sm">
+                                                    <GraduationCap className="h-4 w-4 text-green-600" />
+                                                    Panel Instructor
+                                                </Button>
+                                            </Link>
+                                            <Link href="/admin/calendar">
+                                                <Button variant="outline" className="w-full justify-start gap-2" size="sm">
+                                                    <CalendarDays className="h-4 w-4 text-blue-600" />
+                                                    Calendario
+                                                </Button>
+                                            </Link>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 

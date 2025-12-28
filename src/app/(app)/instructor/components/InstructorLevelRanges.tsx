@@ -21,16 +21,20 @@ export default function InstructorLevelRanges({
   instructorId, 
   initialRanges = [] 
 }: InstructorLevelRangesProps) {
-  const [ranges, setRanges] = useState<LevelRange[]>(
-    initialRanges.length > 0 
-      ? initialRanges 
-      : [
-          { minLevel: 0.0, maxLevel: 1.0 },
-          { minLevel: 1.5, maxLevel: 2.5 },
-          { minLevel: 3.0, maxLevel: 4.5 },
-          { minLevel: 5.0, maxLevel: 7.0 }
-        ]
-  );
+  // Normalizar los rangos para asegurar que tengan valores numéricos válidos
+  const normalizedRanges = initialRanges.length > 0 
+    ? initialRanges.map(r => ({
+        minLevel: typeof r.minLevel === 'number' ? r.minLevel : 0,
+        maxLevel: typeof r.maxLevel === 'number' ? r.maxLevel : 0
+      }))
+    : [
+        { minLevel: 0.0, maxLevel: 1.0 },
+        { minLevel: 1.5, maxLevel: 2.5 },
+        { minLevel: 3.0, maxLevel: 4.5 },
+        { minLevel: 5.0, maxLevel: 7.0 }
+      ];
+      
+  const [ranges, setRanges] = useState<LevelRange[]>(normalizedRanges);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
@@ -215,7 +219,7 @@ export default function InstructorLevelRanges({
                 <>
                   <div className="flex-1">
                     <div className="font-medium text-lg">
-                      {range.minLevel.toFixed(1)} - {range.maxLevel.toFixed(1)}
+                      {(range.minLevel ?? 0).toFixed(1)} - {(range.maxLevel ?? 0).toFixed(1)}
                     </div>
                     <div className="text-xs text-gray-500">
                       Rango #{index + 1}

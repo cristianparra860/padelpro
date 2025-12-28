@@ -57,26 +57,34 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
         const userResponse = await fetch('/api/users/current', { headers });
         
         if (userResponse.status === 401) {
-          // No autenticado, redirigir al login
-          console.log('❌ AppLayout: Usuario no autenticado, redirigiendo...');
-          localStorage.removeItem('auth_token');
-          router.push('/');
+          // No autenticado - SOLO redirigir si NO estamos en páginas con auth propia
+          if (!['/instructor', '/admin', '/superadmin'].some(path => pathname.startsWith(path))) {
+            console.log('❌ AppLayout: Usuario no autenticado, redirigiendo...');
+            localStorage.removeItem('auth_token');
+            router.push('/');
+          }
           return;
         }
         
         if (userResponse.ok) {
-          const userData = await userResponse.json();
+          const data = await userResponse.json();
+          const userData = data.user || data; // Soportar ambos formatos
           console.log('✅ AppLayout: Usuario JWT cargado:', userData.name, userData.email);
           setCurrentUser(userData);
         } else {
-          // Si falla, redirigir al login (no usar mock)
-          console.log('❌ AppLayout: Error al cargar usuario, redirigiendo...');
-          router.push('/');
+          // Si falla, solo redirigir si NO estamos en páginas con auth propia
+          if (!['/instructor', '/admin', '/superadmin'].some(path => pathname.startsWith(path))) {
+            console.log('❌ AppLayout: Error al cargar usuario, redirigiendo...');
+            router.push('/');
+          }
           return;
         }
       } catch (error) {
         console.error('❌ AppLayout: Error loading user:', error);
-        router.push('/');
+        // Solo redirigir si NO estamos en páginas con auth propia
+        if (!['/instructor', '/admin', '/superadmin'].some(path => pathname.startsWith(path))) {
+          router.push('/');
+        }
         return;
       }
       
@@ -104,7 +112,7 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
 
     // ❌ REMOVED: Auto-refresh every 3 seconds was causing navigation issues
     // Users were being redirected to login constantly if any fetch failed
-  }, [router]);
+  }, [router, pathname]);
 
   // Prevent hydration mismatch by not rendering until mounted
   if (!mounted) {

@@ -27,6 +27,8 @@ interface MatchGameCardProps {
   matchGame: any;
   currentUser: User | null;
   onBookingSuccess: () => void;
+  showLeaveButton?: boolean; // Control para mostrar/ocultar botón Cancelar
+  showPrivateBookingButton?: boolean; // Control para mostrar/ocultar botón Reserva Privada
 }
 
 interface Booking {
@@ -42,6 +44,8 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
   matchGame,
   currentUser,
   onBookingSuccess,
+  showLeaveButton = false, // Por defecto no mostrar el botón en el calendario
+  showPrivateBookingButton = true, // Por defecto mostrar botón Reserva Privada
 }) => {
   const { toast } = useToast();
   const [booking, setBooking] = useState(false);
@@ -64,26 +68,99 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
 
   // Level and gender info
   const levelInfo = useMemo(() => {
-    if (matchGame.isOpen) {
+    // Si no hay jugadores inscritos, mostrar "ABIERTO"
+    if (bookings.length === 0) {
       return {
-        level: '0.0 - 7.0',
+        level: 'Abierto',
         isAssigned: false
       };
     }
-    // Si tiene nivel, convertirlo a formato numérico
-    const numericLevel = matchGame.level;
+    
+    // Si hay jugadores, obtener el nivel del primer jugador
+    const firstPlayer = bookings[0];
+    const playerLevel = firstPlayer.userLevel;
+    
+    if (!playerLevel) {
+      return {
+        level: 'Abierto',
+        isAssigned: false
+      };
+    }
+    
+    // Convertir el nivel del jugador a un rango
+    // Por ejemplo: si es "2.5", el rango podría ser "2.0 - 3.0"
+    const numLevel = parseFloat(playerLevel);
+    if (isNaN(numLevel)) {
+      return {
+        level: 'Abierto',
+        isAssigned: false
+      };
+    }
+    
+    // Determinar el rango basado en el nivel
+    let rangeLabel = '';
+    if (numLevel < 1.5) {
+      rangeLabel = '0.0 - 1.5';
+    } else if (numLevel < 2.5) {
+      rangeLabel = '1.5 - 2.5';
+    } else if (numLevel < 3.5) {
+      rangeLabel = '2.5 - 3.5';
+    } else if (numLevel < 4.5) {
+      rangeLabel = '3.5 - 4.5';
+    } else if (numLevel < 5.5) {
+      rangeLabel = '4.5 - 5.5';
+    } else {
+      rangeLabel = '5.5 - 7.0';
+    }
+    
     return {
-      level: numericLevel || '0.0 - 7.0',
-      isAssigned: !!numericLevel
+      level: rangeLabel,
+      isAssigned: true
     };
-  }, [matchGame.isOpen, matchGame.level]);
+  }, [bookings]);
 
   const categoryInfo = useMemo(() => {
+    // Si no hay jugadores inscritos, mostrar "Abierta"
+    if (bookings.length === 0) {
+      return {
+        category: 'abierta',
+        isAssigned: false
+      };
+    }
+    
+    // Analizar géneros de TODOS los jugadores inscritos
+    const genders = bookings
+      .map(b => b.userGender)
+      .filter(g => g && g !== 'undefined' && g !== 'null');
+    
+    if (genders.length === 0) {
+      return {
+        category: 'abierta',
+        isAssigned: false
+      };
+    }
+    
+    // Determinar la categoría basándose en los géneros
+    const uniqueGenders = [...new Set(genders)];
+    let categoryLabel = 'abierta';
+    
+    if (uniqueGenders.length === 1) {
+      // Todos del mismo género
+      if (uniqueGenders[0] === 'masculino') {
+        categoryLabel = 'chicos';
+      } else if (uniqueGenders[0] === 'femenino') {
+        categoryLabel = 'chicas';
+      }
+    } else if (uniqueGenders.length > 1) {
+      // Hay mezcla de géneros
+      categoryLabel = 'mixto';
+    }
+    
     return {
-      category: 'abierta',
-      isAssigned: false
+      category: categoryLabel,
+      isAssigned: true
     };
-  }, []);
+  }, [bookings]);
 
   const courtAssignment = useMemo(() => {
     if (matchGame.courtNumber) {
@@ -232,20 +309,32 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             <Trophy className="w-3.5 h-3.5 text-white" />
           </div>
           
-          {/* Botón Reserva Privada */}
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-6 text-[10px] px-2 bg-white hover:bg-gray-100 text-purple-700 border-white"
-            onClick={() => {
-              toast({
-                title: "Reserva Privada",
-                description: "Funcionalidad en desarrollo",
-              });
-            }}
-          >
-            Reserva Privada
-          </Button>
+          {/* Botón Reserva Privada O Botón Cancelar */}
+          {showLeaveButton && isUserBooked ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 text-[10px] px-2 bg-white hover:bg-red-50 text-red-700 border-white hover:border-red-200"
+              onClick={() => setShowLeaveDialog(true)}
+              disabled={booking}
+            >
+              {booking ? 'Cancelando...' : 'Cancelar'}
+            </Button>
+          ) : showPrivateBookingButton ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 text-[10px] px-2 bg-white hover:bg-gray-100 text-purple-700 border-white"
+              onClick={() => {
+                toast({
+                  title: "Reserva Privada",
+                  description: "Funcionalidad en desarrollo",
+                });
+              }}
+            >
+              Reserva Privada
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -269,7 +358,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             <div 
               className={`capitalize px-1.5 py-1 rounded-full text-[10px] font-medium shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${
                 categoryInfo.isAssigned 
-                  ? 'bg-blue-100 text-blue-700' 
+                  ? 'bg-purple-100 text-purple-700' 
                   : 'bg-gray-100 text-gray-600'
               }`}
             >
@@ -339,7 +428,12 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             </div>
             <div className="text-right flex-shrink-0">
               <div className="text-base font-bold text-gray-900">
-                € {matchGame.pricePerPlayer.toFixed(2)}
+                € {(
+                  matchGame.courtRentalPrice / (bookings.length > 0 ? bookings.length : 1)
+                ).toFixed(2)}
+              </div>
+              <div className="text-[9px] text-gray-500">
+                por plaza
               </div>
             </div>
           </div>
@@ -396,19 +490,6 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             })}
           </div>
         </div>
-
-        {/* Leave Button (solo si el usuario está inscrito) */}
-        {isUserBooked && (
-          <div className="mt-2">
-            <button 
-              className="w-full bg-red-600 hover:bg-red-700 text-white px-2.5 py-1.5 rounded-lg font-medium text-xs transition-colors shadow-lg disabled:opacity-50"
-              onClick={() => setShowLeaveDialog(true)}
-              disabled={booking}
-            >
-              {booking ? 'Cancelando...' : 'Abandonar'}
-            </button>
-          </div>
-        )}
 
         {/* Available Courts - Indicadores de disponibilidad de pistas */}
         <div className="px-2 py-1.5 bg-gray-50 border-t border-gray-100">
@@ -552,9 +633,9 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
       <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Abandonar Partida</AlertDialogTitle>
+            <AlertDialogTitle>Cancelar Partida</AlertDialogTitle>
             <AlertDialogDescription>
-              ¿Estás seguro de que deseas abandonar esta partida?
+              ¿Estás seguro de que deseas cancelar tu inscripción a esta partida?
               <br /><br />
               {(() => {
                 const now = new Date();
@@ -582,7 +663,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
           <AlertDialogFooter>
             <AlertDialogCancel>Volver</AlertDialogCancel>
             <AlertDialogAction onClick={handleLeave} className="bg-red-600 hover:bg-red-700">
-              {booking ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sí, Abandonar'}
+              {booking ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sí, Cancelar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

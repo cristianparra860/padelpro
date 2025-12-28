@@ -172,7 +172,7 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
                 if (club) {
                     // Solo cargar timeslots (clases) desde la API
                     try {
-                        const allSlots = await fetch(`/api/timeslots?clubId=${club.id}`)
+                        const allSlots = await fetch(`/api/timeslots?clubId=${club.id}&limit=1000`)
                             .then(async res => {
                                 if (!res.ok) {
                                     const errorText = await res.text();

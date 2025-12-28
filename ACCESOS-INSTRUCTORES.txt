@@ -1,0 +1,99 @@
+═══════════════════════════════════════════════════════════════════════
+                    🔐 ACCESOS INSTRUCTORES PADELPRO                      
+═══════════════════════════════════════════════════════════════════════
+
+✅ Total Instructores Activos: 8
+
+═══════════════════════════════════════════════════════════════════════
+                            CREDENCIALES DE ACCESO
+═══════════════════════════════════════════════════════════════════════
+
+1. 👨‍🏫 Diego Martinez
+   📧 Email: alex.garcia@padelpro.com
+   🔑 Password: Pass123!
+   
+2. 👩‍🏫 Maria Fernández
+   📧 Email: ana@padelclub.com
+   🔑 Password: Pass123!
+   
+3. 👨‍🏫 Carlos Rodriguez
+   📧 Email: carlos@padelclub.com
+   🔑 Password: Pass123!
+   
+4. 👨‍🏫 Instructor 5
+   📧 Email: cristian.parra@padelpro.com
+   🔑 Password: Pass123!
+   
+5. 👩‍🏫 Ana González
+   📧 Email: david.collado@padelpro.com
+   🔑 Password: Pass123!
+   
+6. 👨‍🏫 Pedro López
+   📧 Email: instructor@gmail.com
+   🔑 Password: Pass123!
+   
+7. 👨‍🏫 Instructor 6
+   📧 Email: instructor@padelpro.com
+   🔑 Password: Pass123!
+   
+8. 👨‍🏫 Instructor de Prueba
+   📧 Email: instructor@test.com
+   🔑 Password: password123
+
+═══════════════════════════════════════════════════════════════════════
+                            INFORMACIÓN DE ACCESO
+═══════════════════════════════════════════════════════════════════════
+
+🌐 URL Local: http://localhost:9002
+📱 Puerto: 9002
+
+📋 PASOS PARA ACCEDER:
+
+1. Ve a http://localhost:9002
+2. Ingresa con cualquier email de arriba
+3. Ingresa el password correspondiente
+4. Serás redirigido automáticamente a /instructor
+5. Verás el panel de instructor con:
+   - Calendario de clases
+   - Horarios asignados
+   - Gestión de disponibilidad
+   - Configuración de tarifas
+   - Rangos de nivel personalizados
+
+═══════════════════════════════════════════════════════════════════════
+                            ESTADO DE ACTIVACIÓN
+═══════════════════════════════════════════════════════════════════════
+
+✅ 8/8 instructores tienen rol INSTRUCTOR en tabla User
+✅ 8/8 instructores tienen registro en tabla Instructor
+✅ 8/8 instructores están marcados como isActive = true
+✅ 8/8 instructores están marcados como isAvailable = true
+✅ 8/8 instructores asignados al club-1 (Padel Estrella Madrid)
+
+═══════════════════════════════════════════════════════════════════════
+                        CONFIGURACIÓN POR DEFECTO
+═══════════════════════════════════════════════════════════════════════
+
+💰 Tarifa por hora: 28€
+📊 Tarifas por jugador:
+   - 1 jugador: 28€/hora
+   - 2 jugadores: 24€/hora
+   - 3 jugadores: 20€/hora
+   - 4 jugadores: 18€/hora
+
+📈 Rangos de nivel: Todos los niveles (0-7)
+⏰ Horarios: Disponibles 24/7 por defecto
+
+═══════════════════════════════════════════════════════════════════════
+                            NOTAS IMPORTANTES
+═══════════════════════════════════════════════════════════════════════
+
+⚠️  El servidor debe estar corriendo en el puerto 9002
+⚠️  Verificar que el archivo .env esté configurado correctamente
+⚠️  La base de datos debe estar sincronizada (prisma migrate)
+
+✅ TODOS LOS INSTRUCTORES ESTÁN LISTOS PARA USAR
+
+═══════════════════════════════════════════════════════════════════════
+                        Fecha de activación: 28/12/2025
+═══════════════════════════════════════════════════════════════════════

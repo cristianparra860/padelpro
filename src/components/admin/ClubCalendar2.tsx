@@ -9,6 +9,7 @@ import { Calendar, CalendarIcon, ChevronLeft, ChevronRight, Filter, Users, DoorO
 import CalendarEventDetails from './CalendarEventDetails';
 import DateSelector from './DateSelector';
 import ClassCardReal from '@/components/class/ClassCardReal';
+import MatchGameCard from '@/components/match/MatchGameCard';
 import LogoutConfirmationDialog from '@/components/layout/LogoutConfirmationDialog';
 import {
   Select,
@@ -105,6 +106,8 @@ export default function ClubCalendar2({
   const [showEventDetails, setShowEventDetails] = useState(false);
   const [showClassCard, setShowClassCard] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [showMatchCard, setShowMatchCard] = useState(false);
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [showProposalCards, setShowProposalCards] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState<{ clubId: string; start: string; instructorId?: string } | null>(null);
   const [userBookings, setUserBookings] = useState<any[]>([]); // 🆕 Bookings del usuario para colorear días
@@ -151,10 +154,10 @@ export default function ClubCalendar2({
       });
       setShowProposalCards(true);
     } else if (event.type === 'match-confirmed' || event.type === 'match-proposal') {
-      // Para partidas, mostrar información de la partida
-      console.log('🎮 Match clicked:', event);
-      setSelectedEvent(event);
-      setShowEventDetails(true);
+      // Para partidas, abrir la tarjeta de partida completa
+      const matchId = event.id.replace('match-', '');
+      setSelectedMatchId(matchId);
+      setShowMatchCard(true);
     } else {
       // Para otros tipos, mostrar el detalle de admin
       setSelectedEvent(event);
@@ -307,22 +310,46 @@ export default function ClubCalendar2({
     }
     
     try {
+      // Obtener bookings de clases
       const response = await fetch(`/api/users/${currentUser.id}/bookings`, {
         cache: 'default',
         next: { revalidate: 60 }
       });
+      
+      let classBookings: any[] = [];
       if (response.ok) {
-        const bookings = await response.json();
+        classBookings = await response.json();
+      }
+
+      // Obtener bookings de partidas
+      const matchGamesRes = await fetch(`/api/matchgames?clubId=${clubId || 'club-1'}`);
+      let matchBookings: any[] = [];
+      
+      if (matchGamesRes.ok) {
+        const matchGamesData = await matchGamesRes.json();
+        const matchGames = matchGamesData.matchGames || [];
         
-        // Transformar para el DateSelector
-        const formattedBookings = bookings.map((b: any) => ({
+        // Filtrar solo las partidas donde el usuario tiene booking
+        matchBookings = matchGames
+          .filter((mg: any) => mg.bookings.some((b: any) => b.userId === currentUser.id))
+          .map((mg: any) => ({
+            timeSlotId: mg.id,
+            status: 'CONFIRMED',
+            date: mg.start
+          }));
+      }
+      
+      // Combinar bookings de clases y partidas
+      const formattedBookings = [
+        ...classBookings.map((b: any) => ({
           timeSlotId: b.timeSlotId,
           status: b.status,
           date: b.timeSlot?.start || b.start || new Date()
-        }));
-        
-        setUserBookings(formattedBookings);
-      }
+        })),
+        ...matchBookings
+      ];
+      
+      setUserBookings(formattedBookings);
     } catch (error) {
       console.error('❌ Error cargando bookings del usuario:', error);
     }
@@ -1621,6 +1648,30 @@ export default function ClubCalendar2({
         </DialogContent>
       </Dialog>
 
+      {/* Modal para mostrar tarjeta de partida */}
+      <Dialog open={showMatchCard} onOpenChange={setShowMatchCard}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalles de la Partida</DialogTitle>
+          </DialogHeader>
+          {selectedMatchId && (
+            <MatchCardWrapper 
+              matchId={selectedMatchId}
+              onClose={() => {
+                setShowMatchCard(false);
+                setSelectedMatchId(null);
+              }}
+              onBookingSuccess={() => {
+                setShowMatchCard(false);
+                setSelectedMatchId(null);
+                // Recargar SIN CACHE después de cerrar el modal
+                setTimeout(() => loadCalendarData(false, true), 300);
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Diálogo de confirmación para cerrar sesión */}
       <LogoutConfirmationDialog
         isOpen={isLogoutDialogOpen}
@@ -1800,5 +1851,83 @@ function ProposalCardsWrapper({
         ))}
       </div>
     </div>
+  );
+}
+
+// Componente wrapper para cargar y mostrar una partida
+function MatchCardWrapper({ 
+  matchId, 
+  onClose, 
+  onBookingSuccess 
+}: { 
+  matchId: string; 
+  onClose: () => void; 
+  onBookingSuccess?: () => void;
+}) {
+  const [matchData, setMatchData] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        // Cargar usuario actual con JWT
+        const token = localStorage.getItem('auth_token');
+        const userResponse = await fetch('/api/users/current', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (userResponse.ok) {
+          const data = await userResponse.json();
+          const userData = data.user || data;
+          setCurrentUser(userData);
+          
+          // Cargar la partida específica
+          const matchResponse = await fetch(`/api/matchgames?clubId=club-1`);
+          
+          if (matchResponse.ok) {
+            const matchesData = await matchResponse.json();
+            const match = matchesData.matchGames?.find((m: any) => m.id === matchId);
+            
+            if (match) {
+              setMatchData(match);
+            } else {
+              console.error('Partida no encontrada:', matchId);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading match:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [matchId]);
+
+  const handleBookingSuccess = () => {
+    if (onBookingSuccess) {
+      onBookingSuccess();
+    }
+  };
+
+  if (loading) {
+    return <div className="p-8 text-center">Cargando partida...</div>;
+  }
+
+  if (!matchData) {
+    return <div className="p-8 text-center">No se pudo cargar la partida</div>;
+  }
+
+  return (
+    <MatchGameCard
+      matchGame={matchData}
+      currentUser={currentUser}
+      onBookingSuccess={handleBookingSuccess}
+      showLeaveButton={true}
+      showPrivateBookingButton={false}
+    />
   );
 }

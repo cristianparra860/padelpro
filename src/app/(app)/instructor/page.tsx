@@ -1,124 +1,104 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import InstructorPanel from './components/InstructorPanel';
-import { getMockInstructors } from '@/lib/mockData';
-import type { Instructor } from '@/types';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter } from 'next/navigation';
+import InstructorPanel from './components/InstructorPanel';
+import { Loader2 } from 'lucide-react';
 
 export default function InstructorPage() {
-    const [instructor, setInstructor] = useState<Instructor | null>(null);
     const [loading, setLoading] = useState(true);
+    const [instructor, setInstructor] = useState<any>(null);
+    const [error, setError] = useState<string | null>(null);
     const router = useRouter();
 
     useEffect(() => {
-        const fetchInstructor = async () => {
-            setLoading(true);
+        const fetchInstructorData = async () => {
             try {
-                // Cargar el usuario actual desde la API
                 const token = localStorage.getItem('auth_token');
-                const headers: HeadersInit = {
-                    'Content-Type': 'application/json'
-                };
                 
-                if (token) {
-                    headers['Authorization'] = `Bearer ${token}`;
-                }
-                
-                const response = await fetch('/api/users/current', { headers });
-                
-                if (response.status === 401) {
-                    // No autenticado, redirigir al login
-                    localStorage.removeItem('auth_token');
+                if (!token) {
                     router.push('/');
                     return;
                 }
                 
-                if (response.ok) {
-                    const userData = await response.json();
-                    
-                    // Obtener el registro Instructor desde la tabla Instructor
-                    const instructorResponse = await fetch(`/api/instructors/by-user/${userData.id}`, { headers });
-                    let instructorId = userData.id; // fallback
-                    
-                    if (instructorResponse.ok) {
-                        const instructorRecord = await instructorResponse.json();
-                        
-                        if (!instructorRecord.isInstructor) {
-                            console.error('❌ Usuario no es instructor');
-                            router.push('/dashboard');
-                            return;
-                        }
-                        
-                        instructorId = instructorRecord.instructor.id; // usar el ID de la tabla Instructor
-                        
-                        // Convertir el usuario a formato Instructor con datos del registro
-                        const instructorData: Instructor = {
-                            id: instructorId,
-                            name: userData.name,
-                            email: userData.email,
-                            profilePictureUrl: userData.profilePictureUrl || null,
-                            isAvailable: instructorRecord.instructor.isAvailable ?? true,
-                            assignedClubId: instructorRecord.instructor.clubId || userData.assignedClubId || 'padel-estrella-madrid',
-                            assignedCourtNumber: userData.assignedCourtNumber || undefined,
-                            defaultRatePerHour: instructorRecord.instructor.defaultRatePerHour || instructorRecord.instructor.hourlyRate || 28,
-                            rateTiers: instructorRecord.instructor.rateTiers ? (typeof instructorRecord.instructor.rateTiers === 'string' ? JSON.parse(instructorRecord.instructor.rateTiers) : instructorRecord.instructor.rateTiers) : [],
-                            unavailableHours: instructorRecord.instructor.unavailableHours ? (typeof instructorRecord.instructor.unavailableHours === 'string' ? JSON.parse(instructorRecord.instructor.unavailableHours) : instructorRecord.instructor.unavailableHours) : {},
-                            levelRanges: instructorRecord.instructor.levelRanges || null
-                        };
-                        
-                        setInstructor(instructorData);
-                    } else {
-                        // Usuario no es instructor, redirigir al dashboard
-                        console.log('Usuario no tiene registro de instructor');
-                        router.push('/dashboard');
-                        return;
-                    }
-                } else {
-                    console.error('Error al cargar usuario');
-                    router.push('/');
+                const headers: HeadersInit = {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                };
+                
+                // 1. Obtener usuario actual
+                const userResponse = await fetch('/api/users/current', { headers });
+                
+                if (!userResponse.ok) {
+                    throw new Error('Error al obtener usuario');
                 }
-            } catch (error) {
-                console.error('Error loading instructor:', error);
-                router.push('/');
-            } finally {
+                
+                const { user } = await userResponse.json();
+                
+                console.log('✅ Usuario obtenido:', user.id, user.email);
+                
+                // 2. Verificar si es instructor
+                const instructorResponse = await fetch(`/api/instructors/by-user/${user.id}`, { headers });
+                
+                if (!instructorResponse.ok) {
+                    throw new Error('Error al verificar instructor');
+                }
+                
+                const instructorData = await instructorResponse.json();
+                
+                console.log('📋 Respuesta instructor:', instructorData);
+                
+                if (!instructorData.isInstructor || !instructorData.instructor) {
+                    console.log('❌ Usuario no es instructor, redirigiendo...');
+                    router.push('/dashboard');
+                    return;
+                }
+                
+                // 3. Cargar el instructor completo
+                console.log('✅ Cargando panel del instructor:', instructorData.instructor.id);
+                setInstructor(instructorData.instructor);
+                setLoading(false);
+                
+            } catch (error: any) {
+                console.error('❌ Error loading instructor:', error);
+                setError(error.message);
                 setLoading(false);
             }
         };
-        fetchInstructor();
+        
+        fetchInstructorData();
     }, [router]);
 
     if (loading) {
         return (
-             <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 pl-16 md:pl-20 lg:pl-24">
-                <header>
-                    <Skeleton className="h-8 w-1/3" />
-                    <Skeleton className="h-4 w-2/3 mt-2" />
-                </header>
-                <main className="flex-1">
-                     <Skeleton className="h-10 w-full mb-4" />
-                     <Skeleton className="h-96 w-full" />
-                </main>
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="text-center">
+                    <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
+                    <p className="text-muted-foreground">Cargando panel de instructor...</p>
+                </div>
             </div>
-        )
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="text-center text-red-600">
+                    <p className="mb-4">Error: {error}</p>
+                    <button 
+                        onClick={() => router.push('/dashboard')}
+                        className="text-blue-600 hover:underline"
+                    >
+                        Volver al inicio
+                    </button>
+                </div>
+            </div>
+        );
     }
 
     if (!instructor) {
-        return <div className="p-6 pl-16 md:pl-20 lg:pl-24">Error: No se pudo cargar la información del instructor.</div>
+        return null;
     }
-    
-    return (
-        <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 pl-16 md:pl-20 lg:pl-24">
-            <header>
-                <h1 className="font-headline text-3xl font-semibold">Panel de Instructor</h1>
-                <p className="text-muted-foreground">
-                    Gestiona tus clases, partidas y preferencias, {instructor.name}.
-                </p>
-            </header>
-            <main className="flex-1">
-                <InstructorPanel instructor={instructor} />
-            </main>
-        </div>
-    );
+
+    return <InstructorPanel instructor={instructor} />;
 }

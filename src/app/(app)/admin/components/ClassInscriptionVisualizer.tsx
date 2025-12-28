@@ -8,9 +8,10 @@ import { isSlotEffectivelyCompleted } from '@/lib/mockData';
 
 interface ClassInscriptionVisualizerProps {
   timeSlot: TimeSlot | null;
+  selectedGroupSize?: 1 | 2 | 3 | 4;
 }
 
-const ClassInscriptionVisualizer: React.FC<ClassInscriptionVisualizerProps> = ({ timeSlot }) => {
+const ClassInscriptionVisualizer: React.FC<ClassInscriptionVisualizerProps> = ({ timeSlot, selectedGroupSize = 1 }) => {
   const isProposedClass = timeSlot?.status === 'pre_registration' && (!timeSlot.bookedPlayers || timeSlot.bookedPlayers.length === 0);
 
   if (!timeSlot) {
@@ -20,10 +21,32 @@ const ClassInscriptionVisualizer: React.FC<ClassInscriptionVisualizerProps> = ({
   }
 
   if (isProposedClass) {
+    // Calcular precio por plaza según el número de jugadores seleccionado
+    const pricePerSlot = timeSlot.totalPrice ? (timeSlot.totalPrice / selectedGroupSize) : 0;
+    
     return (
-      <div className="proposed-class-panel flex h-full w-full items-center justify-center p-0.5 bg-transparent rounded-sm min-w-fit flex-col gap-1">
-         <Users className="h-4 w-4 text-orange-600" />
-         <p className="text-[9px] font-semibold text-orange-700">Clase Propuesta</p>
+      <div className="proposed-class-panel flex h-full w-full items-center justify-center p-0.5 bg-transparent rounded-sm min-w-fit flex-col gap-0.5">
+         {pricePerSlot > 0 ? (
+           <>
+             <p className="text-xs font-bold text-orange-700 leading-none">
+               {pricePerSlot.toFixed(0)}€
+             </p>
+             <div className={selectedGroupSize > 2 ? "grid grid-cols-2 gap-0.5" : "flex items-center gap-0.5"}>
+               {Array.from({ length: selectedGroupSize }).map((_, idx) => (
+                 <div key={idx} className="w-2 h-2 rounded-full bg-orange-300 border border-orange-600 flex items-center justify-center">
+                   <svg className="w-1.5 h-1.5 text-orange-800" fill="currentColor" viewBox="0 0 20 20">
+                     <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                   </svg>
+                 </div>
+               ))}
+             </div>
+           </>
+         ) : (
+           <>
+             <Users className="h-4 w-4 text-orange-600" />
+             <p className="text-[9px] font-semibold text-orange-700">Clase Propuesta</p>
+           </>
+         )}
       </div>
     );
   }

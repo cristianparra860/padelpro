@@ -59,7 +59,8 @@ export default function ActivitiesClientWrapper() {
                 });
                 
                 if (response.ok) {
-                    const userData = await response.json();
+                    const data = await response.json();
+                    const userData = data.user || data; // Manejar ambos formatos: { user: {...} } o {...}
                     // Mapear campos de la BD al formato esperado por el frontend
                     const mappedUser = {
                         ...userData,
@@ -98,9 +99,15 @@ export default function ActivitiesClientWrapper() {
                 });
                 
                 if (response.ok) {
-                    const userData = await response.json();
+                    const data = await response.json();
+                    const userData = data.user || data; // Manejar ambos formatos
                     setCurrentUser(prev => {
-                        if (!prev) return userData;
+                        if (!prev) return {
+                            ...userData,
+                            credit: userData.credits || userData.credit || 0,
+                            blockedCredit: userData.blockedCredits || userData.blockedCredit || 0,
+                            loyaltyPoints: userData.points || userData.loyaltyPoints || 0
+                        };
                         // Solo actualizar si cambió algo relevante
                         if (prev.id !== userData.id ||
                             prev.name !== userData.name ||

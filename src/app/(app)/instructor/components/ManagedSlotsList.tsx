@@ -61,7 +61,7 @@ const ManagedSlotsList: React.FC<ManagedSlotsListProps> = ({ instructorId }) => 
         
         // ✅ USAR API REAL en lugar de mockData
         const dateStr = format(selectedDate, 'yyyy-MM-dd');
-        const response = await fetch(`/api/timeslots?instructorId=${instructorId}&date=${dateStr}`);
+        const response = await fetch(`/api/timeslots?instructorId=${instructorId}&date=${dateStr}&limit=1000`);
         
         if (!response.ok) {
           throw new Error('Failed to fetch time slots');

@@ -210,6 +210,109 @@ async function generateNewOpenMatchGame(originalMatchGame: any, prisma: any) {
   return newMatchGame;
 }
 
+// 🏆 Cancelar partidas competidoras del mismo horario (sistema de carrera)
+async function cancelCompetingMatches(confirmedMatchGameId: string, prisma: any) {
+  console.log(`\n🏁 CANCELAR PARTIDAS COMPETIDORAS - Sistema de Carrera`);
+  console.log(`🔍 Partida ganadora: ${confirmedMatchGameId}`);
+  
+  // Obtener información de la partida confirmada
+  const confirmedMatch = await prisma.matchGame.findUnique({
+    where: { id: confirmedMatchGameId },
+    select: { 
+      start: true, 
+      end: true, 
+      clubId: true,
+      courtNumber: true
+    }
+  });
+  
+  if (!confirmedMatch) return;
+  
+  const startTimestamp = new Date(confirmedMatch.start).getTime();
+  const endTimestamp = new Date(confirmedMatch.end).getTime();
+  
+  console.log(`📅 Horario: ${new Date(startTimestamp).toLocaleString()} - ${new Date(endTimestamp).toLocaleString()}`);
+  
+  // Buscar todas las partidas del MISMO HORARIO que NO están confirmadas
+  const competingMatches = await prisma.matchGame.findMany({
+    where: {
+      clubId: confirmedMatch.clubId,
+      id: { not: confirmedMatchGameId }, // Excluir la partida ganadora
+      courtNumber: null, // Solo partidas SIN pista asignada (perdedoras)
+      start: { gte: new Date(startTimestamp) },
+      end: { lte: new Date(endTimestamp) }
+    },
+    include: {
+      bookings: {
+        where: { status: { in: ['PENDING', 'CONFIRMED'] } },
+        include: { user: true }
+      }
+    }
+  });
+  
+  console.log(`🎯 Partidas competidoras encontradas: ${competingMatches.length}`);
+  
+  // Cancelar cada partida competidora
+  for (const match of competingMatches) {
+    console.log(`\n❌ Cancelando partida perdedora: ${match.id}`);
+    console.log(`   - Jugadores inscritos: ${match.bookings.length}/${match.maxPlayers}`);
+    
+    // Cancelar todos los bookings de esta partida
+    for (const booking of match.bookings) {
+      console.log(`   🔄 Reembolsando a ${booking.user.name}`);
+      
+      // Actualizar estado del booking a CANCELLED
+      await prisma.matchGameBooking.update({
+        where: { id: booking.id },
+        data: { status: 'CANCELLED' }
+      });
+      
+      // Reembolsar créditos o puntos
+      if (booking.paidWithPoints) {
+        // Devolver puntos bloqueados
+        await prisma.user.update({
+          where: { id: booking.userId },
+          data: { 
+            blockedPoints: { decrement: booking.pointsUsed }
+          }
+        });
+        
+        await createTransaction({
+          userId: booking.userId,
+          type: 'points',
+          action: 'unblock',
+          amount: booking.pointsUsed,
+          concept: `Reembolso por partida perdedora ${match.id} (ganó ${confirmedMatchGameId})`,
+          relatedId: booking.id,
+          relatedType: 'matchGameBooking'
+        });
+      } else {
+        // Devolver créditos bloqueados
+        await prisma.user.update({
+          where: { id: booking.userId },
+          data: { 
+            blockedCredits: { decrement: booking.amountBlocked }
+          }
+        });
+        
+        await createTransaction({
+          userId: booking.userId,
+          type: 'credit',
+          action: 'unblock',
+          amount: booking.amountBlocked / 100,
+          concept: `Reembolso por partida perdedora ${match.id} (ganó ${confirmedMatchGameId})`,
+          relatedId: booking.id,
+          relatedType: 'matchGameBooking'
+        });
+      }
+    }
+    
+    console.log(`   ✅ Partida ${match.id} cancelada con ${match.bookings.length} reembolsos`);
+  }
+  
+  console.log(`\n🏆 Carrera completada - ${competingMatches.length} partidas perdedoras canceladas`);
+}
+
 export async function POST(request: Request) {
   try {
     const { matchGameId, userId, paymentMethod = 'CREDITS' } = await request.json();
@@ -264,11 +367,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Partida no encontrada' }, { status: 404 });
     }
     
+    // 🔢 GUARDAR el número de jugadores ANTES de añadir el nuevo
+    const previousBookingsCount = matchGame.bookings.length;
+    const isFirstPlayer = matchGame.isOpen && previousBookingsCount === 0;
+    
     console.log(`🎾 Partida: ${matchGame.id}`);
     console.log(`   - isOpen: ${matchGame.isOpen}`);
     console.log(`   - level: ${matchGame.level || 'sin definir'}`);
     console.log(`   - genderCategory: ${matchGame.genderCategory || 'sin definir'}`);
-    console.log(`   - Jugadores inscritos: ${matchGame.bookings.length}/${matchGame.maxPlayers}`);
+    console.log(`   - Jugadores inscritos: ${previousBookingsCount}/${matchGame.maxPlayers}`);
+    console.log(`   - Es primer jugador: ${isFirstPlayer}`);
     
     // Verificar si ya está inscrito
     const existingBooking = matchGame.bookings.find(b => b.userId === userId);
@@ -280,7 +388,7 @@ export async function POST(request: Request) {
     }
     
     // Verificar si la partida ya está completa
-    if (matchGame.bookings.length >= matchGame.maxPlayers) {
+    if (previousBookingsCount >= matchGame.maxPlayers) {
       return NextResponse.json(
         { error: 'Partida completa' },
         { status: 400 }
@@ -384,7 +492,7 @@ export async function POST(request: Request) {
     }
     
     // Si es el primer jugador de una partida abierta, clasificar la partida
-    if (matchGame.isOpen && matchGame.bookings.length === 0) {
+    if (isFirstPlayer) {
       console.log(`\n🎯 PRIMER JUGADOR - CLASIFICANDO PARTIDA`);
       
       const userLevelNum = parseFloat(user.level);
@@ -432,11 +540,12 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: true, booking, message: 'Partida completa pero sin pista disponible' });
       }
       
-      // Verificar disponibilidad de pistas
+      // Verificar disponibilidad de pistas (considerar TimeSlots Y MatchGames)
       const startTimestamp = new Date(matchGame.start).getTime();
       const endTimestamp = new Date(matchGame.end).getTime();
       
-      const occupiedCourts = await prisma.$queryRaw`
+      // Pistas ocupadas por clases (TimeSlots)
+      const occupiedCourtsByClasses = await prisma.$queryRaw`
         SELECT DISTINCT courtNumber FROM TimeSlot
         WHERE clubId = ${matchGame.clubId}
         AND courtNumber IS NOT NULL
@@ -444,12 +553,99 @@ export async function POST(request: Request) {
         AND end <= ${endTimestamp}
       ` as Array<{ courtNumber: number }>;
       
-      const occupiedCourtNumbers = occupiedCourts.map(c => c.courtNumber);
+      // Pistas ocupadas por partidas (MatchGames)
+      const occupiedCourtsByMatches = await prisma.matchGame.findMany({
+        where: {
+          clubId: matchGame.clubId,
+          courtNumber: { not: null },
+          id: { not: matchGameId }, // Excluir la partida actual
+          start: { gte: new Date(startTimestamp) },
+          end: { lte: new Date(endTimestamp) }
+        },
+        select: { courtNumber: true }
+      });
+      
+      const occupiedCourtNumbers = [
+        ...occupiedCourtsByClasses.map(c => c.courtNumber),
+        ...occupiedCourtsByMatches.map(c => c.courtNumber).filter(n => n !== null)
+      ];
+      
       const availableCourt = club.courts.find(c => !occupiedCourtNumbers.includes(c.number));
       
       if (!availableCourt) {
         console.log('❌ No hay pistas libres en este horario');
-        return NextResponse.json({ success: true, booking, message: 'Partida completa pero todas las pistas ocupadas' });
+        
+        // 🚨 NO HAY PISTAS DISPONIBLES - Cancelar TODAS las partidas incompletas de este horario
+        console.log(`\n🚫 CANCELANDO TODAS LAS PARTIDAS INCOMPLETAS - Sin pistas disponibles`);
+        
+        const incompleteMatches = await prisma.matchGame.findMany({
+          where: {
+            clubId: matchGame.clubId,
+            courtNumber: null, // Sin pista asignada
+            start: { gte: new Date(startTimestamp) },
+            end: { lte: new Date(endTimestamp) }
+          },
+          include: {
+            bookings: {
+              where: { status: { in: ['PENDING', 'CONFIRMED'] } },
+              include: { user: true }
+            }
+          }
+        });
+        
+        console.log(`📊 Partidas incompletas a cancelar: ${incompleteMatches.length}`);
+        
+        for (const match of incompleteMatches) {
+          console.log(`\n❌ Cancelando partida ${match.id} (${match.bookings.length}/${match.maxPlayers} jugadores)`);
+          
+          for (const booking of match.bookings) {
+            await prisma.matchGameBooking.update({
+              where: { id: booking.id },
+              data: { status: 'CANCELLED' }
+            });
+            
+            // Reembolsar
+            if (booking.paidWithPoints) {
+              await prisma.user.update({
+                where: { id: booking.userId },
+                data: { blockedPoints: { decrement: booking.pointsUsed } }
+              });
+              
+              await createTransaction({
+                userId: booking.userId,
+                type: 'points',
+                action: 'unblock',
+                amount: booking.pointsUsed,
+                concept: `Reembolso - Sin pistas disponibles para ${new Date(match.start).toLocaleTimeString()}`,
+                relatedId: booking.id,
+                relatedType: 'matchGameBooking'
+              });
+            } else {
+              await prisma.user.update({
+                where: { id: booking.userId },
+                data: { blockedCredits: { decrement: booking.amountBlocked } }
+              });
+              
+              await createTransaction({
+                userId: booking.userId,
+                type: 'credit',
+                action: 'unblock',
+                amount: booking.amountBlocked / 100,
+                concept: `Reembolso - Sin pistas disponibles para ${new Date(match.start).toLocaleTimeString()}`,
+                relatedId: booking.id,
+                relatedType: 'matchGameBooking'
+              });
+            }
+          }
+        }
+        
+        console.log(`✅ ${incompleteMatches.length} partidas canceladas por falta de pistas`);
+        
+        return NextResponse.json({ 
+          success: false, 
+          error: 'No hay pistas disponibles. Todas las partidas incompletas han sido canceladas con reembolso.',
+          refunded: true
+        }, { status: 400 });
       }
       
       // Asignar pista
@@ -520,6 +716,9 @@ export async function POST(request: Request) {
         // Cancelar otras actividades del mismo día
         await cancelOtherActivitiesOnSameDay(b.userId, matchGameId, prisma);
       }
+      
+      // 🏁 CANCELAR PARTIDAS COMPETIDORAS DEL MISMO HORARIO (Sistema de Carrera)
+      await cancelCompetingMatches(matchGameId, prisma);
       
       console.log(`✅ Partida confirmada en pista ${availableCourt.number}`);
       

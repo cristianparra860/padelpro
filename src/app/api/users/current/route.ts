@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
       isBase64: userData.profilePictureUrl?.startsWith('data:image') ? 'SÍ' : 'NO'
     });
 
-    return NextResponse.json(userData);
+    return NextResponse.json({ user: userData });
   } catch (error) {
     console.error('❌ Error obteniendo usuario actual:', error);
     return NextResponse.json(

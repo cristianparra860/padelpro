@@ -49,12 +49,19 @@ export async function GET(
       );
     }
     
-    // Verificar permisos
-    const isInstructor = instructor.userId === currentUser.id;
-    const isClubAdmin = currentUser.role === 'CLUB_ADMIN' && currentUser.clubId === instructor.clubId;
+    // Verificar permisos - permitir al propio instructor o admins
+    const isOwnProfile = instructor.userId === currentUser.id;
+    const isClubAdmin = currentUser.role === 'CLUB_ADMIN';
     const isSuperAdmin = currentUser.role === 'SUPER_ADMIN';
 
-    if (!isInstructor && !isClubAdmin && !isSuperAdmin) {
+    console.log('🔍 Verificando permisos:', {
+      userId: currentUser.id,
+      instructorUserId: instructor.userId,
+      isOwnProfile,
+      role: currentUser.role
+    });
+
+    if (!isOwnProfile && !isClubAdmin && !isSuperAdmin) {
       console.log('❌ Usuario no tiene permisos');
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }

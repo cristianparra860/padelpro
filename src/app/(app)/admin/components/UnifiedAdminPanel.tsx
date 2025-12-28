@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import ClubCalendar from '@/components/admin/ClubCalendar';
+import MatchGamesManager from './MatchGamesManager';
 import { 
   Building2, 
   Users, 
@@ -15,7 +16,8 @@ import {
   BarChart3,
   ArrowLeft,
   Crown,
-  ServerIcon
+  ServerIcon,
+  Trophy
 } from 'lucide-react';
 import { getMockClubs } from '@/lib/mockData';
 import type { Club } from '@/types';
@@ -201,7 +203,7 @@ const ClubAdminView: React.FC<{
 
       {/* Tabs de Gestión del Club */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="dashboard" className="flex items-center space-x-2">
             <BarChart3 className="h-4 w-4" />
             <span>Dashboard</span>
@@ -217,6 +219,10 @@ const ClubAdminView: React.FC<{
           <TabsTrigger value="users" className="flex items-center space-x-2">
             <Users className="h-4 w-4" />
             <span>Usuarios</span>
+          </TabsTrigger>
+          <TabsTrigger value="matchgames" className="flex items-center space-x-2">
+            <Trophy className="h-4 w-4" />
+            <span>Partidas</span>
           </TabsTrigger>
           <TabsTrigger value="schedule" className="flex items-center space-x-2">
             <Calendar className="h-4 w-4" />
@@ -242,6 +248,10 @@ const ClubAdminView: React.FC<{
 
         <TabsContent value="users" className="space-y-4">
           <ManageUsersPanelDB clubId={club.id} />
+        </TabsContent>
+
+        <TabsContent value="matchgames" className="space-y-4">
+          <MatchGamesManager clubId={club.id} />
         </TabsContent>
 
         <TabsContent value="schedule" className="space-y-4">

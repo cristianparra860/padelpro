@@ -21,7 +21,8 @@ export function LeftNavigationBar() {
             try {
                 const response = await fetch('/api/users/current');
                 if (response.ok) {
-                    const userData = await response.json();
+                    const data = await response.json();
+                    const userData = data.user || data; // Soportar ambos formatos
                     setCurrentUser(userData);
                     
                     // Después de obtener el usuario, obtener sus reservas
@@ -41,7 +42,8 @@ export function LeftNavigationBar() {
                 try {
                     const userResponse = await fetch('/api/users/current');
                     if (userResponse.ok) {
-                        const userData = await userResponse.json();
+                        const data = await userResponse.json();
+                        const userData = data.user || data; // Soportar ambos formatos
                         if (userData.clubId) {
                             clubId = userData.clubId;
                         }
@@ -244,14 +246,6 @@ export function LeftNavigationBar() {
             allowedRoles: ['SUPER_ADMIN', 'CLUB_ADMIN'], // Solo Super Admin y Club Admin
         },
         {
-            key: 'admin-partidas',
-            href: '/admin/matchgames',
-            icon: Trophy,
-            label: 'Partidas',
-            isActive: pathname === '/admin/matchgames' || pathname.startsWith('/admin/matchgames/'),
-            allowedRoles: ['SUPER_ADMIN', 'CLUB_ADMIN'], // Solo Super Admin y Club Admin
-        },
-        {
             key: 'base-datos',
             href: '/admin/database',
             icon: Database,
@@ -369,8 +363,8 @@ export function LeftNavigationBar() {
                 </div>
             </div>
             
-            {/* Contenedor individual para Clases y Partidas */}
-            <div className="relative bg-gradient-to-br from-white via-gray-50 to-gray-100 rounded-lg shadow-[8px_0_24px_rgba(0,0,0,0.12),inset_-2px_0_8px_rgba(0,0,0,0.06)] border border-gray-300 px-0.5 py-2 md:px-3 md:py-4 w-[48px] md:w-[68px]">
+            {/* Contenedor para Clases y Partidas */}
+            <div className="relative bg-gradient-to-br from-white via-gray-50 to-gray-100 rounded-lg shadow-[8px_0_24px_rgba(0,0,0,0.12),inset_-2px_0_8px_rgba(0,0,0,0.06)] px-1 py-3 md:px-4 md:py-5 w-[60px] md:w-[80px]">
                 <div className="flex flex-col gap-1.5 items-center">
                     {visibleNavItems.filter(item => item.key === 'clases' || item.key === 'partidas').map((item) => {
                         const IconComponent = item.icon;
@@ -384,14 +378,15 @@ export function LeftNavigationBar() {
                                     style={{ pointerEvents: 'auto', zIndex: 99999, cursor: 'pointer' }}
                                 >
                                     <div className={cn(
-                                        "w-8 h-8 md:w-12 md:h-12 rounded-full bg-white flex items-center justify-center transition-all duration-200",
+                                        "w-12 h-12 md:w-16 md:h-16 rounded-full bg-white flex items-center justify-center transition-all duration-200",
                                         "shadow-[0_2px_8px_rgba(0,0,0,0.12)] md:shadow-[0_4px_12px_rgba(0,0,0,0.15)]",
+                                        "border-2 border-gray-400",
                                         item.isActive
                                             ? "ring-1 md:ring-2 ring-green-500 ring-offset-1 md:ring-offset-2"
                                             : "hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)] md:hover:shadow-[0_6px_16px_rgba(0,0,0,0.2)]"
                                     )}>
                                         <IconComponent className={cn(
-                                            "w-4 h-4 md:w-6 md:h-6",
+                                            "w-6 h-6 md:w-8 md:h-8",
                                             item.isActive ? "text-green-600" : "text-gray-500"
                                         )} />
                                     </div>
@@ -461,8 +456,8 @@ export function LeftNavigationBar() {
                         </span>
                     </div>
                     
-                    {/* Resto de botones (Calendario, Base Datos, Config) excepto Clases */}
-                    {visibleNavItems.filter(item => item.key !== 'clases').map((item) => {
+                    {/* Resto de botones (Calendario, Base Datos, Config) excepto Clases y Partidas */}
+                    {visibleNavItems.filter(item => item.key !== 'clases' && item.key !== 'partidas').map((item) => {
                         const IconComponent = item.icon;
                         // ...comportamiento estándar para otros botones
                         return (

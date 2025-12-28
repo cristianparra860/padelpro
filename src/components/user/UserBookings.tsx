@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import BookingCard from './BookingCard';
+import MatchGameCard from '@/components/match/MatchGameCard';
 import { Loader2 } from 'lucide-react';
 import type { User, TimeSlot } from '@/types';
 import { useToast } from '@/hooks/use-toast';
@@ -809,74 +810,18 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
                       />
                     );
                   } else {
-                    // Renderizar tarjeta de partida (MatchGameBooking)
+                    // Renderizar tarjeta de partida usando MatchGameCard (mismo diseño que el panel principal)
                     const mb = combinedBooking.data;
-                    const startDate = new Date(mb.matchGame.start);
-                    const totalPlayers = mb.matchGame.bookings?.filter((b: any) => 
-                      b.status === 'CONFIRMED' || b.status === 'PENDING'
-                    ).length || 0;
                     
                     return (
-                      <Card key={`match-${mb.id}`} className="border-l-4 border-l-purple-500">
-                        <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 pb-3">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <CardTitle className="text-base font-bold text-purple-900 flex items-center gap-2">
-                                🎾 Partida {mb.matchGame.isOpen ? 'Abierta' : 'Clasificada'}
-                              </CardTitle>
-                              <CardDescription className="text-xs mt-1">
-                                {startDate.toLocaleDateString('es-ES', { 
-                                  weekday: 'short', 
-                                  day: 'numeric', 
-                                  month: 'short' 
-                                })} • {startDate.toLocaleTimeString('es-ES', { 
-                                  hour: '2-digit', 
-                                  minute: '2-digit' 
-                                })}
-                              </CardDescription>
-                            </div>
-                            {mb.matchGame.courtNumber && (
-                              <div className="bg-purple-100 px-2 py-1 rounded text-xs font-bold text-purple-700">
-                                Pista {mb.matchGame.courtNumber}
-                              </div>
-                            )}
-                          </div>
-                        </CardHeader>
-                        <CardContent className="pt-3 space-y-2">
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-gray-600">Jugadores:</span>
-                            <span className="font-semibold">{totalPlayers}/4</span>
-                          </div>
-                          {mb.matchGame.level && (
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-gray-600">Nivel:</span>
-                              <span className="font-semibold">{mb.matchGame.level}</span>
-                            </div>
-                          )}
-                          {mb.matchGame.genderCategory && (
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-gray-600">Categoría:</span>
-                              <span className="font-semibold capitalize">{mb.matchGame.genderCategory}</span>
-                            </div>
-                          )}
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-gray-600">Precio:</span>
-                            <span className="font-semibold">{mb.matchGame.price} créditos</span>
-                          </div>
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-gray-600">Estado:</span>
-                            <span className={`font-semibold ${
-                              mb.status === 'CONFIRMED' ? 'text-green-600' : 
-                              mb.status === 'PENDING' ? 'text-orange-600' : 
-                              'text-red-600'
-                            }`}>
-                              {mb.status === 'CONFIRMED' ? 'Confirmada' : 
-                               mb.status === 'PENDING' ? 'Pendiente' : 
-                               'Cancelada'}
-                            </span>
-                          </div>
-                        </CardContent>
-                      </Card>
+                      <MatchGameCard
+                        key={`match-${mb.id}`}
+                        matchGame={mb.matchGame}
+                        currentUser={currentUser}
+                        onBookingSuccess={handleBookingSuccess}
+                        showLeaveButton={true}
+                        showPrivateBookingButton={false}
+                      />
                     );
                   }
                 })}
