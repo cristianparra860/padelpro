@@ -286,211 +286,310 @@ export function LeftNavigationBar() {
     return (
         <>
             <div 
-                className="fixed left-0 top-1/2 -translate-y-1/2 flex flex-col gap-4 items-center ml-2" 
-                style={{ pointerEvents: 'auto', zIndex: 999999, position: 'fixed' }}
+                className="fixed left-4 top-40 flex flex-col gap-2 items-start" 
+                style={{ pointerEvents: 'auto', zIndex: 50, position: 'fixed' }}
             >
             {clubInfo && (
-                <div className="relative bg-gradient-to-br from-white via-gray-50 to-gray-100 rounded-lg shadow-[8px_0_24px_rgba(0,0,0,0.12),inset_-2px_0_8px_rgba(0,0,0,0.06)] border border-gray-300 px-0.5 py-2 md:px-3 md:py-4 w-[48px] md:w-[68px]">
-                    <a 
-                        href="/club"
-                        className="flex flex-col items-center gap-0.5 w-full hover:opacity-80 transition-opacity cursor-pointer block"
-                    >
-                        <div className="w-12 h-12 md:w-[72px] md:h-[72px] rounded-full bg-white shadow-[0_2px_8px_rgba(0,0,0,0.12)] md:shadow-[0_4px_12px_rgba(0,0,0,0.15)] flex items-center justify-center overflow-hidden hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)] md:hover:shadow-[0_6px_16px_rgba(0,0,0,0.2)] transition-all duration-200 ring-2 ring-white ring-offset-0 -mx-1 md:-mx-1">
-                            {clubInfo.logoUrl ? (
-                                <img 
-                                    src={clubInfo.logoUrl} 
-                                    alt={clubInfo.name}
-                                    className="w-9 h-9 md:w-[60px] md:h-[60px] object-contain"
-                                />
-                            ) : (
-                                <span className="text-xs md:text-lg font-bold text-gray-600">
-                                    {clubInfo.name.substring(0, 2).toUpperCase()}
-                                </span>
-                            )}
-                        </div>
-                        <span className="text-[7px] md:text-[9px] font-bold uppercase tracking-wide text-gray-600 max-w-[45px] md:max-w-[55px] text-center leading-tight">
-                            {clubInfo.name}
-                        </span>
-                    </a>
-                </div>
+                <a
+                    href="/club"
+                    className={cn(
+                        "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
+                        pathname === '/admin/calendar' 
+                            ? 'flex flex-col items-center gap-1 px-3 py-2' 
+                            : 'flex items-center gap-3 px-4 min-w-[220px]',
+                        pathname === '/club' ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg',
+                        pathname === '/club' && pathname !== '/admin/calendar' ? 'py-4' : pathname !== '/admin/calendar' ? 'py-3' : ''
+                    )}
+                >
+                    <div className={cn(
+                        "rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 transition-all duration-300",
+                        pathname === '/admin/calendar' ? 'w-10 h-10' : 'w-14 h-14',
+                        "bg-gradient-to-br from-red-400 to-red-600",
+                        pathname === '/club' && 'ring-4 ring-red-300 ring-opacity-50 shadow-[0_0_25px_rgba(239,68,68,0.5)]'
+                    )}>
+                        {clubInfo.logoUrl ? (
+                            <img 
+                                src={clubInfo.logoUrl} 
+                                alt={clubInfo.name}
+                                className="w-full h-full object-contain"
+                            />
+                        ) : (
+                            <span className={cn(
+                                "font-bold text-white",
+                                pathname === '/admin/calendar' ? 'text-sm' : 'text-xl'
+                            )}>
+                                {clubInfo.name.substring(0, 2).toUpperCase()}
+                            </span>
+                        )}
+                    </div>
+                    <div className={cn(pathname === '/admin/calendar' ? 'text-center' : 'text-left flex-1')}>
+                        {pathname === '/admin/calendar' ? (
+                            <div className="text-[10px] font-semibold text-gray-800">Club</div>
+                        ) : (
+                            <>
+                                <div className="text-sm font-semibold text-gray-800">
+                                    {clubInfo.name}
+                                </div>
+                                <div className="text-xs text-gray-500">Ver club</div>
+                            </>
+                        )}
+                    </div>
+                </a>
             )}
             
             {/* Contenedor Mis Datos (antes Mi Agenda) */}
-            <div className="relative bg-gradient-to-br from-white via-gray-50 to-gray-100 rounded-lg shadow-[8px_0_24px_rgba(0,0,0,0.12),inset_-2px_0_8px_rgba(0,0,0,0.06)] border border-gray-300 px-0.5 py-2 md:px-3 md:py-4 w-[48px] md:w-[68px]">
-                <div className="flex flex-col gap-1.5 items-center">
-                    <div className="flex flex-col items-center gap-0.5">
-                        {/* Nombre del usuario en la parte superior */}
-                        {currentUser?.name && (
-                            <div className="text-center mb-1">
-                                <p className="text-[7px] md:text-[9px] font-bold text-gray-700 uppercase tracking-tight leading-tight">
-                                    {currentUser.name.split(' ')[0]}
-                                </p>
-                            </div>
-                        )}
-                        <a
-                            href={misDatosItem.href}
-                            onClick={(e) => handleNavClick(e, misDatosItem.href, misDatosItem.label)}
-                            className="group flex flex-col items-center gap-0.5 cursor-pointer relative"
-                            style={{ pointerEvents: 'auto', zIndex: 99999, cursor: 'pointer' }}
-                        >
-                            <div className={cn(
-                                "w-10 h-10 md:w-16 md:h-16 rounded-full bg-white flex items-center justify-center transition-all duration-200",
-                                "shadow-[0_2px_8px_rgba(0,0,0,0.12)] md:shadow-[0_4px_12px_rgba(0,0,0,0.15)]",
-                                misDatosItem.isActive
-                                    ? "ring-1 md:ring-2 ring-green-500 ring-offset-1 md:ring-offset-2"
-                                    : "hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)] md:hover:shadow-[0_6px_16px_rgba(0,0,0,0.2)]"
-                            )}>
-                                {currentUser?.profilePictureUrl ? (
-                                    <Avatar className="h-9 w-9 md:h-14 md:w-14">
-                                        <AvatarImage src={currentUser.profilePictureUrl} alt={currentUser.name || 'avatar'} />
-                                        <AvatarFallback>{getInitials(currentUser.name || 'U')}</AvatarFallback>
-                                    </Avatar>
-                                ) : (
-                                    <UserCircle className={cn(
-                                        "w-5 h-5 md:w-8 md:h-8",
-                                        misDatosItem.isActive ? "text-green-600" : "text-gray-500"
-                                    )} />
-                                )}
-                            </div>
-                            <span className={cn(
-                                "text-[7px] md:text-[9px] font-bold uppercase tracking-wide",
-                                misDatosItem.isActive ? "text-green-600" : "text-gray-500"
-                            )}>
-                                {misDatosItem.label}
-                            </span>
-                        </a>
-                    </div>
+            <a
+                href={misDatosItem.href}
+                onClick={(e) => handleNavClick(e, misDatosItem.href, misDatosItem.label)}
+                className={cn(
+                    "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
+                    pathname === '/admin/calendar' 
+                        ? 'flex flex-col items-center gap-1 px-3 py-2' 
+                        : 'flex items-center gap-3 px-4 min-w-[220px]',
+                    pathname === '/dashboard' ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg',
+                    pathname === '/dashboard' && pathname !== '/admin/calendar' ? 'py-4' : pathname !== '/admin/calendar' ? 'py-3' : ''
+                )}
+                style={{ pointerEvents: 'auto', zIndex: 99999 }}
+            >
+                <div className={cn(
+                    "rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 transition-all duration-300",
+                    pathname === '/admin/calendar' ? 'w-10 h-10' : 'w-14 h-14',
+                    "bg-gradient-to-br from-blue-400 to-blue-600",
+                    pathname === '/dashboard' && 'ring-4 ring-blue-300 ring-opacity-50 shadow-[0_0_25px_rgba(59,130,246,0.5)]'
+                )}>
+                    {currentUser?.profilePictureUrl ? (
+                        <Avatar className={pathname === '/admin/calendar' ? 'h-10 w-10' : 'h-14 w-14'}>
+                            <AvatarImage src={currentUser.profilePictureUrl} alt={currentUser.name || 'avatar'} />
+                            <AvatarFallback className="text-white bg-blue-500">{getInitials(currentUser.name || 'U')}</AvatarFallback>
+                        </Avatar>
+                    ) : (
+                        <UserCircle className={pathname === '/admin/calendar' ? 'w-5 h-5 text-white' : 'w-8 h-8 text-white'} />
+                    )}
                 </div>
-            </div>
+                <div className={cn(pathname === '/admin/calendar' ? 'text-center' : 'text-left flex-1')}>
+                    {pathname === '/admin/calendar' ? (
+                        <div className="text-[10px] font-semibold text-gray-800">Perfil</div>
+                    ) : (
+                        <>
+                            <div className="text-sm font-semibold text-gray-800">
+                                {currentUser?.name || 'Usuario'}
+                            </div>
+                            <div className="text-xs text-gray-500">Mis Datos</div>
+                        </>
+                    )}
+                </div>
+            </a>
             
             {/* Contenedor para Clases y Partidas */}
-            <div className="relative bg-gradient-to-br from-white via-gray-50 to-gray-100 rounded-lg shadow-[8px_0_24px_rgba(0,0,0,0.12),inset_-2px_0_8px_rgba(0,0,0,0.06)] px-1 py-3 md:px-4 md:py-5 w-[60px] md:w-[80px]">
-                <div className="flex flex-col gap-1.5 items-center">
-                    {visibleNavItems.filter(item => item.key === 'clases' || item.key === 'partidas').map((item) => {
-                        const IconComponent = item.icon;
-                        
-                        return (
-                            <div key={item.key} className="flex flex-col items-center gap-0.5">
-                                <a
-                                    href={item.href}
-                                    onClick={(e) => handleNavClick(e, item.href, item.label)}
-                                    className="group flex flex-col items-center gap-0.5 cursor-pointer relative"
-                                    style={{ pointerEvents: 'auto', zIndex: 99999, cursor: 'pointer' }}
-                                >
-                                    <div className={cn(
-                                        "w-12 h-12 md:w-16 md:h-16 rounded-full bg-white flex items-center justify-center transition-all duration-200",
-                                        "shadow-[0_2px_8px_rgba(0,0,0,0.12)] md:shadow-[0_4px_12px_rgba(0,0,0,0.15)]",
-                                        "border-2 border-gray-400",
-                                        item.isActive
-                                            ? "ring-1 md:ring-2 ring-green-500 ring-offset-1 md:ring-offset-2"
-                                            : "hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)] md:hover:shadow-[0_6px_16px_rgba(0,0,0,0.2)]"
-                                    )}>
-                                        <IconComponent className={cn(
-                                            "w-6 h-6 md:w-8 md:h-8",
-                                            item.isActive ? "text-green-600" : "text-gray-500"
-                                        )} />
-                                    </div>
-                                    <span className={cn(
-                                        "text-[8px] md:text-[10px] font-semibold uppercase tracking-wide",
-                                        item.isActive ? "text-green-600" : "text-gray-500"
-                                    )}>
-                                        {item.label}
-                                    </span>
-                                </a>
+            <div className="flex flex-col gap-1.5">
+                {visibleNavItems.filter(item => item.key === 'clases' || item.key === 'partidas').map((item) => {
+                    const IconComponent = item.icon;
+                    
+                    return (
+                        <a
+                            key={item.key}
+                            href={item.href}
+                            onClick={(e) => handleNavClick(e, item.href, item.label)}
+                            className={cn(
+                                "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
+                                pathname === '/admin/calendar' 
+                                    ? 'flex flex-col items-center gap-1 px-3 py-2' 
+                                    : 'flex items-center gap-3 px-4 min-w-[220px]',
+                                item.isActive ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg',
+                                item.isActive && pathname !== '/admin/calendar' ? 'py-4' : pathname !== '/admin/calendar' ? 'py-3' : ''
+                            )}
+                            style={{ pointerEvents: 'auto', zIndex: 99999 }}
+                        >
+                            <div className={cn(
+                                "rounded-full flex items-center justify-center text-white flex-shrink-0 overflow-hidden transition-all duration-300",
+                                pathname === '/admin/calendar' ? 'w-10 h-10' : 'w-14 h-14',
+                                item.key === 'clases' 
+                                    ? "bg-gradient-to-br from-green-400 to-green-600"
+                                    : "bg-gradient-to-br from-purple-400 to-purple-600",
+                                item.isActive && (
+                                    item.key === 'clases' 
+                                        ? 'ring-4 ring-green-300 ring-opacity-50 shadow-[0_0_25px_rgba(34,197,94,0.5)]'
+                                        : 'ring-4 ring-purple-300 ring-opacity-50 shadow-[0_0_25px_rgba(168,85,247,0.5)]'
+                                )
+                            )}>
+                                <IconComponent className={pathname === '/admin/calendar' ? 'w-5 h-5' : 'w-8 h-8'} />
                             </div>
-                        );
-                    })}
-                </div>
+                            <div className={cn(pathname === '/admin/calendar' ? 'text-center' : 'text-left flex-1')}>
+                                {pathname === '/admin/calendar' ? (
+                                    <div className="text-[10px] font-semibold text-gray-800">
+                                        {item.key === 'clases' ? 'Clases' : 'Partidas'}
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="text-sm font-semibold text-gray-800">
+                                            {item.label}
+                                        </div>
+                                        <div className="text-xs text-gray-500">
+                                            {item.key === 'clases' ? 'Ver clases' : 'Ver partidas'}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </a>
+                    );
+                })}
             </div>
             
-            {/* Contenedor múltiple con Calendario + otros botones */}
-            <div className="relative bg-gradient-to-br from-white via-gray-50 to-gray-100 rounded-lg shadow-[8px_0_24px_rgba(0,0,0,0.12),inset_-2px_0_8px_rgba(0,0,0,0.06)] border border-gray-300 px-0.5 py-2 md:px-3 md:py-6 w-[48px] md:w-[68px]">
-                <div className="flex flex-col gap-1.5 md:gap-2.5 items-center">
-                    {/* 🎯 Botón R - Ir a Mis Reservas */}
-                    <div className="flex flex-col items-center gap-0.5">
-                        <button
-                            onClick={() => window.location.href = '/agenda?tab=confirmed'}
-                            className={`w-8 h-8 md:w-12 md:h-12 rounded-full font-bold shadow-[0_2px_8px_rgba(0,0,0,0.12)] md:shadow-[0_4px_12px_rgba(0,0,0,0.15)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)] md:hover:shadow-[0_6px_16px_rgba(0,0,0,0.2)] transition-all duration-200 flex items-center justify-center ${
-                                hasReservations 
-                                    ? 'bg-red-500 hover:bg-red-600 text-white' 
-                                    : 'bg-white hover:bg-gray-50 text-gray-500 border border-gray-300'
-                            }`}
-                            title="Reservas (R): Clases confirmadas con pista asignada"
-                        >
-                            <span className="text-xs md:text-base font-black">R</span>
-                        </button>
-                        <span className="text-[6px] md:text-[7px] font-medium uppercase tracking-wide text-gray-500">
-                            Reservas
-                        </span>
+            {/* Contenedor múltiple con Reservas, Inscripciones, Saldo y otros botones */}
+            <div className="flex flex-col gap-1.5">
+                {/* 🎯 Botón R - Ir a Mis Reservas */}
+                <button
+                    onClick={() => window.location.href = '/agenda?tab=confirmed'}
+                    className={cn(
+                        "bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all",
+                        pathname === '/admin/calendar' 
+                            ? 'flex flex-col items-center gap-1 px-3 py-2' 
+                            : 'flex items-center gap-3 px-4 py-3 min-w-[220px]'
+                    )}
+                    title="Reservas (R): Clases confirmadas con pista asignada"
+                >
+                    <div className={cn(
+                        "rounded-full flex items-center justify-center flex-shrink-0",
+                        pathname === '/admin/calendar' ? 'w-10 h-10' : 'w-14 h-14',
+                        hasReservations 
+                            ? 'bg-gradient-to-br from-red-400 to-red-600 text-white' 
+                            : 'bg-gradient-to-br from-gray-300 to-gray-400 text-gray-600'
+                    )}>
+                        <span className={cn("font-black", pathname === '/admin/calendar' ? 'text-sm' : 'text-xl')}>R</span>
                     </div>
+                    <div className={cn(pathname === '/admin/calendar' ? 'text-center' : 'text-left flex-1')}>
+                        {pathname === '/admin/calendar' ? (
+                            <div className="text-[10px] font-semibold text-gray-800">Reservas</div>
+                        ) : (
+                            <>
+                                <div className="text-sm font-semibold text-gray-800">Reservas</div>
+                                <div className="text-xs text-gray-500">
+                                    {hasReservations ? 'Tienes reservas' : 'Sin reservas'}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </button>
 
-                    {/* ℹ️ Botón I - Inscripciones */}
-                    <div className="flex flex-col items-center gap-0.5">
-                        <button
-                            onClick={() => window.location.href = '/agenda'}
-                            className={`w-8 h-8 md:w-12 md:h-12 rounded-full font-bold shadow-[0_2px_8px_rgba(0,0,0,0.12)] md:shadow-[0_4px_12px_rgba(0,0,0,0.15)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)] md:hover:shadow-[0_6px_16px_rgba(0,0,0,0.2)] transition-all duration-200 flex items-center justify-center ${
-                                hasInscriptions 
-                                    ? 'bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white' 
-                                    : 'bg-white hover:bg-gray-50 text-gray-500 border border-gray-300'
-                            }`}
-                            title="Inscripciones (I): Clases pendientes esperando completar grupo"
-                        >
-                            <span className="text-xs md:text-base font-black">I</span>
-                        </button>
-                        <span className="text-[6px] md:text-[7px] font-medium uppercase tracking-wide text-gray-500">
-                            Inscripciones
-                        </span>
+                {/* ℹ️ Botón I - Inscripciones */}
+                <button
+                    onClick={() => window.location.href = '/agenda'}
+                    className={cn(
+                        "bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all",
+                        pathname === '/admin/calendar' 
+                            ? 'flex flex-col items-center gap-1 px-3 py-2' 
+                            : 'flex items-center gap-3 px-4 py-3 min-w-[220px]'
+                    )}
+                    title="Inscripciones (I): Clases pendientes esperando completar grupo"
+                >
+                    <div className={cn(
+                        "rounded-full flex items-center justify-center flex-shrink-0",
+                        pathname === '/admin/calendar' ? 'w-10 h-10' : 'w-14 h-14',
+                        hasInscriptions 
+                            ? 'bg-gradient-to-br from-blue-400 to-blue-600 text-white' 
+                            : 'bg-gradient-to-br from-gray-300 to-gray-400 text-gray-600'
+                    )}>
+                        <span className={cn("font-black", pathname === '/admin/calendar' ? 'text-sm' : 'text-xl')}>I</span>
                     </div>
+                    <div className={cn(pathname === '/admin/calendar' ? 'text-center' : 'text-left flex-1')}>
+                        {pathname === '/admin/calendar' ? (
+                            <div className="text-[10px] font-semibold text-gray-800">Inscrip.</div>
+                        ) : (
+                            <>
+                                <div className="text-sm font-semibold text-gray-800">Inscripciones</div>
+                                <div className="text-xs text-gray-500">
+                                    {hasInscriptions ? 'Pendientes' : 'Sin inscripciones'}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </button>
 
-                    {/* 💰 Botón Saldo - Movimientos de Saldo */}
-                    <div className="flex flex-col items-center gap-0.5">
-                        <button
-                            onClick={() => window.location.href = '/movimientos'}
-                            className="w-8 h-8 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-[0_2px_8px_rgba(0,0,0,0.12)] md:shadow-[0_4px_12px_rgba(0,0,0,0.15)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)] md:hover:shadow-[0_6px_16px_rgba(0,0,0,0.2)] transition-all duration-200 flex items-center justify-center"
-                            title="Movimientos de Saldo: Consulta tu saldo y transacciones"
-                        >
-                            <Wallet className="w-4 h-4 md:w-6 md:h-6" />
-                        </button>
-                        <span className="text-[6px] md:text-[7px] font-medium uppercase tracking-wide text-gray-500">
-                            Saldo
-                        </span>
+                {/* 💰 Botón Saldo - Movimientos de Saldo */}
+                <button
+                    onClick={() => window.location.href = '/movimientos'}
+                    className={cn(
+                        "bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all",
+                        pathname === '/admin/calendar' 
+                            ? 'flex flex-col items-center gap-1 px-3 py-2' 
+                            : 'flex items-center gap-3 px-4 py-3 min-w-[220px]'
+                    )}
+                    title="Movimientos de Saldo: Consulta tu saldo y transacciones"
+                >
+                    <div className={cn(
+                        "rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-white flex-shrink-0",
+                        pathname === '/admin/calendar' ? 'w-10 h-10' : 'w-14 h-14'
+                    )}>
+                        <Wallet className={pathname === '/admin/calendar' ? 'w-5 h-5' : 'w-8 h-8'} />
                     </div>
+                    <div className={cn(pathname === '/admin/calendar' ? 'text-center' : 'text-left flex-1')}>
+                        {pathname === '/admin/calendar' ? (
+                            <div className="text-[10px] font-semibold text-gray-800">Saldo</div>
+                        ) : (
+                            <>
+                                <div className="text-sm font-semibold text-gray-800">Saldo</div>
+                                <div className="text-xs text-gray-500">Movimientos</div>
+                            </>
+                        )}
+                    </div>
+                </button>
+                
+                {/* Resto de botones (Calendario, Base Datos, Config) excepto Clases y Partidas */}
+                {visibleNavItems.filter(item => item.key !== 'clases' && item.key !== 'partidas').map((item) => {
+                    const IconComponent = item.icon;
                     
-                    {/* Resto de botones (Calendario, Base Datos, Config) excepto Clases y Partidas */}
-                    {visibleNavItems.filter(item => item.key !== 'clases' && item.key !== 'partidas').map((item) => {
-                        const IconComponent = item.icon;
-                        // ...comportamiento estándar para otros botones
-                        return (
-                            <div key={item.key} className="flex flex-col items-center gap-0.5">
-                                <a 
-                                    href={item.href}
-                                    onClick={(e) => handleNavClick(e, item.href, item.label)}
-                                    className="group flex flex-col items-center gap-0.5 cursor-pointer relative"
-                                    style={{ pointerEvents: 'auto', zIndex: 99999, cursor: 'pointer' }}
-                                >
-                                    <div className={cn(
-                                        "w-8 h-8 md:w-12 md:h-12 rounded-full bg-white flex items-center justify-center transition-all duration-200",
-                                        "shadow-[0_2px_8px_rgba(0,0,0,0.12)] md:shadow-[0_4px_12px_rgba(0,0,0,0.15)]",
-                                        item.isActive
-                                            ? "ring-1 md:ring-2 ring-green-500 ring-offset-1 md:ring-offset-2"
-                                            : "hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)] md:hover:shadow-[0_6px_16px_rgba(0,0,0,0.2)]"
-                                    )}>
-                                        <IconComponent className={cn(
-                                            "w-4 h-4 md:w-6 md:h-6",
-                                            item.isActive ? "text-green-600" : "text-gray-500"
-                                        )} />
-                                    </div>
-                                    <span className={cn(
-                                        "text-[6px] md:text-[7px] font-medium uppercase tracking-wide",
-                                        item.isActive ? "text-green-600" : "text-gray-500"
-                                    )}>
-                                        {item.label}
-                                    </span>
-                                </a>
+                    return (
+                        <a
+                            key={item.key}
+                            href={item.href}
+                            onClick={(e) => handleNavClick(e, item.href, item.label)}
+                            className={cn(
+                                "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
+                                pathname === '/admin/calendar' 
+                                    ? 'flex flex-col items-center gap-1 px-3 py-2' 
+                                    : 'flex items-center gap-3 px-4 min-w-[220px]',
+                                item.isActive ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg',
+                                item.isActive && pathname !== '/admin/calendar' ? 'py-4' : pathname !== '/admin/calendar' ? 'py-3' : ''
+                            )}
+                            style={{ pointerEvents: 'auto', zIndex: 99999 }}
+                        >
+                            <div className={cn(
+                                "rounded-full flex items-center justify-center text-white flex-shrink-0 overflow-hidden transition-all duration-300",
+                                pathname === '/admin/calendar' ? 'w-10 h-10' : 'w-14 h-14',
+                                item.key === 'calendario-club' && "bg-gradient-to-br from-yellow-400 to-orange-600",
+                                item.key === 'base-datos' && "bg-gradient-to-br from-indigo-400 to-indigo-600",
+                                item.key === 'config-club' && "bg-gradient-to-br from-gray-400 to-gray-600",
+                                item.isActive && (
+                                    item.key === 'calendario-club' 
+                                        ? 'ring-4 ring-orange-300 ring-opacity-50 shadow-[0_0_25px_rgba(251,146,60,0.5)]'
+                                        : item.key === 'base-datos'
+                                        ? 'ring-4 ring-indigo-300 ring-opacity-50 shadow-[0_0_25px_rgba(129,140,248,0.5)]'
+                                        : 'ring-4 ring-gray-300 ring-opacity-50 shadow-[0_0_25px_rgba(156,163,175,0.5)]'
+                                )
+                            )}>
+                                <IconComponent className={pathname === '/admin/calendar' ? 'w-5 h-5' : 'w-8 h-8'} />
                             </div>
-                        );
-                    })}
-                </div>
+                            <div className={cn(pathname === '/admin/calendar' ? 'text-center' : 'text-left flex-1')}>
+                                {pathname === '/admin/calendar' ? (
+                                    <div className="text-[10px] font-semibold text-gray-800">
+                                        {item.key === 'calendario-club' && 'Calend.'}
+                                        {item.key === 'base-datos' && 'Datos'}
+                                        {item.key === 'config-club' && 'Config'}
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="text-sm font-semibold text-gray-800">{item.label}</div>
+                                        <div className="text-xs text-gray-500">
+                                            {item.key === 'calendario-club' && 'Ver calendario'}
+                                            {item.key === 'base-datos' && 'Administrar'}
+                                            {item.key === 'config-club' && 'Configurar'}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </a>
+                    );
+                })}
             </div>
         </div>
         </>

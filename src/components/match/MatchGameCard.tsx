@@ -370,7 +370,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
   const spotsLeft = 4 - bookings.length;
 
   return (
-    <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow bg-white border-2 border-gray-200 rounded-2xl">
+    <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow bg-white border-2 border-gray-200 rounded-2xl w-full scale-[0.88]">
       {/* Header con Badge de estado */}
       <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-1.5">
         <div className="flex items-center justify-between">
@@ -544,7 +544,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
               <div className="text-base font-bold text-gray-900">
                 € {isPrivateBooking 
                   ? matchGame.courtRentalPrice.toFixed(2)
-                  : (matchGame.courtRentalPrice / (bookings.length > 0 ? bookings.length : 1)).toFixed(2)
+                  : (matchGame.courtRentalPrice / 4).toFixed(2)
                 }
               </div>
               <div className="text-[9px] text-gray-500">

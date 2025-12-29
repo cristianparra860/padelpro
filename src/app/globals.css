@@ -119,6 +119,20 @@ body {
     animation: recycled-blink 2s ease-in-out infinite;
   }
 
+  /* Animación de bounce sutil para botones activos */
+  @keyframes bounce-subtle {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.05);
+    }
+  }
+
+  .animate-bounce-subtle {
+    animation: bounce-subtle 2s ease-in-out infinite;
+  }
+
   /* TEMPORAL FIX: Forzar que todos los botones y links sean clickeables */
   button, a, [role="button"], [role="link"] {
     pointer-events: auto !important;

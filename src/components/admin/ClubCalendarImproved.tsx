@@ -81,6 +81,36 @@ export default function ClubCalendarImproved({
   const [showMatchOptions, setShowMatchOptions] = useState(false); // Dialog para múltiples opciones
   const [selectedGroupSize, setSelectedGroupSize] = useState<1 | 2 | 3 | 4>(1); // Selector de precios por alumnos
   const [viewType, setViewType] = useState<'clases' | 'partidas'>('partidas'); // Selector principal
+  const [currentTime, setCurrentTime] = useState(new Date()); // Hora actual para overlay
+
+  // Actualizar hora actual cada minuto
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000); // Actualizar cada minuto
+    return () => clearInterval(interval);
+  }, []);
+
+  // Función para verificar si un slot ya pasó
+  const isTimeSlotPast = (timeSlot: string): boolean => {
+    const now = currentTime;
+    const today = currentDate.toISOString().split('T')[0];
+    const nowDateStr = now.toISOString().split('T')[0];
+    
+    // Si es un día diferente al actual, no aplicar overlay
+    if (today !== nowDateStr) {
+      return today < nowDateStr; // True si estamos viendo un día pasado
+    }
+    
+    // Parsear el slot (ej: "09:00" o "09:30")
+    const [hours, minutes] = timeSlot.split(':').map(Number);
+    const slotTime = new Date(now);
+    slotTime.setHours(hours, minutes, 0, 0);
+    
+    // Considerar pasado si el slot terminó (slot + 30 min)
+    const slotEndTime = new Date(slotTime.getTime() + 30 * 60 * 1000);
+    return slotEndTime < now;
+  };
 
   // Sincronizar viewType con selectedInstructor
   useEffect(() => {
@@ -660,13 +690,13 @@ export default function ClubCalendarImproved({
               </p>
               
               {/* Círculos de Instructores */}
-              <div className="flex items-center gap-3 flex-wrap mb-6">
+              <div className="flex items-center gap-6 flex-wrap mb-6">
                 {calendarData.instructors.map(instructor => (
                   <button
                     key={instructor.id}
                     onClick={() => setSelectedInstructor(instructor.id)}
-                    className={`relative group transition-all transform hover:scale-110 ${
-                      selectedInstructor === instructor.id ? 'ring-4 ring-blue-400' : ''
+                    className={`relative group transition-all transform hover:scale-110 flex flex-col items-center gap-2 ${
+                      selectedInstructor === instructor.id ? 'ring-4 ring-blue-400 rounded-full' : ''
                     }`}
                     title={instructor.name}
                   >
@@ -679,8 +709,8 @@ export default function ClubCalendarImproved({
                         className="w-full h-full object-cover"
                       />
                     </div>
-                    <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
-                      <span className={`text-[10px] font-semibold ${
+                    <div className="text-center max-w-[80px]">
+                      <span className={`text-[10px] font-semibold block truncate ${
                         selectedInstructor === instructor.id ? 'text-blue-600' : 'text-gray-700'
                       }`}>
                         {instructor.name}
@@ -791,6 +821,7 @@ export default function ClubCalendarImproved({
                       </td>
                       {calendarData.courts.map(court => {
                         const reservation = hasReservationInSlot(court.id, timeSlot);
+                        const isPast = isTimeSlotPast(timeSlot);
 
                         // Si hay reserva y es el inicio, mostrar la reserva con rowspan
                         if (reservation && isReservationStart(reservation, timeSlot)) {
@@ -807,20 +838,47 @@ export default function ClubCalendarImproved({
                                   ? 'bg-blue-500 shadow-[0_4px_12px_rgba(59,130,246,0.4),inset_0_1px_0_rgba(255,255,255,0.2)]'
                                   : 'bg-green-500 shadow-[0_4px_12px_rgba(34,197,94,0.4),inset_0_1px_0_rgba(255,255,255,0.2)]'
                               }`}>
-                                <div className="p-1.5">
-                                  {/* Header con foto del instructor */}
-                                  <div className="flex items-center gap-1 mb-1">
-                                    <div className="w-5 h-5 rounded-full overflow-hidden shadow-md ring-1 ring-white bg-white">
-                                      <img
-                                        src={reservation.instructorPhoto || `https://ui-avatars.com/api/?name=${encodeURIComponent(reservation.instructorName || 'I')}&background=random&color=fff&size=64`}
-                                        alt={reservation.instructorName}
-                                        className="w-full h-full object-cover"
-                                      />
-                                    </div>
-                                    <span className="text-[8px] font-bold text-white truncate flex-1">
-                                      {reservation.instructorName}
+                                {/* Overlay de tiempo pasado */}
+                                {isPast && (
+                                  <div 
+                                    className="absolute inset-0 z-20 rounded-xl cursor-not-allowed"
+                                    style={{
+                                      background: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.7) 0px, rgba(255,255,255,0.7) 10px, rgba(200,200,200,0.5) 10px, rgba(200,200,200,0.5) 20px)'
+                                    }}
+                                  />
+                                )}
+                                
+                                {/* Hora alineada arriba para partidas */}
+                                {reservation.type === 'match-confirmed' && (
+                                  <div className="absolute top-0 left-0 right-0 text-center pt-0.5">
+                                    <span className="text-[9px] font-bold text-white bg-green-600/50 px-2 py-0.5 rounded-b">
+                                      {timeSlot}
                                     </span>
                                   </div>
+                                )}
+                                
+                                <div className="p-1.5">
+                                  {/* Header con foto del instructor o texto Partida */}
+                                  {reservation.type === 'match-confirmed' ? (
+                                    <div className="flex items-center gap-1 mb-1 mt-4">
+                                      <span className="text-[9px] font-bold text-white truncate flex-1 text-center">
+                                        Partida {reservation.level || 'Abierta'}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1 mb-1">
+                                      <div className="w-5 h-5 rounded-full overflow-hidden shadow-md ring-1 ring-white bg-white">
+                                        <img
+                                          src={reservation.instructorPhoto || `https://ui-avatars.com/api/?name=${encodeURIComponent(reservation.instructorName || 'I')}&background=random&color=fff&size=64`}
+                                          alt={reservation.instructorName}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      </div>
+                                      <span className="text-[8px] font-bold text-white truncate flex-1">
+                                        {reservation.instructorName}
+                                      </span>
+                                    </div>
+                                  )}
 
                                   {/* Jugadores */}
                                   {reservation.type === 'match-confirmed' ? (
@@ -898,8 +956,18 @@ export default function ClubCalendarImproved({
                                     setSelectedClassId(confirmedClass.id);
                                     setShowClassCard(true);
                                   }}
-                                  className="bg-blue-500 rounded-xl h-full cursor-pointer hover:bg-blue-600 hover:scale-[1.02] transition-all shadow-[0_4px_12px_rgba(59,130,246,0.5)] border-2 border-blue-400 flex flex-col overflow-hidden"
+                                  className="bg-blue-500 rounded-xl h-full cursor-pointer hover:bg-blue-600 hover:scale-[1.02] transition-all shadow-[0_4px_12px_rgba(59,130,246,0.5)] border-2 border-blue-400 flex flex-col overflow-hidden relative"
                                 >
+                                  {/* Overlay de tiempo pasado */}
+                                  {isPast && (
+                                    <div 
+                                      className="absolute inset-0 z-20 rounded-xl cursor-not-allowed"
+                                      style={{
+                                        background: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.7) 0px, rgba(255,255,255,0.7) 10px, rgba(200,200,200,0.5) 10px, rgba(200,200,200,0.5) 20px)'
+                                      }}
+                                    />
+                                  )}
+                                  
                                   {/* Header con instructor y tipo */}
                                   <div className="p-2 pb-1">
                                     <div className="flex items-center gap-1.5 mb-2">
@@ -1055,7 +1123,17 @@ export default function ClubCalendarImproved({
                         
                         // Si no hay reserva ni clase confirmada, mostrar propuestas
                         return (
-                          <td key={court.id} className={`border border-gray-200 p-0.5 h-10 bg-white ${isHalfHour ? 'border-b-[3px] border-b-gray-400 rounded-b-lg' : ''}`}>
+                          <td key={court.id} className={`border border-gray-200 p-0.5 h-10 bg-white relative ${isHalfHour ? 'border-b-[3px] border-b-gray-400 rounded-b-lg' : ''}`}>
+                            {/* Overlay de tiempo pasado para propuestas */}
+                            {isPast && (
+                              <div 
+                                className="absolute inset-0 z-10 cursor-not-allowed"
+                                style={{
+                                  background: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.8) 0px, rgba(255,255,255,0.8) 10px, rgba(220,220,220,0.6) 10px, rgba(220,220,220,0.6) 20px)'
+                                }}
+                              />
+                            )}
+                            
                             {selectedInstructor ? (() => {
                               const proposals = getClassProposalsInSlot(timeSlot, selectedInstructor);
                               const hasClass = instructorHasClassInSlot(timeSlot);
@@ -1198,6 +1276,17 @@ export default function ClubCalendarImproved({
       {/* Diálogo con tarjeta de clase */}
       <Dialog open={showClassCard} onOpenChange={setShowClassCard}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          {/* Botón de cierre grande y visible */}
+          <button
+            onClick={() => setShowClassCard(false)}
+            className="absolute top-4 right-4 z-50 bg-red-500 hover:bg-red-600 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-lg transition-all hover:scale-110"
+            aria-label="Cerrar"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          
           {selectedClassId && (() => {
             // Primero buscar en propuestas de clases
             let selectedClass = classProposals.find(p => p.id === selectedClassId);

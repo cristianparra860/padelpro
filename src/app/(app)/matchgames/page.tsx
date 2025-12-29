@@ -48,6 +48,47 @@ type ViewFilter = 'all' | 'withBookings' | 'empty';
 export default function MatchGamesPage() {
   const { toast } = useToast();
   const [matches, setMatches] = useState<MatchGame[]>([]);
+
+  // Estilos personalizados para scrollbar
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .matchgames-scrollbar::-webkit-scrollbar {
+        width: 10px;
+      }
+      .matchgames-scrollbar::-webkit-scrollbar-track {
+        background: #e5e7eb;
+        border-radius: 10px;
+      }
+      .matchgames-scrollbar::-webkit-scrollbar-thumb {
+        background: linear-gradient(180deg, #9ca3af 0%, #6b7280 100%);
+        border-radius: 20px;
+        border: 2px solid #e5e7eb;
+        box-shadow: inset 0 0 6px rgba(0,0,0,0.3);
+        background-image: 
+          linear-gradient(90deg, transparent 40%, rgba(255,255,255,0.3) 45%, rgba(255,255,255,0.3) 55%, transparent 60%),
+          linear-gradient(90deg, transparent 40%, rgba(255,255,255,0.3) 45%, rgba(255,255,255,0.3) 55%, transparent 60%),
+          linear-gradient(90deg, transparent 40%, rgba(255,255,255,0.3) 45%, rgba(255,255,255,0.3) 55%, transparent 60%);
+        background-size: 100% 8px;
+        background-position: 0 25%, 0 50%, 0 75%;
+        background-repeat: no-repeat;
+      }
+      .matchgames-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(180deg, #6b7280 0%, #4b5563 100%);
+        background-image: 
+          linear-gradient(90deg, transparent 40%, rgba(255,255,255,0.4) 45%, rgba(255,255,255,0.4) 55%, transparent 60%),
+          linear-gradient(90deg, transparent 40%, rgba(255,255,255,0.4) 45%, rgba(255,255,255,0.4) 55%, transparent 60%),
+          linear-gradient(90deg, transparent 40%, rgba(255,255,255,0.4) 45%, rgba(255,255,255,0.4) 55%, transparent 60%);
+        background-size: 100% 8px;
+        background-position: 0 25%, 0 50%, 0 75%;
+        background-repeat: no-repeat;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -167,6 +208,15 @@ export default function MatchGamesPage() {
   }, [selectedDate]);
 
   const filteredMatches = matches.filter(match => {
+    // 🕐 FILTRO DE HORARIOS PASADOS: Ocultar partidas cuya hora de inicio ya pasó
+    const now = new Date();
+    const matchTime = new Date(match.start);
+    const isPast = matchTime <= now; // Ocultar si ya llegó o pasó la hora de inicio
+    
+    if (isPast) {
+      return false; // No mostrar partidas pasadas o en curso
+    }
+    
     // Filtro de tab
     if (activeTab === 'available' && match.bookings.length >= match.maxPlayers) return false;
     if (activeTab === 'myMatches' && !match.bookings.some(b => b.userId === currentUser?.id)) return false;
@@ -189,55 +239,89 @@ export default function MatchGamesPage() {
   return (
     <div className="relative">
       {/* Barra lateral de filtros */}
-      <div className="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2 md:gap-3 items-center pr-1">
-        {/* Título "Filtros" */}
-        <div className="bg-white rounded-full px-2 py-1 md:px-3 md:py-1.5 shadow-md border border-gray-200">
-          <span className="text-[7px] md:text-[9px] font-bold uppercase tracking-wider text-gray-600">
-            Filtros
-          </span>
+      <div className="fixed left-4 top-[1020px] z-30 flex flex-col gap-1.5 items-start">
+        
+        {/* Título Filtros */}
+        <div className="text-gray-700 font-bold text-sm uppercase tracking-wide mb-1 ml-2">
+          Filtros
         </div>
-
+        
         {/* 🕐 Filtro de horario */}
-        <div className="flex flex-col items-center gap-0.5 md:gap-1">
-          <span className="text-[6px] md:text-[8px] font-semibold uppercase tracking-wide text-gray-500">
-            Horario
-          </span>
-          <button
-            type="button"
-            onClick={() => setShowTimeFilterPanel(true)}
-            className={`
-              w-10 h-10 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer
-              ${timeSlotFilter !== 'all'
-                ? 'bg-white border border-purple-500 shadow-[inset_0_1px_3px_rgba(168,85,247,0.2)]'
-                : 'bg-white border border-gray-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] hover:border-gray-400'
-              }
-            `}
-            title="Filtrar por horario"
-          >
-            <Clock className={`w-5 h-5 md:w-7 md:h-7 ${timeSlotFilter !== 'all' ? 'text-purple-600' : 'text-gray-600'}`} />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowTimeFilterPanel(true)}
+          className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-4 py-3 min-w-[220px]"
+          title="Filtrar por horario"
+        >
+          <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white flex-shrink-0 ${
+            timeSlotFilter !== 'all'
+              ? 'bg-gradient-to-br from-purple-400 to-purple-600'
+              : 'bg-gradient-to-br from-gray-400 to-gray-600'
+          }`}>
+            <Clock className="w-8 h-8" />
+          </div>
+          <div className="text-left flex-1">
+            <div className="text-sm font-semibold text-gray-800">
+              {timeSlotFilter === 'all' ? 'Todas las horas' :
+               timeSlotFilter === 'morning' ? 'Mañana' :
+               timeSlotFilter === 'midday' ? 'Mediodía' : 'Tarde/Noche'}
+            </div>
+            <div className="text-xs text-gray-500">Filtrar por horario</div>
+          </div>
+        </button>
 
         {/* 👥 Filtro de tipo de vista */}
-        <div className="flex flex-col items-center gap-0.5 md:gap-1">
-          <span className="text-[6px] md:text-[8px] font-semibold uppercase tracking-wide text-gray-500">
-            Vista
-          </span>
-          <button
-            type="button"
-            onClick={() => setShowViewFilterPanel(true)}
-            className={`
-              w-10 h-10 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer
-              ${viewFilter !== 'all'
-                ? 'bg-white border border-purple-500 shadow-[inset_0_1px_3px_rgba(168,85,247,0.2)]'
-                : 'bg-white border border-gray-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] hover:border-gray-400'
-              }
-            `}
-            title="Filtrar por tipo de vista"
-          >
-            <Users className={`w-5 h-5 md:w-7 md:h-7 ${viewFilter !== 'all' ? 'text-purple-600' : 'text-gray-600'}`} />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowViewFilterPanel(true)}
+          className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-4 py-3 min-w-[220px]"
+          title="Filtrar por tipo de vista"
+        >
+          <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white flex-shrink-0 ${
+            viewFilter !== 'all'
+              ? 'bg-gradient-to-br from-purple-400 to-purple-600'
+              : 'bg-gradient-to-br from-gray-400 to-gray-600'
+          }`}>
+            <Users className="w-8 h-8" />
+          </div>
+          <div className="text-left flex-1">
+            <div className="text-sm font-semibold text-gray-800">
+              {viewFilter === 'all' ? 'Todas' :
+               viewFilter === 'withBookings' ? 'Con Jugadores' : 'Vacías'}
+            </div>
+            <div className="text-xs text-gray-500">Estado de partida</div>
+          </div>
+        </button>
+        
+        {/* Botón Guardar/Borrar Filtros */}
+        <button
+          onClick={() => {
+            const hasActiveFilters = timeSlotFilter !== 'all' || viewFilter !== 'all';
+            
+            if (hasActiveFilters) {
+              // Borrar filtros
+              setTimeSlotFilter('all');
+              setViewFilter('all');
+              localStorage.removeItem('savedFiltersMatches');
+            } else {
+              // Guardar filtros
+              const filters = {
+                timeSlot: timeSlotFilter,
+                view: viewFilter
+              };
+              localStorage.setItem('savedFiltersMatches', JSON.stringify(filters));
+            }
+          }}
+          className={`px-4 py-2 rounded-2xl font-medium text-xs transition-all shadow-md hover:shadow-lg w-full text-center ${
+            timeSlotFilter !== 'all' || viewFilter !== 'all'
+              ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white'
+              : 'bg-white border-2 border-gray-200 hover:border-gray-300 text-gray-700'
+          }`}
+        >
+          {timeSlotFilter !== 'all' || viewFilter !== 'all'
+            ? '🗑️ Borrar filtros'
+            : '💾 Guardar búsqueda'}
+        </button>
       </div>
 
       {/* Panel de filtro de horario */}
@@ -318,17 +402,18 @@ export default function MatchGamesPage() {
         </div>
       )}
 
-      {/* Contenedor principal */}
-      <div className="container mx-auto px-4 py-2 max-w-6xl ml-24 mr-64 lg:ml-32 lg:mr-72">
-        {/* Calendario Lineal */}
-        <div className="mb-2">
-          <DateSelector 
-            selectedDate={selectedDate}
-            onDateChange={setSelectedDate}
-            userBookings={userBookings}
-            daysToShow={30}
-          />
-        </div>
+      {/* Calendario Lineal - Todo el ancho */}
+      <div className="mb-2 w-full">
+        <DateSelector 
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+          userBookings={userBookings}
+          daysToShow={30}
+        />
+      </div>
+
+      {/* Contenedor principal para tarjetas */}
+      <div className="w-full ml-52 lg:ml-56 mr-4 px-0 py-1 matchgames-scrollbar overflow-y-auto" style={{ maxHeight: 'calc(100vh - 120px)' }}>
 
         <div className="mb-2">
         {/* Selector de fecha */}
@@ -366,7 +451,7 @@ export default function MatchGamesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-16 lg:gap-20 pr-48 lg:pr-56 py-0">
+        <div className="grid grid-cols-3 gap-x-1 gap-y-4 w-full max-w-[calc(100vw-235px)] lg:max-w-[calc(100vw-250px)]">
           {filteredMatches.map(match => (
             <MatchGameCard
               key={match.id}

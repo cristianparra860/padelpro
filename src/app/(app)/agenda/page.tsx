@@ -50,7 +50,7 @@ export default function AgendaPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-7xl pl-20 sm:pl-20 md:pl-24">
+    <div className="w-full ml-48 lg:ml-52 mr-4 px-0 py-6">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Mis Reservas</h1>
         <p className="text-gray-600 mt-2">Gestiona todas tus reservas de clases</p>
