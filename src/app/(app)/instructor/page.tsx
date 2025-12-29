@@ -55,7 +55,12 @@ export default function InstructorPage() {
                 }
                 
                 // 3. Cargar el instructor completo
-                console.log('✅ Cargando panel del instructor:', instructorData.instructor.id);
+                console.log('✅ Cargando panel del instructor:', {
+                    id: instructorData.instructor.id,
+                    name: instructorData.instructor.name,
+                    userId: instructorData.instructor.userId,
+                    clubId: instructorData.instructor.clubId
+                });
                 setInstructor(instructorData.instructor);
                 setLoading(false);
                 

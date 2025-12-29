@@ -190,15 +190,11 @@ export async function GET(request: NextRequest) {
 
     // Query ÚNICA para TODOS los instructores
     const allInstructors = instructorIds.length > 0 ? await prisma.instructor.findMany({
-      where: { id: { in: instructorIds } },
-      include: { 
-        user: {
-          select: {
-            id: true,
-            name: true,
-            profilePictureUrl: true
-          }
-        }
+      where: { id: { in: instructorIds.filter((id): id is string => id !== null) } },
+      select: {
+        id: true,
+        name: true,
+        profilePictureUrl: true
       }
     }) : [];
 
@@ -340,9 +336,9 @@ export async function GET(request: NextRequest) {
       
       if (slot.instructorId) {
         const instructor = instructorMap.get(slot.instructorId);
-        if (instructor?.user) {
-          instructorName = instructor.user.name;
-          instructorProfilePicture = instructor.user.profilePictureUrl;
+        if (instructor) {
+          instructorName = instructor.name; // El modelo Instructor tiene name directamente
+          instructorProfilePicture = instructor.profilePictureUrl; // Y profilePictureUrl directamente
         }
       }
       
@@ -403,7 +399,8 @@ export async function GET(request: NextRequest) {
         createdAt: typeof slot.createdAt === 'string' ? new Date(slot.createdAt) : slot.createdAt,
         updatedAt: typeof slot.updatedAt === 'string' ? new Date(slot.updatedAt) : slot.updatedAt,
         instructorName: instructorName,
-        instructorProfilePicture: instructorProfilePicture,
+        instructorPhoto: instructorProfilePicture, // Cambiado de instructorProfilePicture a instructorPhoto
+        instructorProfilePicture: instructorProfilePicture, // Mantener también por compatibilidad
         courtNumber: slot.courtId ? courtMap.get(slot.courtId) || null : null,
         bookedPlayers: slotBookings.length,
         bookings: formattedBookings,

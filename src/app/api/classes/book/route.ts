@@ -1323,7 +1323,118 @@ export async function POST(request: Request) {
           
           console.log(`   💰 PROCESSING WINNER - Confirming and charging winning bookings...`);
           
-          // ✅ PASO 1: CONFIRMAR Y COBRAR RESERVAS GANADORAS (SIEMPRE, independiente de si hay pista)
+          // 🎾 VERIFICACIÓN PREVIA: COMPROBAR SI HAY CANCHAS DISPONIBLES
+          console.log(`   🔍 Checking court availability BEFORE confirming bookings...`);
+          
+          const timeSlotTiming = await prisma.$queryRaw`
+            SELECT start, end, clubId FROM TimeSlot WHERE id = ${timeSlotId}
+          ` as Array<{start: string, end: string, clubId: string}>;
+          
+          if (timeSlotTiming.length === 0) {
+            console.log(`   ❌ ERROR: TimeSlot not found!`);
+            return NextResponse.json({ error: 'Clase no encontrada' }, { status: 404 });
+          }
+          
+          const { clubId } = timeSlotTiming[0];
+          const slotStart = new Date(timeSlotTiming[0].start);
+          const slotEnd = new Date(slotStart.getTime() + (60 * 60 * 1000)); // Siempre asumir 60 min
+          const startTimestamp = slotStart.getTime();
+          const endTimestamp = slotEnd.getTime();
+          
+          console.log(`   📅 Checking availability for: ${slotStart.toISOString()} - ${slotEnd.toISOString()}`);
+          console.log(`   🔢 Timestamps: start=${startTimestamp}, end=${endTimestamp}`);
+          
+          // Buscar pistas ocupadas por otras clases
+          const occupiedByClasses = await prisma.$queryRaw`
+            SELECT courtNumber FROM TimeSlot 
+            WHERE clubId = ${clubId}
+            AND courtNumber IS NOT NULL
+            AND id != ${timeSlotId}
+            AND start < ${endTimestamp}
+            AND end > ${startTimestamp}
+            GROUP BY courtNumber
+          ` as Array<{courtNumber: number}>;
+          
+          // Buscar pistas bloqueadas en CourtSchedule
+          const occupiedBySchedule = await prisma.$queryRaw`
+            SELECT c.number as courtNumber
+            FROM CourtSchedule cs
+            JOIN Court c ON cs.courtId = c.id
+            WHERE c.clubId = ${clubId}
+            AND cs.isOccupied = 1
+            AND cs.startTime < ${endTimestamp}
+            AND cs.endTime > ${startTimestamp}
+          ` as Array<{courtNumber: number}>;
+          
+          const occupiedCourtNumbers = [
+            ...occupiedByClasses.map(c => c.courtNumber),
+            ...occupiedBySchedule.map(c => c.courtNumber)
+          ];
+          
+          // Obtener pistas del club
+          const clubCourts = await prisma.$queryRaw`
+            SELECT number FROM Court 
+            WHERE clubId = ${clubId}
+            AND isActive = 1
+            ORDER BY number ASC
+          ` as Array<{number: number}>;
+          
+          const totalCourts = clubCourts.length;
+          const availableCourts = clubCourts.filter(c => !occupiedCourtNumbers.includes(c.number));
+          
+          console.log(`   🏟️ Courts: ${totalCourts} total, ${availableCourts.length} available, ${occupiedCourtNumbers.length} occupied`);
+          console.log(`   📋 Occupied courts:`, occupiedCourtNumbers);
+          
+          if (availableCourts.length === 0) {
+            // ❌ NO HAY CANCHAS DISPONIBLES - RECHAZAR LA RESERVA
+            console.log(`   ❌ NO COURTS AVAILABLE! Cannot complete booking - cancelling...`);
+            
+            // Cancelar la reserva que acaba de crear este usuario (la que completa el grupo)
+            await prisma.$executeRaw`
+              UPDATE Booking 
+              SET status = 'CANCELLED', updatedAt = datetime('now')
+              WHERE id = ${bookingId}
+            `;
+            
+            // Desbloquear créditos del usuario
+            await updateUserBlockedCredits(userId);
+            
+            // Log de transacción de desbloqueo
+            const userAfterCancel = await prisma.user.findUnique({
+              where: { id: userId },
+              select: { credits: true, blockedCredits: true, points: true, blockedPoints: true }
+            });
+            
+            if (userAfterCancel) {
+              await createTransaction({
+                userId: userId,
+                type: 'credit',
+                action: 'unblock',
+                amount: slotPrice,
+                balance: userAfterCancel.credits - userAfterCancel.blockedCredits,
+                concept: 'Reserva rechazada - No hay pistas disponibles',
+                relatedId: bookingId,
+                relatedType: 'booking',
+                metadata: {
+                  timeSlotId,
+                  groupSize,
+                  reason: 'No courts available',
+                  occupiedCourts: occupiedCourtNumbers.length,
+                  totalCourts
+                }
+              });
+            }
+            
+            return NextResponse.json({ 
+              error: `No hay pistas disponibles para ${slotStart.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}. Todas las pistas están ocupadas. Por favor, elige otro horario.`,
+              occupiedCourts: occupiedCourtNumbers.length,
+              totalCourts
+            }, { status: 409 });
+          }
+          
+          console.log(`   ✅ Court available: ${availableCourts[0].number} - Proceeding with booking confirmation...`);
+          
+          // ✅ PASO 1: CONFIRMAR Y COBRAR RESERVAS GANADORAS (hay pista disponible)
           // 🎁 Si la modalidad ganadora fue completada con plazas individuales, confirmar todos los bookings involucrados
           let winningBookings;
           

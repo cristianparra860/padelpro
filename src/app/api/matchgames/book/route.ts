@@ -6,7 +6,75 @@ import {
 } from '@/lib/blockedCredits';
 import { createTransaction } from '@/lib/transactionLogger';
 
-// 🚫 Cancelar otras inscripciones del mismo día (clases Y partidas)
+// � Buscar pista disponible en un horario
+async function findAvailableCourt(clubId: string, start: number, end: number, prisma: any) {
+  console.log('\n🔍 Buscando pista disponible...');
+  
+  // Obtener todas las pistas del club
+  const courts = await prisma.court.findMany({
+    where: { clubId, isActive: true }
+  });
+  
+  console.log(`📊 Pistas del club: ${courts.length}`);
+  
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  
+  // Buscar pista sin reservas ni clases en ese horario
+  for (const court of courts) {
+    // Verificar CourtSchedule (bloqueos y reservas)
+    const hasSchedule = await prisma.courtSchedule.findFirst({
+      where: {
+        courtId: court.id,
+        isOccupied: true,
+        OR: [
+          { startTime: { lte: startDate }, endTime: { gt: startDate } },
+          { startTime: { lt: endDate }, endTime: { gte: endDate } },
+          { startTime: { gte: startDate }, endTime: { lte: endDate } }
+        ]
+      }
+    });
+    
+    if (hasSchedule) {
+      console.log(`   ❌ Pista ${court.number}: Ocupada en CourtSchedule`);
+      continue;
+    }
+    
+    // Verificar clases confirmadas (TimeSlots con courtId) - DateTime fields
+    const hasClass = await prisma.timeSlot.findFirst({
+      where: {
+        courtId: court.id,
+        start: { gte: startDate, lt: endDate }
+      }
+    });
+    
+    if (hasClass) {
+      console.log(`   ❌ Pista ${court.number}: Ocupada con clase`);
+      continue;
+    }
+    
+    // Verificar partidas confirmadas (MatchGames con courtId) - DateTime fields
+    const hasMatch = await prisma.matchGame.findFirst({
+      where: {
+        courtId: court.id,
+        start: { gte: startDate, lt: endDate }
+      }
+    });
+    
+    if (hasMatch) {
+      console.log(`   ❌ Pista ${court.number}: Ocupada con partida`);
+      continue;
+    }
+    
+    console.log(`   ✅ Pista ${court.number}: DISPONIBLE`);
+    return court;
+  }
+  
+  console.log('❌ No hay pistas disponibles');
+  return null;
+}
+
+// �🚫 Cancelar otras inscripciones del mismo día (clases Y partidas)
 async function cancelOtherActivitiesOnSameDay(userId: string, confirmedMatchGameId: string, prisma: any) {
   console.log(`\n🚨 CANCELAR OTRAS ACTIVIDADES DEL MISMO DÍA`);
   console.log(`🔍 Usuario: ${userId}`);
@@ -192,6 +260,23 @@ async function cancelOtherActivitiesOnSameDay(userId: string, confirmedMatchGame
 async function generateNewOpenMatchGame(originalMatchGame: any, prisma: any) {
   console.log(`\n🎾 GENERANDO NUEVA PARTIDA ABIERTA`);
   
+  // ⚠️ VERIFICAR SI YA EXISTE UNA PARTIDA ABIERTA EN EL MISMO HORARIO
+  const existingOpenMatch = await prisma.matchGame.findFirst({
+    where: {
+      clubId: originalMatchGame.clubId,
+      start: originalMatchGame.start,
+      end: originalMatchGame.end,
+      isOpen: true, // Solo partidas abiertas (sin clasificar)
+      courtId: null // Sin pista asignada
+    }
+  });
+  
+  if (existingOpenMatch) {
+    console.log(`⚠️ Ya existe una partida abierta en este horario: ${existingOpenMatch.id}`);
+    console.log(`❌ NO se creará una nueva partida para evitar duplicados`);
+    return existingOpenMatch;
+  }
+  
   const newMatchGame = await prisma.matchGame.create({
     data: {
       clubId: originalMatchGame.clubId,
@@ -315,10 +400,10 @@ async function cancelCompetingMatches(confirmedMatchGameId: string, prisma: any)
 
 export async function POST(request: Request) {
   try {
-    const { matchGameId, userId, paymentMethod = 'CREDITS' } = await request.json();
+    const { matchGameId, userId, paymentMethod = 'CREDITS', privateBooking = false } = await request.json();
     
     console.log('\n🎾 === BOOKING MATCH GAME ===');
-    console.log('📝 Datos recibidos:', { matchGameId, userId, paymentMethod });
+    console.log('📝 Datos recibidos:', { matchGameId, userId, paymentMethod, privateBooking });
     
     if (!matchGameId || !userId) {
       return NextResponse.json(
@@ -385,6 +470,163 @@ export async function POST(request: Request) {
         { error: 'Ya estás inscrito en esta partida' },
         { status: 400 }
       );
+    }
+    
+    // 🏆 RESERVA PRIVADA - Reservar todas las plazas
+    if (privateBooking) {
+      try {
+        console.log('\n🏆 === RESERVA PRIVADA DE PISTA ===');
+        
+        // Verificar que existe courtRentalPrice
+        if (!matchGame.courtRentalPrice) {
+          return NextResponse.json(
+            { error: 'Esta partida no tiene precio de pista definido' },
+            { status: 400 }
+          );
+        }
+        
+        // Calcular precio total de la pista (4 plazas)
+        const totalPriceToBlock = Math.round(matchGame.courtRentalPrice * 100); // Precio completo de la pista en céntimos
+        
+        console.log(`💰 Precio total de la pista: €${matchGame.courtRentalPrice} (${totalPriceToBlock} céntimos)`);
+        
+        // Verificar fondos
+        const availableCredits = user.credits - user.blockedCredits;
+        console.log(`💳 Créditos disponibles: ${availableCredits} céntimos`);
+        
+        if (availableCredits < totalPriceToBlock) {
+          return NextResponse.json(
+            { error: `Créditos insuficientes. Necesitas €${(totalPriceToBlock / 100).toFixed(2)} y tienes €${(availableCredits / 100).toFixed(2)}` },
+            { status: 400 }
+          );
+        }
+        
+        // Buscar pista disponible
+        console.log('🔍 Convirtiendo timestamps...');
+        const startTimestamp = typeof matchGame.start === 'number' ? matchGame.start : new Date(matchGame.start).getTime();
+        const endTimestamp = typeof matchGame.end === 'number' ? matchGame.end : new Date(matchGame.end).getTime();
+        console.log(`📅 Start: ${startTimestamp}, End: ${endTimestamp}`);
+        
+        console.log('🔍 Buscando pista disponible...');
+        const availableCourt = await findAvailableCourt(matchGame.clubId, startTimestamp, endTimestamp, prisma);
+        
+        if (!availableCourt) {
+          return NextResponse.json(
+            { error: 'No hay pistas disponibles en este horario' },
+            { status: 400 }
+          );
+        }
+        
+        console.log(`✅ Pista disponible encontrada: ${availableCourt.name} (${availableCourt.number})`);
+        
+        // Clasificar la partida con el nivel y género del usuario
+        const userLevelNum = parseFloat(user.level);
+        const minLevel = Math.max(0, userLevelNum - 0.5);
+        const maxLevel = Math.min(7, userLevelNum + 0.5);
+        const levelRange = `${minLevel}-${maxLevel}`;
+        
+        console.log('📝 Actualizando partida con pista asignada...');
+        // Actualizar la partida con pista asignada y clasificada
+        await prisma.matchGame.update({
+          where: { id: matchGameId },
+          data: {
+            isOpen: false,
+            level: levelRange,
+            genderCategory: user.gender || 'mixto',
+            courtId: availableCourt.id,
+            courtNumber: availableCourt.number
+          }
+        });
+        
+        console.log(`✅ Partida actualizada: Pista ${availableCourt.number}, Nivel ${levelRange}, Género ${user.gender || 'mixto'}`);
+        
+        console.log('📝 Creando booking privado...');
+        // Crear UN SOLO booking para el usuario (reserva privada completa)
+        const booking = await prisma.matchGameBooking.create({
+          data: {
+            matchGameId,
+            userId,
+            status: 'CONFIRMED', // Directamente confirmado porque tiene pista asignada
+            paidWithPoints: false,
+            paymentMethod: 'CREDITS',
+            pointsUsed: 0,
+            amountBlocked: totalPriceToBlock // Usuario paga el total
+          }
+        });
+        
+        console.log(`✅ Booking privado creado: ${booking.id} - Status: CONFIRMED`);
+        
+        console.log('💳 Bloqueando fondos...');
+        // Bloquear fondos
+        await prisma.user.update({
+          where: { id: userId },
+          data: { blockedCredits: { increment: totalPriceToBlock } }
+        });
+        
+        console.log('📝 Creando transacción...');
+        await createTransaction({
+          userId,
+          type: 'credit',
+          action: 'block',
+          amount: totalPriceToBlock / 100,
+          concept: `Reserva privada de pista ${availableCourt.number}`,
+          relatedId: booking.id,
+          relatedType: 'matchGameBooking'
+        });
+        
+        console.log('📅 Creando entrada en CourtSchedule...');
+        // Marcar pista como ocupada en CourtSchedule
+        const startDate = new Date(startTimestamp);
+        const endDate = new Date(endTimestamp);
+        
+        await prisma.courtSchedule.create({
+          data: {
+            courtId: availableCourt.id,
+            date: startDate,
+            startTime: startDate,
+            endTime: endDate,
+            isOccupied: true,
+            reason: `Reserva privada - ${user.name}`
+          }
+        });
+        
+        console.log(`✅ Pista ${availableCourt.number} bloqueada en el calendario`);
+        
+        console.log('🔄 Generando nueva partida abierta...');
+        // Generar nueva partida abierta para reemplazar esta
+        await generateNewOpenMatchGame(matchGame, prisma);
+        
+        console.log('✅ Reserva privada completada exitosamente');
+        
+        // Devolver información completa para mostrar en la UI
+        return NextResponse.json({
+          success: true,
+          message: `Pista ${availableCourt.number} reservada correctamente.`,
+          booking: {
+            id: booking.id,
+            matchGameId: booking.matchGameId,
+            userId: booking.userId,
+            status: booking.status,
+            amountBlocked: booking.amountBlocked,
+            userName: user.name,
+            isPrivateBooking: true // Indicador de que es reserva privada completa
+          },
+          courtNumber: availableCourt.number,
+          matchGame: {
+            id: matchGame.id,
+            courtNumber: availableCourt.number,
+            level: levelRange,
+            genderCategory: user.gender || 'mixto'
+          }
+        });
+      } catch (privateError) {
+        console.error('❌ ERROR EN RESERVA PRIVADA:', privateError);
+        console.error('Stack:', privateError instanceof Error ? privateError.stack : 'No stack');
+        return NextResponse.json(
+          { error: `Error en reserva privada: ${privateError instanceof Error ? privateError.message : String(privateError)}` },
+          { status: 500 }
+        );
+      }
     }
     
     // Verificar si la partida ya está completa

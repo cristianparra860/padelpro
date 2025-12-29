@@ -77,7 +77,15 @@ export default function InstructorClassCards({ instructor, onlyWithBookings = fa
         const dateStr = format(selectedDate, 'yyyy-MM-dd');
         
         // Buscar en todos los clubs si no tiene uno asignado
-        const clubId = instructor.assignedClubId || 'padel-estrella-madrid';
+        const clubId = instructor.assignedClubId || 'club-1';
+        
+        console.log('🔍 InstructorClassCards - Loading classes:', {
+          instructorId: instructor.id,
+          instructorName: instructor.name,
+          clubId,
+          date: dateStr,
+          onlyWithBookings
+        });
         
         // Usar el endpoint de timeslots con instructorId para obtener todas las clases
         // El instructorId en TimeSlots es una referencia a la tabla Instructor
@@ -98,7 +106,15 @@ export default function InstructorClassCards({ instructor, onlyWithBookings = fa
           totalSlots: slotsArray.length,
           instructorId: instructor.id,
           date: dateStr,
-          onlyWithBookings
+          onlyWithBookings,
+          sampleSlot: slotsArray[0] ? {
+            id: slotsArray[0].id?.substring(0, 20),
+            instructorId: slotsArray[0].instructorId,
+            instructorName: slotsArray[0].instructorName,
+            start: slotsArray[0].start,
+            courtId: slotsArray[0].courtId,
+            bookings: slotsArray[0].bookings?.length || 0
+          } : null
         });
         
         // Filtrar según el modo
@@ -115,7 +131,10 @@ export default function InstructorClassCards({ instructor, onlyWithBookings = fa
               )
           );
         } else {
-          // Todas las clases del instructor (con y sin bookings)
+          // Todas las clases del instructor:
+          // - Propuestas (courtId null)
+          // - Confirmadas (courtId not null)
+          // - Con o sin inscripciones
           filteredClasses = slotsArray.filter(
             (slot: ApiTimeSlot) => slot.instructorId === instructor.id
           );
@@ -123,7 +142,10 @@ export default function InstructorClassCards({ instructor, onlyWithBookings = fa
         
         console.log('📊 Filtered classes:', {
           total: filteredClasses.length,
-          withBookings: filteredClasses.filter((s: ApiTimeSlot) => s.bookings && s.bookings.length > 0).length
+          proposals: filteredClasses.filter((s: ApiTimeSlot) => !s.courtId).length,
+          confirmed: filteredClasses.filter((s: ApiTimeSlot) => s.courtId).length,
+          withBookings: filteredClasses.filter((s: ApiTimeSlot) => s.bookings && s.bookings.length > 0).length,
+          withoutBookings: filteredClasses.filter((s: ApiTimeSlot) => !s.bookings || s.bookings.length === 0).length
         });
         
         // Debug: verificar las fechas de cada slot
@@ -217,41 +239,76 @@ export default function InstructorClassCards({ instructor, onlyWithBookings = fa
       ) : filteredSlots.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <CalendarIcon className="mx-auto h-12 w-12 mb-4 opacity-50" />
-          <p>
+          <p className="text-lg font-medium mb-2">
             {onlyWithBookings ? (
               <>No tienes clases con alumnos inscritos para este día.</>
             ) : (
               <>
-                {activeTab === 'upcoming' && 'No tienes clases reservadas próximas.'}
+                {activeTab === 'upcoming' && 'No tienes clases próximas programadas.'}
                 {activeTab === 'past' && 'No tienes clases pasadas.'}
                 {activeTab === 'all' && 'No tienes clases programadas para este día.'}
               </>
             )}
           </p>
+          {!onlyWithBookings && (
+            <p className="text-sm text-gray-500 mt-2">
+              Las clases se generan automáticamente según tu disponibilidad y rangos de nivel configurados.
+            </p>
+          )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredSlots.map((slot) => (
-            <ClassCardReal
-              key={slot.id}
-              classData={{
-                ...slot,
-                startTime: new Date(slot.start),
-                endTime: new Date(slot.end),
-                start: new Date(slot.start),
-                end: new Date(slot.end),
-                createdAt: new Date(slot.createdAt),
-                updatedAt: new Date(slot.updatedAt),
-                durationMinutes: 30 // Duración estándar
-              }}
-              currentUser={null} // El instructor no necesita reservar como usuario
-              onBookingSuccess={handleBookingSuccess}
-              allowedPlayerCounts={[1, 2, 3, 4]} // Mostrar todas las opciones
-              instructorView={true} // ✅ Modo vista de instructor con opciones de gestión
-              isInstructor={true} // 🎓 Habilitar botones de conversión € → 🎁
-              instructorId={instructor.id} // 🎓 ID del instructor para validación
-            />
-          ))}
+        <div className="space-y-4">
+          {/* Resumen de clases */}
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="text-sm text-blue-600 font-medium">Propuestas</div>
+              <div className="text-2xl font-bold text-blue-700">
+                {filteredSlots.filter(s => !s.courtId).length}
+              </div>
+              <div className="text-xs text-blue-500">Sin pista asignada</div>
+            </div>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <div className="text-sm text-green-600 font-medium">Confirmadas</div>
+              <div className="text-2xl font-bold text-green-700">
+                {filteredSlots.filter(s => s.courtId).length}
+              </div>
+              <div className="text-xs text-green-500">Con pista asignada</div>
+            </div>
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+              <div className="text-sm text-purple-600 font-medium">Con Alumnos</div>
+              <div className="text-2xl font-bold text-purple-700">
+                {filteredSlots.filter(s => s.bookings && s.bookings.length > 0).length}
+              </div>
+              <div className="text-xs text-purple-500">
+                {filteredSlots.reduce((sum, s) => sum + (s.bookings?.length || 0), 0)} inscripciones
+              </div>
+            </div>
+          </div>
+          
+          {/* Tarjetas de clases */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredSlots.map((slot) => (
+              <ClassCardReal
+                key={slot.id}
+                classData={{
+                  ...slot,
+                  startTime: new Date(slot.start),
+                  endTime: new Date(slot.end),
+                  start: new Date(slot.start),
+                  end: new Date(slot.end),
+                  createdAt: new Date(slot.createdAt),
+                  updatedAt: new Date(slot.updatedAt),
+                  durationMinutes: 30 // Duración estándar
+                }}
+                currentUser={null} // El instructor no necesita reservar como usuario
+                onBookingSuccess={handleBookingSuccess}
+                allowedPlayerCounts={[1, 2, 3, 4]} // Mostrar todas las opciones
+                instructorView={true} // ✅ Modo vista de instructor con opciones de gestión
+                isInstructor={true} // 🎓 Habilitar botones de conversión € → 🎁
+                instructorId={instructor.id} // 🎓 ID del instructor para validación
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>

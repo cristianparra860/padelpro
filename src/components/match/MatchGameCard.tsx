@@ -66,6 +66,22 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
 
   const isUserBooked = !!userBooking;
 
+  // Detectar si es una reserva privada (1 usuario con las 4 plazas)
+  const isPrivateBooking = useMemo(() => {
+    if (bookings.length !== 1) return false;
+    // Si hay courtNumber asignado y solo 1 booking, es reserva privada
+    return matchGame.courtNumber && bookings.length === 1;
+  }, [bookings, matchGame.courtNumber]);
+
+  // Si es reserva privada, replicar el usuario 4 veces
+  const displayBookings = useMemo(() => {
+    if (isPrivateBooking && bookings.length === 1) {
+      const privateUser = bookings[0];
+      return [privateUser, privateUser, privateUser, privateUser];
+    }
+    return bookings;
+  }, [isPrivateBooking, bookings]);
+
   // Level and gender info
   const levelInfo = useMemo(() => {
     // Si no hay jugadores inscritos, mostrar "ABIERTO"
@@ -249,6 +265,60 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
     }
   };
 
+  // Handle private booking (reservar pista completa)
+  const handlePrivateBooking = async () => {
+    if (!currentUser) {
+      toast({
+        title: "Error",
+        description: "Debes iniciar sesión para reservar",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setBooking(true);
+    try {
+      const response = await fetch('/api/matchgames/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          userId: currentUser.id,
+          matchGameId: matchGame.id,
+          privateBooking: true, // Indicador de reserva privada completa
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        toast({
+          title: "¡Pista reservada!",
+          description: result.message || "Has reservado la pista completa.",
+          className: "bg-green-600 text-white"
+        });
+
+        onBookingSuccess();
+      } else {
+        const error = await response.json();
+        toast({
+          title: "Error en la reserva",
+          description: error.error || "No se pudo completar la reserva",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error booking:', error);
+      toast({
+        title: "Error de conexión",
+        description: "No se pudo conectar con el servidor",
+        variant: "destructive"
+      });
+    } finally {
+      setBooking(false);
+    }
+  };
+
   // Handle leave
   const handleLeave = async () => {
     if (!currentUser || !userBooking) {
@@ -304,13 +374,18 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
       {/* Header con Badge de estado */}
       <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-1.5">
         <div className="flex items-center justify-between">
-          {/* Icono decorativo */}
+          {/* Icono decorativo y duración */}
           <div className="flex items-center gap-1.5">
             <Trophy className="w-3.5 h-3.5 text-white" />
+            <span className="text-white text-[10px] font-semibold">(90min)</span>
           </div>
           
-          {/* Botón Reserva Privada O Botón Cancelar */}
-          {showLeaveButton && isUserBooked ? (
+          {/* Botón Reserva Privada O Botón Cancelar - No mostrar si es reserva privada */}
+          {isPrivateBooking ? (
+            <Badge variant="outline" className="h-6 text-[10px] px-2 bg-blue-600 text-white border-white">
+              Reserva Privada
+            </Badge>
+          ) : showLeaveButton && isUserBooked ? (
             <Button
               size="sm"
               variant="outline"
@@ -321,19 +396,58 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
               {booking ? 'Cancelando...' : 'Cancelar'}
             </Button>
           ) : showPrivateBookingButton ? (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-6 text-[10px] px-2 bg-white hover:bg-gray-100 text-purple-700 border-white"
-              onClick={() => {
-                toast({
-                  title: "Reserva Privada",
-                  description: "Funcionalidad en desarrollo",
-                });
-              }}
-            >
-              Reserva Privada
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 text-[10px] px-2 bg-white hover:bg-gray-50 text-blue-600 border-white font-bold shadow-[0_2px_8px_rgba(59,130,246,0.5)]"
+                  disabled={booking}
+                >
+                  {booking ? 'Reservando...' : 'clica aqui para reservar pista'}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Confirmar Reserva de Pista</AlertDialogTitle>
+                  <AlertDialogDescription className="space-y-3">
+                    <div className="text-base text-gray-900 font-medium">
+                      ¿Deseas reservar la pista completa para esta partida?
+                    </div>
+                    <div className="bg-blue-50 p-3 rounded-lg space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-700">📅 Fecha:</span>
+                        <span className="font-medium">{format(new Date(matchGame.start), "EEEE d 'de' MMMM", { locale: es })}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-700">⏰ Hora:</span>
+                        <span className="font-medium">{format(new Date(matchGame.start), 'HH:mm')} - {format(new Date(matchGame.end), 'HH:mm')}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-700">⏱️ Duración:</span>
+                        <span className="font-medium">{matchGame.duration} minutos</span>
+                      </div>
+                      <div className="flex justify-between border-t border-blue-200 pt-2 mt-2">
+                        <span className="text-gray-700 font-semibold">💰 Precio Total:</span>
+                        <span className="font-bold text-lg text-blue-600">€{(matchGame.courtRentalPrice || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-600 bg-yellow-50 p-2 rounded">
+                      <strong>Nota:</strong> Se te asignará una pista automáticamente y se bloqueará el importe total de tu saldo.
+                    </div>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={handlePrivateBooking}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    Confirmar Reserva
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           ) : null}
         </div>
       </div>
@@ -428,19 +542,20 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             </div>
             <div className="text-right flex-shrink-0">
               <div className="text-base font-bold text-gray-900">
-                € {(
-                  matchGame.courtRentalPrice / (bookings.length > 0 ? bookings.length : 1)
-                ).toFixed(2)}
+                € {isPrivateBooking 
+                  ? matchGame.courtRentalPrice.toFixed(2)
+                  : (matchGame.courtRentalPrice / (bookings.length > 0 ? bookings.length : 1)).toFixed(2)
+                }
               </div>
               <div className="text-[9px] text-gray-500">
-                por plaza
+                {isPrivateBooking ? 'pista completa' : 'por plaza'}
               </div>
             </div>
           </div>
 
           <div className="flex justify-center items-center gap-3 py-1.5">
             {[0, 1, 2, 3].map((index) => {
-              const booking = bookings[index];
+              const booking = displayBookings[index];
               const isOccupied = !!booking;
               const displayName = booking?.name || 'Disponible';
 
@@ -451,11 +566,13 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
                       "w-12 h-12 rounded-full flex items-center justify-center text-xl font-semibold transition-all border-2",
                       isOccupied 
                         ? "bg-white border-gray-200 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-default" 
+                        : isPrivateBooking
+                        ? "bg-gray-100 border-gray-300 text-gray-400 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-not-allowed opacity-50"
                         : "bg-gray-100 border-gray-300 text-gray-400 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-pointer hover:bg-gray-200 hover:border-gray-400"
                     )}
-                    title={isOccupied ? booking.name : 'Clic para unirte'}
+                    title={isOccupied ? booking.name : isPrivateBooking ? 'Reserva privada completa' : 'Clic para unirte'}
                     onClick={() => {
-                      if (!isOccupied && !booking && !isUserBooked) {
+                      if (!isOccupied && !booking && !isUserBooked && !isPrivateBooking) {
                         setShowConfirmDialog(true);
                       }
                     }}
@@ -481,6 +598,8 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
                   <span className="text-[10px] font-medium leading-none">
                     {isOccupied ? (
                       <span className="text-gray-700">{displayName.split(' ')[0]}</span>
+                    ) : isPrivateBooking ? (
+                      <span className="text-gray-400">Ocupado</span>
                     ) : (
                       <span className="text-green-400">Libre</span>
                     )}

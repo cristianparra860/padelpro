@@ -9,6 +9,8 @@ export async function POST(
 ) {
   try {
     const { classId } = await context.params;
+    
+    console.log('🔴 API cancel-class - Recibida petición para clase:', classId);
 
     // Verificar que la clase existe
     const timeSlot = await prisma.timeSlot.findUnique({
@@ -28,64 +30,104 @@ export async function POST(
     });
 
     if (!timeSlot) {
+      console.log('❌ Clase no encontrada:', classId);
       return NextResponse.json(
         { error: 'Clase no encontrada' },
         { status: 404 }
       );
     }
+    
+    console.log('✅ Clase encontrada:', {
+      id: timeSlot.id,
+      start: timeSlot.start,
+      courtId: timeSlot.courtId,
+      bookings: timeSlot.bookings.length
+    });
 
     // Procesar reembolsos para cada reserva
     const refundedUsers: string[] = [];
     
+    // Convertir timestamp BigInt a Date para descripción
+    const classDate = new Date(Number(timeSlot.start)).toLocaleDateString('es-ES');
+    
+    console.log('🔄 Procesando reembolsos para', timeSlot.bookings.length, 'reservas');
+    
     for (const booking of timeSlot.bookings) {
       try {
+        console.log('💰 Procesando reembolso para booking:', {
+          id: booking.id,
+          userId: booking.userId,
+          groupSize: booking.groupSize,
+          status: booking.status,
+          paymentMethod: booking.paymentMethod,
+          paidWithPoints: booking.paidWithPoints
+        });
+        
         // Calcular monto a reembolsar
         const pricePerPerson = Math.ceil((timeSlot.totalPrice || 25) / booking.groupSize);
         const amountToRefund = pricePerPerson * 100; // Convertir a céntimos
+        
+        console.log('💵 Monto a reembolsar:', {
+          pricePerPerson,
+          amountToRefund,
+          totalPrice: timeSlot.totalPrice
+        });
 
-        if (booking.paymentMethod === 'POINTS') {
+        if (booking.paymentMethod === 'POINTS' || booking.paidWithPoints) {
+          console.log('🎁 Reembolsando PUNTOS');
           // Devolver puntos
-          await prisma.user.update({
+          const updatedUser = await prisma.user.update({
             where: { id: booking.userId },
             data: {
-              loyaltyPoints: {
+              points: {
                 increment: pricePerPerson // Los puntos son 1:1 con euros
               }
-            }
+            },
+            select: { points: true }
           });
-
+          
+          console.log('✅ Puntos devueltos. Nuevo balance:', updatedUser.points);
+          
           // Crear transacción de reembolso de puntos
           await prisma.transaction.create({
             data: {
               userId: booking.userId,
-              amount: pricePerPerson,
-              type: 'POINTS_EARNED',
-              description: `Reembolso por cancelación de clase por instructor - ${new Date(timeSlot.start).toLocaleDateString('es-ES')}`,
-              relatedActivityId: classId,
-              clubId: timeSlot.clubId
+              amount: Number(pricePerPerson),
+              balance: Number(updatedUser.points),
+              type: 'points',
+              action: 'refund',
+              concept: `Reembolso por cancelación de clase por instructor - ${classDate}`,
+              relatedId: classId,
+              relatedType: 'booking'
             }
           });
         } else {
-          // Devolver créditos en céntimos (solo incrementar credit, no tocar blockedCredit)
+          console.log('💳 Reembolsando CRÉDITOS');
+          // Devolver créditos en céntimos (solo incrementar credits, no tocar blockedCredits)
           // Las reservas CONFIRMED no tienen crédito bloqueado, se liberó al confirmar
-          await prisma.user.update({
+          const updatedUser = await prisma.user.update({
             where: { id: booking.userId },
             data: {
-              credit: {
+              credits: {
                 increment: amountToRefund
               }
-            }
+            },
+            select: { credits: true }
           });
-
+          
+          console.log('✅ Créditos devueltos. Nuevo balance:', updatedUser.credits);
+          
           // Crear transacción de reembolso de créditos
           await prisma.transaction.create({
             data: {
               userId: booking.userId,
-              amount: amountToRefund,
-              type: 'REFUND',
-              description: `Reembolso por cancelación de clase por instructor - ${new Date(timeSlot.start).toLocaleDateString('es-ES')}`,
-              relatedActivityId: classId,
-              clubId: timeSlot.clubId
+              amount: Number(amountToRefund),
+              balance: Number(updatedUser.credits),
+              type: 'credit',
+              action: 'refund',
+              concept: `Reembolso por cancelación de clase por instructor - ${classDate}`,
+              relatedId: classId,
+              relatedType: 'booking'
             }
           });
         }

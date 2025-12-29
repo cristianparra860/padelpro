@@ -51,7 +51,7 @@ export async function DELETE(
           await createTransaction({
             userId: booking.userId,
             type: 'points',
-            action: 'credit',
+            action: 'refund',
             amount: pointsBlocked,
             concept: `Reembolso por cancelación de partida ${matchGameId}`,
             relatedId: booking.id,
@@ -66,7 +66,7 @@ export async function DELETE(
           await createTransaction({
             userId: booking.userId,
             type: 'credit',
-            action: 'credit',
+            action: 'refund',
             amount: amountBlocked / 100,
             concept: `Reembolso por cancelación de partida ${matchGameId}`,
             relatedId: booking.id,
@@ -95,6 +95,15 @@ export async function DELETE(
       });
     }
 
+    console.log(`🗑️ Eliminando bookings cancelados...`);
+    
+    // Eliminar todos los bookings de la partida (incluidos los ya cancelados)
+    await prisma.matchGameBooking.deleteMany({
+      where: { matchGameId: matchGameId }
+    });
+
+    console.log(`🗑️ Eliminando partida...`);
+    
     // Eliminar la partida
     await prisma.matchGame.delete({
       where: { id: matchGameId }

@@ -488,7 +488,11 @@ export default function ClubCalendarImproved({
     slotTime.setHours(parseInt(hour), parseInt(minute), 0, 0);
     
     const confirmedClass = confirmedClasses.find(cls => {
-      if (cls.courtNumber !== courtNumber) return false;
+      // Buscar por courtNumber o por courtId que coincida con el court number
+      const matchesCourt = cls.courtNumber === courtNumber || 
+                          (cls.courtId && calendarData?.courts.find(c => c.id === cls.courtId)?.number === courtNumber);
+      
+      if (!matchesCourt) return false;
       
       const clsStart = new Date(cls.start);
       const clsEnd = new Date(cls.end);
@@ -497,7 +501,52 @@ export default function ClubCalendarImproved({
       return clsStart.getTime() <= slotTime.getTime() && clsEnd.getTime() > slotTime.getTime();
     });
     
+    if (confirmedClass) {
+      console.log('✅ Clase confirmada encontrada:', {
+        timeSlot,
+        courtNumber,
+        classId: confirmedClass.id,
+        courtId: confirmedClass.courtId,
+        courtNumber: confirmedClass.courtNumber,
+        start: confirmedClass.start
+      });
+    }
+    
     return confirmedClass;
+  };
+
+  // Encontrar partida confirmada en un slot específico (inicio o durante)
+  const getConfirmedMatchInSlot = (timeSlot: string, courtNumber: number) => {
+    const [hour, minute] = timeSlot.split(':');
+    const slotTime = new Date(currentDate);
+    slotTime.setHours(parseInt(hour), parseInt(minute), 0, 0);
+    
+    const confirmedMatch = confirmedMatches.find(match => {
+      // Buscar por courtNumber o por courtId que coincida con el court number
+      const matchesCourt = match.courtNumber === courtNumber || 
+                          (match.courtId && calendarData?.courts.find(c => c.id === match.courtId)?.number === courtNumber);
+      
+      if (!matchesCourt) return false;
+      
+      const matchStart = new Date(match.start);
+      const matchEnd = new Date(match.end);
+      
+      // Verificar si el slot está dentro del rango de la partida
+      return matchStart.getTime() <= slotTime.getTime() && matchEnd.getTime() > slotTime.getTime();
+    });
+    
+    if (confirmedMatch) {
+      console.log('✅ Partida confirmada encontrada:', {
+        timeSlot,
+        courtNumber,
+        matchId: confirmedMatch.id,
+        courtId: confirmedMatch.courtId,
+        courtNumber: confirmedMatch.courtNumber,
+        start: confirmedMatch.start
+      });
+    }
+    
+    return confirmedMatch;
   };
 
   // Verificar si es el inicio de una clase confirmada
@@ -510,10 +559,28 @@ export default function ClubCalendarImproved({
     return clsStart.getHours() === parseInt(hour) && clsStart.getMinutes() === parseInt(minute);
   };
 
+  // Verificar si es el inicio de una partida confirmada
+  const isConfirmedMatchStart = (confirmedMatch: any, timeSlot: string) => {
+    if (!confirmedMatch) return false;
+    
+    const [hour, minute] = timeSlot.split(':');
+    const matchStart = new Date(confirmedMatch.start);
+    
+    return matchStart.getHours() === parseInt(hour) && matchStart.getMinutes() === parseInt(minute);
+  };
+
   // Calcular rowspan para clase confirmada
   const calculateConfirmedClassRowSpan = (confirmedClass: any) => {
     const start = new Date(confirmedClass.start);
     const end = new Date(confirmedClass.end);
+    const durationMinutes = (end.getTime() - start.getTime()) / (1000 * 60);
+    return Math.ceil(durationMinutes / 30);
+  };
+
+  // Calcular rowspan para partida confirmada
+  const calculateConfirmedMatchRowSpan = (confirmedMatch: any) => {
+    const start = new Date(confirmedMatch.start);
+    const end = new Date(confirmedMatch.end);
     const durationMinutes = (end.getTime() - start.getTime()) / (1000 * 60);
     return Math.ceil(durationMinutes / 30);
   };
@@ -732,7 +799,8 @@ export default function ClubCalendarImproved({
                             <td
                               key={court.id}
                               rowSpan={rowSpan}
-                              className={`border border-gray-200 p-0.5 h-10 bg-white ${isHalfHour ? 'border-b-[3px] border-b-gray-400 rounded-b-lg' : ''}`}
+                              className={`border border-gray-200 p-0.5 h-10 bg-white relative overflow-hidden ${isHalfHour ? 'border-b-[3px] border-b-gray-400 rounded-b-lg' : ''}`}
+                              style={{ maxHeight: `${rowSpan * 40}px` }}
                             >
                               <div className={`rounded-xl h-full flex flex-col justify-between border-2 border-gray-400 ${
                                 reservation.type === 'class-confirmed'
@@ -822,7 +890,8 @@ export default function ClubCalendarImproved({
                               <td 
                                 key={court.id} 
                                 rowSpan={rowSpan}
-                                className={`border border-gray-200 p-0.5 bg-white`}
+                                className={`border border-gray-200 p-0.5 bg-white relative overflow-hidden`}
+                                style={{ maxHeight: `${rowSpan * 40}px`, verticalAlign: 'top' }}
                               >
                                 <div 
                                   onClick={() => {
@@ -836,8 +905,8 @@ export default function ClubCalendarImproved({
                                     <div className="flex items-center gap-1.5 mb-2">
                                       <div className="w-7 h-7 rounded-full overflow-hidden shadow-md ring-2 ring-white bg-white">
                                         <img
-                                          src={confirmedClass.instructor?.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(confirmedClass.instructor?.name || 'I')}&background=random&color=fff&size=64`}
-                                          alt={confirmedClass.instructor?.name || 'Instructor'}
+                                          src={confirmedClass.instructorPhoto || confirmedClass.instructorProfilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(confirmedClass.instructorName || 'I')}&background=random&color=fff&size=64`}
+                                          alt={confirmedClass.instructorName || 'Instructor'}
                                           className="w-full h-full object-cover"
                                         />
                                       </div>
@@ -846,7 +915,7 @@ export default function ClubCalendarImproved({
                                           <span className="text-[8px] font-semibold text-white/90">🎾 Clase</span>
                                         </div>
                                         <span className="text-[10px] font-bold text-white truncate block">
-                                          {confirmedClass.instructor?.name || 'Instructor'}
+                                          {confirmedClass.instructorName || 'Instructor'}
                                         </span>
                                       </div>
                                     </div>
@@ -894,6 +963,95 @@ export default function ClubCalendarImproved({
                             return null;
                           }
                         }
+
+                        // Verificar si hay partida confirmada de MatchGames (se muestra en ambos modos)
+                        const confirmedMatch = getConfirmedMatchInSlot(timeSlot, court.number);
+                        
+                        if (confirmedMatch) {
+                          // Si es el inicio de la partida, renderizar con rowspan
+                          if (isConfirmedMatchStart(confirmedMatch, timeSlot)) {
+                            const bookings = confirmedMatch.bookings || [];
+                            const bookingsCount = bookings.length;
+                            const maxPlayers = 4;
+                            const rowSpan = calculateConfirmedMatchRowSpan(confirmedMatch);
+                            const duration = confirmedMatch.end && confirmedMatch.start 
+                              ? Math.round((new Date(confirmedMatch.end).getTime() - new Date(confirmedMatch.start).getTime()) / (1000 * 60))
+                              : 90;
+                            const pricePerPlayer = confirmedMatch.courtRentalPrice && bookingsCount > 0
+                              ? confirmedMatch.courtRentalPrice / bookingsCount
+                              : 20;
+                            
+                            return (
+                              <td 
+                                key={court.id} 
+                                rowSpan={rowSpan}
+                                className={`border border-gray-200 p-0.5 bg-white`}
+                              >
+                                <div 
+                                  onClick={() => {
+                                    setSelectedClassId(confirmedMatch.id);
+                                    setShowClassCard(true);
+                                  }}
+                                  className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl h-full cursor-pointer hover:from-purple-600 hover:to-pink-600 hover:scale-[1.02] transition-all shadow-[0_4px_12px_rgba(168,85,247,0.5)] border-2 border-purple-400 flex flex-col overflow-hidden"
+                                >
+                                  {/* Header con nivel y tipo */}
+                                  <div className="p-2 pb-1">
+                                    <div className="flex items-center gap-1.5 mb-2">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-1">
+                                          <span className="text-[8px] font-semibold text-white/90">🏆 Partida</span>
+                                        </div>
+                                        <span className="text-[10px] font-bold text-white truncate block">
+                                          Nivel: {confirmedMatch.level || 'Abierto'}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Jugadores reservados con fotos - Grid 4 columnas */}
+                                    <div className="grid grid-cols-4 gap-1">
+                                      {Array.from({ length: maxPlayers }).map((_, i) => {
+                                        const booking = bookings[i];
+                                        const hasBooking = i < bookingsCount;
+                                        
+                                        return (
+                                          <div 
+                                            key={i} 
+                                            className={`w-7 h-7 rounded-full flex items-center justify-center shadow-sm overflow-hidden ${
+                                              hasBooking 
+                                                ? 'bg-white ring-1 ring-purple-300' 
+                                                : 'border-2 border-white/50 bg-purple-400/30'
+                                            }`}
+                                          >
+                                            {hasBooking && booking?.user ? (
+                                              <img
+                                                src={booking.user.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(booking.user.name || 'U')}&background=a855f7&color=fff&size=64`}
+                                                alt={booking.user.name}
+                                                className="w-full h-full object-cover"
+                                              />
+                                            ) : hasBooking ? (
+                                              <span className="text-[9px] font-bold text-purple-700">{i + 1}</span>
+                                            ) : (
+                                              <span className="text-[9px] text-white/50">+</span>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+
+                                  {/* Footer con precio y duración */}
+                                  <div className="flex items-center justify-between p-1.5 pt-1 border-t border-purple-300/50 bg-white/90 rounded-b-xl">
+                                    <div className="text-[10px] font-bold text-gray-900">€{Math.round(pricePerPlayer)}</div>
+                                    <div className="text-[9px] font-medium text-gray-700">{duration} min</div>
+                                  </div>
+                                </div>
+                              </td>
+                            );
+                          } else {
+                            // Si no es el inicio, skip (ya está cubierto por rowspan)
+                            return null;
+                          }
+                        }
                         
                         // Si no hay reserva ni clase confirmada, mostrar propuestas
                         return (
@@ -932,7 +1090,9 @@ export default function ClubCalendarImproved({
                                     )}
                                     <div className="text-center">
                                       <div className="text-[7px] text-gray-600">{levelDisplay}</div>
-                                      <div className="text-[8px] text-gray-800">{playersCount > 0 ? `${playersCount} inscrito${playersCount > 1 ? 's' : ''}` : 'Iniciar'}</div>
+                                      <div className="text-[8px] text-blue-600 font-semibold">
+                                        {playersCount > 0 ? `${playersCount} inscrito${playersCount > 1 ? 's' : ''}` : 'Iniciar Clase'}
+                                      </div>
                                       <div className="text-[9px] font-bold text-gray-900">€{Math.round(pricePerSlot)}</div>
                                     </div>
                                   </div>
@@ -945,7 +1105,7 @@ export default function ClubCalendarImproved({
                                 </div>
                               );
                             })() : (() => {
-                              // Modo Partidas - buscar propuestas de partida en este slot (puede haber varias)
+                              // Modo Partidas - buscar propuestas de partida en este slot
                               const matchProposals = getMatchProposalsInSlot(timeSlot);
                               
                               if (matchProposals.length > 0) {
@@ -973,6 +1133,9 @@ export default function ClubCalendarImproved({
                                   else if (firstMatch.genderCategory === 'mixto') categoryDisplay = 'Mixto';
                                 }
                                 
+                                // Si el nivel es Abierto y la categoría es Abierta, no mostrar la categoría
+                                const showCategory = !(levelDisplay === 'Abierto' && categoryDisplay === 'Abierta');
+                                
                                 // Si hay múltiples opciones, mostrar indicador
                                 const hasMultipleOptions = matchProposals.length > 1;
                                 
@@ -987,10 +1150,12 @@ export default function ClubCalendarImproved({
                                       </div>
                                     )}
                                     <div>
-                                      <div className="text-[8px] font-bold text-purple-800 flex items-center gap-0.5">
-                                        🏆 <span className="truncate">{levelDisplay}</span>
+                                      <div className="text-[7px] font-semibold text-purple-700 text-center truncate">
+                                        Iniciar partida (90min) • {levelDisplay}
                                       </div>
-                                      <div className="text-[7px] text-purple-600">{categoryDisplay}</div>
+                                      {showCategory && (
+                                        <div className="text-[7px] text-purple-600 text-center">{categoryDisplay}</div>
+                                      )}
                                       <div className="flex justify-center gap-0.5 mt-1">
                                         {Array.from({ length: maxPlayers }).map((_, i) => (
                                           <div 
@@ -1034,14 +1199,40 @@ export default function ClubCalendarImproved({
       <Dialog open={showClassCard} onOpenChange={setShowClassCard}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           {selectedClassId && (() => {
-            // Primero buscar en clases
+            // Primero buscar en propuestas de clases
             let selectedClass = classProposals.find(p => p.id === selectedClassId);
             
-            // Si no se encuentra, buscar en partidas
+            // Si no se encuentra, buscar en clases confirmadas
+            if (!selectedClass) {
+              selectedClass = confirmedClasses.find(c => c.id === selectedClassId);
+            }
+            
+            // Si no se encuentra, buscar en propuestas de partidas
             if (!selectedClass) {
               const selectedMatch = matchProposals.find(m => m.id === selectedClassId);
               
+              // Si tampoco está en partidas propuestas, buscar en partidas confirmadas
               if (!selectedMatch) {
+                const confirmedMatch = confirmedMatches.find(m => m.id === selectedClassId);
+                
+                if (confirmedMatch) {
+                  const MatchGameCard = require('@/components/match/MatchGameCard').default;
+                  
+                  return (
+                    <MatchGameCard
+                      matchGame={confirmedMatch}
+                      currentUser={currentUser}
+                      onBookingSuccess={() => {
+                        setShowClassCard(false);
+                        setSelectedClassId(null);
+                        window.location.reload();
+                      }}
+                      showLeaveButton={false}
+                      showPrivateBookingButton={true}
+                    />
+                  );
+                }
+                
                 console.error('❌ No se encontró ni clase ni partida:', selectedClassId);
                 return <div className="p-4 text-center text-gray-600">No se encontró la actividad seleccionada</div>;
               }
@@ -1065,18 +1256,44 @@ export default function ClubCalendarImproved({
               );
             }
             
-            // Si es una clase, mostrar ClassCardReal
+            // Si es una clase, mostrar ClassCardReal con información del instructor
             return (
-              <ClassCardReal
-                classData={selectedClass}
-                currentUser={null}
-                onBookingSuccess={() => {
-                  setShowClassCard(false);
-                  setSelectedClassId(null);
-                  // Recargar datos del calendario
-                  window.location.reload();
-                }}
-              />
+              <div className="space-y-4">
+                {/* Información del instructor */}
+                {selectedClass.instructorName && (
+                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border border-blue-200">
+                    <div className="flex items-center gap-3">
+                      {selectedClass.instructorPhoto ? (
+                        <img 
+                          src={selectedClass.instructorPhoto} 
+                          alt={selectedClass.instructorName}
+                          className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-md"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg border-2 border-white shadow-md">
+                          {selectedClass.instructorName.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <div className="text-sm text-gray-600 font-medium">Instructor</div>
+                        <div className="text-lg font-bold text-gray-900">{selectedClass.instructorName}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Tarjeta de la clase */}
+                <ClassCardReal
+                  classData={selectedClass}
+                  currentUser={currentUser}
+                  onBookingSuccess={() => {
+                    setShowClassCard(false);
+                    setSelectedClassId(null);
+                    // Recargar datos del calendario
+                    window.location.reload();
+                  }}
+                />
+              </div>
             );
           })()}
         </DialogContent>
@@ -1118,16 +1335,40 @@ export default function ClubCalendarImproved({
               
               if (classProposal) {
                 return (
-                  <div key={itemId} className="border-2 border-blue-200 rounded-lg p-2">
-                    <ClassCardReal
-                      classData={classProposal}
-                      currentUser={null}
-                      onBookingSuccess={() => {
-                        setShowMatchOptions(false);
-                        setSelectedMatchIds([]);
-                        window.location.reload();
-                      }}
-                    />
+                  <div key={itemId} className="border-2 border-blue-200 rounded-lg overflow-hidden">
+                    {/* Información del instructor en la parte superior */}
+                    {classProposal.instructorName && (
+                      <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-3 border-b border-blue-200">
+                        <div className="flex items-center gap-2">
+                          {classProposal.instructorPhoto ? (
+                            <img 
+                              src={classProposal.instructorPhoto} 
+                              alt={classProposal.instructorName}
+                              className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-sm border-2 border-white shadow-sm">
+                              {classProposal.instructorName.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+                            </div>
+                          )}
+                          <div className="flex-1">
+                            <div className="text-xs text-gray-600 font-medium">Instructor</div>
+                            <div className="text-sm font-bold text-gray-900">{classProposal.instructorName}</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div className="p-2">
+                      <ClassCardReal
+                        classData={classProposal}
+                        currentUser={currentUser}
+                        onBookingSuccess={() => {
+                          setShowMatchOptions(false);
+                          setSelectedMatchIds([]);
+                          window.location.reload();
+                        }}
+                      />
+                    </div>
                   </div>
                 );
               }
