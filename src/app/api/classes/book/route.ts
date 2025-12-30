@@ -387,31 +387,34 @@ async function assignCourtToClass(timeSlotId: string, raceWinner: number): Promi
     
     // 🔒 SIEMPRE ASUMIR 60 MINUTOS DE DURACIÓN para la verificación de pistas
     const slotEnd = new Date(slotStart.getTime() + (60 * 60 * 1000)); // +60 min
-    const start = slotStart.toISOString();
-    const end = slotEnd.toISOString();
     
-    console.log(`   📏 Verificando disponibilidad para rango COMPLETO: ${start} - ${end} (60 min)`);
+    // 🔧 FIX: Convertir a timestamps para comparación correcta en SQLite
+    const startTimestamp = slotStart.getTime();
+    const endTimestamp = slotEnd.getTime();
     
-    // 1. Buscar pistas ocupadas por OTRAS CLASES
+    console.log(`   📏 Verificando disponibilidad para rango COMPLETO: ${slotStart.toISOString()} - ${slotEnd.toISOString()} (60 min)`);
+    console.log(`   📊 Timestamps: ${startTimestamp} - ${endTimestamp}`);
+    
+    // 1. Buscar pistas ocupadas por OTRAS CLASES (usando timestamps)
     const occupiedByClasses = await prisma.$queryRaw`
       SELECT courtNumber FROM TimeSlot 
       WHERE clubId = ${clubId}
       AND courtNumber IS NOT NULL
       AND id != ${timeSlotId}
-      AND start < ${end}
-      AND end > ${start}
+      AND start < ${endTimestamp}
+      AND end > ${startTimestamp}
       GROUP BY courtNumber
     ` as Array<{courtNumber: number}>;
     
-    // 2. Buscar pistas bloqueadas en CourtSchedule
+    // 2. Buscar pistas bloqueadas en CourtSchedule (usando timestamps)
     const occupiedBySchedule = await prisma.$queryRaw`
       SELECT c.number as courtNumber
       FROM CourtSchedule cs
       JOIN Court c ON cs.courtId = c.id
       WHERE c.clubId = ${clubId}
       AND cs.isOccupied = 1
-      AND cs.startTime < ${end}
-      AND cs.endTime > ${start}
+      AND cs.startTime < ${endTimestamp}
+      AND cs.endTime > ${startTimestamp}
     ` as Array<{courtNumber: number}>;
     
     // Combinar ambas listas de pistas ocupadas
@@ -420,7 +423,10 @@ async function assignCourtToClass(timeSlotId: string, raceWinner: number): Promi
       ...occupiedBySchedule.map(c => c.courtNumber)
     ];
     
-    console.log(`   🔍 Occupied courts for ${start} - ${end}:`, occupiedCourtNumbers);
+    console.log(`   🔍 Occupied courts for 60min range (${startTimestamp} - ${endTimestamp}):`);
+    console.log(`      - By Classes: [${occupiedByClasses.map(c => c.courtNumber).join(', ')}]`);
+    console.log(`      - By Schedule: [${occupiedBySchedule.map(c => c.courtNumber).join(', ')}]`);
+    console.log(`      - Combined: [${occupiedCourtNumbers.join(', ')}]`);
     
     // Obtener el número total de pistas del club
     const clubCourts = await prisma.$queryRaw`
@@ -493,14 +499,14 @@ async function assignCourtToClass(timeSlotId: string, raceWinner: number): Promi
       const courtScheduleId = `cs-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       await prisma.$executeRaw`
         INSERT INTO CourtSchedule (id, courtId, startTime, endTime, isOccupied, createdAt, updatedAt)
-        VALUES (${courtScheduleId}, ${assignedCourtId}, ${start}, ${end}, 1, datetime('now'), datetime('now'))
+        VALUES (${courtScheduleId}, ${assignedCourtId}, ${startTimestamp}, ${endTimestamp}, 1, datetime('now'), datetime('now'))
       `;
       
       // Crear registro en InstructorSchedule
       const instructorScheduleId = `is-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       await prisma.$executeRaw`
         INSERT INTO InstructorSchedule (id, instructorId, startTime, endTime, isOccupied, createdAt, updatedAt)
-        VALUES (${instructorScheduleId}, ${instructorId}, ${start}, ${end}, 1, datetime('now'), datetime('now'))
+        VALUES (${instructorScheduleId}, ${instructorId}, ${startTimestamp}, ${endTimestamp}, 1, datetime('now'), datetime('now'))
       `;
       
       console.log(`   ✅ Court ${courtAssigned} assigned and marked occupied`);
@@ -1996,10 +2002,13 @@ export async function POST(request: Request) {
             // 🔒 SIEMPRE ASUMIR 60 MINUTOS DE DURACIÓN para la verificación de pistas
             // Esto previene solapamientos cuando las clases se extienden de 30 a 60 min
             const slotEnd = new Date(slotStart.getTime() + (60 * 60 * 1000)); // +60 min
-            const start = slotStart.toISOString();
-            const end = slotEnd.toISOString();
             
-            console.log(`   📏 Verificando disponibilidad para rango COMPLETO: ${start} - ${end} (60 min)`);
+            // 🔧 FIX: Convertir a timestamps para comparación correcta en SQLite
+            const startTimestamp = slotStart.getTime();
+            const endTimestamp = slotEnd.getTime();
+            
+            console.log(`   📏 Verificando disponibilidad para rango COMPLETO: ${slotStart.toISOString()} - ${slotEnd.toISOString()} (60 min)`);
+            console.log(`   📊 Timestamps: ${startTimestamp} - ${endTimestamp}`);
             
             // 1. Buscar pistas ocupadas por OTRAS CLASES que se solapen con este horario (60 min)
             // Una clase solapa SI: su inicio es antes del fin de esta Y su fin es después del inicio de esta
@@ -2008,8 +2017,8 @@ export async function POST(request: Request) {
               WHERE clubId = ${clubId}
               AND courtNumber IS NOT NULL
               AND id != ${timeSlotId}
-              AND start < ${end}
-              AND end > ${start}
+              AND start < ${endTimestamp}
+              AND end > ${startTimestamp}
               GROUP BY courtNumber
             ` as Array<{courtNumber: number}>;
             
@@ -2020,8 +2029,8 @@ export async function POST(request: Request) {
               JOIN Court c ON cs.courtId = c.id
               WHERE c.clubId = ${clubId}
               AND cs.isOccupied = 1
-              AND cs.startTime < ${end}
-              AND cs.endTime > ${start}
+              AND cs.startTime < ${endTimestamp}
+              AND cs.endTime > ${startTimestamp}
             ` as Array<{courtNumber: number}>;
             
             // Combinar ambas listas de pistas ocupadas
@@ -2030,7 +2039,10 @@ export async function POST(request: Request) {
               ...occupiedBySchedule.map(c => c.courtNumber)
             ];
             
-            console.log(`   🔍 Occupied courts for ${start} - ${end}:`, occupiedCourtNumbers);
+            console.log(`   🔍 Occupied courts for 60min range (${startTimestamp} - ${endTimestamp}):`);
+            console.log(`      - By Classes: [${occupiedByClasses.map(c => c.courtNumber).join(', ')}]`);
+            console.log(`      - By Schedule: [${occupiedBySchedule.map(c => c.courtNumber).join(', ')}]`);
+            console.log(`      - Combined: [${occupiedCourtNumbers.join(', ')}]`);
             
             // Obtener el número total de pistas del club
             const clubCourts = await prisma.$queryRaw`
@@ -2054,7 +2066,7 @@ export async function POST(request: Request) {
             }
             
             if (!courtAssigned) {
-              console.log(`   ⚠️ NO AVAILABLE COURTS! All ${totalCourts} courts are occupied at ${start}`);
+              console.log(`   ⚠️ NO AVAILABLE COURTS! All ${totalCourts} courts are occupied`);
               console.log(`   ⚠️ Occupied courts:`, occupiedCourtNumbers);
               // No asignar pista si no hay disponible
               // Las reservas se mantienen pero la clase queda pendiente de pista

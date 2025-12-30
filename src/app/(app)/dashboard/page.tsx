@@ -251,7 +251,7 @@ function DashboardPageContent() {
     const RoleIcon = roleConfig.icon;
 
     return (
-        <div className="flex-1 space-y-2 sm:space-y-6 lg:space-y-8 pl-20 sm:pl-20 md:pl-24 pr-2 sm:pr-4 md:pr-6 py-2 sm:py-4 md:py-6 lg:py-8 pointer-events-auto">
+        <div className="flex-1 space-y-2 sm:space-y-6 lg:space-y-8 ml-48 lg:ml-64 pr-2 sm:pr-4 md:pr-6 py-2 sm:py-4 md:py-6 lg:py-8 pt-4 pointer-events-auto overflow-x-hidden max-w-[calc(100vw-200px)] lg:max-w-[calc(100vw-280px)]">
             <main className="space-y-2 sm:space-y-6 lg:space-y-8 pointer-events-auto">
                 {/* Panel de Datos del Usuario */}
                 <Card className="shadow-md">

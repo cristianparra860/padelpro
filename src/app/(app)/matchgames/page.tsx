@@ -98,6 +98,14 @@ export default function MatchGamesPage() {
   const [showTimeFilterPanel, setShowTimeFilterPanel] = useState(false);
   const [showViewFilterPanel, setShowViewFilterPanel] = useState(false);
   const [userBookings, setUserBookings] = useState<any[]>([]);
+  
+  // 💾 Estado para filtros guardados en BD
+  const [savedFilters, setSavedFilters] = useState<{
+    timeSlot: string;
+    viewType: string;
+  } | null>(null);
+  const [loadingSavedFilters, setLoadingSavedFilters] = useState(true);
+
 
   useEffect(() => {
     // Obtener usuario actual
@@ -128,6 +136,39 @@ export default function MatchGamesPage() {
     
     fetchCurrentUser();
   }, []);
+  
+  // 💾 Cargar filtros guardados del usuario
+  useEffect(() => {
+    const loadSavedFilters = async () => {
+      if (!currentUser) {
+        setLoadingSavedFilters(false);
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/users/filter-preferences', {
+          headers: {
+            'x-user-id': currentUser.id
+          }
+        });
+        
+        if (response.ok) {
+          const filters = await response.json();
+          setSavedFilters({
+            timeSlot: filters.timeSlot || 'all',
+            viewType: filters.viewType || 'all'
+          });
+          console.log('✅ Filtros de partidas cargados:', filters);
+        }
+      } catch (error) {
+        console.error('❌ Error cargando filtros de partidas:', error);
+      } finally {
+        setLoadingSavedFilters(false);
+      }
+    };
+    
+    loadSavedFilters();
+  }, [currentUser]);
 
   // Cargar bookings del usuario para el calendario
   useEffect(() => {
@@ -295,31 +336,77 @@ export default function MatchGamesPage() {
         
         {/* Botón Guardar/Borrar Filtros */}
         <button
-          onClick={() => {
-            const hasActiveFilters = timeSlotFilter !== 'all' || viewFilter !== 'all';
+          onClick={async () => {
+            if (!currentUser) return;
             
-            if (hasActiveFilters) {
-              // Borrar filtros
-              setTimeSlotFilter('all');
-              setViewFilter('all');
-              localStorage.removeItem('savedFiltersMatches');
+            // Verificar si hay filtros guardados en BD
+            const hasFiltersInDB = savedFilters && (
+              savedFilters.timeSlot !== 'all' ||
+              savedFilters.viewType !== 'all'
+            );
+            
+            if (hasFiltersInDB) {
+              // BORRAR filtros guardados
+              try {
+                const response = await fetch('/api/users/filter-preferences', {
+                  method: 'DELETE',
+                  headers: {
+                    'x-user-id': currentUser.id
+                  }
+                });
+                
+                if (response.ok) {
+                  // Resetear a valores por defecto
+                  setTimeSlotFilter('all');
+                  setViewFilter('all');
+                  setSavedFilters(null);
+                  console.log('✅ Filtros de partidas borrados');
+                }
+              } catch (error) {
+                console.error('❌ Error al borrar filtros de partidas:', error);
+              }
             } else {
-              // Guardar filtros
-              const filters = {
-                timeSlot: timeSlotFilter,
-                view: viewFilter
-              };
-              localStorage.setItem('savedFiltersMatches', JSON.stringify(filters));
+              // GUARDAR filtros actuales
+              try {
+                const response = await fetch('/api/users/filter-preferences', {
+                  method: 'POST',
+                  headers: {
+                    'x-user-id': currentUser.id,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    timeSlot: timeSlotFilter,
+                    viewType: viewFilter,
+                    playerCounts: [],
+                    instructorIds: [],
+                    type: 'matches'
+                  })
+                });
+                
+                if (response.ok) {
+                  setSavedFilters({
+                    timeSlot: timeSlotFilter,
+                    viewType: viewFilter
+                  });
+                  console.log('✅ Filtros de partidas guardados');
+                }
+              } catch (error) {
+                console.error('❌ Error al guardar filtros de partidas:', error);
+              }
             }
           }}
           className={`px-4 py-2 rounded-2xl font-medium text-xs transition-all shadow-md hover:shadow-lg w-full text-center ${
-            timeSlotFilter !== 'all' || viewFilter !== 'all'
+            savedFilters && (savedFilters.timeSlot !== 'all' || savedFilters.viewType !== 'all')
+              ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white'
+              : (timeSlotFilter !== 'all' || viewFilter !== 'all')
               ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white'
               : 'bg-white border-2 border-gray-200 hover:border-gray-300 text-gray-700'
           }`}
         >
-          {timeSlotFilter !== 'all' || viewFilter !== 'all'
+          {savedFilters && (savedFilters.timeSlot !== 'all' || savedFilters.viewType !== 'all')
             ? '🗑️ Borrar filtros'
+            : (timeSlotFilter !== 'all' || viewFilter !== 'all')
+            ? '💾 Guardar búsqueda'
             : '💾 Guardar búsqueda'}
         </button>
       </div>

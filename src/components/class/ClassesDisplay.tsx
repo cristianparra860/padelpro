@@ -55,6 +55,15 @@ export function ClassesDisplay({
   const [tempPlayerCounts, setTempPlayerCounts] = useState<number[]>(selectedPlayerCounts); // 🆕 Estado temporal para número de jugadores
   const [tempViewFilters, setTempViewFilters] = useState<string[]>([]); // 🆕 Estado temporal para filtros de vista (vacío = mostrar todo)
   
+  // 🔍 Estado para filtros guardados en BD
+  const [savedFilters, setSavedFilters] = useState<{
+    timeSlot: string;
+    viewType: string;
+    playerCounts: number[];
+    instructorIds: string[];
+  } | null>(null);
+  const [loadingSavedFilters, setLoadingSavedFilters] = useState(true);
+  
   // 🔍 NUEVOS FILTROS AVANZADOS
   const [hideEmpty, setHideEmpty] = useState(false); // Ocultar clases vacías (sin alumnos)
   const [hideWithStudents, setHideWithStudents] = useState(false); // Ocultar clases con alumnos inscritos (no confirmadas)
@@ -97,6 +106,35 @@ export function ClassesDisplay({
     };
   }, []);
   
+  // 💾 Cargar filtros guardados del usuario al iniciar
+  useEffect(() => {
+    const loadSavedFilters = async () => {
+      if (!currentUser) {
+        setLoadingSavedFilters(false);
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/users/filter-preferences', {
+          headers: {
+            'x-user-id': currentUser.id
+          }
+        });
+        
+        if (response.ok) {
+          const filters = await response.json();
+          setSavedFilters(filters);
+          console.log('✅ Filtros guardados cargados:', filters);
+        }
+      } catch (error) {
+        console.error('❌ Error cargando filtros guardados:', error);
+      } finally {
+        setLoadingSavedFilters(false);
+      }
+    };
+    
+    loadSavedFilters();
+  }, [currentUser]);
 
   // Escuchar evento de toggle de filtros desde la barra de navegacion
   useEffect(() => {
@@ -109,63 +147,6 @@ export function ClassesDisplay({
       window.removeEventListener('toggleMobileFilters', handleToggleFilters);
     };
   }, []);
-  // �💾 Cargar preferencias guardadas del usuario al iniciar
-  useEffect(() => {
-    const loadUserPreferences = async () => {
-      try {
-        const token = localStorage.getItem('auth_token');
-        if (!token || !currentUser) return;
-        
-        const response = await fetch('/api/user/preferences', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (response.ok) {
-          const prefs = await response.json();
-          console.log('✅ Preferencias cargadas:', prefs);
-          
-          // Aplicar prefPlayerCounts si existe
-          if (prefs.prefPlayerCounts) {
-            const counts = prefs.prefPlayerCounts
-              .split(',')
-              .map((n: string) => parseInt(n.trim()))
-              .filter((n: number) => !isNaN(n) && n >= 1 && n <= 4);
-            
-            if (counts.length > 0) {
-              setLocalPlayerCounts(counts);
-              if (onPlayerCountsChange) {
-                onPlayerCountsChange(counts);
-              }
-              console.log('🔢 Filtro de jugadores aplicado desde preferencias:', counts);
-            }
-          }
-          
-          // Aplicar otras preferencias si existen callbacks
-          if (prefs.prefTimeSlot && prefs.prefTimeSlot !== 'all' && onTimeSlotFilterChange) {
-            onTimeSlotFilterChange(prefs.prefTimeSlot as TimeOfDayFilterType);
-          }
-          
-          if (prefs.prefViewType && prefs.prefViewType !== 'all' && onViewPreferenceChange) {
-            onViewPreferenceChange(prefs.prefViewType as 'withBookings' | 'all' | 'myConfirmed');
-          }
-          
-          if (prefs.prefInstructorIds && onInstructorIdsChange) {
-            const ids = prefs.prefInstructorIds.split(',').filter((id: string) => id.trim());
-            if (ids.length > 0) {
-              onInstructorIdsChange(ids);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('❌ Error cargando preferencias del usuario:', error);
-      }
-    };
-    
-    loadUserPreferences();
-  }, [currentUser]); // Solo cargar una vez cuando currentUser está disponible
   
   // 👨‍🏫 Obtener lista única de instructores de los slots disponibles
   const availableInstructors = useMemo(() => {
@@ -972,42 +953,97 @@ export function ClassesDisplay({
         
         {/* Botón Guardar/Borrar Filtros */}
         <button
-          onClick={() => {
-            const hasActiveFilters = selectedInstructorIds.length > 0 || 
-                                     timeSlotFilter !== 'all' || 
-                                     viewPreference !== 'all' || 
-                                     localPlayerCounts.length > 0;
+          onClick={async () => {
+            if (!currentUser) return;
             
-            if (hasActiveFilters) {
-              // Borrar filtros - actualizar todos los estados
-              onFilterChange([]);
-              onTimeFilterChange('all');
-              onViewPreferenceChange('all');
-              onPlayerCountChange([]);
-              setLocalPlayerCounts([]);
-              setTempSelectedInstructorIds([]);
-              setTempPlayerCounts([]);
-              setTempViewFilters([]);
-              localStorage.removeItem('savedFilters');
+            // Verificar si hay filtros guardados en BD
+            const hasFiltersInDB = savedFilters && (
+              savedFilters.timeSlot !== 'all' ||
+              savedFilters.viewType !== 'all' ||
+              savedFilters.playerCounts.length !== 4 ||
+              savedFilters.instructorIds.length > 0
+            );
+            
+            if (hasFiltersInDB) {
+              // BORRAR filtros guardados
+              try {
+                const response = await fetch('/api/users/filter-preferences', {
+                  method: 'DELETE',
+                  headers: {
+                    'x-user-id': currentUser.id
+                  }
+                });
+                
+                if (response.ok) {
+                  // Resetear a valores por defecto
+                  if (onInstructorIdsChange) onInstructorIdsChange([]);
+                  if (onTimeSlotFilterChange) onTimeSlotFilterChange('all');
+                  if (onViewPreferenceChange) onViewPreferenceChange('all');
+                  if (onPlayerCountsChange) onPlayerCountsChange([1, 2, 3, 4]);
+                  setLocalPlayerCounts([1, 2, 3, 4]);
+                  setTempSelectedInstructorIds([]);
+                  setTempPlayerCounts([1, 2, 3, 4]);
+                  setTempViewFilters([]);
+                  setSavedFilters(null);
+                  console.log('✅ Filtros borrados correctamente');
+                }
+              } catch (error) {
+                console.error('❌ Error al borrar filtros:', error);
+              }
             } else {
-              // Guardar filtros
-              const filters = {
-                instructors: selectedInstructorIds,
-                timeSlot: timeSlotFilter,
-                view: viewPreference,
-                playerCounts: localPlayerCounts
-              };
-              localStorage.setItem('savedFilters', JSON.stringify(filters));
+              // GUARDAR filtros actuales
+              try {
+                const response = await fetch('/api/users/filter-preferences', {
+                  method: 'POST',
+                  headers: {
+                    'x-user-id': currentUser.id,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    timeSlot: timeSlotFilter,
+                    viewType: viewPreference,
+                    playerCounts: localPlayerCounts,
+                    instructorIds: selectedInstructorIds,
+                    type: 'classes'
+                  })
+                });
+                
+                if (response.ok) {
+                  setSavedFilters({
+                    timeSlot: timeSlotFilter,
+                    viewType: viewPreference,
+                    playerCounts: localPlayerCounts,
+                    instructorIds: selectedInstructorIds
+                  });
+                  console.log('✅ Filtros guardados correctamente');
+                }
+              } catch (error) {
+                console.error('❌ Error al guardar filtros:', error);
+              }
             }
           }}
           className={`px-4 py-2 rounded-2xl font-medium text-xs transition-all shadow-md hover:shadow-lg w-full text-center ${
-            selectedInstructorIds.length > 0 || timeSlotFilter !== 'all' || viewPreference !== 'all' || localPlayerCounts.length > 0
+            savedFilters && (
+              savedFilters.timeSlot !== 'all' ||
+              savedFilters.viewType !== 'all' ||
+              savedFilters.playerCounts.length !== 4 ||
+              savedFilters.instructorIds.length > 0
+            )
+              ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white'
+              : (selectedInstructorIds.length > 0 || timeSlotFilter !== 'all' || viewPreference !== 'all' || localPlayerCounts.length < 4)
               ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white'
               : 'bg-white border-2 border-gray-200 hover:border-gray-300 text-gray-700'
           }`}
         >
-          {selectedInstructorIds.length > 0 || timeSlotFilter !== 'all' || viewPreference !== 'all' || localPlayerCounts.length > 0
+          {savedFilters && (
+            savedFilters.timeSlot !== 'all' ||
+            savedFilters.viewType !== 'all' ||
+            savedFilters.playerCounts.length !== 4 ||
+            savedFilters.instructorIds.length > 0
+          )
             ? '🗑️ Borrar filtros'
+            : (selectedInstructorIds.length > 0 || timeSlotFilter !== 'all' || viewPreference !== 'all' || localPlayerCounts.length < 4)
+            ? '💾 Guardar búsqueda'
             : '💾 Guardar búsqueda'}
         </button>
       </div>
@@ -1573,8 +1609,8 @@ export function ClassesDisplay({
       
       {/* Grid de tarjetas de clases */}
       {processedSlots.length > 0 && (
-        <div className="w-full ml-48 lg:ml-52 mr-4 px-0">
-          <div className="grid grid-cols-3 gap-0 w-full max-w-[calc(100vw-220px)] lg:max-w-[calc(100vw-235px)]">
+        <div className="ml-48 lg:ml-52 pr-4 overflow-x-hidden max-w-[calc(100vw-200px)] lg:max-w-[calc(100vw-220px)]">
+          <div className="grid grid-cols-3 gap-0 w-full">
             {processedSlots.map((slot) => {
               console.log(`🎴 Renderizando tarjeta ${slot.id.substring(0,8)} con allowedPlayerCounts:`, localPlayerCounts);
               

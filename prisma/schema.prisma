@@ -473,3 +473,20 @@ model ImpersonationLog {
   @@index([targetUserId])
   @@index([startedAt])
 }
+
+// Sesiones de autenticación por QR para pantallas del club
+model QRSession {
+  id          String   @id @default(cuid())
+  token       String   @unique
+  status      String   @default("pending") // pending | approved | expired
+  userId      String?
+  authToken   String?
+  clubId      String?
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  
+  @@map("QRSession")
+  @@index([token])
+  @@index([status])
+  @@index([expiresAt])
+}

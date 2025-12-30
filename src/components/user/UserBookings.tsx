@@ -502,7 +502,7 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
               }}
               className={`text-xs sm:text-sm lg:text-base font-bold py-3 px-2 sm:py-4 sm:px-4 shadow-lg transition-all flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg ${
                 activeFilter === 'pending' 
-                  ? 'scale-105 shadow-2xl animate-bounce-subtle ring-4 ring-blue-300 ring-opacity-50' 
+                  ? 'scale-105 shadow-2xl ring-4 ring-blue-300 ring-opacity-50' 
                   : 'bg-white/50 hover:bg-white/80'
               }`}
             >
@@ -534,7 +534,7 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
               }}
               className={`text-xs sm:text-sm lg:text-base font-bold py-3 px-2 sm:py-4 sm:px-4 shadow-lg transition-all flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg ${
                 activeFilter === 'confirmed' 
-                  ? 'scale-105 shadow-2xl animate-bounce-subtle ring-4 ring-red-300 ring-opacity-50' 
+                  ? 'scale-105 shadow-2xl ring-4 ring-red-300 ring-opacity-50' 
                   : 'bg-white/50 hover:bg-white/80'
               }`}
             >

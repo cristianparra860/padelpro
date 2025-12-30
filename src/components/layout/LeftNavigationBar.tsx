@@ -15,6 +15,7 @@ export function LeftNavigationBar() {
     const [clubInfo, setClubInfo] = useState<Club | null>(null);
     const [hasReservations, setHasReservations] = useState(false);
     const [hasInscriptions, setHasInscriptions] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         const fetchUser = async () => {
@@ -32,6 +33,8 @@ export function LeftNavigationBar() {
                 }
             } catch (error) {
                 console.error('Error fetching user:', error);
+            } finally {
+                setIsLoading(false);
             }
         };
         
@@ -257,7 +260,7 @@ export function LeftNavigationBar() {
 
     // Filtrar botones según el rol del usuario
     const visibleNavItems = navItems.filter(item => 
-        !currentUser || item.allowedRoles.includes(currentUser.role || 'USER')
+        currentUser && item.allowedRoles.includes(currentUser.role || 'PLAYER')
     );
 
     const misDatosItem = {
@@ -283,6 +286,20 @@ export function LeftNavigationBar() {
         window.location.href = href;
     };
 
+    // Determinar si usar modo compacto
+    const isCompactMode = pathname === '/admin/calendar' || 
+                          pathname === '/agenda' ||
+                          pathname === '/admin' ||
+                          pathname === '/admin/club-info' ||
+                          pathname === '/admin/matchgames' ||
+                          pathname === '/admin/matchgames/create' ||
+                          pathname.startsWith('/admin/');
+
+    // No mostrar nada mientras está cargando el usuario
+    if (isLoading) {
+        return null;
+    }
+
     return (
         <>
             <div 
@@ -294,16 +311,16 @@ export function LeftNavigationBar() {
                     href="/club"
                     className={cn(
                         "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
-                        pathname === '/admin/calendar' 
+                        isCompactMode
                             ? 'flex flex-col items-center gap-1 px-3 py-2' 
                             : 'flex items-center gap-3 px-4 min-w-[220px]',
                         pathname === '/club' ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg',
-                        pathname === '/club' && pathname !== '/admin/calendar' ? 'py-4' : pathname !== '/admin/calendar' ? 'py-3' : ''
+                        pathname === '/club' && !isCompactMode ? 'py-4' : !isCompactMode ? 'py-3' : ''
                     )}
                 >
                     <div className={cn(
                         "rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 transition-all duration-300",
-                        pathname === '/admin/calendar' ? 'w-10 h-10' : 'w-14 h-14',
+                        isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
                         "bg-gradient-to-br from-red-400 to-red-600",
                         pathname === '/club' && 'ring-4 ring-red-300 ring-opacity-50 shadow-[0_0_25px_rgba(239,68,68,0.5)]'
                     )}>
@@ -316,14 +333,14 @@ export function LeftNavigationBar() {
                         ) : (
                             <span className={cn(
                                 "font-bold text-white",
-                                pathname === '/admin/calendar' ? 'text-sm' : 'text-xl'
+                                isCompactMode ? 'text-sm' : 'text-xl'
                             )}>
                                 {clubInfo.name.substring(0, 2).toUpperCase()}
                             </span>
                         )}
                     </div>
-                    <div className={cn(pathname === '/admin/calendar' ? 'text-center' : 'text-left flex-1')}>
-                        {pathname === '/admin/calendar' ? (
+                    <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
+                        {isCompactMode ? (
                             <div className="text-[10px] font-semibold text-gray-800">Club</div>
                         ) : (
                             <>
@@ -343,31 +360,31 @@ export function LeftNavigationBar() {
                 onClick={(e) => handleNavClick(e, misDatosItem.href, misDatosItem.label)}
                 className={cn(
                     "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
-                    pathname === '/admin/calendar' 
+                    isCompactMode
                         ? 'flex flex-col items-center gap-1 px-3 py-2' 
                         : 'flex items-center gap-3 px-4 min-w-[220px]',
                     pathname === '/dashboard' ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg',
-                    pathname === '/dashboard' && pathname !== '/admin/calendar' ? 'py-4' : pathname !== '/admin/calendar' ? 'py-3' : ''
+                    pathname === '/dashboard' && !isCompactMode ? 'py-4' : !isCompactMode ? 'py-3' : ''
                 )}
                 style={{ pointerEvents: 'auto', zIndex: 99999 }}
             >
                 <div className={cn(
                     "rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 transition-all duration-300",
-                    pathname === '/admin/calendar' ? 'w-10 h-10' : 'w-14 h-14',
+                    isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
                     "bg-gradient-to-br from-blue-400 to-blue-600",
                     pathname === '/dashboard' && 'ring-4 ring-blue-300 ring-opacity-50 shadow-[0_0_25px_rgba(59,130,246,0.5)]'
                 )}>
                     {currentUser?.profilePictureUrl ? (
-                        <Avatar className={pathname === '/admin/calendar' ? 'h-10 w-10' : 'h-14 w-14'}>
+                        <Avatar className={isCompactMode ? 'h-10 w-10' : 'h-14 w-14'}>
                             <AvatarImage src={currentUser.profilePictureUrl} alt={currentUser.name || 'avatar'} />
                             <AvatarFallback className="text-white bg-blue-500">{getInitials(currentUser.name || 'U')}</AvatarFallback>
                         </Avatar>
                     ) : (
-                        <UserCircle className={pathname === '/admin/calendar' ? 'w-5 h-5 text-white' : 'w-8 h-8 text-white'} />
+                        <UserCircle className={isCompactMode ? 'w-5 h-5 text-white' : 'w-8 h-8 text-white'} />
                     )}
                 </div>
-                <div className={cn(pathname === '/admin/calendar' ? 'text-center' : 'text-left flex-1')}>
-                    {pathname === '/admin/calendar' ? (
+                <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
+                    {isCompactMode ? (
                         <div className="text-[10px] font-semibold text-gray-800">Perfil</div>
                     ) : (
                         <>
@@ -392,17 +409,17 @@ export function LeftNavigationBar() {
                             onClick={(e) => handleNavClick(e, item.href, item.label)}
                             className={cn(
                                 "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
-                                pathname === '/admin/calendar' 
+                                isCompactMode
                                     ? 'flex flex-col items-center gap-1 px-3 py-2' 
                                     : 'flex items-center gap-3 px-4 min-w-[220px]',
                                 item.isActive ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg',
-                                item.isActive && pathname !== '/admin/calendar' ? 'py-4' : pathname !== '/admin/calendar' ? 'py-3' : ''
+                                item.isActive && pathname !== '/admin/calendar' && pathname !== '/agenda' ? 'py-4' : pathname !== '/admin/calendar' && pathname !== '/agenda' ? 'py-3' : ''
                             )}
                             style={{ pointerEvents: 'auto', zIndex: 99999 }}
                         >
                             <div className={cn(
                                 "rounded-full flex items-center justify-center text-white flex-shrink-0 overflow-hidden transition-all duration-300",
-                                pathname === '/admin/calendar' ? 'w-10 h-10' : 'w-14 h-14',
+                                isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
                                 item.key === 'clases' 
                                     ? "bg-gradient-to-br from-green-400 to-green-600"
                                     : "bg-gradient-to-br from-purple-400 to-purple-600",
@@ -412,10 +429,10 @@ export function LeftNavigationBar() {
                                         : 'ring-4 ring-purple-300 ring-opacity-50 shadow-[0_0_25px_rgba(168,85,247,0.5)]'
                                 )
                             )}>
-                                <IconComponent className={pathname === '/admin/calendar' ? 'w-5 h-5' : 'w-8 h-8'} />
+                                <IconComponent className={isCompactMode ? 'w-5 h-5' : 'w-8 h-8'} />
                             </div>
-                            <div className={cn(pathname === '/admin/calendar' ? 'text-center' : 'text-left flex-1')}>
-                                {pathname === '/admin/calendar' ? (
+                            <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
+                                {isCompactMode ? (
                                     <div className="text-[10px] font-semibold text-gray-800">
                                         {item.key === 'clases' ? 'Clases' : 'Partidas'}
                                     </div>
@@ -441,24 +458,26 @@ export function LeftNavigationBar() {
                 <button
                     onClick={() => window.location.href = '/agenda?tab=confirmed'}
                     className={cn(
-                        "bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all",
-                        pathname === '/admin/calendar' 
+                        "bg-white rounded-3xl border-2 border-gray-200 hover:shadow-xl transition-all",
+                        isCompactMode
                             ? 'flex flex-col items-center gap-1 px-3 py-2' 
-                            : 'flex items-center gap-3 px-4 py-3 min-w-[220px]'
+                            : 'flex items-center gap-3 px-4 py-3 min-w-[220px]',
+                        pathname === '/agenda' ? 'shadow-2xl scale-105 animate-bounce-subtle py-4' : 'shadow-lg'
                     )}
                     title="Reservas (R): Clases confirmadas con pista asignada"
                 >
                     <div className={cn(
                         "rounded-full flex items-center justify-center flex-shrink-0",
-                        pathname === '/admin/calendar' ? 'w-10 h-10' : 'w-14 h-14',
+                        isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
                         hasReservations 
                             ? 'bg-gradient-to-br from-red-400 to-red-600 text-white' 
-                            : 'bg-gradient-to-br from-gray-300 to-gray-400 text-gray-600'
+                            : 'bg-gradient-to-br from-gray-300 to-gray-400 text-gray-600',
+                        pathname === '/agenda' && 'ring-4 ring-red-300 ring-opacity-50 shadow-[0_0_25px_rgba(239,68,68,0.5)]'
                     )}>
-                        <span className={cn("font-black", pathname === '/admin/calendar' ? 'text-sm' : 'text-xl')}>R</span>
+                        <span className={cn("font-black", isCompactMode ? 'text-sm' : 'text-xl')}>R</span>
                     </div>
-                    <div className={cn(pathname === '/admin/calendar' ? 'text-center' : 'text-left flex-1')}>
-                        {pathname === '/admin/calendar' ? (
+                    <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
+                        {isCompactMode ? (
                             <div className="text-[10px] font-semibold text-gray-800">Reservas</div>
                         ) : (
                             <>
@@ -476,7 +495,7 @@ export function LeftNavigationBar() {
                     onClick={() => window.location.href = '/agenda'}
                     className={cn(
                         "bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all",
-                        pathname === '/admin/calendar' 
+                        isCompactMode
                             ? 'flex flex-col items-center gap-1 px-3 py-2' 
                             : 'flex items-center gap-3 px-4 py-3 min-w-[220px]'
                     )}
@@ -484,15 +503,15 @@ export function LeftNavigationBar() {
                 >
                     <div className={cn(
                         "rounded-full flex items-center justify-center flex-shrink-0",
-                        pathname === '/admin/calendar' ? 'w-10 h-10' : 'w-14 h-14',
+                        isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
                         hasInscriptions 
                             ? 'bg-gradient-to-br from-blue-400 to-blue-600 text-white' 
                             : 'bg-gradient-to-br from-gray-300 to-gray-400 text-gray-600'
                     )}>
-                        <span className={cn("font-black", pathname === '/admin/calendar' ? 'text-sm' : 'text-xl')}>I</span>
+                        <span className={cn("font-black", isCompactMode ? 'text-sm' : 'text-xl')}>I</span>
                     </div>
-                    <div className={cn(pathname === '/admin/calendar' ? 'text-center' : 'text-left flex-1')}>
-                        {pathname === '/admin/calendar' ? (
+                    <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
+                        {isCompactMode ? (
                             <div className="text-[10px] font-semibold text-gray-800">Inscrip.</div>
                         ) : (
                             <>
@@ -510,7 +529,7 @@ export function LeftNavigationBar() {
                     onClick={() => window.location.href = '/movimientos'}
                     className={cn(
                         "bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all",
-                        pathname === '/admin/calendar' 
+                        isCompactMode
                             ? 'flex flex-col items-center gap-1 px-3 py-2' 
                             : 'flex items-center gap-3 px-4 py-3 min-w-[220px]'
                     )}
@@ -518,12 +537,12 @@ export function LeftNavigationBar() {
                 >
                     <div className={cn(
                         "rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-white flex-shrink-0",
-                        pathname === '/admin/calendar' ? 'w-10 h-10' : 'w-14 h-14'
+                        isCompactMode ? 'w-10 h-10' : 'w-14 h-14'
                     )}>
-                        <Wallet className={pathname === '/admin/calendar' ? 'w-5 h-5' : 'w-8 h-8'} />
+                        <Wallet className={isCompactMode ? 'w-5 h-5' : 'w-8 h-8'} />
                     </div>
-                    <div className={cn(pathname === '/admin/calendar' ? 'text-center' : 'text-left flex-1')}>
-                        {pathname === '/admin/calendar' ? (
+                    <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
+                        {isCompactMode ? (
                             <div className="text-[10px] font-semibold text-gray-800">Saldo</div>
                         ) : (
                             <>
@@ -545,17 +564,17 @@ export function LeftNavigationBar() {
                             onClick={(e) => handleNavClick(e, item.href, item.label)}
                             className={cn(
                                 "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
-                                pathname === '/admin/calendar' 
+                                isCompactMode
                                     ? 'flex flex-col items-center gap-1 px-3 py-2' 
                                     : 'flex items-center gap-3 px-4 min-w-[220px]',
                                 item.isActive ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg',
-                                item.isActive && pathname !== '/admin/calendar' ? 'py-4' : pathname !== '/admin/calendar' ? 'py-3' : ''
+                                item.isActive && pathname !== '/admin/calendar' && pathname !== '/agenda' ? 'py-4' : pathname !== '/admin/calendar' && pathname !== '/agenda' ? 'py-3' : ''
                             )}
                             style={{ pointerEvents: 'auto', zIndex: 99999 }}
                         >
                             <div className={cn(
                                 "rounded-full flex items-center justify-center text-white flex-shrink-0 overflow-hidden transition-all duration-300",
-                                pathname === '/admin/calendar' ? 'w-10 h-10' : 'w-14 h-14',
+                                isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
                                 item.key === 'calendario-club' && "bg-gradient-to-br from-yellow-400 to-orange-600",
                                 item.key === 'base-datos' && "bg-gradient-to-br from-indigo-400 to-indigo-600",
                                 item.key === 'config-club' && "bg-gradient-to-br from-gray-400 to-gray-600",
@@ -567,10 +586,10 @@ export function LeftNavigationBar() {
                                         : 'ring-4 ring-gray-300 ring-opacity-50 shadow-[0_0_25px_rgba(156,163,175,0.5)]'
                                 )
                             )}>
-                                <IconComponent className={pathname === '/admin/calendar' ? 'w-5 h-5' : 'w-8 h-8'} />
+                                <IconComponent className={isCompactMode ? 'w-5 h-5' : 'w-8 h-8'} />
                             </div>
-                            <div className={cn(pathname === '/admin/calendar' ? 'text-center' : 'text-left flex-1')}>
-                                {pathname === '/admin/calendar' ? (
+                            <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
+                                {isCompactMode ? (
                                     <div className="text-[10px] font-semibold text-gray-800">
                                         {item.key === 'calendario-club' && 'Calend.'}
                                         {item.key === 'base-datos' && 'Datos'}
@@ -595,3 +614,4 @@ export function LeftNavigationBar() {
         </>
     );
 }
+

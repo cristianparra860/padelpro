@@ -107,7 +107,7 @@ export default function CreateMatchGamePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gray-50 p-4 ml-20 pr-4 overflow-x-hidden max-w-[calc(100vw-100px)]">
       <div className="max-w-7xl mx-auto">
         <Button
           onClick={() => router.back()}

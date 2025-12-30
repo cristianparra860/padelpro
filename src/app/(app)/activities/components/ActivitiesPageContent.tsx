@@ -388,7 +388,7 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
     return (
         <>
             {/* Contenedor principal */}
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col overflow-hidden overflow-x-hidden">
                 {/* Calendario desktop fijo - fuera del scroll */}
                 <div className="hidden md:block md:sticky md:top-0 md:z-30 md:bg-white md:border-b md:border-gray-100 md:shadow-sm">
                     <DateSelector
@@ -399,7 +399,7 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
                     />
                 </div>
                 
-                <main className="flex-1 overflow-y-auto px-2 md:px-6 pb-6 space-y-2 md:space-y-4 md:pt-4">
+                <main className="flex-1 overflow-y-auto overflow-x-hidden px-2 md:px-6 pb-6 space-y-2 md:space-y-4 md:pt-4">
                     {/* Calendario móvil - arriba de la página solo en móvil */}
                     <div className="block md:hidden bg-white border-b border-gray-100 -mx-2 sticky top-0 z-30">
                         <DateSelector
