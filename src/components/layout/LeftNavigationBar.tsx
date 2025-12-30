@@ -293,7 +293,8 @@ export function LeftNavigationBar() {
                           pathname === '/admin/club-info' ||
                           pathname === '/admin/matchgames' ||
                           pathname === '/admin/matchgames/create' ||
-                          pathname.startsWith('/admin/');
+                          pathname.startsWith('/admin/') ||
+                          pathname.startsWith('/instructor');
 
     // No mostrar nada mientras está cargando el usuario
     if (isLoading) {
@@ -375,7 +376,7 @@ export function LeftNavigationBar() {
                     pathname === '/dashboard' && 'ring-4 ring-blue-300 ring-opacity-50 shadow-[0_0_25px_rgba(59,130,246,0.5)]'
                 )}>
                     {currentUser?.profilePictureUrl ? (
-                        <Avatar className={isCompactMode ? 'h-10 w-10' : 'h-14 w-14'}>
+                        <Avatar className={isCompactMode ? 'h-8 w-8' : 'h-10 w-10'}>
                             <AvatarImage src={currentUser.profilePictureUrl} alt={currentUser.name || 'avatar'} />
                             <AvatarFallback className="text-white bg-blue-500">{getInitials(currentUser.name || 'U')}</AvatarFallback>
                         </Avatar>
@@ -578,11 +579,14 @@ export function LeftNavigationBar() {
                                 item.key === 'calendario-club' && "bg-gradient-to-br from-yellow-400 to-orange-600",
                                 item.key === 'base-datos' && "bg-gradient-to-br from-indigo-400 to-indigo-600",
                                 item.key === 'config-club' && "bg-gradient-to-br from-gray-400 to-gray-600",
+                                item.key === 'config-instructor' && "bg-gradient-to-br from-teal-400 to-teal-600",
                                 item.isActive && (
                                     item.key === 'calendario-club' 
                                         ? 'ring-4 ring-orange-300 ring-opacity-50 shadow-[0_0_25px_rgba(251,146,60,0.5)]'
                                         : item.key === 'base-datos'
                                         ? 'ring-4 ring-indigo-300 ring-opacity-50 shadow-[0_0_25px_rgba(129,140,248,0.5)]'
+                                        : item.key === 'config-instructor'
+                                        ? 'ring-4 ring-teal-300 ring-opacity-50 shadow-[0_0_25px_rgba(45,212,191,0.5)]'
                                         : 'ring-4 ring-gray-300 ring-opacity-50 shadow-[0_0_25px_rgba(156,163,175,0.5)]'
                                 )
                             )}>
@@ -594,6 +598,7 @@ export function LeftNavigationBar() {
                                         {item.key === 'calendario-club' && 'Calend.'}
                                         {item.key === 'base-datos' && 'Datos'}
                                         {item.key === 'config-club' && 'Config'}
+                                        {item.key === 'config-instructor' && 'Instr.'}
                                     </div>
                                 ) : (
                                     <>

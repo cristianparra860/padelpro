@@ -272,6 +272,21 @@ const ManagedSlotsList: React.FC<ManagedSlotsListProps> = ({ instructorId }) => 
         return;
       }
 
+      // ✅ VALIDACIÓN: Verificar si el instructor tiene rangos de nivel configurados
+      const hasLevelRanges = instructor.levelRanges && 
+        (typeof instructor.levelRanges === 'string' ? JSON.parse(instructor.levelRanges).length > 0 : instructor.levelRanges.length > 0);
+
+      if (!hasLevelRanges) {
+        toast({ 
+          title: 'Configura tus Rangos de Nivel', 
+          description: 'Debes configurar tus rangos de nivel en Preferencias antes de crear propuestas de clases. Las clases se crearán como "Nivel Abierto" por defecto.', 
+          variant: 'destructive',
+          duration: 6000
+        });
+        setIsCreatingBatch(false);
+        return;
+      }
+
       const clubId = instructor.clubId || instructor.assignedClubId;
 
       let successCount = 0;

@@ -1180,9 +1180,10 @@ export default function ClubCalendar({
                                 return (
                                   <div
                                     key={cls.id}
-                                    className="bg-white text-gray-700 rounded shadow-md cursor-pointer hover:shadow-lg hover:scale-105 transition-all h-full flex flex-col items-center justify-center border-2 border-gray-300 p-0.5"
+                                    className="bg-white text-gray-700 rounded shadow-lg cursor-pointer hover:shadow-xl hover:scale-105 transition-all h-full flex flex-col items-center justify-center border-2 border-gray-200 p-0.5"
                                     onClick={() => handleEventClick(cls)}
                                     title={`${cls.category || cls.level} - ${cls.playersCount || 0} alumno${(cls.playersCount || 0) !== 1 ? 's' : ''} - ${pricePerSlot ? `${pricePerSlot.toFixed(0)}€ por plaza (${selectedGroupSize} ${selectedGroupSize === 1 ? 'jugador' : 'jugadores'})` : ''}`}
+                                    style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1), inset 0 2px 4px 0 rgba(255, 255, 255, 0.6)' }}
                                   >
                                     {hasPlayers ? (
                                       <div className="text-xs font-black leading-none">
@@ -1342,8 +1343,7 @@ export default function ClubCalendar({
                               className={`min-w-[120px] border-r h-16 relative ${!canStartClassHere ? 'bg-red-50/30' : ''} ${isSecondSlotOfClass ? 'bg-gray-300' : ''} ${isBufferBeforeClass ? 'bg-gray-200' : ''}`}
                               title={!canStartClassHere ? '⚠️ No hay 60min disponibles' : isSecondSlotOfClass ? '🔒 Ocupado por clase en curso' : isBufferBeforeClass ? '⏳ Buffer 30min antes de clase' : ''}
                               style={isBufferBeforeClass ? { 
-                                backgroundImage: 'repeating-linear-gradient(45deg, #e5e7eb 0, #e5e7eb 10px, #f3f4f6 10px, #f3f4f6 20px)',
-                                opacity: 0.6 
+                                backgroundImage: 'repeating-linear-gradient(45deg, #e5e7eb 0, #e5e7eb 10px, #f3f4f6 10px, #f3f4f6 20px)'
                               } : {}}
                             >
                               {/* BLOQUES VERDES: Clases confirmadas - OCUPAN 2 SLOTS (60min) */}

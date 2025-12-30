@@ -659,12 +659,12 @@ export default function ClubCalendarImproved({
           </h2>
           
           {/* Toggle Clases / Partidas */}
-          <div className="flex gap-3 mb-4">
+          <div className="flex gap-2 mb-4">
             <button
               onClick={() => setViewType('clases')}
-              className={`flex-1 py-4 px-6 rounded-xl font-semibold text-base transition-all ${
+              className={`flex-1 py-2 px-3 rounded-lg font-semibold text-sm transition-all ${
                 viewType === 'clases'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg scale-105'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -672,9 +672,9 @@ export default function ClubCalendarImproved({
             </button>
             <button
               onClick={() => setViewType('partidas')}
-              className={`flex-1 py-4 px-6 rounded-xl font-semibold text-base transition-all ${
+              className={`flex-1 py-2 px-3 rounded-lg font-semibold text-sm transition-all ${
                 viewType === 'partidas'
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg scale-105'
+                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-md'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -690,18 +690,18 @@ export default function ClubCalendarImproved({
               </p>
               
               {/* Círculos de Instructores */}
-              <div className="flex items-center gap-6 flex-wrap mb-6">
+              <div className="flex items-center gap-3 flex-wrap mb-4">
                 {calendarData.instructors.map(instructor => (
                   <button
                     key={instructor.id}
                     onClick={() => setSelectedInstructor(instructor.id)}
-                    className={`relative group transition-all transform hover:scale-110 flex flex-col items-center gap-2 ${
-                      selectedInstructor === instructor.id ? 'ring-4 ring-blue-400 rounded-full' : ''
+                    className={`relative group transition-all transform hover:scale-110 flex flex-col items-center gap-1.5 ${
+                      selectedInstructor === instructor.id ? 'ring-2 ring-blue-400 rounded-full' : ''
                     }`}
                     title={instructor.name}
                   >
-                    <div className={`w-16 h-16 rounded-full overflow-hidden shadow-lg cursor-pointer border-2 border-white ${
-                      selectedInstructor === instructor.id ? 'shadow-[0_0_20px_rgba(59,130,246,0.6)]' : 'hover:shadow-xl'
+                    <div className={`w-12 h-12 rounded-full overflow-hidden shadow-md cursor-pointer border-2 border-white ${
+                      selectedInstructor === instructor.id ? 'shadow-[0_0_15px_rgba(59,130,246,0.6)]' : 'hover:shadow-lg'
                     }`}>
                       <img
                         src={instructor.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(instructor.name)}&background=random&color=fff&size=128`}
@@ -709,8 +709,8 @@ export default function ClubCalendarImproved({
                         className="w-full h-full object-cover"
                       />
                     </div>
-                    <div className="text-center max-w-[80px]">
-                      <span className={`text-[10px] font-semibold block truncate ${
+                    <div className="text-center max-w-[70px]">
+                      <span className={`text-[9px] font-semibold block truncate ${
                         selectedInstructor === instructor.id ? 'text-blue-600' : 'text-gray-700'
                       }`}>
                         {instructor.name}
@@ -843,7 +843,7 @@ export default function ClubCalendarImproved({
                                   <div 
                                     className="absolute inset-0 z-20 rounded-xl cursor-not-allowed"
                                     style={{
-                                      background: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.7) 0px, rgba(255,255,255,0.7) 10px, rgba(200,200,200,0.5) 10px, rgba(200,200,200,0.5) 20px)'
+                                      background: 'repeating-linear-gradient(45deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 10px, rgba(200,200,200,1) 10px, rgba(200,200,200,1) 20px)'
                                     }}
                                   />
                                 )}
@@ -963,7 +963,7 @@ export default function ClubCalendarImproved({
                                     <div 
                                       className="absolute inset-0 z-20 rounded-xl cursor-not-allowed"
                                       style={{
-                                        background: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.7) 0px, rgba(255,255,255,0.7) 10px, rgba(200,200,200,0.5) 10px, rgba(200,200,200,0.5) 20px)'
+                                        background: 'repeating-linear-gradient(45deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 10px, rgba(200,200,200,1) 10px, rgba(200,200,200,1) 20px)'
                                       }}
                                     />
                                   )}
@@ -1129,7 +1129,7 @@ export default function ClubCalendarImproved({
                               <div 
                                 className="absolute inset-0 z-10 cursor-not-allowed"
                                 style={{
-                                  background: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.8) 0px, rgba(255,255,255,0.8) 10px, rgba(220,220,220,0.6) 10px, rgba(220,220,220,0.6) 20px)'
+                                  background: 'repeating-linear-gradient(45deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 10px, rgba(220,220,220,1) 10px, rgba(220,220,220,1) 20px)'
                                 }}
                               />
                             )}
@@ -1159,7 +1159,8 @@ export default function ClubCalendarImproved({
                                 return (
                                   <div 
                                     onClick={() => handleProposalClick(timeSlot, selectedInstructor)}
-                                    className="bg-white rounded p-0.5 cursor-pointer hover:shadow-md hover:scale-105 transition-all h-full border border-gray-300 shadow-sm flex items-center justify-center relative"
+                                    className="bg-white rounded-lg p-0.5 cursor-pointer hover:shadow-xl hover:scale-105 transition-all h-full border border-gray-300 shadow-lg flex items-center justify-center relative"
+                                    style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1), inset 0 2px 4px 0 rgba(255, 255, 255, 0.6)' }}
                                   >
                                     {hasMultipleOptions && (
                                       <div className="absolute -top-1 -right-1 bg-blue-500 text-white text-[7px] font-bold rounded-full w-3 h-3 flex items-center justify-center">
@@ -1167,11 +1168,14 @@ export default function ClubCalendarImproved({
                                       </div>
                                     )}
                                     <div className="text-center">
-                                      <div className="text-[7px] text-gray-600">{levelDisplay}</div>
-                                      <div className="text-[8px] text-blue-600 font-semibold">
-                                        {playersCount > 0 ? `${playersCount} inscrito${playersCount > 1 ? 's' : ''}` : 'Iniciar Clase'}
+                                      <div className="text-[10px] text-blue-600 font-bold">
+                                        {playersCount > 0 ? `${playersCount} inscrito${playersCount > 1 ? 's' : ''}` : 'Iniciar Clase 60 Min'}
                                       </div>
-                                      <div className="text-[9px] font-bold text-gray-900">€{Math.round(pricePerSlot)}</div>
+                                      <div className="text-[8px] text-gray-700 font-semibold flex items-center justify-center gap-1">
+                                        <span>{levelDisplay}</span>
+                                        <span>•</span>
+                                        <span>€{Math.round(pricePerSlot)}</span>
+                                      </div>
                                     </div>
                                   </div>
                                 );
@@ -1220,33 +1224,29 @@ export default function ClubCalendarImproved({
                                 return (
                                   <div 
                                     onClick={() => handleMatchProposalClick(timeSlot)}
-                                    className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-1 cursor-pointer hover:shadow-lg hover:scale-105 transition-all h-full border-2 border-purple-300 shadow-md flex flex-col justify-between relative"
+                                    className="bg-white rounded-lg p-0.5 cursor-pointer hover:shadow-xl hover:scale-105 transition-all h-full border border-gray-300 shadow-lg flex items-center justify-center relative"
+                                    style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1), inset 0 2px 4px 0 rgba(255, 255, 255, 0.6)' }}
                                   >
                                     {hasMultipleOptions && (
                                       <div className="absolute -top-1 -right-1 bg-green-500 text-white text-[7px] font-bold rounded-full w-3 h-3 flex items-center justify-center">
                                         {matchProposals.length}
                                       </div>
                                     )}
-                                    <div>
-                                      <div className="text-[7px] font-semibold text-purple-700 text-center truncate">
-                                        Iniciar partida (90min) • {levelDisplay}
+                                    <div className="text-center">
+                                      <div className="text-[10px] text-green-600 font-bold">
+                                        {playersCount > 0 ? `${playersCount} inscrito${playersCount > 1 ? 's' : ''}` : 'Iniciar Partida 90 Min'}
                                       </div>
-                                      {showCategory && (
-                                        <div className="text-[7px] text-purple-600 text-center">{categoryDisplay}</div>
-                                      )}
-                                      <div className="flex justify-center gap-0.5 mt-1">
-                                        {Array.from({ length: maxPlayers }).map((_, i) => (
-                                          <div 
-                                            key={i} 
-                                            className={`w-2 h-2 rounded-full ${
-                                              i < playersCount ? 'bg-purple-500' : 'bg-purple-200'
-                                            }`}
-                                          />
-                                        ))}
+                                      <div className="text-[8px] text-gray-700 font-semibold flex items-center justify-center gap-1">
+                                        <span>{levelDisplay}</span>
+                                        {showCategory && (
+                                          <>
+                                            <span>•</span>
+                                            <span>{categoryDisplay}</span>
+                                          </>
+                                        )}
+                                        <span>•</span>
+                                        <span>€{Math.round(pricePerPlayer)}</span>
                                       </div>
-                                    </div>
-                                    <div className="text-[10px] font-bold text-purple-900 text-center">
-                                      €{Math.round(pricePerPlayer)}
                                     </div>
                                   </div>
                                 );
