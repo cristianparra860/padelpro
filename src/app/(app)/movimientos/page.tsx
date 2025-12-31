@@ -66,8 +66,10 @@ const MovimientosPage: React.FC = () => {
             // Determinar si es entrada (+) o salida (-)
             const isPositive = tx.action === 'add' || tx.action === 'refund' || tx.action === 'unblock';
             
-            // Los amounts ya están en la unidad correcta (euros para créditos, puntos para points)
-            const amountInDisplayUnit = tx.amount;
+            // Convertir amount de céntimos a euros si es transacción de crédito
+            const amountInDisplayUnit = tx.type === 'credit' 
+              ? tx.amount / 100  // Convertir céntimos a euros
+              : tx.amount;       // Los puntos se quedan igual
             
             return {
               id: tx.id,
@@ -76,7 +78,7 @@ const MovimientosPage: React.FC = () => {
               description: tx.concept,
               amount: isPositive ? amountInDisplayUnit : -amountInDisplayUnit, // +X para add/refund, -X para subtract
               date: tx.createdAt,
-              balanceAfter: tx.balance, // Ya está en la unidad correcta (euros o puntos)
+              balanceAfter: tx.type === 'credit' ? tx.balance / 100 : tx.balance, // Convertir balance también
               transactionType: tx.type, // 'credit' o 'points'
               action: tx.action, // 'add', 'subtract', 'block', 'unblock', 'refund'
               rawAmount: amountInDisplayUnit // Guardar el amount original sin signo pero convertido

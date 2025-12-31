@@ -169,7 +169,7 @@ async function cancelOtherActivitiesOnSameDay(userId: string, confirmedMatchGame
           userId,
           type: 'credit',
           action: 'unblock',
-          amount: amountBlocked / 100,
+          amount: amountBlocked,
           concept: `Desbloqueo por conflicto con partida ${confirmedMatchGameId}`,
           relatedId: booking.id,
           relatedType: 'booking'
@@ -233,7 +233,7 @@ async function cancelOtherActivitiesOnSameDay(userId: string, confirmedMatchGame
           userId,
           type: 'credit',
           action: 'unblock',
-          amount: amountBlocked / 100,
+          amount: amountBlocked,
           concept: `Desbloqueo por conflicto con partida ${confirmedMatchGameId}`,
           relatedId: booking.id,
           relatedType: 'matchGameBooking'
@@ -384,7 +384,7 @@ async function cancelCompetingMatches(confirmedMatchGameId: string, prisma: any)
           userId: booking.userId,
           type: 'credit',
           action: 'unblock',
-          amount: booking.amountBlocked / 100,
+          amount: booking.amountBlocked,
           concept: `Reembolso por partida perdedora ${match.id} (ganó ${confirmedMatchGameId})`,
           relatedId: booking.id,
           relatedType: 'matchGameBooking'
@@ -568,7 +568,7 @@ export async function POST(request: Request) {
           userId,
           type: 'credit',
           action: 'block',
-          amount: totalPriceToBlock / 100,
+          amount: totalPriceToBlock,
           concept: `Reserva privada de pista ${availableCourt.number}`,
           relatedId: booking.id,
           relatedType: 'matchGameBooking'
@@ -707,12 +707,20 @@ export async function POST(request: Request) {
         data: { blockedCredits: { increment: priceToBlock } }
       });
       
+      const matchDate = new Date(matchGame.start).toLocaleString('es-ES', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
       await createTransaction({
         userId,
         type: 'credit',
         action: 'block',
-        amount: priceToBlock / 100,
-        concept: `Reserva de partida ${matchGameId}`,
+        amount: priceToBlock,
+        concept: `Reserva de partida ${matchDate}`,
         relatedId: booking.id,
         relatedType: 'matchGameBooking'
       });
@@ -872,7 +880,7 @@ export async function POST(request: Request) {
                 userId: booking.userId,
                 type: 'credit',
                 action: 'unblock',
-                amount: booking.amountBlocked / 100,
+                amount: booking.amountBlocked,
                 concept: `Reembolso - Sin pistas disponibles para ${new Date(match.start).toLocaleTimeString()}`,
                 relatedId: booking.id,
                 relatedType: 'matchGameBooking'
@@ -948,7 +956,7 @@ export async function POST(request: Request) {
             userId: b.userId,
             type: 'credit',
             action: 'subtract',
-            amount: b.amountBlocked / 100,
+            amount: b.amountBlocked,
             concept: `Pago partida confirmada ${matchGameId}`,
             relatedId: b.id,
             relatedType: 'matchGameBooking'

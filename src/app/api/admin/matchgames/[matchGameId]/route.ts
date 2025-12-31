@@ -67,7 +67,7 @@ export async function DELETE(
             userId: booking.userId,
             type: 'credit',
             action: 'refund',
-            amount: amountBlocked / 100,
+            amount: amountBlocked,
             concept: `Reembolso por cancelación de partida ${matchGameId}`,
             relatedId: booking.id,
             relatedType: 'matchGameBooking'

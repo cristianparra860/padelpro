@@ -106,7 +106,7 @@ export async function POST(
           userId,
           type: 'credit',
           action: 'refund',
-          amount: booking.amountBlocked / 100,
+          amount: booking.amountBlocked,
           concept: `Reembolso por cancelación de partida ${matchGameId}`,
           relatedId: booking.id,
           relatedType: 'matchGameBooking'
@@ -169,7 +169,7 @@ export async function POST(
           userId,
           type: 'credit',
           action: 'unblock',
-          amount: booking.amountBlocked / 100,
+          amount: booking.amountBlocked,
           concept: `Desbloqueo por cancelación de partida ${matchGameId}`,
           relatedId: booking.id,
           relatedType: 'matchGameBooking'
