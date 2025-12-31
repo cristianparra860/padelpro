@@ -143,8 +143,8 @@ async function generateCardsForDay(date: string, clubId: string) {
   }
 
   // Obtener TODOS los instructores activos con sus rangos de nivel y disponibilidad
-  const instructors = await prisma.$queryRaw<Array<{id: string; hourlyRate: number; levelRanges: string | null; unavailableHours: string | null}>>`
-    SELECT id, hourlyRate, levelRanges, unavailableHours FROM Instructor WHERE isActive = 1
+  const instructors = await prisma.$queryRaw<Array<{id: string; hourlyRate: number | null; defaultRatePerHour: number | null; levelRanges: string | null; unavailableHours: string | null}>>`
+    SELECT id, hourlyRate, defaultRatePerHour, levelRanges, unavailableHours FROM Instructor WHERE isActive = 1
   `;
 
   if (!instructors || instructors.length === 0) {
@@ -315,7 +315,7 @@ async function generateCardsForDay(date: string, clubId: string) {
 
       // Calcular precio basado en franjas horarias
       const courtPrice = await getCourtPriceForTime(clubId, startDateTime);
-      const instructorPrice = instructor.hourlyRate || 0;
+      const instructorPrice = instructor.hourlyRate || instructor.defaultRatePerHour || 0;
       const totalPrice = instructorPrice + courtPrice;
 
       // Convertir fechas a timestamps numéricos para SQLite

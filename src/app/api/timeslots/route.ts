@@ -774,8 +774,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Calcular precios
-    const instructorPricePerHour = instructor.hourlyRate || 0;
-    const courtRentalPrice = 0; // Por defecto
+    // Usar hourlyRate si está configurado, sino defaultRatePerHour como fallback
+    const instructorPricePerHour = instructor.hourlyRate || instructor.defaultRatePerHour || 0;
+    const courtRentalPrice = club.courtRentalPrice || 0; // Precio de la pista del club
     const totalPrice = (instructorPricePerHour + courtRentalPrice) * (durationMinutes / 60);
 
     // Crear el TimeSlot como PROPUESTA (sin pista asignada)
