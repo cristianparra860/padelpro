@@ -194,7 +194,12 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         name: true,
-        profilePictureUrl: true
+        profilePictureUrl: true,
+        user: {
+          select: {
+            profilePictureUrl: true
+          }
+        }
       }
     }) : [];
 
@@ -338,7 +343,8 @@ export async function GET(request: NextRequest) {
         const instructor = instructorMap.get(slot.instructorId);
         if (instructor) {
           instructorName = instructor.name; // El modelo Instructor tiene name directamente
-          instructorProfilePicture = instructor.profilePictureUrl; // Y profilePictureUrl directamente
+          // Intentar obtener la foto del instructor, si no existe, usar la del usuario relacionado
+          instructorProfilePicture = instructor.profilePictureUrl || instructor.user?.profilePictureUrl || null;
         }
       }
       

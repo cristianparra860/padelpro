@@ -40,6 +40,11 @@ interface MatchGame {
   genderCategory?: string;
   isOpen: boolean;
   bookings: MatchGameBooking[];
+  courtsAvailability?: Array<{
+    courtId: string;
+    courtNumber: number;
+    status: 'available' | 'occupied';
+  }>;
 }
 
 type TimeSlotFilter = 'all' | 'morning' | 'midday' | 'evening';
@@ -256,6 +261,20 @@ export default function MatchGamesPage() {
     
     if (isPast) {
       return false; // No mostrar partidas pasadas o en curso
+    }
+    
+    // 🏟️ FILTRO DE DISPONIBILIDAD: No mostrar partidas sin pistas disponibles
+    const isUserInscribed = match.bookings.some(b => b.userId === currentUser?.id);
+    
+    // Si el usuario está inscrito, siempre mostrar la partida
+    if (!isUserInscribed) {
+      // Si el usuario no está inscrito, verificar disponibilidad de pistas
+      const hasAvailableCourts = match.courtsAvailability?.some(c => c.status === 'available');
+      
+      // Si no hay pistas disponibles, no mostrar la partida
+      if (!hasAvailableCourts) {
+        return false;
+      }
     }
     
     // Filtro de tab

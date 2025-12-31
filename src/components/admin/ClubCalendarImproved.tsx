@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import ClassCardReal from '@/components/class/ClassCardReal';
 import DateSelector from '@/components/admin/DateSelector';
@@ -67,6 +68,8 @@ export default function ClubCalendarImproved({
   currentUser?: any;
   viewMode?: 'user' | 'club' | 'instructor';
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -91,11 +94,19 @@ export default function ClubCalendarImproved({
     return () => clearInterval(interval);
   }, []);
 
+  // Helper function to get local date string in YYYY-MM-DD format
+  const getLocalDateString = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Función para verificar si un slot ya pasó
   const isTimeSlotPast = (timeSlot: string): boolean => {
     const now = currentTime;
-    const today = currentDate.toISOString().split('T')[0];
-    const nowDateStr = now.toISOString().split('T')[0];
+    const today = getLocalDateString(currentDate);
+    const nowDateStr = getLocalDateString(now);
     
     // Si es un día diferente al actual, no aplicar overlay
     if (today !== nowDateStr) {
@@ -122,12 +133,24 @@ export default function ClubCalendarImproved({
     }
   }, [viewType, calendarData]);
 
+  // Leer instructor de URL params al cargar
+  useEffect(() => {
+    const instructorParam = searchParams.get('instructor');
+    if (instructorParam && calendarData?.instructors) {
+      const instructorExists = calendarData.instructors.some(i => i.id === instructorParam);
+      if (instructorExists) {
+        setSelectedInstructor(instructorParam);
+        setViewType('clases'); // Cambiar automáticamente a clases
+      }
+    }
+  }, [searchParams, calendarData]);
+
   // Cargar datos del calendario
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const dateParam = currentDate.toISOString().split('T')[0];
+        const dateParam = getLocalDateString(currentDate);
         
         // Cargar datos del calendario
         const calRes = await fetch(`/api/admin/calendar?clubId=${clubId}&date=${dateParam}`);
@@ -297,7 +320,8 @@ export default function ClubCalendarImproved({
         playersCount: matchReservation.bookings?.filter((b: any) => b.status !== 'CANCELLED').length || 0,
         maxPlayers: 4,
         price: matchReservation.courtRentalPrice,
-        duration: matchReservation.duration || 90
+        duration: matchReservation.duration || 90,
+        bookings: matchReservation.bookings || []
       };
     }
 
@@ -682,94 +706,6 @@ export default function ClubCalendarImproved({
             </button>
           </div>
 
-          {/* Mostrar instructores y selector de precio solo en modo Clases */}
-          {viewType === 'clases' && (
-            <>
-              <p className="text-sm text-gray-500 mb-3">
-                Haz clic en un instructor para ver sus clases propuestas
-              </p>
-              
-              {/* Círculos de Instructores */}
-              <div className="flex items-center gap-3 flex-wrap mb-4">
-                {calendarData.instructors.map(instructor => (
-                  <button
-                    key={instructor.id}
-                    onClick={() => setSelectedInstructor(instructor.id)}
-                    className={`relative group transition-all transform hover:scale-110 flex flex-col items-center gap-1.5 ${
-                      selectedInstructor === instructor.id ? 'ring-2 ring-blue-400 rounded-full' : ''
-                    }`}
-                    title={instructor.name}
-                  >
-                    <div className={`w-12 h-12 rounded-full overflow-hidden shadow-md cursor-pointer border-2 border-white ${
-                      selectedInstructor === instructor.id ? 'shadow-[0_0_15px_rgba(59,130,246,0.6)]' : 'hover:shadow-lg'
-                    }`}>
-                      <img
-                        src={instructor.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(instructor.name)}&background=random&color=fff&size=128`}
-                        alt={instructor.name}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="text-center max-w-[70px]">
-                      <span className={`text-[9px] font-semibold block truncate ${
-                        selectedInstructor === instructor.id ? 'text-blue-600' : 'text-gray-700'
-                      }`}>
-                        {instructor.name}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-              
-              {/* Información del usuario y Selector de precio */}
-              <div className="flex items-center justify-between gap-4 pt-4 border-t border-gray-200">
-                {/* Información del usuario logueado */}
-                {currentUser && (
-                  <div className="flex items-center gap-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg px-4 py-3 border-2 border-indigo-200">
-                    <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-md">
-                      <img
-                        src={currentUser.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name || 'Usuario')}&background=4f46e5&color=fff&size=128`}
-                        alt={currentUser.name}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-gray-800">{currentUser.name}</div>
-                      <div className="text-xs text-gray-600">
-                        Nivel: <span className="font-bold text-indigo-600">{currentUser.level || 'No definido'}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Selector de precio por número de alumnos */}
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg px-4 py-2.5">
-                    <span className="text-xs font-semibold text-white uppercase tracking-wide">Precio por plaza:</span>
-                    <div className="flex gap-2">
-                      {[1, 2, 3, 4].map((size) => (
-                        <button
-                          key={size}
-                          onClick={() => setSelectedGroupSize(size as 1 | 2 | 3 | 4)}
-                          className={`w-10 h-10 rounded-lg text-sm font-bold transition-all ${
-                            selectedGroupSize === size
-                              ? 'bg-white text-blue-600 shadow-lg scale-110'
-                              : 'bg-white/20 text-white hover:bg-white/30'
-                          }`}
-                          title={`${size} ${size === 1 ? 'Jugador' : 'Jugadores'}`}
-                        >
-                          {size}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="text-sm text-gray-600 max-w-xs">
-                    Selecciona el número de alumnos para calcular el precio por plaza
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
           {/* Mensaje para modo Partidas */}
           {viewType === 'partidas' && (
             <p className="text-sm text-gray-500">
@@ -791,18 +727,72 @@ export default function ClubCalendarImproved({
 
         {/* Banner del Instructor Seleccionado */}
         {viewType === 'clases' && selectedInstructor && calendarData.instructors.find(i => i.id === selectedInstructor) && (
-          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl shadow-lg p-4">
-            <div className="flex items-center justify-center gap-3">
-              <div className="w-12 h-12 rounded-full overflow-hidden border-3 border-white shadow-lg">
-                <img
-                  src={calendarData.instructors.find(i => i.id === selectedInstructor)?.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(calendarData.instructors.find(i => i.id === selectedInstructor)?.name || 'Instructor')}&background=random&color=fff&size=128`}
-                  alt={calendarData.instructors.find(i => i.id === selectedInstructor)?.name}
-                  className="w-full h-full object-cover"
-                />
+          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl shadow-lg p-2">
+            <div className="flex items-center justify-between gap-4">
+              {/* Izquierda: Foto y nombre del instructor */}
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white shadow-lg">
+                  <img
+                    src={calendarData.instructors.find(i => i.id === selectedInstructor)?.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(calendarData.instructors.find(i => i.id === selectedInstructor)?.name || 'Instructor')}&background=random&color=fff&size=128`}
+                    alt={calendarData.instructors.find(i => i.id === selectedInstructor)?.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <h3 className="text-lg font-bold text-white">
+                  Calendario: {calendarData.instructors.find(i => i.id === selectedInstructor)?.name}
+                </h3>
               </div>
-              <h3 className="text-xl font-bold text-white">
-                Calendario: {calendarData.instructors.find(i => i.id === selectedInstructor)?.name}
-              </h3>
+              
+              {/* Centro: Usuario logueado */}
+              {currentUser && (
+                <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-white/30">
+                  <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-white shadow-md">
+                    <img
+                      src={currentUser.profilePicture || currentUser.photo || currentUser.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name || 'Usuario')}&background=4f46e5&color=fff&size=128`}
+                      alt={currentUser.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name || 'Usuario')}&background=4f46e5&color=fff&size=128`;
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-white">{currentUser.name}</div>
+                    <div className="text-[10px] text-white/90">
+                      Nivel: <span className="font-bold">{currentUser.level || 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Derecha: Selector de precio por plaza */}
+              <div className="flex items-center gap-2">
+                <div className="text-center">
+                  <div className="text-[10px] font-semibold text-white uppercase tracking-wide mb-1">Precio por plaza</div>
+                  <div className="text-[10px] font-semibold text-white uppercase tracking-wide">en clase de:</div>
+                </div>
+                <div className="flex flex-col items-center">
+                  <div className="flex gap-1.5 mb-0.5">
+                    {[1, 2, 3, 4].map((size) => (
+                      <button
+                        key={size}
+                        onClick={() => setSelectedGroupSize(size as 1 | 2 | 3 | 4)}
+                        className={`w-9 h-9 rounded-lg text-sm font-bold transition-all ${
+                          selectedGroupSize === size
+                            ? 'bg-white text-indigo-600 scale-105'
+                            : 'bg-white/20 text-white hover:bg-white/30'
+                        }`}
+                        style={selectedGroupSize === size ? { boxShadow: 'inset 0 3px 6px rgba(0, 0, 0, 0.5)' } : {}}
+                        title={`${size} ${size === 1 ? 'Alumno' : 'Alumnos'}`}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="text-[9px] font-medium text-white uppercase tracking-wide">Alumnos</div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -813,7 +803,7 @@ export default function ClubCalendarImproved({
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-gradient-to-r from-gray-700 to-gray-600">
-                  <th className="p-2 text-left font-semibold border-r border-gray-500/50 min-w-[60px] text-white text-xs sticky left-0 bg-gray-700 z-10">
+                  <th className="p-0.5 text-left font-bold border-r border-gray-500/50 min-w-[40px] text-white text-xs sticky left-0 bg-gray-700 z-10">
                     HORA
                   </th>
                   {calendarData.courts.map(court => (
@@ -832,8 +822,8 @@ export default function ClubCalendarImproved({
                     <tr key={timeSlot} className={`transition-colors hover:bg-gray-50/50 ${
                       isHalfHour ? 'bg-gray-100' : 'bg-white'
                     }`}>
-                      <td className={`p-1 text-center font-medium border-r border-gray-100 text-xs sticky left-0 bg-white z-10 ${
-                        isHalfHour ? 'text-gray-500 bg-gray-50' : 'text-gray-700'
+                      <td className={`p-0.5 text-center font-bold border-r border-gray-100 text-xs sticky left-0 bg-white z-10 ${
+                        isHalfHour ? 'text-gray-600 bg-gray-50' : 'text-gray-800'
                       }`}>
                         {timeSlot}
                       </td>
@@ -851,15 +841,26 @@ export default function ClubCalendarImproved({
                               className={`border border-gray-200 p-0.5 h-10 bg-white relative overflow-hidden ${isHalfHour ? 'border-b-[3px] border-b-gray-400 rounded-b-lg' : ''}`}
                               style={{ maxHeight: `${rowSpan * 40}px` }}
                             >
-                              <div className={`rounded-xl h-full flex flex-col justify-between border-2 border-gray-400 ${
+                              <div 
+                                onClick={() => {
+                                  if (reservation.type === 'match-confirmed' && reservation.id) {
+                                    setSelectedMatchIds([reservation.id]);
+                                  }
+                                }}
+                                className={`rounded-xl h-full flex flex-col justify-between border-2 border-gray-400 ${
                                 reservation.type === 'class-confirmed'
                                   ? 'bg-blue-500 shadow-[0_4px_12px_rgba(59,130,246,0.4),inset_0_1px_0_rgba(255,255,255,0.2)]'
-                                  : 'bg-green-500 shadow-[0_4px_12px_rgba(34,197,94,0.4),inset_0_1px_0_rgba(255,255,255,0.2)]'
+                                  : 'bg-green-500 shadow-[0_4px_12px_rgba(34,197,94,0.4),inset_0_1px_0_rgba(255,255,255,0.2)] cursor-pointer hover:shadow-[0_6px_16px_rgba(34,197,94,0.5)] transition-shadow'
                               }`}>
                                 {/* Overlay de tiempo pasado */}
                                 {isPast && (
                                   <div 
-                                    className="absolute inset-0 z-20 rounded-xl cursor-not-allowed"
+                                    onClick={() => {
+                                      if (reservation.type === 'match-confirmed' && reservation.id) {
+                                        setSelectedMatchIds([reservation.id]);
+                                      }
+                                    }}
+                                    className="absolute inset-0 z-20 rounded-xl cursor-pointer"
                                     style={{
                                       background: 'repeating-linear-gradient(45deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 10px, rgba(200,200,200,1) 10px, rgba(200,200,200,1) 20px)'
                                     }}
@@ -868,19 +869,23 @@ export default function ClubCalendarImproved({
                                 
                                 {/* Hora alineada arriba para partidas */}
                                 {reservation.type === 'match-confirmed' && (
-                                  <div className="absolute top-0 left-0 right-0 text-center pt-0.5">
-                                    <span className="text-[9px] font-bold text-white bg-green-600/50 px-2 py-0.5 rounded-b">
-                                      {timeSlot}
-                                    </span>
+                                  <div className="absolute top-0 left-0 right-0 text-center pt-1 pointer-events-none">
+                                    <div className="text-[14px] font-bold text-white mb-1">PARTIDA</div>
+                                    <div className="flex items-center justify-center gap-1">
+                                      <span className="text-[8px] text-white">Hora de inicio:</span>
+                                      <span className="text-[10px] font-bold text-white bg-green-600/50 px-2 py-0.5 rounded">
+                                        {timeSlot}
+                                      </span>
+                                    </div>
                                   </div>
                                 )}
                                 
-                                <div className="p-1.5">
+                                <div className="p-1.5 pointer-events-none">
                                   {/* Header con foto del instructor o texto Partida */}
                                   {reservation.type === 'match-confirmed' ? (
-                                    <div className="flex items-center gap-1 mb-1 mt-4">
+                                    <div className="flex items-center gap-1 mb-1 mt-14">
                                       <span className="text-[9px] font-bold text-white truncate flex-1 text-center">
-                                        Partida {reservation.level || 'Abierta'}
+                                        Rango de nivel / {reservation.level || 'Abierta'}
                                       </span>
                                     </div>
                                   ) : (
@@ -900,19 +905,29 @@ export default function ClubCalendarImproved({
 
                                   {/* Jugadores */}
                                   {reservation.type === 'match-confirmed' ? (
-                                    <div className="grid grid-cols-2 gap-1 justify-items-center">
-                                      {Array.from({ length: reservation.playersCount || 0 }).map((_, i) => (
-                                        <div key={i} className="w-6 h-6 rounded-full overflow-hidden shadow-md ring-2 ring-green-300 bg-white">
-                                          <img
-                                            src={`https://ui-avatars.com/api/?name=J${i+1}&background=22c55e&color=fff&size=64`}
-                                            alt={`Jugador ${i+1}`}
-                                            className="w-full h-full object-cover"
-                                          />
-                                        </div>
-                                      ))}
+                                    <div className="grid grid-cols-2 gap-2 justify-items-center">
+                                      {reservation.bookings?.filter((b: any) => b.status !== 'CANCELLED').map((booking: any, i: number) => {
+                                        const playerName = booking.user?.name || booking.userName || `Jugador ${i+1}`;
+                                        const initials = playerName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase();
+                                        return (
+                                          <div key={booking.id || i} className="flex flex-col items-center gap-0.5">
+                                            <div className="w-10 h-10 rounded-full overflow-hidden shadow-md ring-2 ring-green-300 bg-white">
+                                              <img
+                                                src={booking.user?.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(playerName)}&background=22c55e&color=fff&size=128`}
+                                                alt={playerName}
+                                                className="w-full h-full object-cover"
+                                              />
+                                            </div>
+                                            <span className="text-[7px] text-white font-semibold">{initials}</span>
+                                          </div>
+                                        );
+                                      })}
                                       {Array.from({ length: (reservation.maxPlayers || 4) - (reservation.playersCount || 0) }).map((_, i) => (
-                                        <div key={`empty-${i}`} className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center bg-green-300">
-                                          <span className="text-[9px] text-white font-semibold">+</span>
+                                        <div key={`empty-${i}`} className="flex flex-col items-center gap-0.5">
+                                          <div className="w-10 h-10 rounded-full border-2 border-white flex items-center justify-center bg-green-300">
+                                            <span className="text-[14px] text-white font-semibold">+</span>
+                                          </div>
+                                          <span className="text-[7px] text-white/0">--</span>
                                         </div>
                                       ))}
                                     </div>
@@ -1015,20 +1030,33 @@ export default function ClubCalendarImproved({
                                         return (
                                           <div 
                                             key={i} 
-                                            className={`w-7 h-7 rounded-full flex items-center justify-center shadow-sm overflow-hidden ${
+                                            className={`w-7 h-7 rounded-full flex items-center justify-center shadow-sm overflow-hidden relative ${
                                               hasBooking 
                                                 ? 'bg-white ring-1 ring-blue-300' 
                                                 : 'border-2 border-white/50 bg-blue-400/30'
                                             }`}
                                           >
                                             {hasBooking && booking?.user ? (
-                                              <img
-                                                src={booking.user.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(booking.user.name || 'U')}&background=random&color=fff&size=64`}
-                                                alt={booking.user.name || 'Usuario'}
-                                                className="w-full h-full object-cover"
-                                              />
+                                              <>
+                                                <img
+                                                  src={booking.user.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(booking.user.name || 'U')}&background=random&color=fff&size=64`}
+                                                  alt={booking.user.name || 'Usuario'}
+                                                  className="w-full h-full object-cover"
+                                                  title={`${booking.user.name || 'Usuario'} - Grupo de ${booking.groupSize || 1} alumno${(booking.groupSize || 1) > 1 ? 's' : ''}`}
+                                                />
+                                                {/* GroupSize Badge */}
+                                                {booking.groupSize && booking.groupSize > 1 && (
+                                                  <div
+                                                    className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-blue-500 border border-white flex items-center justify-center"
+                                                    style={{ fontSize: '8px', lineHeight: '8px' }}
+                                                    title={`${booking.groupSize} alumnos`}
+                                                  >
+                                                    <span className="text-white font-bold">{booking.groupSize}</span>
+                                                  </div>
+                                                )}
+                                              </>
                                             ) : hasBooking ? (
-                                              <span className="text-[11px] font-bold text-blue-700">{i + 1}</span>
+                                              <span className="text-[11px] font-bold text-blue-700">{booking?.groupSize || (i + 1)}</span>
                                             ) : null}
                                           </div>
                                         );
@@ -1179,7 +1207,7 @@ export default function ClubCalendarImproved({
                                 return (
                                   <div 
                                     onClick={() => handleProposalClick(timeSlot, selectedInstructor)}
-                                    className="bg-white rounded-lg p-0.5 cursor-pointer hover:shadow-xl hover:scale-105 transition-all h-full border border-gray-300 shadow-lg flex items-center justify-center relative"
+                                    className="bg-white rounded-lg p-1 cursor-pointer hover:shadow-xl hover:scale-105 transition-all h-full border border-gray-300 shadow-lg flex items-center relative overflow-hidden"
                                     style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1), inset 0 2px 4px 0 rgba(255, 255, 255, 0.6)' }}
                                   >
                                     {hasMultipleOptions && (
@@ -1187,9 +1215,9 @@ export default function ClubCalendarImproved({
                                         {proposals.length}
                                       </div>
                                     )}
-                                    <div className="text-center space-y-1">
-                                      {/* Foto del instructor */}
-                                      <div className="flex justify-center">
+                                    <div className="flex items-center gap-1.5 w-full">
+                                      {/* Foto del instructor a la izquierda */}
+                                      <div className="flex-shrink-0">
                                         <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-blue-500 shadow-md">
                                           <img
                                             src={instructor?.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(instructor?.name || 'I')}&background=random&color=fff&size=64`}
@@ -1198,13 +1226,21 @@ export default function ClubCalendarImproved({
                                           />
                                         </div>
                                       </div>
-                                      <div className="text-[10px] text-blue-600 font-bold">
-                                        {playersCount > 0 ? `${playersCount} inscrito${playersCount > 1 ? 's' : ''}` : 'Iniciar Clase 60 Min'}
+                                      {/* Texto a la derecha en dos líneas */}
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-[10px] text-blue-600 font-bold leading-tight">
+                                          {playersCount > 0 ? `${playersCount} inscrito${playersCount > 1 ? 's' : ''}` : 'Iniciar Clase 60 Min'}
+                                        </div>
+                                        <div className="text-[8px] text-gray-700 font-semibold flex flex-col leading-tight">
+                                          <span>Nivel/ {levelDisplay}</span>
+                                          <span className="text-[7px] text-gray-600">Precio por {selectedGroupSize} jugador{selectedGroupSize > 1 ? 'es' : ''}</span>
+                                        </div>
                                       </div>
-                                      <div className="text-[8px] text-gray-700 font-semibold flex items-center justify-center gap-1">
-                                        <span>{levelDisplay}</span>
-                                        <span>•</span>
-                                        <span>€{Math.round(pricePerSlot)}</span>
+                                      {/* Recuadro de precio alineado a la derecha */}
+                                      <div className="flex-shrink-0 bg-white rounded-md px-2 py-1 border border-gray-200" style={{ boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.1)' }}>
+                                        <div className="text-[7px] text-gray-600 leading-tight">Precio por</div>
+                                        <div className="text-[7px] text-gray-600 leading-tight">jugador</div>
+                                        <div className="text-sm font-bold text-gray-800 leading-tight">{Math.round(pricePerSlot)}€</div>
                                       </div>
                                     </div>
                                   </div>
@@ -1227,7 +1263,7 @@ export default function ClubCalendarImproved({
                                 const playersCount = bookings.length;
                                 const maxPlayers = 4;
                                 const courtRentalPrice = firstMatch.courtRentalPrice || 20;
-                                const pricePerPlayer = courtRentalPrice / (playersCount > 0 ? playersCount : 1);
+                                const pricePerPlayer = courtRentalPrice / 4;
                                 
                                 // Determinar nivel - usar el nivel del matchProposal
                                 let levelDisplay = 'Abierto';
@@ -1254,7 +1290,7 @@ export default function ClubCalendarImproved({
                                 return (
                                   <div 
                                     onClick={() => handleMatchProposalClick(timeSlot)}
-                                    className="bg-white rounded-lg p-0.5 cursor-pointer hover:shadow-xl hover:scale-105 transition-all h-full border border-gray-300 shadow-lg flex items-center justify-center relative"
+                                    className="bg-white rounded-lg p-1 cursor-pointer hover:shadow-xl hover:scale-105 transition-all h-full border border-gray-300 shadow-lg flex items-center relative overflow-hidden"
                                     style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1), inset 0 2px 4px 0 rgba(255, 255, 255, 0.6)' }}
                                   >
                                     {hasMultipleOptions && (
@@ -1262,20 +1298,30 @@ export default function ClubCalendarImproved({
                                         {matchProposals.length}
                                       </div>
                                     )}
-                                    <div className="text-center">
-                                      <div className="text-[10px] text-green-600 font-bold">
-                                        {playersCount > 0 ? `${playersCount} inscrito${playersCount > 1 ? 's' : ''}` : 'Iniciar Partida 90 Min'}
+                                    <div className="flex items-center gap-1.5 w-full">
+                                      {/* Texto a la izquierda */}
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-[10px] text-green-600 font-bold leading-tight">
+                                          {playersCount > 0 ? `${playersCount} inscrito${playersCount > 1 ? 's' : ''}` : 'Iniciar Partida 90 Min'}
+                                        </div>
+                                        <div className="text-[8px] text-gray-700 font-semibold leading-tight">
+                                          <span>Nivel/ {levelDisplay}</span>
+                                          {showCategory && (
+                                            <>
+                                              <span> • </span>
+                                              <span>{categoryDisplay}</span>
+                                            </>
+                                          )}
+                                        </div>
+                                        <div className="text-[7px] text-gray-600 leading-tight mt-0.5">
+                                          Partida de 4 jugadores
+                                        </div>
                                       </div>
-                                      <div className="text-[8px] text-gray-700 font-semibold flex items-center justify-center gap-1">
-                                        <span>{levelDisplay}</span>
-                                        {showCategory && (
-                                          <>
-                                            <span>•</span>
-                                            <span>{categoryDisplay}</span>
-                                          </>
-                                        )}
-                                        <span>•</span>
-                                        <span>€{Math.round(pricePerPlayer)}</span>
+                                      {/* Recuadro de precio alineado a la derecha */}
+                                      <div className="flex-shrink-0 bg-white rounded-md px-2 py-1 border border-gray-200" style={{ boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.1)' }}>
+                                        <div className="text-[7px] text-gray-600 leading-tight">Precio por</div>
+                                        <div className="text-[7px] text-gray-600 leading-tight">jugador</div>
+                                        <div className="text-sm font-bold text-gray-800 leading-tight">{Math.round(pricePerPlayer)}€</div>
                                       </div>
                                     </div>
                                   </div>

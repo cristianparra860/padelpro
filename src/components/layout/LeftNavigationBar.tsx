@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ClipboardList, Calendar, CalendarDays, UserCircle, Database, Settings, Target, GraduationCap, Wallet, SlidersHorizontal, UserCog, Trophy } from 'lucide-react';
+import { ClipboardList, Calendar, CalendarDays, UserCircle, Database, Settings, Target, GraduationCap, Wallet, SlidersHorizontal, UserCog, Trophy, Power } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { User, Club } from '@/types';
@@ -11,11 +11,13 @@ import type { User, Club } from '@/types';
 export function LeftNavigationBar() {
     const pathname = usePathname();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [clubInfo, setClubInfo] = useState<Club | null>(null);
     const [hasReservations, setHasReservations] = useState(false);
     const [hasInscriptions, setHasInscriptions] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [instructors, setInstructors] = useState<any[]>([]);
 
     useEffect(() => {
         const fetchUser = async () => {
@@ -81,6 +83,18 @@ export function LeftNavigationBar() {
             }
         };
         
+        const fetchInstructors = async () => {
+            try {
+                const response = await fetch('/api/instructors?clubId=club-1');
+                if (response.ok) {
+                    const data = await response.json();
+                    setInstructors(data);
+                }
+            } catch (error) {
+                console.error('Error fetching instructors:', error);
+            }
+        };
+        
         const fetchBookingsStatus = async (userId: string) => {
             try {
                 const response = await fetch(`/api/bookings?userId=${userId}`);
@@ -116,6 +130,7 @@ export function LeftNavigationBar() {
         
         fetchUser();
         fetchClub();
+        fetchInstructors();
     }, []); // Solo ejecutar una vez al montar
     
     // Recargar bookings periódicamente (separado del useEffect principal)
@@ -307,6 +322,53 @@ export function LeftNavigationBar() {
                 className="fixed left-4 top-40 flex flex-col gap-2 items-start" 
                 style={{ pointerEvents: 'auto', zIndex: 50, position: 'fixed' }}
             >
+            {/* Botón de Cerrar Sesión / Iniciar Sesión - Grande y centrado */}
+            <button
+                onClick={async (e) => {
+                    e.preventDefault();
+                    if (currentUser) {
+                        // Si hay usuario logueado, cerrar sesión
+                        try {
+                            const response = await fetch('/api/auth/logout', { method: 'POST' });
+                            if (response.ok) {
+                                window.location.href = '/';
+                            } else {
+                                console.error('Error en logout:', response.statusText);
+                                window.location.href = '/';
+                            }
+                        } catch (error) {
+                            console.error('Error al cerrar sesión:', error);
+                            window.location.href = '/';
+                        }
+                    } else {
+                        // Si no hay usuario, ir a página de inicio
+                        window.location.href = '/';
+                    }
+                }}
+                className={cn(
+                    "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200 hover:border-red-400 shadow-lg",
+                    isCompactMode
+                        ? 'flex items-center justify-center p-2' 
+                        : 'flex items-center gap-3 px-4 py-3 min-w-[220px]'
+                )}
+                style={{ pointerEvents: 'auto', zIndex: 99999 }}
+            >
+                <div className={cn(
+                    "rounded-full flex items-center justify-center text-white flex-shrink-0",
+                    isCompactMode ? 'w-8 h-8' : 'w-14 h-14',
+                    "bg-gradient-to-br from-red-400 to-red-600"
+                )}>
+                    <Power className={isCompactMode ? 'w-4 h-4' : 'w-8 h-8'} />
+                </div>
+                {!isCompactMode && (
+                    <div className="text-left flex-1">
+                        <div className="text-sm font-semibold text-red-600">
+                            {currentUser ? 'Cerrar sesión' : 'Iniciar sesión'}
+                        </div>
+                    </div>
+                )}
+            </button>
+            
             {clubInfo && (
                 <a
                     href="/club"
@@ -398,9 +460,9 @@ export function LeftNavigationBar() {
                 </div>
             </a>
             
-            {/* Contenedor para Clases y Partidas */}
+            {/* Contenedor para Clases, Partidas y Calendario */}
             <div className="flex flex-col gap-1.5">
-                {visibleNavItems.filter(item => item.key === 'clases' || item.key === 'partidas').map((item) => {
+                {visibleNavItems.filter(item => item.key === 'clases' || item.key === 'partidas' || item.key === 'calendario-club').map((item) => {
                     const IconComponent = item.icon;
                     
                     return (
@@ -423,11 +485,15 @@ export function LeftNavigationBar() {
                                 isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
                                 item.key === 'clases' 
                                     ? "bg-gradient-to-br from-green-400 to-green-600"
-                                    : "bg-gradient-to-br from-purple-400 to-purple-600",
+                                    : item.key === 'partidas'
+                                    ? "bg-gradient-to-br from-purple-400 to-purple-600"
+                                    : "bg-gradient-to-br from-orange-400 to-orange-600",
                                 item.isActive && (
                                     item.key === 'clases' 
                                         ? 'ring-4 ring-green-300 ring-opacity-50 shadow-[0_0_25px_rgba(34,197,94,0.5)]'
-                                        : 'ring-4 ring-purple-300 ring-opacity-50 shadow-[0_0_25px_rgba(168,85,247,0.5)]'
+                                        : item.key === 'partidas'
+                                        ? 'ring-4 ring-purple-300 ring-opacity-50 shadow-[0_0_25px_rgba(168,85,247,0.5)]'
+                                        : 'ring-4 ring-orange-300 ring-opacity-50 shadow-[0_0_25px_rgba(249,115,22,0.5)]'
                                 )
                             )}>
                                 <IconComponent className={isCompactMode ? 'w-5 h-5' : 'w-8 h-8'} />
@@ -435,7 +501,7 @@ export function LeftNavigationBar() {
                             <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
                                 {isCompactMode ? (
                                     <div className="text-[10px] font-semibold text-gray-800">
-                                        {item.key === 'clases' ? 'Clases' : 'Partidas'}
+                                        {item.key === 'clases' ? 'Clases' : item.key === 'partidas' ? 'Partidas' : 'Calendario'}
                                     </div>
                                 ) : (
                                     <>
@@ -443,7 +509,7 @@ export function LeftNavigationBar() {
                                             {item.label}
                                         </div>
                                         <div className="text-xs text-gray-500">
-                                            {item.key === 'clases' ? 'Ver clases' : 'Ver partidas'}
+                                            {item.key === 'clases' ? 'Ver clases' : item.key === 'partidas' ? 'Ver partidas' : 'Ver calendario'}
                                         </div>
                                     </>
                                 )}
@@ -453,8 +519,79 @@ export function LeftNavigationBar() {
                 })}
             </div>
             
+            {/* Instructores Disponibles - Solo en la página del calendario del club */}
+            {instructors.length > 0 && pathname === '/admin/calendar' && (
+                <div className="flex flex-col gap-1.5 mt-4 pt-4 border-t-2 border-gray-200">
+                    <div className={cn(
+                        "text-gray-600 font-semibold uppercase tracking-wide mb-2",
+                        isCompactMode ? 'text-[9px] text-center px-1' : 'text-xs px-2'
+                    )}>
+                        FILTROS
+                    </div>
+                    <div className={cn(
+                        "text-gray-600 font-semibold pt-2 border-t border-gray-200",
+                        isCompactMode ? 'text-[9px] text-center px-1' : 'text-xs px-2'
+                    )}>
+                        Instructores
+                    </div>
+                    {instructors.map((instructor) => {
+                        // Determinar la URL de la foto del instructor
+                        const photoUrl = instructor.photo || instructor.profilePicture || instructor.profilePictureUrl || 
+                            `https://ui-avatars.com/api/?name=${encodeURIComponent(instructor.name)}&background=6366f1&color=fff&size=128`;
+                        
+                        // Verificar si este instructor está seleccionado
+                        const isSelected = searchParams.get('instructor') === instructor.id;
+                        
+                        return (
+                            <button
+                                key={instructor.id}
+                                onClick={() => router.push(`/admin/calendar?instructor=${instructor.id}`)}
+                                className={cn(
+                                    "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 shadow-lg",
+                                    isSelected ? 'border-blue-500 scale-105 animate-bounce-subtle' : 'border-gray-200',
+                                    isCompactMode
+                                        ? 'flex flex-col items-center gap-1 px-3 py-2' 
+                                        : 'flex items-center gap-3 px-4 py-3 min-w-[220px]'
+                                )}
+                                style={{ pointerEvents: 'auto', zIndex: 99999 }}
+                            >
+                                <div className={cn(
+                                    "rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 transition-all duration-300 border-2 border-white shadow-md",
+                                    isCompactMode ? 'w-10 h-10' : 'w-14 h-14'
+                                )}>
+                                    <img 
+                                        src={photoUrl} 
+                                        alt={instructor.name}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                            // Fallback si la imagen falla
+                                            const target = e.target as HTMLImageElement;
+                                            target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(instructor.name)}&background=6366f1&color=fff&size=128`;
+                                        }}
+                                    />
+                                </div>
+                            <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
+                                {isCompactMode ? (
+                                    <div className="text-[10px] font-semibold text-gray-800 max-w-[70px] truncate">
+                                        {instructor.name.split(' ')[0]}
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="text-sm font-semibold text-gray-800">
+                                            {instructor.name.split(' ')[0]}
+                                        </div>
+                                        <div className="text-xs text-gray-500">Instructor</div>
+                                    </>
+                                )}
+                            </div>
+                        </button>
+                    );
+                    })}
+                </div>
+            )}
+            
             {/* Contenedor múltiple con Reservas, Inscripciones, Saldo y otros botones */}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 mt-4 pt-4 border-t-2 border-gray-200">
                 {/* 🎯 Botón R - Ir a Mis Reservas */}
                 <button
                     onClick={() => window.location.href = '/agenda?tab=confirmed'}
@@ -554,8 +691,8 @@ export function LeftNavigationBar() {
                     </div>
                 </button>
                 
-                {/* Resto de botones (Calendario, Base Datos, Config) excepto Clases y Partidas */}
-                {visibleNavItems.filter(item => item.key !== 'clases' && item.key !== 'partidas').map((item) => {
+                {/* Resto de botones (Base Datos, Config) excepto Clases, Partidas y Calendario */}
+                {visibleNavItems.filter(item => item.key !== 'clases' && item.key !== 'partidas' && item.key !== 'calendario-club').map((item) => {
                     const IconComponent = item.icon;
                     
                     return (

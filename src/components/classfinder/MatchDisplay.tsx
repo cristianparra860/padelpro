@@ -257,14 +257,27 @@ const MatchDisplay: React.FC<MatchDisplayProps> = ({
             }
             const match = activity as Match;
             const isUserInscribed = (match.bookedPlayers || []).some(p => p.userId === currentUser.id);
+            
+            // Always show matches where user is inscribed
             if (isUserInscribed) {
                 availableActivities.push(match);
                 continue;
             }
+            
+            // Always show confirmed matches (they already have a court assigned)
+            if (match.status === 'confirmed' || match.status === 'confirmed_private') {
+                availableActivities.push(match);
+                continue;
+            }
+            
+            // For placeholders and forming matches, check court availability
             const availability = await getCourtAvailabilityForInterval(match.clubId, new Date(match.startTime), new Date(match.endTime));
+            
+            // Only show if there are available courts (at least one green indicator)
             if (availability.available.length > 0) {
                 availableActivities.push(match);
             }
+            // If no courts available (all red indicators), don't show the match
         }
         
         workingMatches = availableActivities;

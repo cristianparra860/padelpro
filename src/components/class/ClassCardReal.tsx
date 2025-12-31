@@ -1099,17 +1099,25 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           <div className="flex items-center gap-2 flex-1 min-w-0">
             {/* Instructor Avatar */}
             <div className="w-12 h-12 rounded-full bg-gray-200 overflow-hidden flex items-center justify-center flex-shrink-0">
-              {currentSlotData.instructorProfilePicture ? (
+              {(currentSlotData.instructorProfilePicture || currentSlotData.instructorPhoto) ? (
                 <img 
-                  src={currentSlotData.instructorProfilePicture}
+                  src={currentSlotData.instructorProfilePicture || currentSlotData.instructorPhoto}
                   alt={currentSlotData.instructorName || 'Instructor'}
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const fallback = target.parentElement?.querySelector('.fallback-avatar') as HTMLElement;
+                    if (fallback) fallback.style.display = 'flex';
+                  }}
                 />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-semibold text-base">
-                  {(currentSlotData.instructorName || 'I').charAt(0).toUpperCase()}
-                </div>
-              )}
+              ) : null}
+              <div 
+                className="fallback-avatar w-full h-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-semibold text-base"
+                style={{ display: (currentSlotData.instructorProfilePicture || currentSlotData.instructorPhoto) ? 'none' : 'flex' }}
+              >
+                {(currentSlotData.instructorName || 'I').charAt(0).toUpperCase()}
+              </div>
             </div>
             
             {/* Instructor Name and Rating */}
