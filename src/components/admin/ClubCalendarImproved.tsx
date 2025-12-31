@@ -789,6 +789,24 @@ export default function ClubCalendarImproved({
           />
         </div>
 
+        {/* Banner del Instructor Seleccionado */}
+        {viewType === 'clases' && selectedInstructor && calendarData.instructors.find(i => i.id === selectedInstructor) && (
+          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl shadow-lg p-4">
+            <div className="flex items-center justify-center gap-3">
+              <div className="w-12 h-12 rounded-full overflow-hidden border-3 border-white shadow-lg">
+                <img
+                  src={calendarData.instructors.find(i => i.id === selectedInstructor)?.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(calendarData.instructors.find(i => i.id === selectedInstructor)?.name || 'Instructor')}&background=random&color=fff&size=128`}
+                  alt={calendarData.instructors.find(i => i.id === selectedInstructor)?.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <h3 className="text-xl font-bold text-white">
+                Calendario: {calendarData.instructors.find(i => i.id === selectedInstructor)?.name}
+              </h3>
+            </div>
+          </div>
+        )}
+
         {/* Calendario Grid */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
@@ -1156,6 +1174,8 @@ export default function ClubCalendarImproved({
                                 // Si hay múltiples opciones, mostrar indicador
                                 const hasMultipleOptions = proposals.length > 1;
                                 
+                                const instructor = calendarData.instructors.find(i => i.id === selectedInstructor);
+                                
                                 return (
                                   <div 
                                     onClick={() => handleProposalClick(timeSlot, selectedInstructor)}
@@ -1167,7 +1187,17 @@ export default function ClubCalendarImproved({
                                         {proposals.length}
                                       </div>
                                     )}
-                                    <div className="text-center">
+                                    <div className="text-center space-y-1">
+                                      {/* Foto del instructor */}
+                                      <div className="flex justify-center">
+                                        <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-blue-500 shadow-md">
+                                          <img
+                                            src={instructor?.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(instructor?.name || 'I')}&background=random&color=fff&size=64`}
+                                            alt={instructor?.name}
+                                            className="w-full h-full object-cover"
+                                          />
+                                        </div>
+                                      </div>
                                       <div className="text-[10px] text-blue-600 font-bold">
                                         {playersCount > 0 ? `${playersCount} inscrito${playersCount > 1 ? 's' : ''}` : 'Iniciar Clase 60 Min'}
                                       </div>
