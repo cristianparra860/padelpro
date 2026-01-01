@@ -103,7 +103,7 @@ export async function POST(
     // Calcular puntos de compensación total
     let totalPointsGranted = 0;
     
-    // Procesar en una transacción
+    // Procesar en una transacción (con timeout extendido a 10s)
     await prisma.$transaction(async (tx) => {
       const isConfirmed = userBookings[0].status === 'CONFIRMED' && matchGame.courtNumber !== null;
       
@@ -232,6 +232,9 @@ export async function POST(
           }
         });
       }
+    }, {
+      maxWait: 10000, // Esperar máximo 10 segundos por la transacción
+      timeout: 10000  // Timeout de 10 segundos
     });
 
     console.log(`✅ Cesión parcial completada: ${slotsToTransfer} plaza(s) cedida(s)`);
