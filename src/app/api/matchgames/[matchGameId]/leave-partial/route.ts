@@ -144,10 +144,25 @@ export async function POST(
             });
           }
         } else {
-          // Si cede MENOS de 4 plazas, crear bookings adicionales para las plazas recicladas
-          console.log(`  ✅ Cesión parcial - Creando ${slotsToTransfer} booking(s) reciclado(s)`);
+          // Si cede MENOS de 4 plazas, necesitamos reorganizar los bookings
+          console.log(`  ✅ Cesión parcial - Reestructurando bookings`);
           
-          // Crear N bookings nuevos con status CANCELLED + isRecycled para las plazas cedidas
+          const slotsRemaining = 4 - slotsToTransfer;
+          const amountRemainingPerSlot = Math.round(pricePerSlot * 100);
+          
+          // 1. Cancelar el booking original (que representaba las 4 plazas)
+          await tx.matchGameBooking.update({
+            where: { id: originalBooking.id },
+            data: {
+              status: 'CANCELLED',
+              isRecycled: false, // No es reciclado, simplemente se cancela para reestructurar
+              wasConfirmed: false
+            }
+          });
+          
+          console.log(`  🗑️ Booking original cancelado (4 plazas)`);
+          
+          // 2. Crear N bookings reciclados para las plazas cedidas
           for (let i = 0; i < slotsToTransfer; i++) {
             await tx.matchGameBooking.create({
               data: {
@@ -156,14 +171,29 @@ export async function POST(
                 status: 'CANCELLED',
                 isRecycled: isConfirmed,
                 wasConfirmed: isConfirmed,
-                amountBlocked: Math.round(pricePerSlot * 100), // Monto por plaza en céntimos
+                amountBlocked: amountRemainingPerSlot, // Monto por plaza en céntimos
                 createdAt: new Date()
               }
             });
           }
           
-          console.log(`  ✅ ${slotsToTransfer} plaza(s) reciclada(s) creadas`);
-          console.log(`  ℹ️ El booking original permanece activo (${4 - slotsToTransfer} plazas restantes)`);
+          console.log(`  ♻️ ${slotsToTransfer} booking(s) reciclado(s) creados`);
+          
+          // 3. Crear 1 nuevo booking activo para las plazas que mantiene el usuario
+          await tx.matchGameBooking.create({
+            data: {
+              matchGameId: matchGameId,
+              userId: userId,
+              status: 'CONFIRMED',
+              isRecycled: false,
+              wasConfirmed: true,
+              amountBlocked: amountRemainingPerSlot * slotsRemaining, // Monto proporcional a plazas restantes
+              createdAt: new Date()
+            }
+          });
+          
+          console.log(`  ✅ Nuevo booking activo creado (${slotsRemaining} plazas restantes con €${((amountRemainingPerSlot * slotsRemaining) / 100).toFixed(2)} bloqueados)`);
+          console.log(`  📊 Resultado final: ${slotsToTransfer} plazas recicladas + ${slotsRemaining} plazas activas = 4 plazas totales`);
         }
         
       } else {
