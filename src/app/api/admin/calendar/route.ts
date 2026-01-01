@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// Helper function to count actual player slots (handles private bookings)
+function countPlayerSlots(bookings: any[]): number {
+  let totalSlots = 0;
+  for (const booking of bookings) {
+    // Check if it's a private booking (amountBlocked > 1000 = 32€ = 4 slots)
+    if (booking.amountBlocked && booking.amountBlocked > 1000) {
+      totalSlots += 4; // Private booking = 4 slots
+    } else {
+      totalSlots += 1; // Individual booking = 1 slot
+    }
+  }
+  return totalSlots;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -264,7 +278,7 @@ export async function GET(request: NextRequest) {
       proposedMatches: proposedMatches.map((match: any) => {
         const confirmedBookings = match.bookings?.filter((b: any) => b.status === 'CONFIRMED') || [];
         const pendingBookings = match.bookings?.filter((b: any) => b.status === 'PENDING') || [];
-        const totalPlayers = confirmedBookings.length + pendingBookings.length;
+        const totalPlayers = countPlayerSlots(confirmedBookings) + countPlayerSlots(pendingBookings);
         
         return {
           id: `match-${match.id}`,
@@ -284,7 +298,7 @@ export async function GET(request: NextRequest) {
       }),
       confirmedMatches: confirmedMatches.map((match: any) => {
         const confirmedBookings = match.bookings?.filter((b: any) => b.status === 'CONFIRMED') || [];
-        const totalPlayers = confirmedBookings.length;
+        const totalPlayers = countPlayerSlots(confirmedBookings);
         
         return {
           id: `match-${match.id}`,
@@ -339,7 +353,7 @@ export async function GET(request: NextRequest) {
         ...matchGames.map((match: any) => {
           const confirmedBookings = match.bookings?.filter((b: any) => b.status === 'CONFIRMED') || [];
           const pendingBookings = match.bookings?.filter((b: any) => b.status === 'PENDING') || [];
-          const totalPlayers = confirmedBookings.length + pendingBookings.length;
+          const totalPlayers = countPlayerSlots(confirmedBookings) + countPlayerSlots(pendingBookings);
           
           return {
             id: `match-${match.id}`,
