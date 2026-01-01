@@ -52,8 +52,10 @@ export async function POST(
           select: {
             id: true,
             start: true,
+            end: true,
             courtNumber: true,
             pricePerPlayer: true,
+            courtRentalPrice: true,
             bookings: {
               where: { status: { not: 'CANCELLED' } },
               select: { id: true, userId: true, status: true }
@@ -70,49 +72,142 @@ export async function POST(
       );
     }
 
-    if (slotsToTransfer > userBookings.length) {
+    // 🔍 DETECTAR SI ES RESERVA PRIVADA (1 booking con monto total >10€)
+    const bookingCount = userBookings.length;
+    const totalAmountBlocked = userBookings.reduce((sum, b) => sum + Number(b.amountBlocked || 0), 0);
+    const isPrivateBooking = bookingCount === 1 && totalAmountBlocked > 1000;
+    
+    console.log(`📋 Bookings del usuario: ${bookingCount} encontrados`);
+    console.log(`💰 Monto total bloqueado: €${(totalAmountBlocked / 100).toFixed(2)}`);
+    console.log(`🏆 ¿Es reserva privada?: ${isPrivateBooking ? 'SÍ' : 'NO'}`);
+    console.log(`♻️ Cediendo ${slotsToTransfer} plaza(s)`);
+
+    // Para reservas privadas, validar que no intente ceder más de 4 plazas
+    const maxSlotsAvailable = isPrivateBooking ? 4 : bookingCount;
+    
+    if (slotsToTransfer > maxSlotsAvailable) {
       return NextResponse.json(
-        { error: `Solo puedes ceder hasta ${userBookings.length} plaza${userBookings.length > 1 ? 's' : ''}` },
+        { error: `Solo puedes ceder hasta ${maxSlotsAvailable} plaza${maxSlotsAvailable > 1 ? 's' : ''}` },
         { status: 400 }
       );
     }
     
-    console.log(`📋 Bookings del usuario: ${userBookings.length} encontrados`);
-    console.log(`♻️ Cediendo ${slotsToTransfer} plaza(s)`);
-    
     const user = userBookings[0].user;
-    const pricePerPlayer = Number(userBookings[0].matchGame.pricePerPlayer) || 0;
+    const matchGame = userBookings[0].matchGame;
+    
+    // Calcular precio por plaza (para reservas privadas, dividir el total entre 4)
+    const pricePerSlot = isPrivateBooking 
+      ? (Number(matchGame.courtRentalPrice) || 0) / 4
+      : Number(matchGame.pricePerPlayer) || 0;
     
     // Calcular puntos de compensación total
     let totalPointsGranted = 0;
-    const bookingsToTransfer = userBookings.slice(0, slotsToTransfer);
     
-    // Procesar cada booking en una transacción
+    // Procesar en una transacción
     await prisma.$transaction(async (tx) => {
-      for (const booking of bookingsToTransfer) {
-        const pointsForThisSlot = Math.floor(pricePerPlayer);
+      const isConfirmed = userBookings[0].status === 'CONFIRMED' && matchGame.courtNumber !== null;
+      
+      if (isPrivateBooking) {
+        // ===== CASO: RESERVA PRIVADA (1 booking representa 4 plazas) =====
+        console.log(`🏆 Procesando reserva privada - Ceder ${slotsToTransfer} de 4 plazas`);
         
-        console.log(`  🎫 Booking ${booking.id} - Status: ${booking.status} - €${pricePerPlayer.toFixed(2)} → ${pointsForThisSlot} pts`);
+        const originalBooking = userBookings[0];
+        const pointsPerSlot = Math.floor(pricePerSlot);
         
-        // Determinar si es cesión (CONFIRMED) o cancelación (PENDING)
-        const isConfirmed = booking.status === 'CONFIRMED' && booking.matchGame.courtNumber !== null;
-        
-        // Marcar como CANCELLED + isRecycled si está confirmado
-        await tx.matchGameBooking.update({
-          where: { id: booking.id },
-          data: {
-            status: 'CANCELLED',
-            isRecycled: isConfirmed, // Solo marcar como reciclado si estaba confirmado
-            wasConfirmed: isConfirmed
-          }
-        });
-
+        // Calcular puntos de compensación solo si está confirmada
         if (isConfirmed) {
-          totalPointsGranted += pointsForThisSlot;
+          totalPointsGranted = pointsPerSlot * slotsToTransfer;
+        }
+        
+        console.log(`  💰 Precio por plaza: €${pricePerSlot.toFixed(2)} → ${pointsPerSlot} pts`);
+        console.log(`  🎁 Total puntos a otorgar: ${totalPointsGranted} pts`);
+        
+        // Si cede TODAS las plazas, simplemente marcar el booking como CANCELLED + isRecycled
+        if (slotsToTransfer === 4) {
+          console.log(`  ✅ Cediendo las 4 plazas - Cancelando booking original`);
+          
+          await tx.matchGameBooking.update({
+            where: { id: originalBooking.id },
+            data: {
+              status: 'CANCELLED',
+              isRecycled: isConfirmed,
+              wasConfirmed: isConfirmed
+            }
+          });
+          
+          // Liberar pista si tenía
+          if (matchGame.courtNumber) {
+            console.log(`  🏟️ Liberando pista ${matchGame.courtNumber}`);
+            await tx.matchGame.update({
+              where: { id: matchGameId },
+              data: { courtNumber: null }
+            });
+          }
+        } else {
+          // Si cede MENOS de 4 plazas, crear bookings adicionales para las plazas recicladas
+          console.log(`  ✅ Cesión parcial - Creando ${slotsToTransfer} booking(s) reciclado(s)`);
+          
+          // Crear N bookings nuevos con status CANCELLED + isRecycled para las plazas cedidas
+          for (let i = 0; i < slotsToTransfer; i++) {
+            await tx.matchGameBooking.create({
+              data: {
+                matchGameId: matchGameId,
+                userId: userId,
+                status: 'CANCELLED',
+                isRecycled: isConfirmed,
+                wasConfirmed: isConfirmed,
+                amountBlocked: Math.round(pricePerSlot * 100), // Monto por plaza en céntimos
+                createdAt: new Date()
+              }
+            });
+          }
+          
+          console.log(`  ✅ ${slotsToTransfer} plaza(s) reciclada(s) creadas`);
+          console.log(`  ℹ️ El booking original permanece activo (${4 - slotsToTransfer} plazas restantes)`);
+        }
+        
+      } else {
+        // ===== CASO: BOOKINGS INDIVIDUALES (múltiples bookings) =====
+        console.log(`👥 Procesando bookings individuales - Ceder ${slotsToTransfer} plaza(s)`);
+        
+        const bookingsToTransfer = userBookings.slice(0, slotsToTransfer);
+        
+        for (const booking of bookingsToTransfer) {
+          const pointsForThisSlot = Math.floor(pricePerSlot);
+          
+          console.log(`  🎫 Booking ${booking.id} - Status: ${booking.status} - €${pricePerSlot.toFixed(2)} → ${pointsForThisSlot} pts`);
+          
+          // Marcar como CANCELLED + isRecycled si está confirmado
+          await tx.matchGameBooking.update({
+            where: { id: booking.id },
+            data: {
+              status: 'CANCELLED',
+              isRecycled: isConfirmed,
+              wasConfirmed: isConfirmed
+            }
+          });
+
+          if (isConfirmed) {
+            totalPointsGranted += pointsForThisSlot;
+          }
+        }
+
+        // Verificar si quedan bookings activos
+        const remainingActiveBookings = matchGame.bookings.filter(
+          (b: any) => !bookingsToTransfer.find(bt => bt.id === b.id)
+        );
+
+        // Si no quedan bookings activos y la partida tenía pista, liberar pista
+        if (remainingActiveBookings.length === 0 && matchGame.courtNumber) {
+          console.log(`  🏟️ No quedan bookings activos, liberando pista ${matchGame.courtNumber}`);
+          await tx.matchGame.update({
+            where: { id: matchGameId },
+            data: { courtNumber: null }
+          });
         }
       }
 
-      // Otorgar todos los puntos de compensación de una vez (solo para plazas confirmadas)
+      // Otorgar puntos de compensación (solo si la partida estaba confirmada)
       if (totalPointsGranted > 0) {
         const newPoints = await grantCompensationPoints(userId, totalPointsGranted, true);
         
@@ -125,29 +220,16 @@ export async function POST(
           action: 'add',
           amount: totalPointsGranted,
           balance: newPoints,
-          concept: `Cesión de ${slotsToTransfer} plaza${slotsToTransfer > 1 ? 's' : ''} - Partida ${new Date(userBookings[0].matchGame.start).toLocaleString('es-ES')}`,
+          concept: `Cesión de ${slotsToTransfer} plaza${slotsToTransfer > 1 ? 's' : ''} - Partida ${new Date(matchGame.start).toLocaleString('es-ES')}`,
           relatedId: matchGameId,
           relatedType: 'matchGameBooking',
           metadata: {
             matchGameId: matchGameId,
             slotsTransferred: slotsToTransfer,
-            bookingIds: bookingsToTransfer.map(b => b.id),
+            isPrivateBooking,
+            pricePerSlot,
             reason: 'Cesión parcial de plazas en partida'
           }
-        });
-      }
-
-      // Verificar si quedan bookings activos o reciclados
-      const remainingActiveBookings = userBookings[0].matchGame.bookings.filter(
-        (b: any) => !bookingsToTransfer.find(bt => bt.id === b.id)
-      );
-
-      // Si no quedan bookings activos y la partida tenía pista, liberar pista
-      if (remainingActiveBookings.length === 0 && userBookings[0].matchGame.courtNumber) {
-        console.log(`🏟️ No quedan bookings activos, liberando pista ${userBookings[0].matchGame.courtNumber}`);
-        await tx.matchGame.update({
-          where: { id: matchGameId },
-          data: { courtNumber: null }
         });
       }
     });
@@ -158,6 +240,7 @@ export async function POST(
       success: true,
       slotsTransferred: slotsToTransfer,
       pointsGranted: totalPointsGranted,
+      isPrivateBooking,
       message: `${slotsToTransfer} plaza${slotsToTransfer > 1 ? 's' : ''} cedida${slotsToTransfer > 1 ? 's' : ''} exitosamente. Has recibido ${totalPointsGranted} puntos de compensación.`
     });
     

@@ -336,6 +336,25 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
     ).length;
   };
 
+  // 🆕 Detectar si el usuario tiene una reserva privada (1 booking con monto total >10€)
+  const hasPrivateBooking = useMemo(() => {
+    if (!currentUser?.id || !matchGame.bookings) return false;
+    
+    const userBookings = matchGame.bookings.filter((b: any) => 
+      b.userId === currentUser.id && 
+      (b.status !== 'CANCELLED' || b.isRecycled === true)
+    );
+    
+    if (userBookings.length !== 1) return false;
+    
+    const totalAmountBlocked = userBookings.reduce((sum: number, b: any) => 
+      sum + Number(b.amountBlocked || 0), 0
+    );
+    
+    // Si hay 1 booking con >10€ bloqueado, es reserva privada (4 plazas)
+    return totalAmountBlocked > 1000;
+  }, [matchGame.bookings, currentUser?.id]);
+
   // 🆕 Función para ceder plazas parciales en partidas
   const handlePartialTransfer = async (slots: number) => {
     if (!currentUser?.id || !matchGame.id || slots < 1 || slots > 4) {
@@ -455,6 +474,35 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
           {/* Botón Reserva Privada O Botón Cancelar */}
           {isPrivateBooking && showLeaveButton && isUserBooked ? (
             // Si es reserva privada Y el usuario es el dueño, mostrar botón de cancelar/ceder
+            <Button
+              size="sm"
+              variant="outline"
+              className={`h-6 text-[10px] px-2 bg-white border-white ${
+                userBooking?.status === 'CONFIRMED'
+                  ? 'hover:bg-yellow-50 text-yellow-700 hover:border-yellow-200'
+                  : 'hover:bg-red-50 text-red-700 hover:border-red-200'
+              }`}
+              onClick={() => {
+                // Para reservas privadas confirmadas, mostrar diálogo de cesión parcial
+                if (userBooking?.status === 'CONFIRMED') {
+                  setShowPartialTransferDialog(true);
+                } else {
+                  setShowLeaveDialog(true);
+                }
+              }}
+              disabled={booking}
+            >
+              {booking ? (userBooking?.status === 'CONFIRMED' ? 'Cediendo...' : 'Cancelando...') : (
+                userBooking?.status === 'CONFIRMED' ? '♻️ Ceder Plaza' : 'Cancelar'
+              )}
+            </Button>
+          ) : isPrivateBooking ? (
+            // Si es reserva privada pero el usuario NO es el dueño, mostrar badge
+            <Badge variant="outline" className="h-6 text-[10px] px-2 bg-blue-600 text-white border-white">
+              Reserva Privada
+            </Badge>
+          ) : showLeaveButton && isUserBooked ? (
+            // Si NO es reserva privada pero el usuario está inscrito, mostrar botón
             (() => {
               const userBookingsCount = getUserBookingsCount();
               const hasMultipleBookings = userBookingsCount > 1;
@@ -469,6 +517,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
                       : 'hover:bg-red-50 text-red-700 hover:border-red-200'
                   }`}
                   onClick={() => {
+                    // Si tiene múltiples bookings y está confirmado, mostrar diálogo parcial
                     if (hasMultipleBookings && userBooking?.status === 'CONFIRMED') {
                       setShowPartialTransferDialog(true);
                     } else {
@@ -483,28 +532,6 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
                 </Button>
               );
             })()
-          ) : isPrivateBooking ? (
-            // Si es reserva privada pero el usuario NO es el dueño, mostrar badge
-            <Badge variant="outline" className="h-6 text-[10px] px-2 bg-blue-600 text-white border-white">
-              Reserva Privada
-            </Badge>
-          ) : showLeaveButton && isUserBooked ? (
-            // Si NO es reserva privada pero el usuario está inscrito, mostrar botón
-            <Button
-              size="sm"
-              variant="outline"
-              className={`h-6 text-[10px] px-2 bg-white border-white ${
-                userBooking?.status === 'CONFIRMED'
-                  ? 'hover:bg-yellow-50 text-yellow-700 hover:border-yellow-200'
-                  : 'hover:bg-red-50 text-red-700 hover:border-red-200'
-              }`}
-              onClick={() => setShowLeaveDialog(true)}
-              disabled={booking}
-            >
-              {booking ? (userBooking?.status === 'CONFIRMED' ? 'Cediendo...' : 'Cancelando...') : (
-                userBooking?.status === 'CONFIRMED' ? '♻️ Ceder Plaza' : 'Cancelar'
-              )}
-            </Button>
           ) : showPrivateBookingButton ? (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -900,10 +927,24 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             <AlertDialogDescription>
               {(() => {
                 const userBookingsCount = getUserBookingsCount();
+                const isPrivate = hasPrivateBooking;
+                const maxSlots = isPrivate ? 4 : userBookingsCount;
+                
                 return (
                   <>
-                    Tienes {userBookingsCount} plaza{userBookingsCount > 1 ? 's' : ''} confirmada{userBookingsCount > 1 ? 's' : ''} en esta partida. 
-                    Selecciona cuántas plazas deseas ceder. Recibirás puntos de compensación por cada plaza cedida.
+                    {isPrivate ? (
+                      <>
+                        Tienes una <strong>reserva privada de pista completa</strong> (4 plazas) en esta partida.
+                        <br />
+                        Selecciona cuántas plazas deseas ceder. Recibirás puntos de compensación por cada plaza cedida.
+                      </>
+                    ) : (
+                      <>
+                        Tienes {userBookingsCount} plaza{userBookingsCount > 1 ? 's' : ''} confirmada{userBookingsCount > 1 ? 's' : ''} en esta partida.
+                        <br />
+                        Selecciona cuántas plazas deseas ceder. Recibirás puntos de compensación por cada plaza cedida.
+                      </>
+                    )}
                     <br /><br />
                     <span className="text-sm text-gray-600">
                       ♻️ Las plazas cedidas quedarán disponibles para que otros jugadores las reserven usando puntos.
@@ -916,9 +957,14 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
           
           {/* Grid de opciones de plazas a ceder */}
           <div className="grid grid-cols-2 gap-3 my-4">
-            {[1, 2, 3, 4].slice(0, getUserBookingsCount()).map((count) => {
-              const pricePerPlayer = Number(matchGame.pricePerPlayer) || 0;
-              const pointsForOption = Math.round(pricePerPlayer * count);
+            {[1, 2, 3, 4].slice(0, hasPrivateBooking ? 4 : getUserBookingsCount()).map((count) => {
+              // Para reservas privadas, calcular precio por plaza (courtRentalPrice / 4)
+              // Para bookings individuales, usar pricePerPlayer
+              const pricePerSlot = hasPrivateBooking 
+                ? (Number(matchGame.courtRentalPrice) || 0) / 4
+                : Number(matchGame.pricePerPlayer) || 0;
+              
+              const pointsForOption = Math.round(pricePerSlot * count);
               
               return (
                 <button
