@@ -927,7 +927,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             <AlertDialogDescription>
               {(() => {
                 const userBookingsCount = getUserBookingsCount();
-                const isPrivate = hasPrivateBooking;
+                const isPrivate = isPrivateBooking;
                 const maxSlots = isPrivate ? 4 : userBookingsCount;
                 
                 return (
@@ -957,10 +957,10 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
           
           {/* Grid de opciones de plazas a ceder */}
           <div className="grid grid-cols-2 gap-3 my-4">
-            {[1, 2, 3, 4].slice(0, hasPrivateBooking ? 4 : getUserBookingsCount()).map((count) => {
+            {[1, 2, 3, 4].slice(0, isPrivateBooking ? 4 : getUserBookingsCount()).map((count) => {
               // Para reservas privadas, calcular precio por plaza (courtRentalPrice / 4)
               // Para bookings individuales, usar pricePerPlayer
-              const pricePerSlot = hasPrivateBooking 
+              const pricePerSlot = isPrivateBooking 
                 ? (Number(matchGame.courtRentalPrice) || 0) / 4
                 : Number(matchGame.pricePerPlayer) || 0;
               
