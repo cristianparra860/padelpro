@@ -5,9 +5,11 @@ import { prisma } from '@/lib/prisma';
 function countPlayerSlots(bookings: any[]): number {
   let totalSlots = 0;
   for (const booking of bookings) {
-    // Check if it's a private booking (amountBlocked > 1000 = 32€ = 4 slots)
-    if (booking.amountBlocked && booking.amountBlocked > 1000) {
-      totalSlots += 4; // Private booking = 4 slots
+    // Check groupSize first (most reliable), then amountBlocked for legacy bookings
+    if (booking.groupSize && booking.groupSize > 1) {
+      totalSlots += booking.groupSize; // Use groupSize if present
+    } else if (booking.amountBlocked && booking.amountBlocked > 1000) {
+      totalSlots += 4; // Private booking (legacy detection) = 4 slots
     } else {
       totalSlots += 1; // Individual booking = 1 slot
     }
