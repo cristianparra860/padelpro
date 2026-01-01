@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// Helper function to count actual player slots (handles private bookings)
+function countPlayerSlots(bookings: any[]): number {
+  let totalSlots = 0;
+  for (const booking of bookings) {
+    // Check if it's a private booking (amountBlocked > 1000 = 32€ = 4 slots)
+    if (booking.amountBlocked && booking.amountBlocked > 1000) {
+      totalSlots += 4; // Private booking = 4 slots
+    } else {
+      totalSlots += 1; // Individual booking = 1 slot
+    }
+  }
+  return totalSlots;
+}
+
 export async function GET(request: NextRequest) {
   try {
     console.log('🎾 MATCHGAMES API - WITH LEVEL & GENDER FILTERING + PAGINATION - v1.0');
@@ -212,7 +226,7 @@ export async function GET(request: NextRequest) {
         start: mg.start.toISOString(),
         end: mg.end.toISOString(),
         courtNumber: mg.courtNumber,
-        bookedPlayers: bookings.length,
+        bookedPlayers: countPlayerSlots(activeBookings),  // Count actual slots, not just bookings
         bookings: bookings.map(b => ({
           id: b.id,
           userId: b.user.id,
