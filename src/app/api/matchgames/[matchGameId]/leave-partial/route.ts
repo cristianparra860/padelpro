@@ -209,26 +209,36 @@ export async function POST(
 
       // Otorgar puntos de compensación (solo si la partida estaba confirmada)
       if (totalPointsGranted > 0) {
-        const newPoints = await grantCompensationPoints(userId, totalPointsGranted, true);
+        // Actualizar puntos del usuario directamente dentro de la transacción
+        const updatedUser = await tx.user.update({
+          where: { id: userId },
+          data: {
+            points: { increment: totalPointsGranted }
+          },
+          select: { points: true }
+        });
         
+        const newPoints = updatedUser.points;
         console.log(`✅ Otorgados ${totalPointsGranted} puntos de compensación. Total puntos usuario: ${newPoints}`);
         
-        // Registrar transacción de puntos
-        await createTransaction({
-          userId: userId,
-          type: 'points',
-          action: 'add',
-          amount: totalPointsGranted,
-          balance: newPoints,
-          concept: `Cesión de ${slotsToTransfer} plaza${slotsToTransfer > 1 ? 's' : ''} - Partida ${new Date(matchGame.start).toLocaleString('es-ES')}`,
-          relatedId: matchGameId,
-          relatedType: 'matchGameBooking',
-          metadata: {
-            matchGameId: matchGameId,
-            slotsTransferred: slotsToTransfer,
-            isPrivateBooking,
-            pricePerSlot,
-            reason: 'Cesión parcial de plazas en partida'
+        // Registrar transacción de puntos (también dentro de tx)
+        await tx.transaction.create({
+          data: {
+            userId: userId,
+            type: 'points',
+            action: 'add',
+            amount: totalPointsGranted,
+            balance: newPoints,
+            concept: `Cesión de ${slotsToTransfer} plaza${slotsToTransfer > 1 ? 's' : ''} - Partida ${new Date(matchGame.start).toLocaleString('es-ES')}`,
+            relatedId: matchGameId,
+            relatedType: 'matchGameBooking',
+            metadata: JSON.stringify({
+              matchGameId: matchGameId,
+              slotsTransferred: slotsToTransfer,
+              isPrivateBooking,
+              pricePerSlot,
+              reason: 'Cesión parcial de plazas en partida'
+            })
           }
         });
       }
