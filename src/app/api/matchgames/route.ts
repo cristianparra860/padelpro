@@ -56,7 +56,10 @@ export async function GET(request: NextRequest) {
       allBookings = await prisma.matchGameBooking.findMany({
         where: {
           matchGameId: { in: matchGameIds },
-          status: { not: 'CANCELLED' }
+          OR: [
+            { status: { not: 'CANCELLED' } },
+            { status: 'CANCELLED', isRecycled: true }
+          ]
         },
         include: {
           user: {
@@ -72,7 +75,7 @@ export async function GET(request: NextRequest) {
         }
       });
       
-      console.log(`📚 Total bookings cargados (sin CANCELLED): ${allBookings.length}`);
+      console.log(`📚 Total bookings cargados (activos + reciclados): ${allBookings.length}`);
     }
 
     // Aplicar filtros de nivel y género del usuario
@@ -174,6 +177,13 @@ export async function GET(request: NextRequest) {
     const processedMatchGames = matchGames.map(mg => {
       const bookings = allBookings.filter(b => b.matchGameId === mg.id);
       
+      // Calcular plazas recicladas
+      const recycledBookings = bookings.filter(b => b.status === 'CANCELLED' && b.isRecycled === true);
+      const activeBookings = bookings.filter(b => b.status !== 'CANCELLED');
+      const totalPlayers = 4; // Las partidas siempre son de 4 jugadores
+      const availableRecycledSlots = Math.max(0, Math.min(recycledBookings.length, totalPlayers - activeBookings.length));
+      const hasRecycledSlots = availableRecycledSlots > 0;
+      
       // Calcular disponibilidad de pistas para esta partida
       const courtsAvailability = courts.map(court => {
         // Verificar si la pista está ocupada por una clase en este horario
@@ -218,9 +228,9 @@ export async function GET(request: NextRequest) {
         })),
         clubName: club?.name,
         pricePerPlayer: mg.pricePerPlayer,
-        hasRecycledSlots: mg.hasRecycledSlots,
-        availableRecycledSlots: mg.availableRecycledSlots,
-        recycledSlotsOnlyPoints: mg.recycledSlotsOnlyPoints,
+        hasRecycledSlots: hasRecycledSlots,
+        availableRecycledSlots: availableRecycledSlots,
+        recycledSlotsOnlyPoints: true, // Las plazas recicladas siempre son solo con puntos
         creditsCost: mg.creditsCost,
         courtsAvailability // 🏟️ Agregar disponibilidad de pistas
       };

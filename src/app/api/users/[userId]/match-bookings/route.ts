@@ -34,7 +34,9 @@ export async function GET(
                 user: {
                   select: {
                     name: true,
-                    profilePictureUrl: true
+                    profilePictureUrl: true,
+                    level: true,
+                    gender: true
                   }
                 }
               }
@@ -49,7 +51,26 @@ export async function GET(
 
     console.log(`✅ Cargadas ${matchBookings.length} reservas de partidas para usuario ${userId}`);
 
-    return NextResponse.json(matchBookings);
+    // Transformar los datos para incluir userLevel y userGender en los bookings
+    const processedMatchBookings = matchBookings.map(mb => ({
+      ...mb,
+      matchGame: {
+        ...mb.matchGame,
+        start: mb.matchGame.start.toISOString(),
+        end: mb.matchGame.end.toISOString(),
+        bookings: mb.matchGame.bookings.map(b => ({
+          id: b.id,
+          userId: b.userId,
+          status: b.status,
+          name: b.user.name,
+          profilePictureUrl: b.user.profilePictureUrl,
+          userLevel: b.user.level,
+          userGender: b.user.gender
+        }))
+      }
+    }));
+
+    return NextResponse.json(processedMatchBookings);
   } catch (error) {
     console.error('❌ Error fetching user match bookings:', error);
     return NextResponse.json(

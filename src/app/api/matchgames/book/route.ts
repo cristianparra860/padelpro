@@ -652,15 +652,8 @@ export async function POST(request: Request) {
         }
       }
       
-      // Verificar género
-      if (matchGame.genderCategory && matchGame.genderCategory !== 'mixto') {
-        if (!user.gender || user.gender !== matchGame.genderCategory) {
-          return NextResponse.json(
-            { error: `Tu género no es compatible con esta partida (${matchGame.genderCategory})` },
-            { status: 400 }
-          );
-        }
-      }
+      // NOTA: Género es solo informativo, no restrictivo
+      // La categoría (chicos/chicas) se actualiza dinámicamente según los jugadores inscritos
     }
     
     // Calcular precio a bloquear

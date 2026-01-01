@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { roundPrice } from '@/lib/utils';
 
 interface AdminBookingCardProps {
   booking: {
@@ -383,7 +384,7 @@ const AdminBookingCard: React.FC<AdminBookingCardProps> = ({ booking }) => {
               {/* Price - COMPACT */}
               <div className="text-right">
                 <div className="text-sm font-bold text-gray-900">
-                  € {pricePerPerson.toFixed(2)}
+                  € {roundPrice(pricePerPerson).toFixed(2)}
                 </div>
               </div>
             </div>

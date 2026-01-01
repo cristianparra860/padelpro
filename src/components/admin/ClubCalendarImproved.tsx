@@ -83,6 +83,7 @@ export default function ClubCalendarImproved({
   const [selectedMatchIds, setSelectedMatchIds] = useState<string[]>([]); // Múltiples partidas
   const [showMatchOptions, setShowMatchOptions] = useState(false); // Dialog para múltiples opciones
   const [selectedGroupSize, setSelectedGroupSize] = useState<1 | 2 | 3 | 4>(1); // Selector de precios por alumnos
+  const [pricePerPlayers, setPricePerPlayers] = useState<1 | 4>(4); // Selector precio partidas: 1 jugador o 4 jugadores
   const [viewType, setViewType] = useState<'clases' | 'partidas'>('partidas'); // Selector principal
   const [currentTime, setCurrentTime] = useState(new Date()); // Hora actual para overlay
 
@@ -429,7 +430,8 @@ export default function ClubCalendarImproved({
     confirmedClasses.forEach((classItem: any) => {
       if (classItem.bookings && Array.isArray(classItem.bookings)) {
         classItem.bookings.forEach((booking: any) => {
-          if (booking.userId === currentUser.id) {
+          // Excluir bookings cancelados (incluyendo los reciclados)
+          if (booking.userId === currentUser.id && booking.status !== 'CANCELLED') {
             userBookings.push({
               timeSlotId: classItem.id,
               status: 'CONFIRMED', // Clase confirmada = Reserva (R)
@@ -444,7 +446,8 @@ export default function ClubCalendarImproved({
     classProposals.forEach((classItem: any) => {
       if (classItem.bookings && Array.isArray(classItem.bookings)) {
         classItem.bookings.forEach((booking: any) => {
-          if (booking.userId === currentUser.id) {
+          // Excluir bookings cancelados
+          if (booking.userId === currentUser.id && booking.status !== 'CANCELLED') {
             userBookings.push({
               timeSlotId: classItem.id,
               status: 'PENDING', // Propuesta = Inscripción (I)
@@ -459,7 +462,8 @@ export default function ClubCalendarImproved({
     confirmedMatches.forEach((match: any) => {
       if (match.bookings && Array.isArray(match.bookings)) {
         match.bookings.forEach((booking: any) => {
-          if (booking.userId === currentUser.id) {
+          // Excluir bookings cancelados (incluyendo los reciclados)
+          if (booking.userId === currentUser.id && booking.status !== 'CANCELLED') {
             userBookings.push({
               timeSlotId: match.id,
               status: 'CONFIRMED', // Partida confirmada = Reserva (R)
@@ -474,7 +478,8 @@ export default function ClubCalendarImproved({
     matchProposals.forEach((match: any) => {
       if (match.bookings && Array.isArray(match.bookings)) {
         match.bookings.forEach((booking: any) => {
-          if (booking.userId === currentUser.id) {
+          // Excluir bookings cancelados
+          if (booking.userId === currentUser.id && booking.status !== 'CANCELLED') {
             userBookings.push({
               timeSlotId: match.id,
               status: 'PENDING', // Propuesta = Inscripción (I)
@@ -738,9 +743,10 @@ export default function ClubCalendarImproved({
                     className="w-full h-full object-cover"
                   />
                 </div>
-                <h3 className="text-lg font-bold text-white">
-                  Calendario: {calendarData.instructors.find(i => i.id === selectedInstructor)?.name}
-                </h3>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Calendario</h3>
+                  <div className="text-sm text-white/90">Instructor: {calendarData.instructors.find(i => i.id === selectedInstructor)?.name}</div>
+                </div>
               </div>
               
               {/* Centro: Usuario logueado */}
@@ -797,6 +803,60 @@ export default function ClubCalendarImproved({
           </div>
         )}
 
+        {/* Banner del Calendario de Partidas */}
+        {viewType === 'partidas' && (
+          <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-2xl shadow-lg p-2">
+            <div className="flex items-center justify-between gap-4">
+              {/* Izquierda: Foto del usuario */}
+              {currentUser && (
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white shadow-lg">
+                    <img
+                      src={currentUser.profilePicture || currentUser.photo || currentUser.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name || 'Usuario')}&background=10b981&color=fff&size=128`}
+                      alt={currentUser.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name || 'Usuario')}&background=10b981&color=fff&size=128`;
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Calendario de Partidas</h3>
+                  </div>
+                </div>
+              )}
+              
+              {/* Derecha: Selector de precio por 1 jugador o 4 jugadores */}
+              <div className="flex items-center gap-2">
+                <div className="text-center">
+                  <div className="text-xs font-semibold text-white">Ver precio por</div>
+                </div>
+                <div className="flex flex-col items-center">
+                  <div className="flex gap-2">
+                    {[1, 4].map((players) => (
+                      <button
+                        key={players}
+                        onClick={() => setPricePerPlayers(players as 1 | 4)}
+                        className={`w-10 h-10 rounded-lg text-lg font-bold transition-all ${
+                          pricePerPlayers === players
+                            ? 'bg-white text-green-600 scale-105'
+                            : 'bg-white/20 text-white hover:bg-white/30'
+                        }`}
+                        style={pricePerPlayers === players ? { boxShadow: 'inset 0 3px 6px rgba(0, 0, 0, 0.5)' } : {}}
+                        title={`Precio para ${players} ${players === 1 ? 'jugador' : 'jugadores'}`}
+                      >
+                        {players}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="text-xs font-medium text-white mt-0.5">Jugadores</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Calendario Grid */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
@@ -844,7 +904,8 @@ export default function ClubCalendarImproved({
                               <div 
                                 onClick={() => {
                                   if (reservation.type === 'match-confirmed' && reservation.id) {
-                                    setSelectedMatchIds([reservation.id]);
+                                    setSelectedClassId(reservation.id);
+                                    setShowClassCard(true);
                                   }
                                 }}
                                 className={`rounded-xl h-full flex flex-col justify-between border-2 border-gray-400 ${
@@ -867,87 +928,98 @@ export default function ClubCalendarImproved({
                                   />
                                 )}
                                 
-                                {/* Hora alineada arriba para partidas */}
-                                {reservation.type === 'match-confirmed' && (
-                                  <div className="absolute top-0 left-0 right-0 text-center pt-1 pointer-events-none">
-                                    <div className="text-[14px] font-bold text-white mb-1">PARTIDA</div>
-                                    <div className="flex items-center justify-center gap-1">
-                                      <span className="text-[8px] text-white">Hora de inicio:</span>
-                                      <span className="text-[10px] font-bold text-white bg-green-600/50 px-2 py-0.5 rounded">
-                                        {timeSlot}
-                                      </span>
-                                    </div>
-                                  </div>
-                                )}
-                                
-                                <div className="p-1.5 pointer-events-none">
-                                  {/* Header con foto del instructor o texto Partida */}
-                                  {reservation.type === 'match-confirmed' ? (
-                                    <div className="flex items-center gap-1 mb-1 mt-14">
-                                      <span className="text-[9px] font-bold text-white truncate flex-1 text-center">
-                                        Rango de nivel / {reservation.level || 'Abierta'}
-                                      </span>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center gap-1 mb-1">
-                                      <div className="w-5 h-5 rounded-full overflow-hidden shadow-md ring-1 ring-white bg-white">
-                                        <img
-                                          src={reservation.instructorPhoto || `https://ui-avatars.com/api/?name=${encodeURIComponent(reservation.instructorName || 'I')}&background=random&color=fff&size=64`}
-                                          alt={reservation.instructorName}
-                                          className="w-full h-full object-cover"
-                                        />
+                                <div className="p-2 flex flex-col justify-center items-center h-full pointer-events-none">
+                                  {reservation.type === 'match-confirmed' && (
+                                    <>
+                                      {/* Título grande y claro */}
+                                      <div className="text-center mb-2">
+                                        <div className="text-[14px] font-bold text-white">PARTIDA</div>
                                       </div>
-                                      <span className="text-[8px] font-bold text-white truncate flex-1">
-                                        {reservation.instructorName}
-                                      </span>
-                                    </div>
-                                  )}
-
-                                  {/* Jugadores */}
-                                  {reservation.type === 'match-confirmed' ? (
-                                    <div className="grid grid-cols-2 gap-2 justify-items-center">
-                                      {reservation.bookings?.filter((b: any) => b.status !== 'CANCELLED').map((booking: any, i: number) => {
-                                        const playerName = booking.user?.name || booking.userName || `Jugador ${i+1}`;
-                                        const initials = playerName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase();
-                                        return (
-                                          <div key={booking.id || i} className="flex flex-col items-center gap-0.5">
-                                            <div className="w-10 h-10 rounded-full overflow-hidden shadow-md ring-2 ring-green-300 bg-white">
+                                      
+                                      {/* Hora grande y destacada */}
+                                      <div className="text-center mb-2">
+                                        <div className="text-[20px] font-bold text-white">{timeSlot}</div>
+                                      </div>
+                                      
+                                      {/* Nivel */}
+                                      <div className="text-center mb-2">
+                                        <div className="text-[12px] font-bold text-white">{reservation.level || 'Abierto'}</div>
+                                      </div>
+                                      
+                                      {/* Jugadores en fila única con fotos grandes */}
+                                      <div className="flex justify-center gap-1.5">
+                                        {reservation.bookings?.filter((b: any) => b.status !== 'CANCELLED' || (b.status === 'CANCELLED' && b.isRecycled === true)).map((booking: any, i: number) => {
+                                          const playerName = booking.user?.name || booking.userName || `Jugador ${i+1}`;
+                                          const isRecycled = booking.status === 'CANCELLED' && booking.isRecycled === true;
+                                          
+                                          if (isRecycled) {
+                                            return (
+                                              <div 
+                                                key={booking.id || i}
+                                                className="w-8 h-8 rounded-full flex items-center justify-center shadow-md ring-2 ring-yellow-600 bg-yellow-400"
+                                                title="Plaza reciclada (solo puntos)"
+                                              >
+                                                <span className="text-[14px]">♻️</span>
+                                              </div>
+                                            );
+                                          }
+                                          
+                                          return (
+                                            <div 
+                                              key={booking.id || i}
+                                              className="w-8 h-8 rounded-full overflow-hidden shadow-md ring-2 ring-white bg-white"
+                                              title={playerName}
+                                            >
                                               <img
-                                                src={booking.user?.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(playerName)}&background=22c55e&color=fff&size=128`}
+                                                src={booking.user?.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(playerName)}&background=22c55e&color=fff&size=64`}
                                                 alt={playerName}
                                                 className="w-full h-full object-cover"
                                               />
                                             </div>
-                                            <span className="text-[7px] text-white font-semibold">{initials}</span>
+                                          );
+                                        })}
+                                        {Array.from({ length: (reservation.maxPlayers || 4) - (reservation.bookings?.filter((b: any) => b.status !== 'CANCELLED' || (b.status === 'CANCELLED' && b.isRecycled === true)).length || 0) }).map((_, i) => (
+                                          <div 
+                                            key={`empty-${i}`}
+                                            className="w-8 h-8 rounded-full border-2 border-white/80 flex items-center justify-center bg-white/20"
+                                          >
+                                            <span className="text-[14px] text-white font-bold">+</span>
                                           </div>
-                                        );
-                                      })}
-                                      {Array.from({ length: (reservation.maxPlayers || 4) - (reservation.playersCount || 0) }).map((_, i) => (
-                                        <div key={`empty-${i}`} className="flex flex-col items-center gap-0.5">
-                                          <div className="w-10 h-10 rounded-full border-2 border-white flex items-center justify-center bg-green-300">
-                                            <span className="text-[14px] text-white font-semibold">+</span>
+                                        ))}
+                                      </div>
+                                    </>
+                                  )}
+                                  {reservation.type === 'class-confirmed' && (
+                                    <>
+                                      <div className="flex items-center gap-1 mb-1">
+                                        <div className="w-5 h-5 rounded-full overflow-hidden shadow-md ring-1 ring-white bg-white">
+                                          <img
+                                            src={reservation.instructorPhoto || `https://ui-avatars.com/api/?name=${encodeURIComponent(reservation.instructorName || 'I')}&background=random&color=fff&size=64`}
+                                            alt={reservation.instructorName}
+                                            className="w-full h-full object-cover"
+                                          />
+                                        </div>
+                                        <span className="text-[8px] font-bold text-white truncate flex-1">
+                                          {reservation.instructorName}
+                                        </span>
+                                      </div>
+                                      <div className="flex gap-0.5 justify-center">
+                                        {Array.from({ length: reservation.playersCount || 0 }).map((_, i) => (
+                                          <div key={i} className="w-3 h-3 rounded-full flex items-center justify-center ring-1 bg-white ring-blue-300">
+                                            <span className="text-[7px] font-bold text-blue-700">{i + 1}</span>
                                           </div>
-                                          <span className="text-[7px] text-white/0">--</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <div className="flex gap-0.5 justify-center">
-                                      {Array.from({ length: reservation.playersCount || 0 }).map((_, i) => (
-                                        <div key={i} className="w-3 h-3 rounded-full flex items-center justify-center ring-1 bg-white ring-blue-300">
-                                          <span className="text-[7px] font-bold text-blue-700">{i + 1}</span>
-                                        </div>
-                                      ))}
-                                      {Array.from({ length: (reservation.maxPlayers || 4) - (reservation.playersCount || 0) }).map((_, i) => (
-                                        <div key={`empty-${i}`} className="w-3 h-3 rounded-full border border-white/50 bg-blue-400/30"></div>
-                                      ))}
-                                    </div>
+                                        ))}
+                                        {Array.from({ length: (reservation.maxPlayers || 4) - (reservation.playersCount || 0) }).map((_, i) => (
+                                          <div key={`empty-${i}`} className="w-3 h-3 rounded-full border border-white/50 bg-blue-400/30"></div>
+                                        ))}
+                                      </div>
+                                    </>
                                   )}
                                 </div>
 
                                 {/* Footer con precio y duración */}
-                                <div className="flex items-center justify-between p-1.5 pt-1 border-t bg-white/90 rounded-b-xl">
-                                  <div className="text-[10px] font-bold text-gray-900">€{reservation.price || 0}</div>
+                                <div className="flex items-center justify-between px-1.5 py-0.5 border-t bg-white/90 rounded-b-xl">
+                                  <div className="text-[9px] font-bold text-gray-900">€{reservation.price || 0}</div>
                                   <div className="text-[9px] font-medium text-gray-700">{reservation.duration || 60} min</div>
                                 </div>
                               </div>
@@ -1002,9 +1074,9 @@ export default function ClubCalendarImproved({
                                   )}
                                   
                                   {/* Header con instructor y tipo */}
-                                  <div className="p-2 pb-1">
-                                    <div className="flex items-center gap-1.5 mb-2">
-                                      <div className="w-7 h-7 rounded-full overflow-hidden shadow-md ring-2 ring-white bg-white">
+                                  <div className="p-1.5 pb-0.5">
+                                    <div className="flex items-center gap-1 mb-1">
+                                      <div className="w-6 h-6 rounded-full overflow-hidden shadow-md ring-2 ring-white bg-white">
                                         <img
                                           src={confirmedClass.instructorPhoto || confirmedClass.instructorProfilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(confirmedClass.instructorName || 'I')}&background=random&color=fff&size=64`}
                                           alt={confirmedClass.instructorName || 'Instructor'}
@@ -1022,21 +1094,26 @@ export default function ClubCalendarImproved({
                                     </div>
 
                                     {/* Jugadores reservados con fotos - Grid 4 columnas */}
-                                    <div className="grid grid-cols-4 gap-1">
+                                    <div className="grid grid-cols-4 gap-0.5">
                                       {Array.from({ length: maxPlayers }).map((_, i) => {
                                         const booking = bookings[i];
                                         const hasBooking = i < bookingsCount;
+                                        const isRecycled = booking?.status === 'CANCELLED' && booking?.isRecycled === true;
                                         
                                         return (
                                           <div 
                                             key={i} 
-                                            className={`w-7 h-7 rounded-full flex items-center justify-center shadow-sm overflow-hidden relative ${
-                                              hasBooking 
+                                            className={`w-6 h-6 rounded-full flex items-center justify-center shadow-sm overflow-hidden relative ${
+                                              isRecycled
+                                                ? 'bg-yellow-400 ring-2 ring-yellow-600'
+                                                : hasBooking 
                                                 ? 'bg-white ring-1 ring-blue-300' 
                                                 : 'border-2 border-white/50 bg-blue-400/30'
                                             }`}
                                           >
-                                            {hasBooking && booking?.user ? (
+                                            {isRecycled ? (
+                                              <span className="text-[12px]" title="Plaza reciclada (solo puntos)">♻️</span>
+                                            ) : hasBooking && booking?.user ? (
                                               <>
                                                 <img
                                                   src={booking.user.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(booking.user.name || 'U')}&background=random&color=fff&size=64`}
@@ -1065,9 +1142,9 @@ export default function ClubCalendarImproved({
                                   </div>
 
                                   {/* Footer con precio y duración */}
-                                  <div className="flex items-center justify-between px-2 py-1.5 bg-white/95 mt-auto">
-                                    <div className="text-[11px] font-bold text-blue-600">€{Math.round(pricePerPlayer)}</div>
-                                    <div className="text-[10px] font-semibold text-gray-600">{duration} min</div>
+                                  <div className="flex items-center justify-between px-1.5 py-1 bg-white/95 mt-auto">
+                                    <div className="text-[10px] font-bold text-blue-600">€{Math.round(pricePerPlayer)}</div>
+                                    <div className="text-[9px] font-semibold text-gray-600">{duration} min</div>
                                   </div>
                                 </div>
                               </td>
@@ -1109,8 +1186,8 @@ export default function ClubCalendarImproved({
                                   className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl h-full cursor-pointer hover:from-purple-600 hover:to-pink-600 hover:scale-[1.02] transition-all shadow-[0_4px_12px_rgba(168,85,247,0.5)] border-2 border-purple-400 flex flex-col overflow-hidden"
                                 >
                                   {/* Header con nivel y tipo */}
-                                  <div className="p-2 pb-1">
-                                    <div className="flex items-center gap-1.5 mb-2">
+                                  <div className="p-1.5 pb-0.5">
+                                    <div className="flex items-center gap-1 mb-1">
                                       <div className="flex-1">
                                         <div className="flex items-center gap-1">
                                           <span className="text-[8px] font-semibold text-white/90">🏆 Partida</span>
@@ -1122,7 +1199,7 @@ export default function ClubCalendarImproved({
                                     </div>
 
                                     {/* Jugadores reservados con fotos - Grid 4 columnas */}
-                                    <div className="grid grid-cols-4 gap-1">
+                                    <div className="grid grid-cols-4 gap-0.5">
                                       {Array.from({ length: maxPlayers }).map((_, i) => {
                                         const booking = bookings[i];
                                         const hasBooking = i < bookingsCount;
@@ -1130,7 +1207,7 @@ export default function ClubCalendarImproved({
                                         return (
                                           <div 
                                             key={i} 
-                                            className={`w-7 h-7 rounded-full flex items-center justify-center shadow-sm overflow-hidden ${
+                                            className={`w-6 h-6 rounded-full flex items-center justify-center shadow-sm overflow-hidden ${
                                               hasBooking 
                                                 ? 'bg-white ring-1 ring-purple-300' 
                                                 : 'border-2 border-white/50 bg-purple-400/30'
@@ -1154,9 +1231,9 @@ export default function ClubCalendarImproved({
                                   </div>
 
                                   {/* Footer con precio y duración */}
-                                  <div className="flex items-center justify-between p-1.5 pt-1 border-t border-purple-300/50 bg-white/90 rounded-b-xl">
-                                    <div className="text-[10px] font-bold text-gray-900">€{Math.round(pricePerPlayer)}</div>
-                                    <div className="text-[9px] font-medium text-gray-700">{duration} min</div>
+                                  <div className="flex items-center justify-between px-1.5 py-0.5 border-t border-purple-300/50 bg-white/90 rounded-b-xl">
+                                    <div className="text-[9px] font-bold text-gray-900">€{Math.round(pricePerPlayer)}</div>
+                                    <div className="text-[8px] font-medium text-gray-700">{duration} min</div>
                                   </div>
                                 </div>
                               </td>
@@ -1263,7 +1340,11 @@ export default function ClubCalendarImproved({
                                 const playersCount = bookings.length;
                                 const maxPlayers = 4;
                                 const courtRentalPrice = firstMatch.courtRentalPrice || 20;
-                                const pricePerPlayer = courtRentalPrice / 4;
+                                
+                                // Calcular precio seg\u00fan selecci\u00f3n: 1 jugador (precio/4) o 4 jugadores (precio total)
+                                const priceToShow = pricePerPlayers === 1 
+                                  ? courtRentalPrice / 4 
+                                  : courtRentalPrice;
                                 
                                 // Determinar nivel - usar el nivel del matchProposal
                                 let levelDisplay = 'Abierto';
@@ -1320,8 +1401,8 @@ export default function ClubCalendarImproved({
                                       {/* Recuadro de precio alineado a la derecha */}
                                       <div className="flex-shrink-0 bg-white rounded-md px-2 py-1 border border-gray-200" style={{ boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.1)' }}>
                                         <div className="text-[7px] text-gray-600 leading-tight">Precio por</div>
-                                        <div className="text-[7px] text-gray-600 leading-tight">jugador</div>
-                                        <div className="text-sm font-bold text-gray-800 leading-tight">{Math.round(pricePerPlayer)}€</div>
+                                        <div className="text-[7px] text-gray-600 leading-tight">{pricePerPlayers === 1 ? 'jugador' : `${pricePerPlayers} jugadores`}</div>
+                                        <div className="text-sm font-bold text-gray-800 leading-tight">{Math.round(priceToShow)}€</div>
                                       </div>
                                     </div>
                                   </div>
@@ -1351,14 +1432,14 @@ export default function ClubCalendarImproved({
       
       {/* Diálogo con tarjeta de clase */}
       <Dialog open={showClassCard} onOpenChange={setShowClassCard}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto p-0">
           {/* Botón de cierre grande y visible */}
           <button
             onClick={() => setShowClassCard(false)}
-            className="absolute top-4 right-4 z-50 bg-red-500 hover:bg-red-600 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-lg transition-all hover:scale-110"
+            className="absolute top-2 right-2 z-50 bg-red-500 hover:bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg transition-all hover:scale-110"
             aria-label="Cerrar"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -1421,44 +1502,18 @@ export default function ClubCalendarImproved({
               );
             }
             
-            // Si es una clase, mostrar ClassCardReal con información del instructor
+            // Si es una clase, mostrar ClassCardReal directamente
             return (
-              <div className="space-y-4">
-                {/* Información del instructor */}
-                {selectedClass.instructorName && (
-                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border border-blue-200">
-                    <div className="flex items-center gap-3">
-                      {selectedClass.instructorPhoto ? (
-                        <img 
-                          src={selectedClass.instructorPhoto} 
-                          alt={selectedClass.instructorName}
-                          className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-md"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg border-2 border-white shadow-md">
-                          {selectedClass.instructorName.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
-                        </div>
-                      )}
-                      <div className="flex-1">
-                        <div className="text-sm text-gray-600 font-medium">Instructor</div>
-                        <div className="text-lg font-bold text-gray-900">{selectedClass.instructorName}</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Tarjeta de la clase */}
-                <ClassCardReal
-                  classData={selectedClass}
-                  currentUser={currentUser}
-                  onBookingSuccess={() => {
-                    setShowClassCard(false);
-                    setSelectedClassId(null);
-                    // Recargar datos del calendario
-                    window.location.reload();
-                  }}
-                />
-              </div>
+              <ClassCardReal
+                classData={selectedClass}
+                currentUser={currentUser}
+                onBookingSuccess={() => {
+                  setShowClassCard(false);
+                  setSelectedClassId(null);
+                  // Recargar datos del calendario
+                  window.location.reload();
+                }}
+              />
             );
           })()}
         </DialogContent>

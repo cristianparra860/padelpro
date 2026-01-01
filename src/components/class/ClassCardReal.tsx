@@ -22,7 +22,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { User, TimeSlot } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
+import { cn, roundPrice } from '@/lib/utils';
 import { calculateSlotPrice } from '@/lib/blockedCredits';
 import Link from 'next/link';
 
@@ -44,6 +44,7 @@ interface ClassCardRealProps {
   isCancelled?: boolean; // Si es true, la clase está cancelada y se muestra badge rojo
   cancelledGroupSize?: number; // Tamaño del grupo que fue cancelado (para marcar plaza específica)
   cancelledUserData?: { name?: string; profilePictureUrl?: string }; // Datos del usuario que canceló
+  userBookedGroupSize?: number; // 🆕 Tamaño del grupo que el usuario reservó (para resaltar en Mis Reservas)
   // Props para modo instructor
   instructorView?: boolean; // Si es true, muestra opciones de gestión para instructor
 }
@@ -78,6 +79,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   isCancelled = false,
   cancelledGroupSize,
   cancelledUserData,
+  userBookedGroupSize, // 🆕 Tamaño del grupo reservado por el usuario
   // Props para modo instructor
   instructorView = false
 }) => {
@@ -88,6 +90,11 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   const [privateAttendees, setPrivateAttendees] = useState<number>(4);
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCancelClassDialog, setShowCancelClassDialog] = useState(false);
+  
+  // 🆕 Estados para cesión parcial de plazas
+  const [showPartialTransferDialog, setShowPartialTransferDialog] = useState(false);
+  const [slotsToTransfer, setSlotsToTransfer] = useState<number>(1);
+  const [isTransferring, setIsTransferring] = useState(false);
 
   // 🔍 DEBUG: Verificar props de instructor
   useEffect(() => {
@@ -395,9 +402,9 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     console.log('📋 Tipo de currentUser.id:', typeof currentUser?.id);
     
     // 🎁 VERIFICAR SI ES UNA PLAZA CON PUNTOS (creditsSlot)
-    // Calcular creditsCost basado en el precio por persona de la modalidad
+    // Calcular creditsCost basado en el precio por persona de la modalidad (redondeado)
     const totalPrice = currentSlotData.totalPrice || 25;
-    let creditsCost = Math.ceil(totalPrice / groupSize); // Precio en puntos = precio en euros (usar let para permitir reasignación)
+    let creditsCost = Math.ceil(roundPrice(totalPrice / groupSize)); // Precio en puntos = precio en euros redondeado (usar let para permitir reasignación)
     
     // Calcular índices para esta modalidad
     const startIndex = [1,2,3,4].slice(0, groupSize - 1).reduce((sum, p) => sum + p, 0);
@@ -677,7 +684,65 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     }
   };
 
-  // 🎓 Anular clase por instructor
+  // � Ceder plazas parciales (para reservas privadas)
+  const handlePartialTransfer = async (slots: number) => {
+    if (!currentUser?.id || !classData.id || slots < 1 || slots > 4) {
+      toast({
+        title: "Error",
+        description: "Número de plazas inválido",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsTransferring(true);
+    setShowPartialTransferDialog(false);
+
+    try {
+      const response = await fetch(`/api/timeslots/${classData.id}/leave-partial`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          slotsToTransfer: slots
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        toast({
+          title: `♻️ ${slots} plaza${slots > 1 ? 's' : ''} cedida${slots > 1 ? 's' : ''}`,
+          description: `Has recibido ${data.pointsGranted || 0} puntos de compensación. Las plazas están disponibles para otros jugadores.`,
+          className: "bg-yellow-500 text-white",
+          duration: 5000
+        });
+
+        // Recargar datos
+        setTimeout(() => {
+          onBookingSuccess();
+        }, 100);
+      } else {
+        const errorData = await response.json();
+        toast({
+          title: "Error al ceder plazas",
+          description: errorData.error || "No se pudieron ceder las plazas",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error al ceder plazas:', error);
+      toast({
+        title: "Error de conexión",
+        description: "No se pudo conectar con el servidor",
+        variant: "destructive"
+      });
+    } finally {
+      setIsTransferring(false);
+    }
+  };
+
+  // �🎓 Anular clase por instructor
   const handleCancelClass = async () => {
     console.log('🔍 handleCancelClass - instructorView:', instructorView, 'classData.id:', classData.id);
     
@@ -737,6 +802,33 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
       b.status !== 'CANCELLED' && b.groupSize === groupSize
     ).length;
     return Math.max(0, groupSize - modalityBookedUsers);
+  };
+
+  // 🆕 Función para calcular horas hasta inicio de la clase
+  const getHoursUntilClass = () => {
+    const now = new Date();
+    const classStart = new Date(currentSlotData.start);
+    const milliseconds = classStart.getTime() - now.getTime();
+    return milliseconds / (1000 * 60 * 60); // Convertir a horas
+  };
+
+  // 🆕 Función para detectar si es una reserva privada (usuario tiene 4 bookings CONFIRMED en esta clase)
+  const isPrivateBooking = () => {
+    if (!currentUser?.id || !Array.isArray(bookings)) return false;
+    const userBookings = bookings.filter(b => 
+      b.userId === currentUser.id && 
+      b.status === 'CONFIRMED'
+    );
+    return userBookings.length === 4;
+  };
+
+  // 🆕 Función para contar cuántos bookings confirmados tiene el usuario en esta clase
+  const getUserConfirmedBookingsCount = () => {
+    if (!currentUser?.id || !Array.isArray(bookings)) return 0;
+    return bookings.filter(b => 
+      b.userId === currentUser.id && 
+      b.status === 'CONFIRMED'
+    ).length;
   };
 
   const isUserBooked = (groupSize: number) => {
@@ -843,7 +935,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     return colors[category?.toLowerCase() || ''] || 'text-gray-700 border-gray-200 bg-gray-100';
   };
 
-  const pricePerPerson = (currentSlotData.totalPrice || 25) / 4; // Precio en euros
+  const pricePerPerson = roundPrice((currentSlotData.totalPrice || 25) / 4); // Precio en euros redondeado
   const instructorRating = 4.8; // Mock rating
   const CategoryIcon = getCategoryIcon(currentSlotData.category);
 
@@ -1081,7 +1173,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     }`}>
       {/* ❌ Badge de Clase Cancelada */}
       {isCancelled && (
-        <div className="bg-gradient-to-r from-red-600 to-red-700 px-3 py-2 flex items-center justify-center gap-2 shadow-lg">
+        <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-3 py-2 flex items-center justify-center gap-2 shadow-lg">
           <div className="flex items-center gap-2">
             <div className="bg-white rounded-full w-6 h-6 flex items-center justify-center">
               <span className="text-red-600 font-black text-lg">✕</span>
@@ -1141,40 +1233,133 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           
           {/* Reserve/Cancel Button */}
           {agendaMode && !isCancelled && !isPastClass ? (
-            // Botón de Cancelar para modo "Mi Agenda" (solo si NO está cancelada Y NO es pasada)
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <button 
-                  className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-lg font-medium text-[10px] transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed mt-1"
-                  disabled={isCancelling}
-                >
-                  {isCancelling ? 'Cancelando...' : 'Cancelar'}
-                </button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Confirmar Cancelación</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    ¿Estás seguro que quieres cancelar tu inscripción? Se te podría aplicar una penalización.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Volver</AlertDialogCancel>
-                  <AlertDialogAction 
-                    onClick={async () => {
-                      if (bookingId && onCancelBooking) {
-                        setIsCancelling(true);
-                        await onCancelBooking(bookingId);
-                        setIsCancelling(false);
-                      }
-                    }} 
-                    className="bg-destructive hover:bg-destructive/90"
-                  >
-                    Sí, Cancelar
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            // Botón condicional para modo "Mi Agenda"
+            (() => {
+              const hoursUntilClass = getHoursUntilClass();
+              const isPrivate = isPrivateBooking();
+              const userBookingsCount = getUserConfirmedBookingsCount();
+              const canFullCancel = hoursUntilClass >= 24;
+
+              // Si es reserva privada o tiene múltiples bookings Y faltan menos de 24h, mostrar cesión parcial
+              if ((isPrivate || userBookingsCount > 1) && !canFullCancel) {
+                return (
+                  <AlertDialog open={showPartialTransferDialog} onOpenChange={setShowPartialTransferDialog}>
+                    <AlertDialogTrigger asChild>
+                      <button 
+                        className="bg-yellow-600 hover:bg-yellow-700 text-white px-2 py-1 rounded-lg font-medium text-[10px] transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed mt-1"
+                        disabled={isTransferring}
+                      >
+                        {isTransferring ? 'Cediendo...' : '♻️ Ceder Plazas'}
+                      </button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>♻️ Ceder Plazas de Reserva</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Tienes {userBookingsCount} plaza{userBookingsCount > 1 ? 's' : ''} confirmada{userBookingsCount > 1 ? 's' : ''} en esta clase. 
+                          Selecciona cuántas plazas deseas ceder. Recibirás puntos de compensación por cada plaza cedida.
+                          {hoursUntilClass < 24 && (
+                            <span className="block mt-2 text-red-600 font-semibold">
+                              ⚠️ Faltan menos de 24h para la clase. Solo puedes ceder plazas, no cancelar sin penalización.
+                            </span>
+                          )}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      
+                      {/* Grid de opciones de plazas a ceder */}
+                      <div className="grid grid-cols-2 gap-3 my-4">
+                        {[1, 2, 3, 4].slice(0, userBookingsCount).map((count) => {
+                          const pricePerSlot = calculateSlotPrice(currentSlotData.totalPrice || 0, count);
+                          const pointsForOption = Math.round(pricePerSlot * count);
+                          
+                          return (
+                            <button
+                              key={count}
+                              onClick={() => setSlotsToTransfer(count)}
+                              className={cn(
+                                "p-4 rounded-lg border-2 transition-all hover:scale-105",
+                                slotsToTransfer === count
+                                  ? "border-yellow-600 bg-yellow-50"
+                                  : "border-gray-300 bg-white hover:border-yellow-400"
+                              )}
+                            >
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-gray-900">
+                                  {count}
+                                </div>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  plaza{count > 1 ? 's' : ''}
+                                </div>
+                                <div className="text-xs text-yellow-600 font-semibold mt-2">
+                                  +{pointsForOption} pts
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Volver</AlertDialogCancel>
+                        <AlertDialogAction 
+                          onClick={() => handlePartialTransfer(slotsToTransfer)} 
+                          className="bg-yellow-600 hover:bg-yellow-700"
+                        >
+                          Ceder {slotsToTransfer} Plaza{slotsToTransfer > 1 ? 's' : ''}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                );
+              }
+
+              // Si faltan >= 24h O no es reserva múltiple, mostrar cancelación normal
+              return (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <button 
+                      className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-lg font-medium text-[10px] transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed mt-1"
+                      disabled={isCancelling}
+                    >
+                      {isCancelling ? 'Cancelando...' : 'Cancelar'}
+                    </button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Confirmar Cancelación</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {canFullCancel ? (
+                          <>
+                            ¿Estás seguro que quieres cancelar tu inscripción? 
+                            Como faltan más de 24 horas, no se aplicará penalización.
+                          </>
+                        ) : (
+                          <>
+                            ¿Estás seguro que quieres cancelar tu inscripción? 
+                            Se te podría aplicar una penalización.
+                          </>
+                        )}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Volver</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={async () => {
+                          if (bookingId && onCancelBooking) {
+                            setIsCancelling(true);
+                            await onCancelBooking(bookingId);
+                            setIsCancelling(false);
+                          }
+                        }} 
+                        className="bg-destructive hover:bg-destructive/90"
+                      >
+                        Sí, Cancelar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              );
+            })()
           ) : agendaMode && (isCancelled || isPastClass) ? (
             // Clase ya cancelada O clase pasada - mostrar botón eliminar
             <AlertDialog>
@@ -1476,9 +1661,9 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           const hasExactRecycledMatch = recycledCountInModality === players;
           
           // 🎁 Verificar si esta modalidad es reservable con puntos
-          // Calcular creditsCost dinámicamente: precio por persona
+          // Calcular creditsCost dinámicamente: precio por persona redondeado
           const totalPrice = currentSlotData.totalPrice || 25;
-          const creditsCost = Math.ceil(totalPrice / players);
+          const creditsCost = Math.ceil(roundPrice(totalPrice / players));
           
           // Calcular cuántas plazas de esta modalidad son de puntos (incluye recicladas)
           const startIndex = [1,2,3,4].slice(0, players - 1).reduce((sum, p) => sum + p, 0);
@@ -1545,14 +1730,20 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           }
           
           const isUserBookedForOption = isUserBooked(players);
-          const pricePerPerson = (currentSlotData.totalPrice || 25) / players; // Precio en euros
+          const pricePerPerson = roundPrice((currentSlotData.totalPrice || 25) / players); // Precio en euros redondeado
+          
+          // 🆕 Verificar si esta es la opción específica que el usuario reservó
+          const isUserBookedOption = agendaMode && userBookedGroupSize === players;
           
           return (
             <div 
               key={players} 
               className={cn(
                 "flex items-center justify-between gap-2 p-1 rounded-lg transition-colors min-w-0 relative",
-                // No aplicar opacity si es una clase cancelada (solo mostrar información)
+                // 🆕 Resaltar la opción que el usuario reservó en modo agenda
+                isUserBookedOption
+                  ? "bg-blue-100 border-2 border-blue-500 shadow-md"
+                  : // No aplicar opacity si es una clase cancelada (solo mostrar información)
                 isCancelled
                   ? "bg-gray-50"
                   : isDisabledByRecycling

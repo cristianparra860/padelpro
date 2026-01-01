@@ -21,7 +21,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { User } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
+import { cn, roundPrice } from '@/lib/utils';
 
 interface MatchGameCardProps {
   matchGame: any;
@@ -33,11 +33,12 @@ interface MatchGameCardProps {
 
 interface Booking {
   userId: string;
-  status: 'PENDING' | 'CONFIRMED';
+  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED';
   name?: string;
   profilePictureUrl?: string;
   userLevel?: string;
   userGender?: string;
+  isRecycled?: boolean;
 }
 
 const MatchGameCard: React.FC<MatchGameCardProps> = ({
@@ -51,11 +52,17 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
   const [booking, setBooking] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
+  
+  // 🆕 Estados para cesión parcial de plazas en partidas
+  const [showPartialTransferDialog, setShowPartialTransferDialog] = useState(false);
+  const [slotsToTransfer, setSlotsToTransfer] = useState<number>(1);
 
-  // Parse bookings
+  // Parse bookings (incluir CANCELLED si es reciclado)
   const bookings: Booking[] = useMemo(() => {
     if (!matchGame.bookings || !Array.isArray(matchGame.bookings)) return [];
-    return matchGame.bookings.filter((b: any) => b.status !== 'CANCELLED');
+    return matchGame.bookings.filter((b: any) => 
+      b.status !== 'CANCELLED' || (b.status === 'CANCELLED' && b.isRecycled === true)
+    );
   }, [matchGame.bookings]);
 
   // Check if user is already booked
@@ -319,6 +326,71 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
     }
   };
 
+  // 🆕 Contar cuántos bookings tiene el usuario en esta partida (para reservas múltiples/privadas)
+  const getUserBookingsCount = () => {
+    if (!currentUser?.id || !matchGame.bookings) return 0;
+    // Contar todos los bookings ACTIVOS del usuario (no cancelados, excepto reciclados)
+    return matchGame.bookings.filter((b: any) => 
+      b.userId === currentUser.id && 
+      (b.status !== 'CANCELLED' || b.isRecycled === true)
+    ).length;
+  };
+
+  // 🆕 Función para ceder plazas parciales en partidas
+  const handlePartialTransfer = async (slots: number) => {
+    if (!currentUser?.id || !matchGame.id || slots < 1 || slots > 4) {
+      toast({
+        title: "Error",
+        description: "Número de plazas inválido",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setBooking(true);
+    setShowPartialTransferDialog(false);
+
+    try {
+      const response = await fetch(`/api/matchgames/${matchGame.id}/leave-partial`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          slotsToTransfer: slots
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        toast({
+          title: `♻️ ${slots} plaza${slots > 1 ? 's' : ''} cedida${slots > 1 ? 's' : ''}`,
+          description: `Has recibido ${data.pointsGranted || 0} puntos de compensación. Las plazas están disponibles para otros jugadores.`,
+          className: "bg-yellow-500 text-white",
+          duration: 5000
+        });
+
+        onBookingSuccess();
+      } else {
+        const errorData = await response.json();
+        toast({
+          title: "Error al ceder plazas",
+          description: errorData.error || "No se pudieron ceder las plazas",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error al ceder plazas:', error);
+      toast({
+        title: "Error de conexión",
+        description: "No se pudo conectar con el servidor",
+        variant: "destructive"
+      });
+    } finally {
+      setBooking(false);
+    }
+  };
+
   // Handle leave
   const handleLeave = async () => {
     if (!currentUser || !userBooking) {
@@ -372,7 +444,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
   return (
     <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow bg-white border-2 border-gray-200 rounded-2xl w-full scale-[0.88]">
       {/* Header con Badge de estado */}
-      <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-1.5">
+      <div className="bg-gradient-to-r from-green-500 to-green-600 px-3 py-1.5">
         <div className="flex items-center justify-between">
           {/* Icono decorativo y duración */}
           <div className="flex items-center gap-1.5">
@@ -380,20 +452,58 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             <span className="text-white text-[10px] font-semibold">(90min)</span>
           </div>
           
-          {/* Botón Reserva Privada O Botón Cancelar - No mostrar si es reserva privada */}
-          {isPrivateBooking ? (
+          {/* Botón Reserva Privada O Botón Cancelar */}
+          {isPrivateBooking && showLeaveButton && isUserBooked ? (
+            // Si es reserva privada Y el usuario es el dueño, mostrar botón de cancelar/ceder
+            (() => {
+              const userBookingsCount = getUserBookingsCount();
+              const hasMultipleBookings = userBookingsCount > 1;
+              
+              return (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className={`h-6 text-[10px] px-2 bg-white border-white ${
+                    userBooking?.status === 'CONFIRMED'
+                      ? 'hover:bg-yellow-50 text-yellow-700 hover:border-yellow-200'
+                      : 'hover:bg-red-50 text-red-700 hover:border-red-200'
+                  }`}
+                  onClick={() => {
+                    if (hasMultipleBookings && userBooking?.status === 'CONFIRMED') {
+                      setShowPartialTransferDialog(true);
+                    } else {
+                      setShowLeaveDialog(true);
+                    }
+                  }}
+                  disabled={booking}
+                >
+                  {booking ? (userBooking?.status === 'CONFIRMED' ? 'Cediendo...' : 'Cancelando...') : (
+                    userBooking?.status === 'CONFIRMED' ? '♻️ Ceder Plaza' : 'Cancelar'
+                  )}
+                </Button>
+              );
+            })()
+          ) : isPrivateBooking ? (
+            // Si es reserva privada pero el usuario NO es el dueño, mostrar badge
             <Badge variant="outline" className="h-6 text-[10px] px-2 bg-blue-600 text-white border-white">
               Reserva Privada
             </Badge>
           ) : showLeaveButton && isUserBooked ? (
+            // Si NO es reserva privada pero el usuario está inscrito, mostrar botón
             <Button
               size="sm"
               variant="outline"
-              className="h-6 text-[10px] px-2 bg-white hover:bg-red-50 text-red-700 border-white hover:border-red-200"
+              className={`h-6 text-[10px] px-2 bg-white border-white ${
+                userBooking?.status === 'CONFIRMED'
+                  ? 'hover:bg-yellow-50 text-yellow-700 hover:border-yellow-200'
+                  : 'hover:bg-red-50 text-red-700 hover:border-red-200'
+              }`}
               onClick={() => setShowLeaveDialog(true)}
               disabled={booking}
             >
-              {booking ? 'Cancelando...' : 'Cancelar'}
+              {booking ? (userBooking?.status === 'CONFIRMED' ? 'Cediendo...' : 'Cancelando...') : (
+                userBooking?.status === 'CONFIRMED' ? '♻️ Ceder Plaza' : 'Cancelar'
+              )}
             </Button>
           ) : showPrivateBookingButton ? (
             <AlertDialog>
@@ -429,7 +539,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
                       </div>
                       <div className="flex justify-between border-t border-blue-200 pt-2 mt-2">
                         <span className="text-gray-700 font-semibold">💰 Precio Total:</span>
-                        <span className="font-bold text-lg text-blue-600">€{(matchGame.courtRentalPrice || 0).toFixed(2)}</span>
+                        <span className="font-bold text-lg text-blue-600">€{roundPrice(matchGame.courtRentalPrice || 0).toFixed(2)}</span>
                       </div>
                     </div>
                     <div className="text-sm text-gray-600 bg-yellow-50 p-2 rounded">
@@ -471,7 +581,11 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             <div className="font-medium text-gray-900 text-[10px]">Cat.</div>
             <div 
               className={`capitalize px-1.5 py-1 rounded-full text-[10px] font-medium shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${
-                categoryInfo.isAssigned 
+                categoryInfo.category === 'chicos'
+                  ? 'bg-blue-100 text-blue-700'
+                  : categoryInfo.category === 'chicas'
+                  ? 'bg-pink-100 text-pink-700'
+                  : categoryInfo.isAssigned 
                   ? 'bg-purple-100 text-purple-700' 
                   : 'bg-gray-100 text-gray-600'
               }`}
@@ -543,8 +657,8 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             <div className="text-right flex-shrink-0">
               <div className="text-base font-bold text-gray-900">
                 € {isPrivateBooking 
-                  ? matchGame.courtRentalPrice.toFixed(2)
-                  : (matchGame.courtRentalPrice / 4).toFixed(2)
+                  ? roundPrice(matchGame.courtRentalPrice).toFixed(2)
+                  : roundPrice(matchGame.courtRentalPrice / 4).toFixed(2)
                 }
               </div>
               <div className="text-[9px] text-gray-500">
@@ -557,27 +671,44 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             {[0, 1, 2, 3].map((index) => {
               const booking = displayBookings[index];
               const isOccupied = !!booking;
-              const displayName = booking?.name || 'Disponible';
+              const isRecycled = booking?.isRecycled === true && booking?.status === 'CANCELLED';
+              const displayName = isRecycled ? 'Plaza cedida' : (booking?.name || 'Disponible');
+              const playerLevel = booking?.userLevel || '?';
 
               return (
-                <div key={index} className="flex flex-col items-center gap-1">
+                <div key={index} className="flex flex-col items-center gap-1 relative">
+                  {/* 🎯 Badge de nivel a la derecha del avatar - No mostrar si es plaza reciclada */}
+                  {isOccupied && !isRecycled && (
+                    <div className="absolute -right-2 top-0 z-10">
+                      <div className="bg-white text-gray-700 rounded-full w-5 h-5 flex items-center justify-center text-[9px] font-bold border border-gray-700" style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.1)' }}>
+                        {playerLevel}
+                      </div>
+                    </div>
+                  )}
+                  
                   <div 
                     className={cn(
-                      "w-12 h-12 rounded-full flex items-center justify-center text-xl font-semibold transition-all border-2",
-                      isOccupied 
-                        ? "bg-white border-gray-200 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-default" 
+                      "w-12 h-12 rounded-full flex items-center justify-center text-xl font-semibold transition-all",
+                      isRecycled
+                        ? "bg-yellow-100 border-2 border-dashed border-yellow-500 shadow-[inset_0_4px_8px_rgba(0,0,0,0.2)] cursor-pointer hover:bg-yellow-200 hover:border-yellow-600"
+                        : isOccupied 
+                        ? "bg-white border-2 border-gray-200 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-default" 
                         : isPrivateBooking
-                        ? "bg-gray-100 border-gray-300 text-gray-400 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-not-allowed opacity-50"
-                        : "bg-gray-100 border-gray-300 text-gray-400 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-pointer hover:bg-gray-200 hover:border-gray-400"
+                        ? "bg-gray-100 border-2 border-gray-300 text-gray-400 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-not-allowed opacity-50"
+                        : "bg-gray-100 border-2 border-gray-300 text-gray-400 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-pointer hover:bg-gray-200 hover:border-gray-400"
                     )}
-                    title={isOccupied ? booking.name : isPrivateBooking ? 'Reserva privada completa' : 'Clic para unirte'}
+                    title={isRecycled ? 'Plaza cedida - Solo con puntos' : (isOccupied ? booking.name : isPrivateBooking ? 'Reserva privada completa' : 'Clic para unirte')}
                     onClick={() => {
-                      if (!isOccupied && !booking && !isUserBooked && !isPrivateBooking) {
+                      if ((isRecycled || (!isOccupied && !booking)) && !isUserBooked && !isPrivateBooking) {
                         setShowConfirmDialog(true);
                       }
                     }}
                   >
-                    {isOccupied ? (
+                    {isRecycled ? (
+                      <div className="flex flex-col items-center justify-center">
+                        <span className="text-2xl">♻️</span>
+                      </div>
+                    ) : isOccupied ? (
                       booking.profilePictureUrl ? (
                         <img 
                           src={booking.profilePictureUrl} 
@@ -608,6 +739,19 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
               );
             })}
           </div>
+          
+          {/* Indicador de plazas recicladas disponibles */}
+          {matchGame.hasRecycledSlots && matchGame.availableRecycledSlots > 0 && (
+            <div className="mt-2 px-2 py-1 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-center justify-center gap-2 text-xs">
+                <span className="text-yellow-600">♻️</span>
+                <span className="text-yellow-700 font-medium">
+                  {matchGame.availableRecycledSlots} plaza{matchGame.availableRecycledSlots > 1 ? 's' : ''} cedida{matchGame.availableRecycledSlots > 1 ? 's' : ''} 
+                  <span className="font-bold"> (Solo puntos)</span>
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Available Courts - Indicadores de disponibilidad de pistas */}
@@ -736,7 +880,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
               <br />
               <strong>Duración:</strong> {matchGame.duration} minutos
               <br />
-              <strong>Precio:</strong> €{matchGame.pricePerPlayer.toFixed(2)}
+              <strong>Precio:</strong> €{roundPrice(matchGame.pricePerPlayer).toFixed(2)}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -748,32 +892,116 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* 🆕 Partial Transfer Dialog - Para cesión parcial de plazas */}
+      <AlertDialog open={showPartialTransferDialog} onOpenChange={setShowPartialTransferDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>♻️ Ceder Plazas de Partida</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const userBookingsCount = getUserBookingsCount();
+                return (
+                  <>
+                    Tienes {userBookingsCount} plaza{userBookingsCount > 1 ? 's' : ''} confirmada{userBookingsCount > 1 ? 's' : ''} en esta partida. 
+                    Selecciona cuántas plazas deseas ceder. Recibirás puntos de compensación por cada plaza cedida.
+                    <br /><br />
+                    <span className="text-sm text-gray-600">
+                      ♻️ Las plazas cedidas quedarán disponibles para que otros jugadores las reserven usando puntos.
+                    </span>
+                  </>
+                );
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          {/* Grid de opciones de plazas a ceder */}
+          <div className="grid grid-cols-2 gap-3 my-4">
+            {[1, 2, 3, 4].slice(0, getUserBookingsCount()).map((count) => {
+              const pricePerPlayer = Number(matchGame.pricePerPlayer) || 0;
+              const pointsForOption = Math.round(pricePerPlayer * count);
+              
+              return (
+                <button
+                  key={count}
+                  onClick={() => setSlotsToTransfer(count)}
+                  className={cn(
+                    "p-4 rounded-lg border-2 transition-all hover:scale-105",
+                    slotsToTransfer === count
+                      ? "border-yellow-600 bg-yellow-50"
+                      : "border-gray-300 bg-white hover:border-yellow-400"
+                  )}
+                >
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-gray-900">
+                      {count}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      plaza{count > 1 ? 's' : ''}
+                    </div>
+                    <div className="text-xs text-yellow-600 font-semibold mt-2">
+                      +{pointsForOption} pts
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Volver</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => handlePartialTransfer(slotsToTransfer)} 
+              className="bg-yellow-600 hover:bg-yellow-700"
+              disabled={booking}
+            >
+              {booking ? <Loader2 className="w-4 h-4 animate-spin" /> : `Ceder ${slotsToTransfer} Plaza${slotsToTransfer > 1 ? 's' : ''}`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Leave Dialog */}
       <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancelar Partida</AlertDialogTitle>
+            <AlertDialogTitle>
+              {userBooking?.status === 'CONFIRMED' ? '♻️ Ceder Plaza' : 'Cancelar Inscripción'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              ¿Estás seguro de que deseas cancelar tu inscripción a esta partida?
-              <br /><br />
               {(() => {
-                const now = new Date();
-                const matchStart = new Date(matchGame.start);
-                const hoursUntilMatch = (matchStart.getTime() - now.getTime()) / (1000 * 60 * 60);
+                const isConfirmed = userBooking?.status === 'CONFIRMED';
                 
-                if (hoursUntilMatch < 2) {
+                if (isConfirmed) {
+                  // Partida confirmada → Cesión de plaza
                   return (
                     <>
-                      <strong className="text-red-600">⚠️ Faltan menos de 2 horas para la partida.</strong>
+                      <strong className="text-green-600">✅ Tu partida está confirmada con pista asignada.</strong>
+                      <br /><br />
+                      Al ceder tu plaza:
+                      <ul className="list-disc pl-5 mt-2 space-y-1">
+                        <li>Recibirás <strong>1 punto por cada euro</strong> pagado como compensación</li>
+                        <li>Tu plaza quedará <strong className="text-yellow-600">disponible (solo con puntos)</strong> para otros jugadores</li>
+                        <li>La partida <strong>mantendrá la pista asignada</strong></li>
+                        <li>Los demás jugadores seguirán confirmados</li>
+                      </ul>
                       <br />
-                      Se te reembolsarán los créditos pero <strong>NO</strong> los puntos.
+                      <span className="text-sm text-gray-600">
+                        ♻️ Este sistema permite que otro jugador pueda aprovechar tu plaza usando solo puntos.
+                      </span>
                     </>
                   );
                 }
                 
+                // Inscripción pendiente → Cancelación simple
                 return (
                   <>
-                    Se te reembolsarán tanto los créditos como los puntos utilizados.
+                    Tu inscripción está <strong>pendiente de confirmación</strong>.
+                    <br /><br />
+                    Al cancelar:
+                    <ul className="list-disc pl-5 mt-2 space-y-1">
+                      <li>Se te <strong>desbloquearán</strong> los créditos o puntos reservados</li>
+                      <li>Tu plaza quedará libre para nuevos jugadores</li>
+                    </ul>
                   </>
                 );
               })()}
@@ -781,8 +1009,10 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Volver</AlertDialogCancel>
-            <AlertDialogAction onClick={handleLeave} className="bg-red-600 hover:bg-red-700">
-              {booking ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sí, Cancelar'}
+            <AlertDialogAction onClick={handleLeave} className={userBooking?.status === 'CONFIRMED' ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-red-600 hover:bg-red-700'}>
+              {booking ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                userBooking?.status === 'CONFIRMED' ? '♻️ Ceder Plaza' : 'Sí, Cancelar'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

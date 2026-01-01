@@ -14,7 +14,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { User as UserIcon, Plus, Loader2, Gift, CreditCard, AlertTriangle, Lock, Star, X as XIcon } from 'lucide-react';
 import type { Match, User } from '@/types';
-import { cn, getInitials, calculatePricePerPerson } from '@/lib/utils';
+import { cn, getInitials, calculatePricePerPerson, roundPrice } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { getMockStudents, getMockClubs } from '@/lib/mockData';
 import { differenceInDays, startOfDay } from 'date-fns';
@@ -58,12 +58,23 @@ const MatchSpotDisplayComponent: React.FC<MatchSpotDisplayProps> = ({
     onRemovePlayer,
 }) => {
     const { toast } = useToast();
+    
+    // Debug: log de ALL bookedPlayers del match
+    if (spotIndex === 0) {
+        console.log('🎯 Match bookedPlayers:', match.bookedPlayers);
+    }
+    
     // Buscar el usuario real para este spot: solo mostrar el usuario si está en esta posición
     let player = match.bookedPlayers?.[spotIndex];
     let isSlotEmpty = !player || !player.userId;
     let isCurrentUserInSpot = !!(player && currentUser && player.userId === currentUser.id);
     const isMatchFull = (match.bookedPlayers || []).length >= 4;
     const isPlaceholderMatch = match.isPlaceholder === true;
+    
+    // Debug: log para ver datos del player
+    if (player) {
+        console.log('🔍 Player raw data:', { spotIndex, player, hasUserId: !!player.userId });
+    }
     
     // 1) If the spot is already occupied, always show avatar and disable
     // 2) Global day-block: if user already has a confirmed activity today, disable everything
@@ -120,7 +131,7 @@ const MatchSpotDisplayComponent: React.FC<MatchSpotDisplayProps> = ({
         isDisabled = true;
     } else if (isSlotEmpty) {
         iconToShow = <Plus className="h-5 w-5 text-green-600 opacity-60 stroke-[3]" />;
-        spotTooltipText = isPlaceholderMatch ? `Iniciar Partida (Coste: ${pricePerPlayer.toFixed(2)}€)` : `Unirse (Coste: ${pricePerPlayer.toFixed(2)}€)`;
+        spotTooltipText = isPlaceholderMatch ? `Iniciar Partida (Coste: ${roundPrice(pricePerPlayer).toFixed(2)}€)` : `Unirse (Coste: ${roundPrice(pricePerPlayer).toFixed(2)}€)`;
         spotVariant = "dashed";
         isDisabled = false;
         actionHandler = () => onJoin(spotIndex, false);
@@ -136,7 +147,7 @@ const MatchSpotDisplayComponent: React.FC<MatchSpotDisplayProps> = ({
     } else if (match.status === 'confirmed_private') {
         if(canJoinThisPrivateMatch) {
             iconToShow = <UserIcon className="h-5 w-5 text-purple-600" />;
-            spotTooltipText = `Unirme a esta Partida Privada (Coste: ${pricePerPlayer.toFixed(2)}€)`;
+            spotTooltipText = `Unirme a esta Partida Privada (Coste: ${roundPrice(pricePerPlayer).toFixed(2)}€)`;
             spotVariant = "gratis";
             isDisabled = false;
             actionHandler = () => {
@@ -201,23 +212,37 @@ const MatchSpotDisplayComponent: React.FC<MatchSpotDisplayProps> = ({
             isDisabled = true;
         } else if (!hasEnoughCredit) {
             iconToShow = <CreditCard className="h-5 w-5 text-destructive/70" />;
-            spotTooltipText = `Saldo disponible insuficiente (${availableCredit.toFixed(2)}€ / ${pricePerPlayer.toFixed(2)}€).`;
+            spotTooltipText = `Saldo disponible insuficiente (${roundPrice(availableCredit).toFixed(2)}€ / ${roundPrice(pricePerPlayer).toFixed(2)}€).`;
             isDisabled = true;
         } else { // This is the final "can join" case
             iconToShow = <Plus className="h-5 w-5 text-green-600 stroke-[3]" />;
-            spotTooltipText = isPlaceholderMatch ? `Iniciar Partida (Coste: ${pricePerPlayer.toFixed(2)}€)` : `Unirse (Coste: ${pricePerPlayer.toFixed(2)}€)`;
+            spotTooltipText = isPlaceholderMatch ? `Iniciar Partida (Coste: ${roundPrice(pricePerPlayer).toFixed(2)}€)` : `Unirse (Coste: ${roundPrice(pricePerPlayer).toFixed(2)}€)`;
             isDisabled = false;
             actionHandler = () => onJoin(spotIndex, false);
         }
     }
     
-        const playerLevelDisplay = fullPlayer?.level && fullPlayer.level !== 'abierto' ? fullPlayer.level : (fullPlayer && player && player.userId ? '?' : '');
+        // Mostrar nivel del jugador: si tiene level y no es 'abierto', mostrarlo; si no, mostrar '?'
+        const playerLevelDisplay = (fullPlayer && player && player.userId) 
+            ? (fullPlayer.level && fullPlayer.level !== 'abierto' ? fullPlayer.level : '?')
+            : '';
+        
+        // Debug: log para verificar datos del jugador
+        if (fullPlayer && player && player.userId) {
+            console.log('🎯 MatchSpotDisplay - Player Data:', {
+                spotIndex,
+                name: fullPlayer.name,
+                level: fullPlayer.level,
+                playerLevelDisplay,
+                hasUserId: !!player.userId
+            });
+        }
 
         const spotLabel = !isSlotEmpty && fullPlayer
             ? (fullPlayer.name || 'Jugador').split(' ')[0]
             : (match.gratisSpotAvailable && (match.bookedPlayers || []).length === 3 && isSlotEmpty)
             ? ""
-            : (pricePerPlayer > 0 ? `${pricePerPlayer.toFixed(2)}€` : "");
+            : (pricePerPlayer > 0 ? `${roundPrice(pricePerPlayer).toFixed(2)}€` : "");
 
 
     return (
@@ -229,6 +254,15 @@ const MatchSpotDisplayComponent: React.FC<MatchSpotDisplayProps> = ({
                     className={cn( "flex flex-col items-center group/avatar-wrapper space-y-0.5 relative", !isDisabled ? "cursor-pointer" : "cursor-not-allowed")}
                     aria-label={spotTooltipText}
                 >
+                    {/* 🎯 Badge de nivel encima del avatar - FUERA del círculo para que sea visible */}
+                    {player && player.userId && playerLevelDisplay && (
+                        <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 z-40">
+                            <div className="bg-blue-600 text-white rounded-full w-7 h-7 flex items-center justify-center text-[10px] font-bold shadow-lg border-2 border-white">
+                                {playerLevelDisplay}
+                            </div>
+                        </div>
+                    )}
+                    
                     <div className={cn(
                         "relative inline-flex items-center justify-center h-12 w-12 rounded-full border-[3px] z-0 transition-all shadow-[inset_0_3px_6px_0_rgba(0,0,0,0.2)]",
                         animationClass,
@@ -271,9 +305,6 @@ const MatchSpotDisplayComponent: React.FC<MatchSpotDisplayProps> = ({
                             {iconToShow}
                         </div>
                     )}
-                        {player && playerLevelDisplay && (
-                            <div className="absolute -top-1.5 -right-1.5 bg-background text-foreground border border-border rounded-md px-1 py-0.5 text-[10px] font-bold shadow-md z-20">{playerLevelDisplay}</div>
-                        )}
                         {isPointsBonusVisible && (
                             <div className={cn("absolute -top-1 -right-1 flex h-auto items-center justify-center rounded-full bg-amber-400 px-1 py-0 text-white shadow-md text-[10px] font-bold")} title={`${pointsToAward} puntos de bonificación`}>
                                 +{pointsToAward.toLocaleString(undefined, { maximumFractionDigits: 0 })}
@@ -295,4 +326,5 @@ const MatchSpotDisplayComponent: React.FC<MatchSpotDisplayProps> = ({
     );
 };
 
-export const MatchSpotDisplay = React.memo(MatchSpotDisplayComponent);
+// Exportar SIN memo temporalmente para debug
+export const MatchSpotDisplay = MatchSpotDisplayComponent;

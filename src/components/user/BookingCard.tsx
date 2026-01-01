@@ -69,6 +69,7 @@ const BookingCard = React.memo<BookingCardProps>(({
         name: booking.user?.name || currentUser?.name,
         profilePictureUrl: booking.user?.profilePictureUrl || currentUser?.profilePictureUrl
       } : undefined}
+      userBookedGroupSize={booking.groupSize}
     />
   );
 }, (prevProps, nextProps) => {

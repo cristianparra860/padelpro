@@ -31,6 +31,23 @@ export const calculatePricePerPerson = (totalPrice: number | undefined, groupSiz
     return totalPrice / validGroupSize;
 };
 
+/**
+ * Redondea un precio siempre hacia arriba a .00 o .50
+ * Ejemplos:
+ * - 9.00 → 9.00
+ * - 9.23 → 9.50
+ * - 9.67 → 10.00
+ * - 12.67 → 13.00
+ */
+export const roundPrice = (price: number): number => {
+  const floor = Math.floor(price);
+  const decimal = price - floor;
+  
+  if (decimal === 0) return price;
+  if (decimal <= 0.5) return floor + 0.5;
+  return floor + 1;
+};
+
 export const isUserLevelCompatibleWithActivity = (
   activityLevel: ClassPadelLevel | MatchPadelLevel | undefined,
   userLevel: MatchPadelLevel | undefined,

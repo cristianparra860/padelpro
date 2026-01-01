@@ -348,25 +348,29 @@ export function LeftNavigationBar() {
                 className={cn(
                     "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200 hover:border-red-400 shadow-lg",
                     isCompactMode
-                        ? 'flex items-center justify-center p-2' 
+                        ? 'flex flex-col items-center gap-1 px-3 py-2 w-20' 
                         : 'flex items-center gap-3 px-4 py-3 min-w-[220px]'
                 )}
                 style={{ pointerEvents: 'auto', zIndex: 99999 }}
             >
                 <div className={cn(
                     "rounded-full flex items-center justify-center text-white flex-shrink-0",
-                    isCompactMode ? 'w-8 h-8' : 'w-14 h-14',
+                    isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
                     "bg-gradient-to-br from-red-400 to-red-600"
                 )}>
-                    <Power className={isCompactMode ? 'w-4 h-4' : 'w-8 h-8'} />
+                    <Power className={isCompactMode ? 'w-5 h-5' : 'w-8 h-8'} />
                 </div>
-                {!isCompactMode && (
-                    <div className="text-left flex-1">
+                <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
+                    {isCompactMode ? (
+                        <div className="text-[10px] font-semibold text-gray-800">
+                            {currentUser ? 'Salir' : 'Entrar'}
+                        </div>
+                    ) : (
                         <div className="text-sm font-semibold text-red-600">
                             {currentUser ? 'Cerrar sesión' : 'Iniciar sesión'}
                         </div>
-                    </div>
-                )}
+                    )}
+                </div>
             </button>
             
             {clubInfo && (
@@ -375,10 +379,9 @@ export function LeftNavigationBar() {
                     className={cn(
                         "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
                         isCompactMode
-                            ? 'flex flex-col items-center gap-1 px-3 py-2' 
-                            : 'flex items-center gap-3 px-4 min-w-[220px]',
-                        pathname === '/club' ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg',
-                        pathname === '/club' && !isCompactMode ? 'py-4' : !isCompactMode ? 'py-3' : ''
+                            ? 'flex flex-col items-center gap-1 px-3 py-2 w-20' 
+                            : 'flex items-center gap-3 px-4 py-3 min-w-[220px]',
+                        pathname === '/club' ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg'
                     )}
                 >
                     <div className={cn(
@@ -424,10 +427,9 @@ export function LeftNavigationBar() {
                 className={cn(
                     "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
                     isCompactMode
-                        ? 'flex flex-col items-center gap-1 px-3 py-2' 
-                        : 'flex items-center gap-3 px-4 min-w-[220px]',
-                    pathname === '/dashboard' ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg',
-                    pathname === '/dashboard' && !isCompactMode ? 'py-4' : !isCompactMode ? 'py-3' : ''
+                        ? 'flex flex-col items-center gap-1 px-3 py-2 w-20' 
+                        : 'flex items-center gap-3 px-4 py-3 min-w-[220px]',
+                    pathname === '/dashboard' ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg'
                 )}
                 style={{ pointerEvents: 'auto', zIndex: 99999 }}
             >
@@ -473,27 +475,26 @@ export function LeftNavigationBar() {
                             className={cn(
                                 "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
                                 isCompactMode
-                                    ? 'flex flex-col items-center gap-1 px-3 py-2' 
-                                    : 'flex items-center gap-3 px-4 min-w-[220px]',
-                                item.isActive ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg',
-                                item.isActive && pathname !== '/admin/calendar' && pathname !== '/agenda' ? 'py-4' : pathname !== '/admin/calendar' && pathname !== '/agenda' ? 'py-3' : ''
+                                    ? 'flex flex-col items-center gap-1 px-3 py-2 w-20' 
+                                    : 'flex items-center gap-3 px-4 py-3 min-w-[220px]',
+                                item.isActive ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg'
                             )}
                             style={{ pointerEvents: 'auto', zIndex: 99999 }}
                         >
                             <div className={cn(
-                                "rounded-full flex items-center justify-center text-white flex-shrink-0 overflow-hidden transition-all duration-300",
+                                "rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden transition-all duration-300",
                                 isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
                                 item.key === 'clases' 
-                                    ? "bg-gradient-to-br from-green-400 to-green-600"
+                                    ? "bg-gradient-to-br from-blue-400 to-purple-600 text-white"
                                     : item.key === 'partidas'
-                                    ? "bg-gradient-to-br from-purple-400 to-purple-600"
-                                    : "bg-gradient-to-br from-orange-400 to-orange-600",
+                                    ? "bg-gradient-to-br from-green-400 to-green-600 text-white"
+                                    : "bg-white text-gray-500 border-2 border-gray-500",
                                 item.isActive && (
                                     item.key === 'clases' 
-                                        ? 'ring-4 ring-green-300 ring-opacity-50 shadow-[0_0_25px_rgba(34,197,94,0.5)]'
-                                        : item.key === 'partidas'
                                         ? 'ring-4 ring-purple-300 ring-opacity-50 shadow-[0_0_25px_rgba(168,85,247,0.5)]'
-                                        : 'ring-4 ring-orange-300 ring-opacity-50 shadow-[0_0_25px_rgba(249,115,22,0.5)]'
+                                        : item.key === 'partidas'
+                                        ? 'ring-4 ring-green-300 ring-opacity-50 shadow-[0_0_25px_rgba(34,197,94,0.5)]'
+                                        : 'ring-4 ring-gray-300 ring-opacity-50 shadow-[0_0_25px_rgba(156,163,175,0.5)]'
                                 )
                             )}>
                                 <IconComponent className={isCompactMode ? 'w-5 h-5' : 'w-8 h-8'} />
@@ -598,9 +599,9 @@ export function LeftNavigationBar() {
                     className={cn(
                         "bg-white rounded-3xl border-2 border-gray-200 hover:shadow-xl transition-all",
                         isCompactMode
-                            ? 'flex flex-col items-center gap-1 px-3 py-2' 
+                            ? 'flex flex-col items-center gap-1 px-3 py-2 w-20' 
                             : 'flex items-center gap-3 px-4 py-3 min-w-[220px]',
-                        pathname === '/agenda' ? 'shadow-2xl scale-105 animate-bounce-subtle py-4' : 'shadow-lg'
+                        pathname === '/agenda' ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg'
                     )}
                     title="Reservas (R): Clases confirmadas con pista asignada"
                 >
@@ -634,7 +635,7 @@ export function LeftNavigationBar() {
                     className={cn(
                         "bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all",
                         isCompactMode
-                            ? 'flex flex-col items-center gap-1 px-3 py-2' 
+                            ? 'flex flex-col items-center gap-1 px-3 py-2 w-20' 
                             : 'flex items-center gap-3 px-4 py-3 min-w-[220px]'
                     )}
                     title="Inscripciones (I): Clases pendientes esperando completar grupo"
@@ -668,7 +669,7 @@ export function LeftNavigationBar() {
                     className={cn(
                         "bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all",
                         isCompactMode
-                            ? 'flex flex-col items-center gap-1 px-3 py-2' 
+                            ? 'flex flex-col items-center gap-1 px-3 py-2 w-20' 
                             : 'flex items-center gap-3 px-4 py-3 min-w-[220px]'
                     )}
                     title="Movimientos de Saldo: Consulta tu saldo y transacciones"
@@ -703,10 +704,9 @@ export function LeftNavigationBar() {
                             className={cn(
                                 "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
                                 isCompactMode
-                                    ? 'flex flex-col items-center gap-1 px-3 py-2' 
-                                    : 'flex items-center gap-3 px-4 min-w-[220px]',
-                                item.isActive ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg',
-                                item.isActive && pathname !== '/admin/calendar' && pathname !== '/agenda' ? 'py-4' : pathname !== '/admin/calendar' && pathname !== '/agenda' ? 'py-3' : ''
+                                    ? 'flex flex-col items-center gap-1 px-3 py-2 w-20' 
+                                    : 'flex items-center gap-3 px-4 py-3 min-w-[220px]',
+                                item.isActive ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg'
                             )}
                             style={{ pointerEvents: 'auto', zIndex: 99999 }}
                         >
@@ -756,4 +756,5 @@ export function LeftNavigationBar() {
         </>
     );
 }
+
 

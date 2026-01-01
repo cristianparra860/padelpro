@@ -1,16 +1,17 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createTransaction } from '@/lib/transactionLogger';
+import { grantCompensationPoints } from '@/lib/blockedCredits';
 
 export async function POST(
   request: Request,
-  { params }: { params: { matchGameId: string } }
+  { params }: { params: Promise<{ matchGameId: string }> }
 ) {
   try {
     const { userId } = await request.json();
-    const { matchGameId } = params;
+    const { matchGameId } = await params;
     
-    console.log('\n🚪 === LEAVING MATCH GAME ===');
+    console.log('\n🚪 === CESIÓN DE PLAZA EN PARTIDA ===');
     console.log('📝 Datos:', { matchGameId, userId });
     
     if (!userId) {
@@ -28,14 +29,25 @@ export async function POST(
         status: { in: ['PENDING', 'CONFIRMED'] }
       },
       include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            credits: true,
+            points: true,
+            blockedCredits: true,
+            blockedPoints: true
+          }
+        },
         matchGame: {
           select: {
             id: true,
             start: true,
             courtNumber: true,
+            pricePerPlayer: true,
             bookings: {
               where: { status: { not: 'CANCELLED' } },
-              select: { id: true, userId: true }
+              select: { id: true, userId: true, status: true }
             }
           }
         }
@@ -51,98 +63,62 @@ export async function POST(
     
     console.log(`📋 Booking encontrado: ${booking.id} - Status: ${booking.status}`);
     
-    // Calcular tiempo restante hasta el inicio
-    const now = new Date();
-    const matchStart = new Date(booking.matchGame.start);
-    const hoursUntilStart = (matchStart.getTime() - now.getTime()) / (1000 * 60 * 60);
+    // 🔍 DETERMINAR SI ES CESIÓN DE PLAZA (CONFIRMADA) O CANCELACIÓN SIMPLE (PENDIENTE)
+    const isConfirmed = booking.status === 'CONFIRMED' && booking.matchGame.courtNumber !== null;
+    const pricePerPlayer = Number(booking.matchGame.pricePerPlayer) || 0;
     
-    console.log(`⏰ Horas hasta inicio: ${hoursUntilStart.toFixed(2)}`);
+    console.log(`📊 Estado: ${isConfirmed ? 'CONFIRMADA (cesión de plaza)' : 'PENDIENTE (cancelación simple)'}`);
+    console.log(`💰 Precio por jugador: €${pricePerPlayer}`);
     
-    // Determinar si hay reembolso de puntos
-    const refundPoints = hoursUntilStart >= 2;
+    let refundMessage = '';
     
-    // Cancelar el booking
-    await prisma.matchGameBooking.update({
-      where: { id: booking.id },
-      data: { status: 'CANCELLED' }
-    });
-    
-    console.log(`✅ Booking cancelado`);
-    
-    // Gestionar reembolso según método de pago y tiempo
-    if (booking.status === 'CONFIRMED') {
-      // Partida confirmada: reembolsar según tiempo restante
-      if (booking.paidWithPoints) {
-        if (refundPoints) {
-          // Más de 2h: reembolso completo de puntos
-          await prisma.user.update({
-            where: { id: userId },
-            data: { points: { increment: booking.pointsUsed } }
-          });
-          
-          await createTransaction({
-            userId,
-            type: 'points',
-            action: 'refund',
-            amount: booking.pointsUsed,
-            concept: `Reembolso por cancelación de partida ${matchGameId}`,
-            relatedId: booking.id,
-            relatedType: 'matchGameBooking'
-          });
-          
-          console.log(`💰 Puntos reembolsados: ${booking.pointsUsed}`);
-        } else {
-          // Menos de 2h: NO reembolso de puntos (política)
-          console.log(`❌ Sin reembolso de puntos (cancelación < 2h)`);
-        }
-      } else {
-        // Créditos: SIEMPRE se reembolsan (ya cobrados)
-        await prisma.user.update({
-          where: { id: userId },
-          data: { credits: { increment: booking.amountBlocked } }
-        });
-        
-        await createTransaction({
-          userId,
-          type: 'credit',
-          action: 'refund',
-          amount: booking.amountBlocked,
-          concept: `Reembolso por cancelación de partida ${matchGameId}`,
-          relatedId: booking.id,
-          relatedType: 'matchGameBooking'
-        });
-        
-        console.log(`💰 Créditos reembolsados: ${booking.amountBlocked / 100}`);
-      }
+    if (isConfirmed) {
+      // ♻️ CESIÓN DE PLAZA → Otorgar PUNTOS de compensación (1 punto por euro)
+      console.log(`♻️ Partida confirmada - Cediendo plaza y otorgando PUNTOS`);
       
-      // Si la partida estaba confirmada, desconfirmarla
-      if (booking.matchGame.courtNumber) {
-        console.log(`⚠️ Desconfirmando partida (pista ${booking.matchGame.courtNumber})`);
-        
-        await prisma.matchGame.update({
-          where: { id: matchGameId },
-          data: {
-            courtId: null,
-            courtNumber: null
-          }
-        });
-        
-        // Desconfirmar otros bookings (vuelven a PENDING)
-        await prisma.matchGameBooking.updateMany({
-          where: {
-            matchGameId,
-            status: 'CONFIRMED',
-            id: { not: booking.id }
-          },
-          data: { status: 'PENDING' }
-        });
-        
-        console.log(`✅ Otros jugadores devueltos a PENDING`);
-      }
+      const pointsGranted = Math.floor(pricePerPlayer);
+      const newPoints = await grantCompensationPoints(userId, pricePerPlayer, true);
+      
+      console.log(`✅ Otorgados ${pointsGranted} puntos (de €${pricePerPlayer.toFixed(2)}). Total puntos: ${newPoints}`);
+      
+      // Registrar transacción de puntos
+      await createTransaction({
+        userId: userId,
+        type: 'points',
+        action: 'add',
+        amount: pointsGranted,
+        balance: newPoints,
+        concept: `Cesión de plaza - Partida ${new Date(booking.matchGame.start).toLocaleString('es-ES')}`,
+        relatedId: booking.id,
+        relatedType: 'matchGameBooking',
+        metadata: {
+          matchGameId: matchGameId,
+          reason: 'Cesión de plaza confirmada',
+          originalAmount: pricePerPlayer
+        }
+      });
+      
+      // ♻️ MARCAR LA PLAZA COMO RECICLADA (disponible solo con puntos)
+      await prisma.matchGameBooking.update({
+        where: { id: booking.id },
+        data: { 
+          status: 'CANCELLED',
+          wasConfirmed: true, // Recordar que tenía pista asignada
+          isRecycled: true // Marcar como plaza reciclada
+        }
+      });
+      
+      console.log(`♻️ Plaza marcada como RECICLADA: solo reservable con puntos`);
+      console.log(`🏟️ Partida mantiene pista ${booking.matchGame.courtNumber} asignada`);
+      
+      refundMessage = `${pointsGranted} puntos otorgados. Plaza cedida disponible para otros jugadores (solo puntos)`;
       
     } else {
-      // Booking PENDING: solo desbloquear fondos
+      // 💳 CANCELACIÓN DE INSCRIPCIÓN PENDIENTE → Desbloquear fondos
+      console.log(`💰 Inscripción pendiente - Desbloqueando fondos`);
+
       if (booking.paidWithPoints) {
+        // Desbloquear puntos
         await prisma.user.update({
           where: { id: userId },
           data: { blockedPoints: { decrement: booking.pointsUsed } }
@@ -153,13 +129,17 @@ export async function POST(
           type: 'points',
           action: 'unblock',
           amount: booking.pointsUsed,
-          concept: `Desbloqueo por cancelación de partida ${matchGameId}`,
+          concept: `Cancelación de inscripción - Partida ${matchGameId}`,
           relatedId: booking.id,
           relatedType: 'matchGameBooking'
         });
         
         console.log(`🔓 Puntos desbloqueados: ${booking.pointsUsed}`);
+        refundMessage = `${booking.pointsUsed} puntos desbloqueados`;
+        
       } else {
+        // Desbloquear créditos
+        const creditsInEuros = booking.amountBlocked / 100;
         await prisma.user.update({
           where: { id: userId },
           data: { blockedCredits: { decrement: booking.amountBlocked } }
@@ -170,31 +150,91 @@ export async function POST(
           type: 'credit',
           action: 'unblock',
           amount: booking.amountBlocked,
-          concept: `Desbloqueo por cancelación de partida ${matchGameId}`,
+          concept: `Cancelación de inscripción - Partida ${matchGameId}`,
           relatedId: booking.id,
           relatedType: 'matchGameBooking'
         });
         
-        console.log(`🔓 Créditos desbloqueados: ${booking.amountBlocked / 100}`);
+        console.log(`🔓 Créditos desbloqueados: €${creditsInEuros}`);
+        refundMessage = `€${creditsInEuros.toFixed(2)} desbloqueados`;
+      }
+      
+      // Marcar como cancelada (sin reciclar porque no estaba confirmada)
+      await prisma.matchGameBooking.update({
+        where: { id: booking.id },
+        data: { 
+          status: 'CANCELLED',
+          wasConfirmed: false,
+          isRecycled: false
+        }
+      });
+      
+      console.log(`✅ Inscripción cancelada (no era confirmada)`);
+    }
+    
+    // 🔍 VERIFICAR SI QUEDAN PLAZAS ACTIVAS O RECICLADAS
+    const remainingActiveBookings = await prisma.matchGameBooking.count({
+      where: {
+        matchGameId,
+        status: { in: ['PENDING', 'CONFIRMED'] }
+      }
+    });
+
+    const recycledBookings = await prisma.matchGameBooking.count({
+      where: {
+        matchGameId,
+        status: 'CANCELLED',
+        isRecycled: true
+      }
+    });
+    
+    const totalPlayers = 4; // Las partidas siempre son de 4 jugadores
+    const occupiedSpots = remainingActiveBookings;
+    const availableRecycledSpots = totalPlayers - occupiedSpots;
+
+    console.log(`📊 Estado de la partida:`);
+    console.log(`   - Capacidad total: ${totalPlayers} jugadores`);
+    console.log(`   - Inscripciones activas: ${remainingActiveBookings}`);
+    console.log(`   - Plazas recicladas: ${recycledBookings}`);
+    console.log(`   - Plazas disponibles para reciclar: ${availableRecycledSpots}`);
+
+    // ♻️ LA PISTA SIEMPRE MANTIENE EL courtNumber MIENTRAS HAYA PLAZAS (activas o recicladas)
+    // Solo se libera si la partida queda completamente vacía
+    if (remainingActiveBookings === 0 && recycledBookings === 0) {
+      console.log('🔓 Partida completamente vacía - Liberando MatchGame...');
+      
+      try {
+        await prisma.matchGame.update({
+          where: { id: matchGameId },
+          data: {
+            courtId: null,
+            courtNumber: null
+          }
+        });
+        console.log('✅ MatchGame liberado completamente');
+      } catch (cleanupError) {
+        console.error('❌ Error limpiando MatchGame:', cleanupError);
+      }
+    } else {
+      console.log(`✅ Partida mantiene pista ${booking.matchGame.courtNumber || 'asignada'}`);
+      if (recycledBookings > 0) {
+        console.log(`   ♻️ ${recycledBookings} plaza(s) reciclada(s) disponible(s) SOLO CON PUNTOS`);
       }
     }
     
-    // Contar jugadores restantes
-    const remainingPlayers = booking.matchGame.bookings.length - 1;
-    
     return NextResponse.json({
       success: true,
-      refunded: refundPoints || !booking.paidWithPoints,
-      message: refundPoints || !booking.paidWithPoints
-        ? 'Inscripción cancelada y fondos reembolsados'
-        : 'Inscripción cancelada (sin reembolso de puntos por cancelación tardía)',
-      remainingPlayers
+      refunded: true,
+      isRecycled: isConfirmed,
+      message: refundMessage,
+      remainingPlayers: remainingActiveBookings,
+      recycledSlots: recycledBookings
     });
     
   } catch (error) {
     console.error('❌ Error en POST /api/matchgames/[matchGameId]/leave:', error);
     return NextResponse.json(
-      { error: 'Error al abandonar la partida', details: (error as Error).message },
+      { error: 'Error al ceder/cancelar la plaza', details: (error as Error).message },
       { status: 500 }
     );
   }

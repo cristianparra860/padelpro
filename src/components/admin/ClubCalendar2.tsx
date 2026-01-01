@@ -329,9 +329,9 @@ export default function ClubCalendar2({
         const matchGamesData = await matchGamesRes.json();
         const matchGames = matchGamesData.matchGames || [];
         
-        // Filtrar solo las partidas donde el usuario tiene booking
+        // Filtrar solo las partidas donde el usuario tiene booking ACTIVO (no cancelado)
         matchBookings = matchGames
-          .filter((mg: any) => mg.bookings.some((b: any) => b.userId === currentUser.id))
+          .filter((mg: any) => mg.bookings.some((b: any) => b.userId === currentUser.id && b.status !== 'CANCELLED'))
           .map((mg: any) => ({
             timeSlotId: mg.id,
             status: 'CONFIRMED',
@@ -339,13 +339,15 @@ export default function ClubCalendar2({
           }));
       }
       
-      // Combinar bookings de clases y partidas
+      // Combinar bookings de clases y partidas (excluyendo cancelados)
       const formattedBookings = [
-        ...classBookings.map((b: any) => ({
-          timeSlotId: b.timeSlotId,
-          status: b.status,
-          date: b.timeSlot?.start || b.start || new Date()
-        })),
+        ...classBookings
+          .filter((b: any) => b.status !== 'CANCELLED')
+          .map((b: any) => ({
+            timeSlotId: b.timeSlotId,
+            status: b.status,
+            date: b.timeSlot?.start || b.start || new Date()
+          })),
         ...matchBookings
       ];
       
@@ -1143,17 +1145,28 @@ export default function ClubCalendar2({
                               {sortedClasses.slice(0, 1).map(cls => {
                                 const hasPlayers = (cls.playersCount || 0) > 0;
                                 const pricePerSlot = cls.price ? (cls.price / selectedGroupSize) : 0;
+                                // Calcular si tiene plazas recicladas
+                                const recycledCount = cls.bookings?.filter((b: any) => b.status === 'CANCELLED' && b.isRecycled === true).length || 0;
+                                const hasRecycledSlots = recycledCount > 0;
+                                
                                 return (
                                   <div
                                     key={cls.id}
-                                    className={`rounded shadow-md cursor-pointer hover:shadow-lg hover:scale-105 transition-all h-full flex flex-col items-center justify-center border-2 p-0.5 ${
+                                    className={`rounded shadow-md cursor-pointer hover:shadow-lg hover:scale-105 transition-all h-full flex flex-col items-center justify-center border-2 p-0.5 relative ${
                                       hasPlayers 
                                         ? 'bg-blue-500 text-white border-blue-600' 
                                         : 'bg-white text-gray-700 border-gray-300'
                                     }`}
                                     onClick={() => handleEventClick(cls)}
-                                    title={`${cls.category || cls.level} - ${cls.playersCount || 0} alumno${(cls.playersCount || 0) !== 1 ? 's' : ''} inscrito${(cls.playersCount || 0) !== 1 ? 's' : ''} - ${pricePerSlot ? `${pricePerSlot.toFixed(0)}€ por plaza (${selectedGroupSize} ${selectedGroupSize === 1 ? 'jugador' : 'jugadores'})` : ''}`}
+                                    title={`${cls.category || cls.level} - ${cls.playersCount || 0} alumno${(cls.playersCount || 0) !== 1 ? 's' : ''} inscrito${(cls.playersCount || 0) !== 1 ? 's' : ''} - ${pricePerSlot ? `${pricePerSlot.toFixed(0)}€ por plaza (${selectedGroupSize} ${selectedGroupSize === 1 ? 'jugador' : 'jugadores'})` : ''}${hasRecycledSlots ? ` - ${recycledCount} plaza${recycledCount !== 1 ? 's' : ''} reciclada${recycledCount !== 1 ? 's' : ''} (solo puntos)` : ''}`}
                                   >
+                                    {/* Indicador de plaza reciclada */}
+                                    {hasRecycledSlots && (
+                                      <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-yellow-400 border border-yellow-600 flex items-center justify-center shadow-md z-10">
+                                        <span className="text-[8px]">♻️</span>
+                                      </div>
+                                    )}
+                                    
                                     {hasPlayers ? (
                                       <div className="text-xs font-black leading-none">
                                         {cls.playersCount}
@@ -1494,18 +1507,28 @@ export default function ClubCalendar2({
                                   {instructorClasses.slice(0, 1).map(cls => {
                                     const hasPlayers = (cls.playersCount || 0) > 0;
                                     const pricePerSlot = cls.price ? (cls.price / selectedGroupSize) : 0;
+                                    // Calcular si tiene plazas recicladas
+                                    const recycledCount = cls.bookings?.filter((b: any) => b.status === 'CANCELLED' && b.isRecycled === true).length || 0;
+                                    const hasRecycledSlots = recycledCount > 0;
                                     
                                     return (
                                       <div
                                         key={cls.id}
-                                        className={`rounded shadow-md cursor-pointer hover:shadow-lg hover:scale-105 transition-all h-full flex flex-col items-center justify-center border-2 p-1 ${
+                                        className={`rounded shadow-md cursor-pointer hover:shadow-lg hover:scale-105 transition-all h-full flex flex-col items-center justify-center border-2 p-1 relative ${
                                           hasPlayers 
                                             ? 'bg-blue-500 text-white border-blue-600' 
                                             : 'bg-white text-gray-700 border-gray-300'
                                         }`}
                                         onClick={() => handleEventClick(cls)}
-                                        title={`${cls.category || cls.level} - ${cls.playersCount || 0} alumno${(cls.playersCount || 0) !== 1 ? 's' : ''} inscrito${(cls.playersCount || 0) !== 1 ? 's' : ''} - ${pricePerSlot ? `${pricePerSlot.toFixed(0)}€ por plaza (${selectedGroupSize} ${selectedGroupSize === 1 ? 'jugador' : 'jugadores'})` : ''}`}
+                                        title={`${cls.category || cls.level} - ${cls.playersCount || 0} alumno${(cls.playersCount || 0) !== 1 ? 's' : ''} inscrito${(cls.playersCount || 0) !== 1 ? 's' : ''} - ${pricePerSlot ? `${pricePerSlot.toFixed(0)}€ por plaza (${selectedGroupSize} ${selectedGroupSize === 1 ? 'jugador' : 'jugadores'})` : ''}${hasRecycledSlots ? ` - ${recycledCount} plaza${recycledCount !== 1 ? 's' : ''} reciclada${recycledCount !== 1 ? 's' : ''} (solo puntos)` : ''}`}
                                       >
+                                        {/* Indicador de plaza reciclada */}
+                                        {hasRecycledSlots && (
+                                          <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-yellow-400 border border-yellow-600 flex items-center justify-center shadow-md z-10">
+                                            <span className="text-[10px]">♻️</span>
+                                          </div>
+                                        )}
+                                        
                                         {hasPlayers ? (
                                           <div className="text-sm font-black leading-none">
                                             {cls.playersCount}
@@ -1583,7 +1606,10 @@ export default function ClubCalendar2({
                 setShowClassCard(false);
                 setSelectedClassId(null);
                 // Recargar SIN CACHE después de cerrar el modal
-                setTimeout(() => loadCalendarData(false, true), 300);
+                setTimeout(() => {
+                  loadCalendarData(false, true);
+                  loadUserBookings();
+                }, 300);
               }}
             />
           )}
@@ -1641,7 +1667,10 @@ export default function ClubCalendar2({
                 setShowProposalCards(false);
                 setSelectedProposal(null);
                 // Recargar SIN CACHE después de booking
-                setTimeout(() => loadCalendarData(false, true), 300);
+                setTimeout(() => {
+                  loadCalendarData(false, true);
+                  loadUserBookings();
+                }, 300);
               }}
             />
           )}
@@ -1665,7 +1694,10 @@ export default function ClubCalendar2({
                 setShowMatchCard(false);
                 setSelectedMatchId(null);
                 // Recargar SIN CACHE después de cerrar el modal
-                setTimeout(() => loadCalendarData(false, true), 300);
+                setTimeout(() => {
+                  loadCalendarData(false, true);
+                  loadUserBookings();
+                }, 300);
               }}
             />
           )}
