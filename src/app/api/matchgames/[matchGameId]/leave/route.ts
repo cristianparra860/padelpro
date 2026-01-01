@@ -67,15 +67,34 @@ export async function POST(
     console.log(`📋 Bookings del usuario encontrados: ${bookingCount}`);
     console.log(`📋 IDs: ${userBookings.map(b => b.id).join(', ')}`);
     console.log(`📋 Status: ${userBookings.map(b => b.status).join(', ')}`);
+    console.log(`📋 Amount blocked: ${userBookings.map(b => b.amountBlocked).join(', ')}`);
     
-    // 🔍 DETERMINAR SI ES CESIÓN DE PLAZA (CONFIRMADA) O CANCELACIÓN SIMPLE (PENDIENTE)
+    // 🔍 DETERMINAR SI ES RESERVA PRIVADA (1 booking con monto total) O MÚLTIPLES BOOKINGS
+    const totalAmountBlocked = userBookings.reduce((sum, b) => sum + Number(b.amountBlocked || 0), 0);
+    const isPrivateBooking = bookingCount === 1 && totalAmountBlocked > 1000; // >10€ indica reserva completa
     const isConfirmed = booking.status === 'CONFIRMED' && booking.matchGame.courtNumber !== null;
-    const pricePerPlayer = Number(booking.matchGame.pricePerPlayer) || 0;
-    const totalAmount = pricePerPlayer * bookingCount; // Total a devolver (todos los bookings)
     
+    console.log(`🏆 ¿Es reserva privada?: ${isPrivateBooking ? 'SÍ' : 'NO'}`);
     console.log(`📊 Estado: ${isConfirmed ? 'CONFIRMADA (cesión de plaza)' : 'PENDIENTE (cancelación simple)'}`);
-    console.log(`💰 Precio por jugador: €${pricePerPlayer}`);
-    console.log(`💰 Total a devolver (${bookingCount} plazas): €${totalAmount}`);
+    
+    // Para reservas privadas, calcular según el monto total bloqueado
+    // Para múltiples bookings, calcular por precio por jugador
+    const pricePerPlayer = Number(booking.matchGame.pricePerPlayer) || 0;
+    let totalAmount: number;
+    let slotsCount: number;
+    
+    if (isPrivateBooking) {
+      // Reserva privada: usar monto bloqueado total y calcular plazas
+      totalAmount = totalAmountBlocked / 100; // Convertir de céntimos a euros
+      slotsCount = 4; // Reserva privada siempre son 4 plazas
+      console.log(`💰 Reserva privada - Monto total: €${totalAmount} (${slotsCount} plazas)`);
+    } else {
+      // Bookings individuales: calcular por precio por jugador
+      totalAmount = pricePerPlayer * bookingCount;
+      slotsCount = bookingCount;
+      console.log(`💰 Precio por jugador: €${pricePerPlayer}`);
+      console.log(`💰 Total a devolver (${slotsCount} plazas): €${totalAmount}`);
+    }
     
     let refundMessage = '';
     let totalPointsGranted = 0;
@@ -84,7 +103,7 @@ export async function POST(
     
     if (isConfirmed) {
       // ♻️ CESIÓN DE PLAZA → Otorgar PUNTOS de compensación (1 punto por euro) POR TODAS LAS PLAZAS
-      console.log(`♻️ Partida confirmada - Cediendo ${bookingCount} plaza(s) y otorgando PUNTOS`);
+      console.log(`♻️ Partida confirmada - Cediendo ${slotsCount} plaza(s) y otorgando PUNTOS`);
       
       totalPointsGranted = Math.floor(totalAmount);
       const newPoints = await grantCompensationPoints(userId, totalAmount, true);
@@ -98,14 +117,15 @@ export async function POST(
         action: 'add',
         amount: totalPointsGranted,
         balance: newPoints,
-        concept: `Cesión de ${bookingCount} plaza(s) - Partida ${new Date(booking.matchGame.start).toLocaleString('es-ES')}`,
+        concept: `Cesión de ${slotsCount} plaza(s) - Partida ${new Date(booking.matchGame.start).toLocaleString('es-ES')}`,
         relatedId: matchGameId,
         relatedType: 'matchGame',
         metadata: {
           matchGameId: matchGameId,
           bookingIds: userBookings.map(b => b.id),
-          slotsCount: bookingCount,
-          reason: `Cesión de ${bookingCount} plaza(s) confirmada(s)`,
+          slotsCount: slotsCount,
+          isPrivateBooking: isPrivateBooking,
+          reason: `Cesión de ${slotsCount} plaza(s) confirmada(s)`,
           originalAmount: totalAmount
         }
       });
@@ -122,14 +142,14 @@ export async function POST(
         });
       }
       
-      console.log(`♻️ ${bookingCount} plaza(s) marcada(s) como RECICLADA(S): solo reservables con puntos`);
+      console.log(`♻️ ${slotsCount} plaza(s) marcada(s) como RECICLADA(S): solo reservables con puntos`);
       console.log(`🏟️ Partida mantiene pista ${booking.matchGame.courtNumber} asignada`);
       
-      refundMessage = `${totalPointsGranted} puntos otorgados. ${bookingCount} plaza(s) cedida(s) disponible(s) para otros jugadores (solo puntos)`;
+      refundMessage = `${totalPointsGranted} puntos otorgados. ${slotsCount} plaza(s) cedida(s) disponible(s) para otros jugadores (solo puntos)`;
       
     } else {
       // 💳 CANCELACIÓN DE INSCRIPCIÓN PENDIENTE → Desbloquear fondos DE TODAS LAS PLAZAS
-      console.log(`💰 Inscripción pendiente - Desbloqueando fondos de ${bookingCount} plaza(s)`);
+      console.log(`💰 Inscripción pendiente - Desbloqueando fondos de ${slotsCount} plaza(s)`);
 
       // Calcular totales a desbloquear
       for (const userBooking of userBookings) {
@@ -152,13 +172,14 @@ export async function POST(
           type: 'points',
           action: 'unblock',
           amount: totalPointsUnblocked,
-          concept: `Cancelación de ${bookingCount} inscripción(es) - Partida ${new Date(booking.matchGame.start).toLocaleString('es-ES')}`,
+          concept: `Cancelación de ${slotsCount} inscripción(es) - Partida ${new Date(booking.matchGame.start).toLocaleString('es-ES')}`,
           relatedId: matchGameId,
           relatedType: 'matchGame',
           metadata: {
             matchGameId: matchGameId,
             bookingIds: userBookings.map(b => b.id),
-            slotsCount: bookingCount
+            slotsCount: slotsCount,
+            isPrivateBooking: isPrivateBooking
           }
         });
         
@@ -180,13 +201,14 @@ export async function POST(
           type: 'credit',
           action: 'unblock',
           amount: totalCreditsUnblocked,
-          concept: `Cancelación de ${bookingCount} inscripción(es) - Partida ${new Date(booking.matchGame.start).toLocaleString('es-ES')}`,
+          concept: `Cancelación de ${slotsCount} inscripción(es) - Partida ${new Date(booking.matchGame.start).toLocaleString('es-ES')}`,
           relatedId: matchGameId,
           relatedType: 'matchGame',
           metadata: {
             matchGameId: matchGameId,
             bookingIds: userBookings.map(b => b.id),
-            slotsCount: bookingCount
+            slotsCount: slotsCount,
+            isPrivateBooking: isPrivateBooking
           }
         });
         
@@ -206,7 +228,7 @@ export async function POST(
         });
       }
       
-      console.log(`✅ ${bookingCount} inscripción(es) cancelada(s) (no eran confirmadas)`);
+      console.log(`✅ ${slotsCount} inscripción(es) cancelada(s) (no eran confirmadas)`);
     }
     
     // 🔍 VERIFICAR SI QUEDAN PLAZAS ACTIVAS O RECICLADAS
@@ -266,7 +288,8 @@ export async function POST(
       message: refundMessage,
       remainingPlayers: remainingActiveBookings,
       recycledSlots: recycledBookings,
-      slotsProcessed: bookingCount,
+      slotsProcessed: slotsCount,
+      isPrivateBooking: isPrivateBooking,
       pointsGranted: totalPointsGranted,
       creditsUnblocked: totalCreditsUnblocked,
       pointsUnblocked: totalPointsUnblocked
