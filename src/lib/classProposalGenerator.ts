@@ -68,9 +68,7 @@ export async function generateClassProposals(
 
     console.log(`✅ Encontradas ${courts.length} pistas`);
 
-    // 3. Definir horarios de operación (9:00 - 22:00)
-    const startHour = 9;
-    const endHour = 22;
+    // 3. Duración de los slots
     const slotDurationMinutes = 30;
 
     // 4. Generar slots para cada día
@@ -82,25 +80,35 @@ export async function generateClassProposals(
       currentDate.setDate(today.getDate() + dayOffset);
       
       const dayOfWeek = currentDate.toLocaleDateString('es-ES', { weekday: 'long' });
+      const dayOfWeekNumber = currentDate.getDay(); // 0 = domingo, 6 = sábado
+      
       console.log(`\n📅 Procesando ${currentDate.toLocaleDateString('es-ES')} (${dayOfWeek})`);
 
-      // NOTA: ClubSchedule usa dayOfWeek como Int (0-6), no como string
-      // Por ahora, generamos para todos los días sin verificar horarios del club
-      // TODO: Implementar correctamente la verificación de horarios del club
-      
-      /*
+      // Obtener horarios del club desde ClubSchedule
       const clubSchedule = await prisma.clubSchedule.findFirst({
         where: {
           clubId,
-          dayOfWeek: currentDate.getDay(), // 0 = domingo, 6 = sábado
+          dayOfWeek: dayOfWeekNumber,
+          isActive: true,
         },
       });
 
-      if (clubSchedule?.isClosed) {
-        console.log(`⏭️ Club cerrado el ${dayOfWeek}`);
-        continue;
+      // Si no hay configuración, usar horarios por defecto
+      let startHour = 9;
+      let endHour = 22;
+
+      if (clubSchedule) {
+        // Parsear horarios desde el formato "HH:MM"
+        const [openHour, openMinute] = clubSchedule.openTime.split(':').map(Number);
+        const [closeHour, closeMinute] = clubSchedule.closeTime.split(':').map(Number);
+        
+        startHour = openHour;
+        endHour = closeHour;
+        
+        console.log(`🕐 Horarios del club: ${clubSchedule.openTime} - ${clubSchedule.closeTime}`);
+      } else {
+        console.log(`⚠️ No hay horarios configurados, usando default: ${startHour}:00 - ${endHour}:00`);
       }
-      */
 
       // Generar slots para cada hora del día
       for (let hour = startHour; hour < endHour; hour++) {
