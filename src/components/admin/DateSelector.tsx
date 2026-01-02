@@ -119,8 +119,37 @@ export default function DateSelector({
 
   return (
     <div className={`relative w-full rounded-lg py-2 md:py-3`}>
+      {/* Botones de navegación rápida - Hoy y Mañana */}
+      <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-10">
+        <button
+          onClick={() => {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            onDateChange(today);
+          }}
+          className="w-12 h-12 rounded-full bg-white border-2 border-blue-400 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 flex items-center justify-center text-blue-600 font-bold text-sm"
+          title="Ir a Hoy"
+        >
+          HOY
+        </button>
+        <button
+          onClick={() => {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            tomorrow.setHours(0, 0, 0, 0);
+            onDateChange(tomorrow);
+          }}
+          className="w-12 h-12 rounded-full bg-white border-2 border-green-400 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 flex items-center justify-center text-green-600 font-bold text-[10px] leading-tight"
+          title="Ir a Mañana"
+        >
+          <span className="text-center">
+            MAÑA<br/>NA
+          </span>
+        </button>
+      </div>
+
       {/* Grid de fechas - horizontal o vertical según orientación */}
-      <div className={`flex ${layoutOrientation === 'vertical' ? 'flex-col space-y-2' : 'justify-between overflow-x-auto scrollbar-hide touch-pan-x'} py-2 px-4 md:px-1`}>
+      <div className={`flex ${layoutOrientation === 'vertical' ? 'flex-col space-y-2' : 'justify-between overflow-x-auto scrollbar-hide touch-pan-x'} py-2 px-4 md:px-1 pr-20`}>
         {dates.map((date, index) => {
           const selected = isSelected(date);
           const today = isToday(date);
