@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import ClubCalendar from '@/components/admin/ClubCalendar';
+import ClubCalendarImproved from '@/components/admin/ClubCalendarImproved';
 import MatchGamesManager from './MatchGamesManager';
 import { 
   Building2, 
@@ -37,6 +37,24 @@ const UnifiedAdminPanel: React.FC<UnifiedAdminPanelProps> = ({ currentLevel, clu
   const [selectedClub, setSelectedClub] = useState<Club | null>(null);
   const [clubs, setClubs] = useState<Club[]>([]);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    // Cargar usuario actual
+    const loadUser = async () => {
+      try {
+        const response = await fetch('/api/auth/me');
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentUser(data.user);
+        }
+      } catch (error) {
+        console.error('Error cargando usuario:', error);
+      }
+    };
+    
+    loadUser();
+  }, []);
 
   useEffect(() => {
     const allClubs = getMockClubs();
@@ -59,6 +77,7 @@ const UnifiedAdminPanel: React.FC<UnifiedAdminPanelProps> = ({ currentLevel, clu
         onBack={() => setSelectedClub(null)} 
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        currentUser={currentUser}
       />
     );
   }
@@ -178,8 +197,9 @@ const ClubAdminView: React.FC<{
   club: Club, 
   onBack: () => void,
   activeTab: string,
-  setActiveTab: (tab: string) => void
-}> = ({ club, onBack, activeTab, setActiveTab }) => {
+  setActiveTab: (tab: string) => void,
+  currentUser: any
+}> = ({ club, onBack, activeTab, setActiveTab, currentUser }) => {
   return (
     <div className="space-y-6">
       {/* Header Club Admin */}
@@ -255,7 +275,7 @@ const ClubAdminView: React.FC<{
         </TabsContent>
 
         <TabsContent value="schedule" className="space-y-4">
-          <ClubCalendar clubId={club.id} viewMode="club" />
+          <ClubCalendarImproved clubId={club.id} currentUser={currentUser} viewMode="club" />
         </TabsContent>
 
         <TabsContent value="settings" className="space-y-4">
