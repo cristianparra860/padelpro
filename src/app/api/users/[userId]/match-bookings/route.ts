@@ -31,6 +31,8 @@ export async function GET(
                 id: true,
                 userId: true,
                 status: true,
+                groupSize: true,
+                isRecycled: true,
                 user: {
                   select: {
                     name: true,
@@ -62,6 +64,8 @@ export async function GET(
           id: b.id,
           userId: b.userId,
           status: b.status,
+          groupSize: b.groupSize,
+          isRecycled: b.isRecycled,
           name: b.user.name,
           profilePictureUrl: b.user.profilePictureUrl,
           userLevel: b.user.level,
