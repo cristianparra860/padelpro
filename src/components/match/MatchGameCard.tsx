@@ -73,21 +73,36 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
 
   const isUserBooked = !!userBooking;
 
-  // Detectar si es una reserva privada (1 usuario con las 4 plazas)
+  // Detectar si es una reserva privada completa (4 plazas de un solo booking)
   const isPrivateBooking = useMemo(() => {
     if (bookings.length !== 1) return false;
-    // Si hay courtNumber asignado y solo 1 booking, es reserva privada
-    return matchGame.courtNumber && bookings.length === 1;
-  }, [bookings, matchGame.courtNumber]);
+    const booking = bookings[0] as any;
+    return booking.groupSize === 4;
+  }, [bookings]);
 
-  // Si es reserva privada, replicar el usuario 4 veces
+  // Detectar si hay un booking con groupSize > 1 (reserva privada o parcial)
+  const hasMultipleSlots = useMemo(() => {
+    return bookings.some(b => (b as any).groupSize && (b as any).groupSize > 1);
+  }, [bookings]);
+
+  // Si hay bookings con groupSize > 1, expandir para mostrar todos los avatares
   const displayBookings = useMemo(() => {
-    if (isPrivateBooking && bookings.length === 1) {
-      const privateUser = bookings[0];
-      return [privateUser, privateUser, privateUser, privateUser];
+    if (!hasMultipleSlots) {
+      return bookings;
     }
-    return bookings;
-  }, [isPrivateBooking, bookings]);
+    
+    // Expandir bookings según groupSize
+    const expanded: Booking[] = [];
+    bookings.forEach(b => {
+      const groupSize = (b as any).groupSize || 1;
+      // Añadir tantos avatares como groupSize indique
+      for (let i = 0; i < groupSize; i++) {
+        expanded.push(b);
+      }
+    });
+    
+    return expanded;
+  }, [hasMultipleSlots, bookings]);
 
   // Level and gender info
   const levelInfo = useMemo(() => {
@@ -326,17 +341,19 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
     }
   };
 
-  // 🆕 Contar cuántos bookings tiene el usuario en esta partida (para reservas múltiples/privadas)
+  // 🆕 Contar cuántas PLAZAS tiene el usuario en esta partida (sumando groupSize)
   const getUserBookingsCount = () => {
     if (!currentUser?.id || !matchGame.bookings) return 0;
-    // Contar todos los bookings ACTIVOS del usuario (no cancelados, excepto reciclados)
-    return matchGame.bookings.filter((b: any) => 
-      b.userId === currentUser.id && 
-      (b.status !== 'CANCELLED' || b.isRecycled === true)
-    ).length;
+    // Contar plazas sumando groupSize de cada booking activo
+    return matchGame.bookings
+      .filter((b: any) => 
+        b.userId === currentUser.id && 
+        (b.status !== 'CANCELLED' || b.isRecycled === true)
+      )
+      .reduce((total: number, b: any) => total + (b.groupSize || 1), 0);
   };
 
-  // 🆕 Detectar si el usuario tiene una reserva privada (1 booking con monto total >10€)
+  // 🆕 Detectar si el usuario tiene una reserva privada completa (1 booking con groupSize=4)
   const hasPrivateBooking = useMemo(() => {
     if (!currentUser?.id || !matchGame.bookings) return false;
     
@@ -347,12 +364,8 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
     
     if (userBookings.length !== 1) return false;
     
-    const totalAmountBlocked = userBookings.reduce((sum: number, b: any) => 
-      sum + Number(b.amountBlocked || 0), 0
-    );
-    
-    // Si hay 1 booking con >10€ bloqueado, es reserva privada (4 plazas)
-    return totalAmountBlocked > 1000;
+    // Si hay 1 booking con groupSize=4, es reserva privada completa
+    return userBookings[0].groupSize === 4;
   }, [matchGame.bookings, currentUser?.id]);
 
   // 🆕 Función para ceder plazas parciales en partidas

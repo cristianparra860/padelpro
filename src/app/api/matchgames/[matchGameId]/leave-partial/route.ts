@@ -181,13 +181,14 @@ export async function POST(
           console.log(`  ♻️ ${slotsToTransfer} booking(s) reciclado(s) creados`);
           
           // 3. Crear 1 nuevo booking activo para las plazas que mantiene el usuario
+          const newBookingStatus = isConfirmed ? 'CONFIRMED' : 'PENDING';
           await tx.matchGameBooking.create({
             data: {
               matchGameId: matchGameId,
               userId: userId,
-              status: 'CONFIRMED',
+              status: newBookingStatus,
               isRecycled: false,
-              wasConfirmed: true,
+              wasConfirmed: isConfirmed,
               amountBlocked: amountRemainingPerSlot * slotsRemaining, // Monto proporcional a plazas restantes
               groupSize: slotsRemaining, // Plazas que mantiene el usuario
               createdAt: new Date()
