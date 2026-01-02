@@ -188,6 +188,7 @@ export async function GET(request: NextRequest) {
             userId: true,
             status: true,
             groupSize: true,
+            isRecycled: true,
             amountBlocked: true,
             user: {
               select: {
