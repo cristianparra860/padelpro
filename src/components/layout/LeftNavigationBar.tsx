@@ -606,14 +606,12 @@ export function LeftNavigationBar() {
                     title="Reservas (R): Clases confirmadas con pista asignada"
                 >
                     <div className={cn(
-                        "rounded-full flex items-center justify-center flex-shrink-0",
-                        isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
-                        hasReservations 
-                            ? 'bg-gradient-to-br from-red-400 to-red-600 text-white' 
-                            : 'bg-gradient-to-br from-gray-300 to-gray-400 text-gray-600',
-                        pathname === '/agenda' && 'ring-4 ring-red-300 ring-opacity-50 shadow-[0_0_25px_rgba(239,68,68,0.5)]'
+                        "rounded-full flex items-center justify-center flex-shrink-0 border-2 font-bold",
+                        isCompactMode ? 'w-10 h-10 text-lg' : 'w-14 h-14 text-2xl',
+                        'bg-white text-gray-500 border-gray-500',
+                        pathname === '/agenda' && 'ring-4 ring-gray-300 ring-opacity-50 shadow-[0_0_25px_rgba(156,163,175,0.5)]'
                     )}>
-                        <span className={cn("font-black", isCompactMode ? 'text-sm' : 'text-xl')}>R</span>
+                        R
                     </div>
                     <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
                         {isCompactMode ? (
@@ -641,13 +639,11 @@ export function LeftNavigationBar() {
                     title="Inscripciones (I): Clases pendientes esperando completar grupo"
                 >
                     <div className={cn(
-                        "rounded-full flex items-center justify-center flex-shrink-0",
-                        isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
-                        hasInscriptions 
-                            ? 'bg-gradient-to-br from-blue-400 to-blue-600 text-white' 
-                            : 'bg-gradient-to-br from-gray-300 to-gray-400 text-gray-600'
+                        "rounded-full flex items-center justify-center flex-shrink-0 border-2 font-bold",
+                        isCompactMode ? 'w-10 h-10 text-lg' : 'w-14 h-14 text-2xl',
+                        'bg-white text-gray-500 border-gray-500'
                     )}>
-                        <span className={cn("font-black", isCompactMode ? 'text-sm' : 'text-xl')}>I</span>
+                        I
                     </div>
                     <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
                         {isCompactMode ? (
@@ -675,7 +671,7 @@ export function LeftNavigationBar() {
                     title="Movimientos de Saldo: Consulta tu saldo y transacciones"
                 >
                     <div className={cn(
-                        "rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-white flex-shrink-0",
+                        "rounded-full flex items-center justify-center flex-shrink-0 bg-white text-gray-500 border-2 border-gray-500",
                         isCompactMode ? 'w-10 h-10' : 'w-14 h-14'
                     )}>
                         <Wallet className={isCompactMode ? 'w-5 h-5' : 'w-8 h-8'} />
@@ -711,12 +707,12 @@ export function LeftNavigationBar() {
                             style={{ pointerEvents: 'auto', zIndex: 99999 }}
                         >
                             <div className={cn(
-                                "rounded-full flex items-center justify-center text-white flex-shrink-0 overflow-hidden transition-all duration-300",
+                                "rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden transition-all duration-300",
                                 isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
-                                item.key === 'calendario-club' && "bg-gradient-to-br from-yellow-400 to-orange-600",
-                                item.key === 'base-datos' && "bg-gradient-to-br from-indigo-400 to-indigo-600",
-                                item.key === 'config-club' && "bg-gradient-to-br from-gray-400 to-gray-600",
-                                item.key === 'config-instructor' && "bg-gradient-to-br from-teal-400 to-teal-600",
+                                item.key === 'calendario-club' && "bg-white text-gray-500 border-2 border-gray-500",
+                                item.key === 'base-datos' && "bg-white text-gray-500 border-2 border-gray-500",
+                                item.key === 'config-club' && "bg-white text-gray-500 border-2 border-gray-500",
+                                item.key === 'config-instructor' && "bg-white text-gray-500 border-2 border-gray-500",
                                 item.isActive && (
                                     item.key === 'calendario-club' 
                                         ? 'ring-4 ring-orange-300 ring-opacity-50 shadow-[0_0_25px_rgba(251,146,60,0.5)]'
