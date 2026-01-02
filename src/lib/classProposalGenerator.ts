@@ -80,35 +80,26 @@ export async function generateClassProposals(
       currentDate.setDate(today.getDate() + dayOffset);
       
       const dayOfWeek = currentDate.toLocaleDateString('es-ES', { weekday: 'long' });
-      const dayOfWeekNumber = currentDate.getDay(); // 0 = domingo, 6 = sábado
-      
       console.log(`\n📅 Procesando ${currentDate.toLocaleDateString('es-ES')} (${dayOfWeek})`);
 
-      // Obtener horarios del club desde ClubSchedule
+      // Leer horarios desde ClubSchedule
       const clubSchedule = await prisma.clubSchedule.findFirst({
         where: {
           clubId,
-          dayOfWeek: dayOfWeekNumber,
-          isActive: true,
+          dayOfWeek: currentDate.getDay(), // 0 = domingo, 6 = sábado
         },
       });
 
-      // Si no hay configuración, usar horarios por defecto
-      let startHour = 9;
-      let endHour = 22;
-
-      if (clubSchedule) {
-        // Parsear horarios desde el formato "HH:MM"
-        const [openHour, openMinute] = clubSchedule.openTime.split(':').map(Number);
-        const [closeHour, closeMinute] = clubSchedule.closeTime.split(':').map(Number);
-        
-        startHour = openHour;
-        endHour = closeHour;
-        
-        console.log(`🕐 Horarios del club: ${clubSchedule.openTime} - ${clubSchedule.closeTime}`);
-      } else {
-        console.log(`⚠️ No hay horarios configurados, usando default: ${startHour}:00 - ${endHour}:00`);
+      if (clubSchedule?.isClosed) {
+        console.log(`⏭️ Club cerrado el ${dayOfWeek}`);
+        continue;
       }
+
+      // Usar horarios configurados o fallback a 9:00-22:00
+      const startHour = clubSchedule?.openTime ? parseInt(clubSchedule.openTime.split(':')[0]) : 9;
+      const endHour = clubSchedule?.closeTime ? parseInt(clubSchedule.closeTime.split(':')[0]) : 22;
+      
+      console.log(`⏰ Horarios: ${startHour}:00 - ${endHour}:00`);
 
       // Generar slots para cada hora del día
       for (let hour = startHour; hour < endHour; hour++) {
