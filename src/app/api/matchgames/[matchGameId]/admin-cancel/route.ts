@@ -1,7 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 
 /**
  * API para cancelar una partida desde el panel de administrador
@@ -10,20 +8,19 @@ import { authOptions } from '@/lib/auth';
  * - Cierra la partida (isOpen = false)
  */
 export async function POST(
-  request: NextRequest,
-  { params }: { params: { matchGameId: string } }
+  request: Request,
+  { params }: { params: Promise<{ matchGameId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const { userId } = await request.json();
+    const { matchGameId } = await params;
     
-    if (!session?.user?.id) {
+    if (!userId) {
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 401 }
       );
     }
-
-    const { matchGameId } = params;
 
     // Verificar que el usuario es administrador del club
     const matchGame = await prisma.matchGame.findUnique({
@@ -45,7 +42,7 @@ export async function POST(
     }
 
     const isAdmin = matchGame.club.admins.some(
-      admin => admin.userId === session.user.id
+      admin => admin.userId === userId
     );
 
     if (!isAdmin) {

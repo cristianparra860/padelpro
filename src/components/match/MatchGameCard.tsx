@@ -485,7 +485,10 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
       const response = await fetch(`/api/matchgames/${matchGame.id}/admin-cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include'
+        credentials: 'include',
+        body: JSON.stringify({
+          userId: currentUser.id,
+        })
       });
 
       if (response.ok) {
