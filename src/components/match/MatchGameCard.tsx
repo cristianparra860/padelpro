@@ -29,6 +29,7 @@ interface MatchGameCardProps {
   onBookingSuccess: () => void;
   showLeaveButton?: boolean; // Control para mostrar/ocultar botón Cancelar
   showPrivateBookingButton?: boolean; // Control para mostrar/ocultar botón Reserva Privada
+  showAdminCancelButton?: boolean; // Control para mostrar botón de cancelar partida (solo admin)
 }
 
 interface Booking {
@@ -47,11 +48,13 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
   onBookingSuccess,
   showLeaveButton = false, // Por defecto no mostrar el botón en el calendario
   showPrivateBookingButton = true, // Por defecto mostrar botón Reserva Privada
+  showAdminCancelButton = false, // Por defecto no mostrar botón admin
 }) => {
   const { toast } = useToast();
   const [booking, setBooking] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
+  const [showAdminCancelDialog, setShowAdminCancelDialog] = useState(false);
   
   // 🆕 Estados para cesión parcial de plazas en partidas
   const [showPartialTransferDialog, setShowPartialTransferDialog] = useState(false);
@@ -471,6 +474,52 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
     }
   };
 
+  // Handle admin cancel - Cancelar partida completa (solo admin)
+  const handleAdminCancel = async () => {
+    if (!currentUser) {
+      return;
+    }
+
+    setBooking(true);
+    try {
+      const response = await fetch(`/api/matchgames/${matchGame.id}/admin-cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        toast({
+          title: "✅ Partida cancelada",
+          description: result.message || "La partida ha sido cancelada y los puntos devueltos a los usuarios.",
+          className: "bg-red-600 text-white",
+          duration: 5000
+        });
+
+        setShowAdminCancelDialog(false);
+        onBookingSuccess();
+      } else {
+        const error = await response.json();
+        toast({
+          title: "Error al cancelar",
+          description: error.error || "No se pudo cancelar la partida",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error canceling match:', error);
+      toast({
+        title: "Error de conexión",
+        description: "No se pudo conectar con el servidor",
+        variant: "destructive"
+      });
+    } finally {
+      setBooking(false);
+    }
+  };
+
   const spotsLeft = 4 - bookings.length;
 
   return (
@@ -485,7 +534,18 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
           </div>
           
           {/* Botón Reserva Privada O Botón Cancelar */}
-          {isPrivateBooking && showLeaveButton && isUserBooked ? (
+          {showAdminCancelButton ? (
+            // Botón de cancelar partida (solo para admin)
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 text-[10px] px-2 bg-white hover:bg-red-50 text-red-700 border-white font-bold"
+              onClick={() => setShowAdminCancelDialog(true)}
+              disabled={booking || bookings.length === 0}
+            >
+              {booking ? 'Cancelando...' : '🗑️ Cancelar Partida'}
+            </Button>
+          ) : isPrivateBooking && showLeaveButton && isUserBooked ? (
             // Si es reserva privada Y el usuario es el dueño, mostrar botón de cancelar/ceder
             <Button
               size="sm"
@@ -1072,6 +1132,41 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
               {booking ? <Loader2 className="w-4 h-4 animate-spin" /> : (
                 userBooking?.status === 'CONFIRMED' ? '♻️ Ceder Plaza' : 'Sí, Cancelar'
               )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Admin Cancel Dialog */}
+      <AlertDialog open={showAdminCancelDialog} onOpenChange={setShowAdminCancelDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-red-600">
+              🗑️ Cancelar Partida Completa
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que quieres cancelar esta partida?
+              <br /><br />
+              <strong>Esta acción:</strong>
+              <ul className="list-disc pl-5 mt-2 space-y-1">
+                <li>Cancelará <strong>todas las reservas activas</strong> ({bookings.length} jugador{bookings.length !== 1 ? 'es' : ''})</li>
+                <li>Devolverá los <strong>puntos a todos los usuarios</strong></li>
+                <li>Cerrará la partida permanentemente</li>
+              </ul>
+              <br />
+              <span className="text-sm text-red-600 font-semibold">
+                ⚠️ Esta acción no se puede deshacer.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>No, Volver</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleAdminCancel} 
+              className="bg-red-600 hover:bg-red-700"
+              disabled={booking}
+            >
+              {booking ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sí, Cancelar Partida'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -197,6 +197,7 @@ export default function MatchGamesManager({ clubId }: MatchGamesManagerProps) {
               onBookingSuccess={loadMatches}
               showLeaveButton={false}
               showPrivateBookingButton={false}
+              showAdminCancelButton={true}
             />
           ))}
         </div>
