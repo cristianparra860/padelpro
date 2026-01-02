@@ -187,6 +187,8 @@ export async function GET(request: NextRequest) {
             id: true,
             userId: true,
             status: true,
+            groupSize: true,
+            amountBlocked: true,
             user: {
               select: {
                 name: true,

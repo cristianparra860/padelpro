@@ -246,6 +246,7 @@ model MatchGameBooking {
   paymentMethod        String        @default("CREDITS") // "CREDITS" o "POINTS"
   pointsUsed           Int           @default(0)
   amountBlocked        Int           @default(0)
+  groupSize            Int           @default(1) // Número de plazas que ocupa este booking (1-4)
   isRecycled           Boolean       @default(false)
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt

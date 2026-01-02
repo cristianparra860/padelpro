@@ -172,6 +172,7 @@ export async function POST(
                 isRecycled: isConfirmed,
                 wasConfirmed: isConfirmed,
                 amountBlocked: amountRemainingPerSlot, // Monto por plaza en céntimos
+                groupSize: 1, // Cada booking reciclado = 1 plaza
                 createdAt: new Date()
               }
             });
@@ -188,6 +189,7 @@ export async function POST(
               isRecycled: false,
               wasConfirmed: true,
               amountBlocked: amountRemainingPerSlot * slotsRemaining, // Monto proporcional a plazas restantes
+              groupSize: slotsRemaining, // Plazas que mantiene el usuario
               createdAt: new Date()
             }
           });

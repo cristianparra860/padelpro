@@ -154,7 +154,10 @@ export default function ClubCalendarImproved({
         const dateParam = getLocalDateString(currentDate);
         
         // Cargar datos del calendario
-        const calRes = await fetch(`/api/admin/calendar?clubId=${clubId}&date=${dateParam}`);
+        // Crear startDate (00:00) y endDate (23:59:59) del mismo día
+        const startDate = `${dateParam}T00:00:00.000Z`;
+        const endDate = `${dateParam}T23:59:59.999Z`;
+        const calRes = await fetch(`/api/admin/calendar?clubId=${clubId}&startDate=${startDate}&endDate=${endDate}`);
         if (calRes.ok) {
           const data = await calRes.json();
           console.log('📊 Datos del calendario cargados:', data);
@@ -948,44 +951,64 @@ export default function ClubCalendarImproved({
                                       
                                       {/* Jugadores en fila única con fotos grandes */}
                                       <div className="flex justify-center gap-1.5">
-                                        {reservation.bookings?.filter((b: any) => b.status !== 'CANCELLED' || (b.status === 'CANCELLED' && b.isRecycled === true)).map((booking: any, i: number) => {
-                                          const playerName = booking.user?.name || booking.userName || `Jugador ${i+1}`;
-                                          const isRecycled = booking.status === 'CANCELLED' && booking.isRecycled === true;
+                                        {(() => {
+                                          const activeBookings = reservation.bookings?.filter((b: any) => b.status !== 'CANCELLED' || (b.status === 'CANCELLED' && b.isRecycled === true)) || [];
+                                          const slots = [];
                                           
-                                          if (isRecycled) {
-                                            return (
+                                          // Renderizar slots según groupSize
+                                          activeBookings.forEach((booking: any, bookingIdx: number) => {
+                                            const playerName = booking.user?.name || booking.userName || `Jugador ${bookingIdx+1}`;
+                                            const isRecycled = booking.status === 'CANCELLED' && booking.isRecycled === true;
+                                            const groupSize = booking.groupSize || 1;
+                                            
+                                            // Crear tantos avatares como plazas ocupe este booking
+                                            for (let i = 0; i < groupSize; i++) {
+                                              if (isRecycled) {
+                                                slots.push(
+                                                  <div 
+                                                    key={`${booking.id}-${i}`}
+                                                    className="w-8 h-8 rounded-full flex items-center justify-center shadow-md ring-2 ring-yellow-600 bg-yellow-400"
+                                                    title="Plaza reciclada (solo puntos)"
+                                                  >
+                                                    <span className="text-[14px]">♻️</span>
+                                                  </div>
+                                                );
+                                              } else {
+                                                slots.push(
+                                                  <div 
+                                                    key={`${booking.id}-${i}`}
+                                                    className="w-8 h-8 rounded-full overflow-hidden shadow-md ring-2 ring-white bg-white"
+                                                    title={playerName}
+                                                  >
+                                                    <img
+                                                      src={booking.user?.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(playerName)}&background=22c55e&color=fff&size=64`}
+                                                      alt={playerName}
+                                                      className="w-full h-full object-cover"
+                                                    />
+                                                  </div>
+                                                );
+                                              }
+                                            }
+                                          });
+                                          
+                                          // Calcular plazas vacías
+                                          const totalOccupiedSlots = slots.length;
+                                          const emptySlots = (reservation.maxPlayers || 4) - totalOccupiedSlots;
+                                          
+                                          // Añadir slots vacíos
+                                          for (let i = 0; i < emptySlots; i++) {
+                                            slots.push(
                                               <div 
-                                                key={booking.id || i}
-                                                className="w-8 h-8 rounded-full flex items-center justify-center shadow-md ring-2 ring-yellow-600 bg-yellow-400"
-                                                title="Plaza reciclada (solo puntos)"
+                                                key={`empty-${i}`}
+                                                className="w-8 h-8 rounded-full border-2 border-white/80 flex items-center justify-center bg-white/20"
                                               >
-                                                <span className="text-[14px]">♻️</span>
+                                                <span className="text-[14px] text-white font-bold">+</span>
                                               </div>
                                             );
                                           }
                                           
-                                          return (
-                                            <div 
-                                              key={booking.id || i}
-                                              className="w-8 h-8 rounded-full overflow-hidden shadow-md ring-2 ring-white bg-white"
-                                              title={playerName}
-                                            >
-                                              <img
-                                                src={booking.user?.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(playerName)}&background=22c55e&color=fff&size=64`}
-                                                alt={playerName}
-                                                className="w-full h-full object-cover"
-                                              />
-                                            </div>
-                                          );
-                                        })}
-                                        {Array.from({ length: (reservation.maxPlayers || 4) - (reservation.bookings?.filter((b: any) => b.status !== 'CANCELLED' || (b.status === 'CANCELLED' && b.isRecycled === true)).length || 0) }).map((_, i) => (
-                                          <div 
-                                            key={`empty-${i}`}
-                                            className="w-8 h-8 rounded-full border-2 border-white/80 flex items-center justify-center bg-white/20"
-                                          >
-                                            <span className="text-[14px] text-white font-bold">+</span>
-                                          </div>
-                                        ))}
+                                          return slots;
+                                        })()}
                                       </div>
                                     </>
                                   )}
@@ -1039,7 +1062,8 @@ export default function ClubCalendarImproved({
                           // Si es el inicio de la clase, renderizar con rowspan
                           if (isConfirmedClassStart(confirmedClass, timeSlot)) {
                             const bookings = confirmedClass.bookings || [];
-                            const bookingsCount = bookings.length;
+                            // ⭐ FIXED: Count actual player slots, not bookings
+                            const bookingsCount = bookings.reduce((sum: number, b: any) => sum + (b.groupSize || 1), 0);
                             const maxPlayers = confirmedClass.maxPlayers || 4;
                             const rowSpan = calculateConfirmedClassRowSpan(confirmedClass);
                             const duration = confirmedClass.end && confirmedClass.start 

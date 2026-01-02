@@ -550,11 +550,12 @@ export async function POST(request: Request) {
             paidWithPoints: false,
             paymentMethod: 'CREDITS',
             pointsUsed: 0,
-            amountBlocked: totalPriceToBlock // Usuario paga el total
+            amountBlocked: totalPriceToBlock, // Usuario paga el total
+            groupSize: 4 // RESERVA PRIVADA = 4 plazas
           }
         });
         
-        console.log(`✅ Booking privado creado: ${booking.id} - Status: CONFIRMED`);
+        console.log(`✅ Booking privado creado: ${booking.id} - Status: CONFIRMED - GroupSize: 4`);
         
         console.log('💳 Bloqueando fondos...');
         // Bloquear fondos

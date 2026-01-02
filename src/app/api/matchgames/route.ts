@@ -77,7 +77,15 @@ export async function GET(request: NextRequest) {
             { status: 'CANCELLED', isRecycled: true }
           ]
         },
-        include: {
+        select: {
+          id: true,
+          matchGameId: true,
+          userId: true,
+          status: true,
+          isRecycled: true,
+          groupSize: true,
+          amountBlocked: true,
+          createdAt: true,
           user: {
             select: {
               id: true,
@@ -232,6 +240,7 @@ export async function GET(request: NextRequest) {
         bookings: bookings.map(b => ({
           id: b.id,
           userId: b.user.id,
+          groupSize: b.groupSize || 1,  // ⭐ AÑADIR groupSize para frontend
           status: b.status,
           isRecycled: b.isRecycled,
           name: b.user.name,
