@@ -23,15 +23,20 @@ export async function POST(
     }
 
     // Verificar que el usuario es administrador del club
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, clubId: true }
+    });
+
+    if (!user || user.role !== 'CLUB_ADMIN') {
+      return NextResponse.json(
+        { error: 'No tienes permisos para cancelar esta partida' },
+        { status: 403 }
+      );
+    }
+
     const matchGame = await prisma.matchGame.findUnique({
-      where: { id: matchGameId },
-      include: {
-        club: {
-          include: {
-            admins: true
-          }
-        }
-      }
+      where: { id: matchGameId }
     });
 
     if (!matchGame) {
@@ -41,19 +46,16 @@ export async function POST(
       );
     }
 
-    const isAdmin = matchGame.club.admins.some(
-      admin => admin.userId === userId
-    );
-
-    if (!isAdmin) {
+    // Verificar que el admin pertenece al mismo club que la partida
+    if (matchGame.clubId !== user.clubId) {
       return NextResponse.json(
-        { error: 'No tienes permisos para cancelar esta partida' },
+        { error: 'Solo puedes cancelar partidas de tu propio club' },
         { status: 403 }
       );
     }
 
     // Obtener todos los bookings activos
-    const activeBookings = await prisma.booking.findMany({
+    const activeBookings = await prisma.matchGameBooking.findMany({
       where: {
         matchGameId,
         status: {
@@ -101,7 +103,7 @@ export async function POST(
         }
 
         // Cancelar el booking
-        await tx.booking.update({
+        await tx.matchGameBooking.update({
           where: { id: booking.id },
           data: {
             status: 'CANCELLED'
