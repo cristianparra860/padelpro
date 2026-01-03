@@ -37,6 +37,9 @@ export async function GET(request: NextRequest) {
     if (clubId) {
       whereConditions.clubId = clubId;
     }
+
+    // Solo mostrar partidas abiertas (no canceladas)
+    whereConditions.isOpen = true;
     
     if (date) {
       const startOfDay = new Date(date + 'T00:00:00.000Z');
