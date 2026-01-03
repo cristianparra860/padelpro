@@ -110,21 +110,29 @@ export async function POST(
           }
         });
 
+        // Obtener saldo actual del usuario
+        const userBalance = await tx.user.findUnique({
+          where: { id: booking.userId },
+          select: { credits: true }
+        });
+
         // Registrar la transacción de devolución
         await tx.transaction.create({
           data: {
             userId: booking.userId,
-            clubId: matchGame.clubId,
+            type: 'points',
+            action: 'add',
             amount: amountBlocked,
-            type: 'REFUND',
-            description: `Devolución por cancelación de partida - ${new Date(matchGame.start).toLocaleDateString('es-ES', { 
+            balance: (userBalance?.credits || 0) + amountBlocked,
+            concept: `Devolución por cancelación de partida - ${new Date(matchGame.start).toLocaleDateString('es-ES', { 
               day: '2-digit', 
               month: '2-digit', 
               year: 'numeric',
               hour: '2-digit',
               minute: '2-digit'
             })}`,
-            relatedBookingId: booking.id
+            relatedId: booking.id,
+            relatedType: 'booking'
           }
         });
       }
