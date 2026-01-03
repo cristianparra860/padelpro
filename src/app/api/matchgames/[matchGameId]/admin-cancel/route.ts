@@ -67,21 +67,16 @@ export async function POST(
       }
     });
 
-    if (activeBookings.length === 0) {
-      return NextResponse.json(
-        { error: 'No hay reservas activas en esta partida' },
-        { status: 400 }
-      );
-    }
-
     // Procesar cancelación en una transacción
     const result = await prisma.$transaction(async (tx) => {
       let totalRefunded = 0;
       const refunds: { userId: string; name: string; amount: number }[] = [];
 
-      for (const booking of activeBookings) {
-        // Calcular el monto a devolver
-        const amountBlocked = booking.amountBlocked || 0;
+      // Solo procesar devoluciones si hay bookings activos
+      if (activeBookings.length > 0) {
+        for (const booking of activeBookings) {
+          // Calcular el monto a devolver
+          const amountBlocked = booking.amountBlocked || 0;
         
         if (amountBlocked > 0) {
           // Devolver puntos al usuario
@@ -135,6 +130,7 @@ export async function POST(
             relatedType: 'booking'
           }
         });
+        }
       }
 
       // Cerrar la partida
@@ -148,9 +144,13 @@ export async function POST(
       return { totalRefunded, refunds, cancelledBookings: activeBookings.length };
     });
 
+    const message = result.cancelledBookings === 0 
+      ? 'Partida cerrada correctamente'
+      : `Partida cancelada. ${result.cancelledBookings} reserva(s) cancelada(s) y puntos devueltos.`;
+
     return NextResponse.json({
       success: true,
-      message: `Partida cancelada. ${result.cancelledBookings} reserva(s) cancelada(s).`,
+      message,
       totalRefunded: result.totalRefunded,
       refunds: result.refunds
     });
