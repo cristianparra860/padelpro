@@ -814,7 +814,7 @@ export function ClassesDisplay({
   return (
     <div className="relative" ref={scrollContainerRef}>
 
-      <div className="fixed left-4 top-[1150px] z-30 flex flex-col gap-1.5 items-start">
+      <div className="fixed left-4 top-[1050px] z-30 flex flex-col gap-1.5 items-start">
         
         {/* Título Filtros */}
         <div className="text-gray-700 font-bold text-sm uppercase tracking-wide mb-1 ml-2">
@@ -826,9 +826,9 @@ export function ClassesDisplay({
           <button
             type="button"
             onClick={openInstructorPanel}
-            className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-4 py-3 min-w-[220px]"
+            className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-3.5 py-2.5 w-[198px]"
           >
-            <div className={`w-14 h-14 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 border-2 ${
+            <div className={`w-12 h-12 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 border-2 ${
               selectedInstructorIds.length > 0
                 ? 'bg-gradient-to-br from-green-400 to-green-600 border-green-500 text-white'
                 : 'bg-white border-gray-300 text-gray-600'
@@ -840,7 +840,7 @@ export function ClassesDisplay({
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"/>
                 </svg>
               )}
@@ -863,14 +863,14 @@ export function ClassesDisplay({
         <button
           type="button"
           onClick={() => setShowTimeFilterPanel(true)}
-          className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-4 py-3 min-w-[220px]"
+          className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-3.5 py-2.5 w-[198px]"
         >
-          <div className={`w-14 h-14 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 border-2 ${
+          <div className={`w-12 h-12 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 border-2 ${
             timeSlotFilter !== 'all'
               ? 'bg-gradient-to-br from-blue-400 to-blue-600 border-blue-500 text-white'
               : 'bg-white border-gray-300 text-gray-600'
           }`}>
-            <Clock className="w-8 h-8" />
+            <Clock className="w-7 h-7" />
           </div>
           <div className="text-left flex-1">
             <div className="text-sm font-semibold text-gray-800">
@@ -890,10 +890,10 @@ export function ClassesDisplay({
               e.stopPropagation();
               openViewFilterPanel();
             }}
-            className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-4 py-3 min-w-[220px]"
+            className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-3.5 py-2.5 w-[198px]"
             title="Filtrar por estado de clase"
           >
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${
               viewPreference !== 'all' || hideEmpty || hideWithStudents || hideFull
                 ? viewPreference === 'myConfirmed'
                   ? 'bg-gradient-to-br from-green-400 to-green-600 border-green-500 text-white'
@@ -905,7 +905,7 @@ export function ClassesDisplay({
                 : 'bg-white border-gray-300 text-gray-600'
             }`}>
               <svg 
-                className="w-8 h-8" 
+                className="w-7 h-7" 
                 viewBox="0 0 24 24" 
                 fill="none" 
                 xmlns="http://www.w3.org/2000/svg"
@@ -939,15 +939,15 @@ export function ClassesDisplay({
         <button
           type="button"
           onClick={openPlayerCountPanel}
-          className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-4 py-3 min-w-[220px]"
+          className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-3.5 py-2.5 w-[198px]"
           title="Filtrar por número de jugadores"
         >
-          <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${
             localPlayerCounts.length < 4 && localPlayerCounts.length > 0
               ? 'bg-gradient-to-br from-orange-400 to-orange-600 border-orange-500 text-white'
               : 'bg-white border-gray-300 text-gray-600'
           }`}>
-            <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+            <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 20 20">
               <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
             </svg>
           </div>
@@ -960,105 +960,105 @@ export function ClassesDisplay({
                 : `${localPlayerCounts.join(', ')} Jugadores`}
             </div>
             <div className="text-xs text-gray-500">
-              {localPlayerCounts.length === 0 ? '1-4 jugadores' : `${localPlayerCounts.length} opción${localPlayerCounts.length > 1 ? 'es' : ''} activa${localPlayerCounts.length > 1 ? 's' : ''}`}
+              {localPlayerCounts.length === 0 ? '1-4 jugadores' : `${localPlayerCounts.length} opción${localPlayerCounts.length > 1 ? 'es' : ''}`}
             </div>
           </div>
         </button>
         
-        {/* Botón Guardar/Borrar Filtros */}
+        {/* Botón Guardar Filtros */}
         <button
           onClick={async () => {
             if (!currentUser) return;
             
-            // Verificar si hay filtros guardados en BD
-            const hasFiltersInDB = savedFilters && (
-              savedFilters.timeSlot !== 'all' ||
-              savedFilters.viewType !== 'all' ||
-              savedFilters.playerCounts.length !== 4 ||
-              savedFilters.instructorIds.length > 0
-            );
-            
-            if (hasFiltersInDB) {
-              // BORRAR filtros guardados
-              try {
-                const response = await fetch('/api/users/filter-preferences', {
-                  method: 'DELETE',
-                  headers: {
-                    'x-user-id': currentUser.id
-                  }
+            // GUARDAR filtros actuales
+            try {
+              const response = await fetch('/api/users/filter-preferences', {
+                method: 'POST',
+                headers: {
+                  'x-user-id': currentUser.id,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  timeSlot: timeSlotFilter,
+                  viewType: viewPreference,
+                  playerCounts: localPlayerCounts,
+                  instructorIds: selectedInstructorIds,
+                  type: 'classes'
+                })
+              });
+              
+              if (response.ok) {
+                setSavedFilters({
+                  timeSlot: timeSlotFilter,
+                  viewType: viewPreference,
+                  playerCounts: localPlayerCounts,
+                  instructorIds: selectedInstructorIds
                 });
-                
-                if (response.ok) {
-                  // Resetear a valores por defecto
-                  if (onInstructorIdsChange) onInstructorIdsChange([]);
-                  if (onTimeSlotFilterChange) onTimeSlotFilterChange('all');
-                  if (onViewPreferenceChange) onViewPreferenceChange('all');
-                  if (onPlayerCountsChange) onPlayerCountsChange([1, 2, 3, 4]);
-                  setLocalPlayerCounts([1, 2, 3, 4]);
-                  setTempSelectedInstructorIds([]);
-                  setTempPlayerCounts([1, 2, 3, 4]);
-                  setTempViewFilters([]);
-                  setSavedFilters(null);
-                  console.log('✅ Filtros borrados correctamente');
-                }
-              } catch (error) {
-                console.error('❌ Error al borrar filtros:', error);
+                console.log('✅ Filtros guardados correctamente');
               }
-            } else {
-              // GUARDAR filtros actuales
-              try {
-                const response = await fetch('/api/users/filter-preferences', {
-                  method: 'POST',
-                  headers: {
-                    'x-user-id': currentUser.id,
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({
-                    timeSlot: timeSlotFilter,
-                    viewType: viewPreference,
-                    playerCounts: localPlayerCounts,
-                    instructorIds: selectedInstructorIds,
-                    type: 'classes'
-                  })
-                });
-                
-                if (response.ok) {
-                  setSavedFilters({
-                    timeSlot: timeSlotFilter,
-                    viewType: viewPreference,
-                    playerCounts: localPlayerCounts,
-                    instructorIds: selectedInstructorIds
-                  });
-                  console.log('✅ Filtros guardados correctamente');
-                }
-              } catch (error) {
-                console.error('❌ Error al guardar filtros:', error);
-              }
+            } catch (error) {
+              console.error('❌ Error al guardar filtros:', error);
             }
           }}
-          className={`px-4 py-2 rounded-2xl font-medium text-xs transition-all shadow-md hover:shadow-lg w-full text-center ${
+          disabled={!currentUser || (selectedInstructorIds.length === 0 && timeSlotFilter === 'all' && viewPreference === 'all' && localPlayerCounts.length === 4)}
+          className={`px-3.5 py-1.5 rounded-2xl font-medium text-xs transition-all shadow-md hover:shadow-lg w-full text-center ${
+            (selectedInstructorIds.length > 0 || timeSlotFilter !== 'all' || viewPreference !== 'all' || localPlayerCounts.length < 4)
+              ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white hover:scale-105'
+              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+          }`}
+        >
+          💾 Guardar búsqueda
+        </button>
+
+        {/* Botón Eliminar Filtros */}
+        <button
+          onClick={async () => {
+            if (!currentUser) return;
+            
+            // BORRAR filtros guardados
+            try {
+              const response = await fetch('/api/users/filter-preferences', {
+                method: 'DELETE',
+                headers: {
+                  'x-user-id': currentUser.id
+                }
+              });
+              
+              if (response.ok) {
+                // Resetear a valores por defecto
+                if (onInstructorIdsChange) onInstructorIdsChange([]);
+                if (onTimeSlotFilterChange) onTimeSlotFilterChange('all');
+                if (onViewPreferenceChange) onViewPreferenceChange('all');
+                if (onPlayerCountsChange) onPlayerCountsChange([1, 2, 3, 4]);
+                setLocalPlayerCounts([1, 2, 3, 4]);
+                setTempSelectedInstructorIds([]);
+                setTempPlayerCounts([1, 2, 3, 4]);
+                setTempViewFilters([]);
+                setSavedFilters(null);
+                console.log('✅ Filtros eliminados correctamente');
+              }
+            } catch (error) {
+              console.error('❌ Error al eliminar filtros:', error);
+            }
+          }}
+          disabled={!currentUser || !(savedFilters && (
+            savedFilters.timeSlot !== 'all' ||
+            savedFilters.viewType !== 'all' ||
+            savedFilters.playerCounts.length !== 4 ||
+            savedFilters.instructorIds.length > 0
+          ))}
+          className={`px-3.5 py-1.5 rounded-2xl font-medium text-xs transition-all shadow-md hover:shadow-lg w-full text-center ${
             savedFilters && (
               savedFilters.timeSlot !== 'all' ||
               savedFilters.viewType !== 'all' ||
               savedFilters.playerCounts.length !== 4 ||
               savedFilters.instructorIds.length > 0
             )
-              ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white'
-              : (selectedInstructorIds.length > 0 || timeSlotFilter !== 'all' || viewPreference !== 'all' || localPlayerCounts.length < 4)
-              ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white'
-              : 'bg-white border-2 border-gray-200 hover:border-gray-300 text-gray-700'
+              ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white hover:scale-105'
+              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
           }`}
         >
-          {savedFilters && (
-            savedFilters.timeSlot !== 'all' ||
-            savedFilters.viewType !== 'all' ||
-            savedFilters.playerCounts.length !== 4 ||
-            savedFilters.instructorIds.length > 0
-          )
-            ? '🗑️ Borrar filtros'
-            : (selectedInstructorIds.length > 0 || timeSlotFilter !== 'all' || viewPreference !== 'all' || localPlayerCounts.length < 4)
-            ? '💾 Guardar búsqueda'
-            : '💾 Guardar búsqueda'}
+          🗑️ Eliminar filtros
         </button>
       </div>
 
@@ -1643,6 +1643,13 @@ export function ClassesDisplay({
                 console.log(`♻️ TARJETA CON RECICLAJE: ${slot.instructorName} - hasRecycledSlots=${slot.hasRecycledSlots}, availableRecycledSlots=${slot.availableRecycledSlots}`);
               }
               
+              // 🔵 Calcular propuestas similares (mismo instructor y misma hora de inicio)
+              const similarProposalsCount = processedSlots.filter(s => 
+                s.instructorId === slot.instructorId && 
+                s.start === slot.start &&
+                s.id !== slot.id // No contar la propia tarjeta
+              ).length + 1; // +1 para incluir la tarjeta actual
+              
               // 🎓 Los botones de conversión € → 🎁 solo se muestran en el Panel del Instructor
               // No se pasan isInstructor ni instructorView aquí para evitar mostrar botones en vista principal
               return (
@@ -1655,6 +1662,7 @@ export function ClassesDisplay({
                     allowedPlayerCounts={localPlayerCounts}
                     isInscriptionSelected={selectedInscriptionSlotIds.includes(slot.id)}
                     creditsSlots={slot.creditsSlots || []}
+                    similarProposalsCount={similarProposalsCount}
                   />
               );
             })}
