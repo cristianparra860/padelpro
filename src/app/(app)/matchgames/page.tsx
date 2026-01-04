@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -53,6 +53,22 @@ type ViewFilter = 'all' | 'withBookings' | 'empty';
 export default function MatchGamesPage() {
   const { toast } = useToast();
   const [matches, setMatches] = useState<MatchGame[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<UserType | null>(null);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [activeTab, setActiveTab] = useState('all');
+  const [timeSlotFilter, setTimeSlotFilter] = useState<TimeSlotFilter>('all');
+  const [viewFilter, setViewFilter] = useState<ViewFilter>('all');
+  const [showTimeFilterPanel, setShowTimeFilterPanel] = useState(false);
+  const [showViewFilterPanel, setShowViewFilterPanel] = useState(false);
+  const [userBookings, setUserBookings] = useState<any[]>([]);
+  
+  // 💾 Estado para filtros guardados en BD
+  const [savedFilters, setSavedFilters] = useState<{
+    timeSlot: string;
+    viewType: string;
+  } | null>(null);
+  const [loadingSavedFilters, setLoadingSavedFilters] = useState(true);
 
   // Estilos personalizados para scrollbar
   useEffect(() => {
@@ -94,22 +110,6 @@ export default function MatchGamesPage() {
       document.head.removeChild(style);
     };
   }, []);
-  const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<UserType | null>(null);
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [activeTab, setActiveTab] = useState('all');
-  const [timeSlotFilter, setTimeSlotFilter] = useState<TimeSlotFilter>('all');
-  const [viewFilter, setViewFilter] = useState<ViewFilter>('all');
-  const [showTimeFilterPanel, setShowTimeFilterPanel] = useState(false);
-  const [showViewFilterPanel, setShowViewFilterPanel] = useState(false);
-  const [userBookings, setUserBookings] = useState<any[]>([]);
-  
-  // 💾 Estado para filtros guardados en BD
-  const [savedFilters, setSavedFilters] = useState<{
-    timeSlot: string;
-    viewType: string;
-  } | null>(null);
-  const [loadingSavedFilters, setLoadingSavedFilters] = useState(true);
 
 
   useEffect(() => {
@@ -225,7 +225,7 @@ export default function MatchGamesPage() {
     fetchUserBookings();
   }, [currentUser?.id]);
 
-  const loadMatches = async () => {
+  const loadMatches = useCallback(async () => {
     setLoading(true);
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -247,11 +247,11 @@ export default function MatchGamesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedDate, toast]);
 
   useEffect(() => {
     loadMatches();
-  }, [selectedDate]);
+  }, [selectedDate, loadMatches]);
 
   const filteredMatches = matches.filter(match => {
     // 🕐 FILTRO DE HORARIOS PASADOS: Ocultar partidas cuya hora de inicio ya pasó
@@ -297,9 +297,10 @@ export default function MatchGamesPage() {
   });
 
   return (
-    <div className="relative">
+    <>
+      <div className="relative">
       {/* Barra lateral de filtros */}
-      <div className="fixed left-4 top-[1020px] z-30 flex flex-col gap-1.5 items-start">
+      <div className="fixed left-4 top-[1150px] z-30 flex flex-col gap-1.5 items-start">
         
         {/* Título Filtros */}
         <div className="text-gray-700 font-bold text-sm uppercase tracking-wide mb-1 ml-2">
@@ -313,10 +314,10 @@ export default function MatchGamesPage() {
           className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-4 py-3 min-w-[220px]"
           title="Filtrar por horario"
         >
-          <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white flex-shrink-0 ${
+          <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${
             timeSlotFilter !== 'all'
-              ? 'bg-gradient-to-br from-purple-400 to-purple-600'
-              : 'bg-gradient-to-br from-gray-400 to-gray-600'
+              ? 'bg-gradient-to-br from-blue-400 to-blue-600 border-blue-500 text-white'
+              : 'bg-white border-gray-300 text-gray-600'
           }`}>
             <Clock className="w-8 h-8" />
           </div>
@@ -337,10 +338,10 @@ export default function MatchGamesPage() {
           className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-4 py-3 min-w-[220px]"
           title="Filtrar por tipo de vista"
         >
-          <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white flex-shrink-0 ${
+          <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${
             viewFilter !== 'all'
-              ? 'bg-gradient-to-br from-purple-400 to-purple-600'
-              : 'bg-gradient-to-br from-gray-400 to-gray-600'
+              ? 'bg-gradient-to-br from-purple-400 to-purple-600 border-purple-500 text-white'
+              : 'bg-white border-gray-300 text-gray-600'
           }`}>
             <Users className="w-8 h-8" />
           </div>
@@ -518,26 +519,35 @@ export default function MatchGamesPage() {
         />
       </div>
 
+      {/* Botones de navegación rápida - Hoy y Mañana */}
+      <div className="flex justify-center gap-4 mb-4 mt-2">
+        <button
+          onClick={() => {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            setSelectedDate(today);
+          }}
+          className="w-20 h-12 rounded-t-full bg-white border-2 border-b-0 border-blue-400 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 flex items-center justify-center text-blue-600 font-bold text-sm"
+          title="Ir a Hoy"
+        >
+          HOY
+        </button>
+        <button
+          onClick={() => {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            tomorrow.setHours(0, 0, 0, 0);
+            setSelectedDate(tomorrow);
+          }}
+          className="w-20 h-12 rounded-t-full bg-white border-2 border-b-0 border-green-400 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 flex items-center justify-center text-green-600 font-bold text-xs"
+          title="Ir a Mañana"
+        >
+          MAÑANA
+        </button>
+      </div>
+
       {/* Contenedor principal para tarjetas */}
       <div className="w-full ml-52 lg:ml-56 mr-4 px-0 py-1 matchgames-scrollbar overflow-y-auto" style={{ maxHeight: 'calc(100vh - 120px)' }}>
-
-        <div className="mb-2">
-        {/* Selector de fecha */}
-        <div className="flex gap-2 mb-2">
-          <Button
-            variant={format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'default' : 'outline'}
-            onClick={() => setSelectedDate(new Date())}
-          >
-            Hoy
-          </Button>
-          <Button
-            variant={format(selectedDate, 'yyyy-MM-dd') === format(new Date(Date.now() + 86400000), 'yyyy-MM-dd') ? 'default' : 'outline'}
-            onClick={() => setSelectedDate(new Date(Date.now() + 86400000))}
-          >
-            Mañana
-          </Button>
-        </div>
-      </div>
 
       {/* Lista de partidas */}
       {loading ? (
@@ -570,5 +580,6 @@ export default function MatchGamesPage() {
       )}
       </div>
     </div>
+    </>
   );
 }

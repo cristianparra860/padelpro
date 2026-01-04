@@ -814,7 +814,7 @@ export function ClassesDisplay({
   return (
     <div className="relative" ref={scrollContainerRef}>
 
-      <div className="fixed left-4 top-[1020px] z-30 flex flex-col gap-1.5 items-start">
+      <div className="fixed left-4 top-[1150px] z-30 flex flex-col gap-1.5 items-start">
         
         {/* Título Filtros */}
         <div className="text-gray-700 font-bold text-sm uppercase tracking-wide mb-1 ml-2">
@@ -828,7 +828,11 @@ export function ClassesDisplay({
             onClick={openInstructorPanel}
             className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-4 py-3 min-w-[220px]"
           >
-            <div className="w-14 h-14 rounded-full overflow-hidden bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-white flex-shrink-0">
+            <div className={`w-14 h-14 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 border-2 ${
+              selectedInstructorIds.length > 0
+                ? 'bg-gradient-to-br from-green-400 to-green-600 border-green-500 text-white'
+                : 'bg-white border-gray-300 text-gray-600'
+            }`}>
               {availableInstructors[0]?.picture ? (
                 <img 
                   src={availableInstructors[0].picture} 
@@ -861,7 +865,11 @@ export function ClassesDisplay({
           onClick={() => setShowTimeFilterPanel(true)}
           className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-4 py-3 min-w-[220px]"
         >
-          <div className="w-14 h-14 rounded-full overflow-hidden bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white flex-shrink-0">
+          <div className={`w-14 h-14 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 border-2 ${
+            timeSlotFilter !== 'all'
+              ? 'bg-gradient-to-br from-blue-400 to-blue-600 border-blue-500 text-white'
+              : 'bg-white border-gray-300 text-gray-600'
+          }`}>
             <Clock className="w-8 h-8" />
           </div>
           <div className="text-left flex-1">
@@ -885,14 +893,16 @@ export function ClassesDisplay({
             className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-4 py-3 min-w-[220px]"
             title="Filtrar por estado de clase"
           >
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white flex-shrink-0 ${
-              viewPreference === 'myConfirmed'
-                ? 'bg-gradient-to-br from-green-400 to-green-600'
-                : viewPreference === 'withBookings'
-                ? 'bg-gradient-to-br from-blue-400 to-blue-600'
-                : viewPreference === 'past'
-                ? 'bg-gradient-to-br from-gray-400 to-gray-600'
-                : 'bg-gradient-to-br from-purple-400 to-purple-600'
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${
+              viewPreference !== 'all' || hideEmpty || hideWithStudents || hideFull
+                ? viewPreference === 'myConfirmed'
+                  ? 'bg-gradient-to-br from-green-400 to-green-600 border-green-500 text-white'
+                  : viewPreference === 'withBookings'
+                  ? 'bg-gradient-to-br from-blue-400 to-blue-600 border-blue-500 text-white'
+                  : viewPreference === 'past'
+                  ? 'bg-gradient-to-br from-gray-400 to-gray-600 border-gray-500 text-white'
+                  : 'bg-gradient-to-br from-purple-400 to-purple-600 border-purple-500 text-white'
+                : 'bg-white border-gray-300 text-gray-600'
             }`}>
               <svg 
                 className="w-8 h-8" 
@@ -900,12 +910,12 @@ export function ClassesDisplay({
                 fill="none" 
                 xmlns="http://www.w3.org/2000/svg"
               >
-                <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="1.5" fill="none"/>
-                <circle cx="9" cy="9" r="3.5" stroke="white" strokeWidth="1.2" fill="none"/>
-                <circle cx="15" cy="9" r="3.5" stroke="white" strokeWidth="1.2" fill="none"/>
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+                <circle cx="9" cy="9" r="3.5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+                <circle cx="15" cy="9" r="3.5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
                 <path 
                   d="M3.5 19c0-3 2.5-5.5 5.5-5.5s5.5 2.5 5.5 5.5M9.5 19c0-3 2.5-5.5 5.5-5.5s5.5 2.5 5.5 5.5" 
-                  stroke="white" 
+                  stroke="currentColor" 
                   strokeWidth="1.2" 
                   strokeLinecap="round"
                 />
@@ -932,8 +942,12 @@ export function ClassesDisplay({
           className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-4 py-3 min-w-[220px]"
           title="Filtrar por número de jugadores"
         >
-          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white flex-shrink-0">
-            <svg className="w-8 h-8" fill="white" viewBox="0 0 20 20">
+          <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${
+            localPlayerCounts.length < 4 && localPlayerCounts.length > 0
+              ? 'bg-gradient-to-br from-orange-400 to-orange-600 border-orange-500 text-white'
+              : 'bg-white border-gray-300 text-gray-600'
+          }`}>
+            <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
               <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
             </svg>
           </div>

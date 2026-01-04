@@ -76,24 +76,26 @@ export async function POST(
       if (activeBookings.length > 0) {
         for (const booking of activeBookings) {
           // Calcular el monto a devolver
-          const amountBlocked = booking.amountBlocked || 0;
+          const amountBlockedCents = booking.amountBlocked || 0;
+          // Convertir céntimos a puntos (1 punto = 1€ = 100 céntimos)
+          const pointsToRefund = Math.round(amountBlockedCents / 100);
         
-        if (amountBlocked > 0) {
+        if (pointsToRefund > 0) {
           // Devolver puntos al usuario
           await tx.user.update({
             where: { id: booking.userId },
             data: {
               credits: {
-                increment: amountBlocked
+                increment: pointsToRefund
               }
             }
           });
 
-          totalRefunded += amountBlocked;
+          totalRefunded += pointsToRefund;
           refunds.push({
             userId: booking.userId,
             name: booking.user.name || 'Usuario',
-            amount: amountBlocked
+            amount: pointsToRefund
           });
         }
 
@@ -117,8 +119,8 @@ export async function POST(
             userId: booking.userId,
             type: 'points',
             action: 'add',
-            amount: amountBlocked,
-            balance: (userBalance?.credits || 0) + amountBlocked,
+            amount: pointsToRefund,
+            balance: (userBalance?.credits || 0) + pointsToRefund,
             concept: `Devolución por cancelación de partida - ${new Date(matchGame.start).toLocaleDateString('es-ES', { 
               day: '2-digit', 
               month: '2-digit', 

@@ -684,44 +684,6 @@ export default function ClubCalendarImproved({
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 px-4 py-6 md:px-6 lg:px-8">
       <div className="max-w-[100%] lg:max-w-[1600px] mx-auto space-y-3">
-        {/* Selector Principal: Clases o Partidas */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">
-            Selecciona Vista
-          </h2>
-          
-          {/* Toggle Clases / Partidas */}
-          <div className="flex gap-2 mb-4">
-            <button
-              onClick={() => setViewType('clases')}
-              className={`flex-1 py-2 px-3 rounded-lg font-semibold text-sm transition-all ${
-                viewType === 'clases'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              📚 Clases
-            </button>
-            <button
-              onClick={() => setViewType('partidas')}
-              className={`flex-1 py-2 px-3 rounded-lg font-semibold text-sm transition-all ${
-                viewType === 'partidas'
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              🏆 Partidas
-            </button>
-          </div>
-
-          {/* Mensaje para modo Partidas */}
-          {viewType === 'partidas' && (
-            <p className="text-sm text-gray-500">
-              Visualizando todas las partidas disponibles en el calendario
-            </p>
-          )}
-        </div>
-
         {/* Selector de Fecha */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3">
           <DateSelector
@@ -733,13 +695,37 @@ export default function ClubCalendarImproved({
           />
         </div>
 
+        {/* Toggle Clases / Partidas - Reposicionado */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setViewType('clases')}
+            className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all ${
+              viewType === 'clases'
+                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
+            }`}
+          >
+            📚 Clases
+          </button>
+          <button
+            onClick={() => setViewType('partidas')}
+            className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all ${
+              viewType === 'partidas'
+                ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
+            }`}
+          >
+            🏆 Partidas
+          </button>
+        </div>
+
         {/* Banner del Instructor Seleccionado */}
         {viewType === 'clases' && selectedInstructor && calendarData.instructors.find(i => i.id === selectedInstructor) && (
           <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl shadow-lg p-2">
             <div className="flex items-center justify-between gap-4">
-              {/* Izquierda: Foto y nombre del instructor */}
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white shadow-lg">
+              {/* Izquierda: Contenedor con logo y texto */}
+              <div className="flex items-center gap-3 bg-white/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-md">
+                <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-indigo-500 shadow-lg bg-white flex items-center justify-center">
                   <img
                     src={calendarData.instructors.find(i => i.id === selectedInstructor)?.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(calendarData.instructors.find(i => i.id === selectedInstructor)?.name || 'Instructor')}&background=random&color=fff&size=128`}
                     alt={calendarData.instructors.find(i => i.id === selectedInstructor)?.name}
@@ -747,33 +733,10 @@ export default function ClubCalendarImproved({
                   />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white">Calendario</h3>
-                  <div className="text-sm text-white/90">Instructor: {calendarData.instructors.find(i => i.id === selectedInstructor)?.name}</div>
+                  <h3 className="text-base font-bold text-indigo-900 leading-tight">Calendario de Clases</h3>
+                  <div className="text-xs text-indigo-700 leading-tight">Instructor: {calendarData.instructors.find(i => i.id === selectedInstructor)?.name}</div>
                 </div>
               </div>
-              
-              {/* Centro: Usuario logueado */}
-              {currentUser && (
-                <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-white/30">
-                  <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-white shadow-md">
-                    <img
-                      src={currentUser.profilePicture || currentUser.photo || currentUser.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name || 'Usuario')}&background=4f46e5&color=fff&size=128`}
-                      alt={currentUser.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name || 'Usuario')}&background=4f46e5&color=fff&size=128`;
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <div className="text-xs font-semibold text-white">{currentUser.name}</div>
-                    <div className="text-[10px] text-white/90">
-                      Nivel: <span className="font-bold">{currentUser.level || 'N/A'}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
               
               {/* Derecha: Selector de precio por plaza */}
               <div className="flex items-center gap-2">
@@ -810,10 +773,10 @@ export default function ClubCalendarImproved({
         {viewType === 'partidas' && (
           <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-2xl shadow-lg p-2">
             <div className="flex items-center justify-between gap-4">
-              {/* Izquierda: Foto del usuario */}
+              {/* Izquierda: Contenedor con logo y texto */}
               {currentUser && (
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white shadow-lg">
+                <div className="flex items-center gap-3 bg-white/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-md">
+                  <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-green-500 shadow-lg bg-white flex items-center justify-center">
                     <img
                       src={currentUser.profilePicture || currentUser.photo || currentUser.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name || 'Usuario')}&background=10b981&color=fff&size=128`}
                       alt={currentUser.name}
@@ -825,7 +788,8 @@ export default function ClubCalendarImproved({
                     />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-white">Calendario de Partidas</h3>
+                    <h3 className="text-base font-bold text-green-900 leading-tight">Calendario de Partidas</h3>
+                    <div className="text-xs text-green-700 leading-tight">Nivel: {currentUser.level || 'N/A'}</div>
                   </div>
                 </div>
               )}

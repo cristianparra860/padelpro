@@ -434,18 +434,22 @@ export function LeftNavigationBar() {
                 style={{ pointerEvents: 'auto', zIndex: 99999 }}
             >
                 <div className={cn(
-                    "rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 transition-all duration-300",
-                    isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
-                    "bg-gradient-to-br from-blue-400 to-blue-600",
-                    pathname === '/dashboard' && 'ring-4 ring-blue-300 ring-opacity-50 shadow-[0_0_25px_rgba(59,130,246,0.5)]'
+                    "rounded-full overflow-hidden flex items-center justify-center flex-shrink-0",
+                    isCompactMode ? 'w-12 h-12' : 'w-16 h-16'
                 )}>
                     {currentUser?.profilePictureUrl ? (
-                        <Avatar className={isCompactMode ? 'h-8 w-8' : 'h-10 w-10'}>
-                            <AvatarImage src={currentUser.profilePictureUrl} alt={currentUser.name || 'avatar'} />
+                        <Avatar className={cn("w-full h-full", isCompactMode ? 'h-12 w-12' : 'h-16 w-16')}>
+                            <AvatarImage 
+                                src={currentUser.profilePictureUrl} 
+                                alt={currentUser.name || 'avatar'} 
+                                className="object-cover w-full h-full"
+                            />
                             <AvatarFallback className="text-white bg-blue-500">{getInitials(currentUser.name || 'U')}</AvatarFallback>
                         </Avatar>
                     ) : (
-                        <UserCircle className={isCompactMode ? 'w-5 h-5 text-white' : 'w-8 h-8 text-white'} />
+                        <div className="w-full h-full rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
+                            <UserCircle className={isCompactMode ? 'w-6 h-6 text-white' : 'w-10 h-10 text-white'} />
+                        </div>
                     )}
                 </div>
                 <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
@@ -473,29 +477,26 @@ export function LeftNavigationBar() {
                             href={item.href}
                             onClick={(e) => handleNavClick(e, item.href, item.label)}
                             className={cn(
-                                "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
+                                "rounded-3xl hover:shadow-xl transition-all cursor-pointer",
                                 isCompactMode
                                     ? 'flex flex-col items-center gap-1 px-3 py-2 w-20' 
                                     : 'flex items-center gap-3 px-4 py-3 min-w-[220px]',
-                                item.isActive ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg'
+                                item.isActive 
+                                    ? 'bg-white shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200'
+                                    : 'bg-white shadow-lg border-2 border-gray-300'
                             )}
                             style={{ pointerEvents: 'auto', zIndex: 99999 }}
                         >
                             <div className={cn(
                                 "rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden transition-all duration-300",
                                 isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
-                                item.key === 'clases' 
-                                    ? "bg-gradient-to-br from-blue-400 to-purple-600 text-white"
-                                    : item.key === 'partidas'
-                                    ? "bg-gradient-to-br from-green-400 to-green-600 text-white"
-                                    : "bg-white text-gray-500 border-2 border-gray-500",
-                                item.isActive && (
-                                    item.key === 'clases' 
-                                        ? 'ring-4 ring-purple-300 ring-opacity-50 shadow-[0_0_25px_rgba(168,85,247,0.5)]'
+                                item.isActive 
+                                    ? item.key === 'clases'
+                                        ? "bg-gradient-to-br from-blue-400 to-purple-600 text-white ring-4 ring-purple-300 ring-opacity-50 shadow-[0_0_25px_rgba(168,85,247,0.5)]"
                                         : item.key === 'partidas'
-                                        ? 'ring-4 ring-green-300 ring-opacity-50 shadow-[0_0_25px_rgba(34,197,94,0.5)]'
-                                        : 'ring-4 ring-gray-300 ring-opacity-50 shadow-[0_0_25px_rgba(156,163,175,0.5)]'
-                                )
+                                        ? "bg-gradient-to-br from-green-400 to-green-600 text-white ring-4 ring-green-300 ring-opacity-50 shadow-[0_0_25px_rgba(34,197,94,0.5)]"
+                                        : "bg-gradient-to-br from-orange-400 to-red-600 text-white ring-4 ring-orange-300 ring-opacity-50 shadow-[0_0_25px_rgba(249,115,22,0.5)]"
+                                    : "bg-white text-gray-600 border-2 border-gray-300"
                             )}>
                                 <IconComponent className={isCompactMode ? 'w-5 h-5' : 'w-8 h-8'} />
                             </div>
@@ -597,19 +598,20 @@ export function LeftNavigationBar() {
                 <button
                     onClick={() => window.location.href = '/agenda?tab=confirmed'}
                     className={cn(
-                        "bg-white rounded-3xl border-2 border-gray-200 hover:shadow-xl transition-all",
+                        "bg-white rounded-3xl hover:shadow-xl transition-all",
                         isCompactMode
                             ? 'flex flex-col items-center gap-1 px-3 py-2 w-20' 
                             : 'flex items-center gap-3 px-4 py-3 min-w-[220px]',
-                        pathname === '/agenda' ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg'
+                        pathname === '/agenda' ? 'shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200' : 'shadow-lg border-2 border-gray-300'
                     )}
                     title="Reservas (R): Clases confirmadas con pista asignada"
                 >
                     <div className={cn(
-                        "rounded-full flex items-center justify-center flex-shrink-0 border-2 font-bold",
+                        "rounded-full flex items-center justify-center flex-shrink-0 border-2 font-bold transition-all duration-300",
                         isCompactMode ? 'w-10 h-10 text-lg' : 'w-14 h-14 text-2xl',
-                        'bg-white text-gray-500 border-gray-500',
-                        pathname === '/agenda' && 'ring-4 ring-gray-300 ring-opacity-50 shadow-[0_0_25px_rgba(156,163,175,0.5)]'
+                        pathname === '/agenda' 
+                            ? 'bg-gradient-to-br from-pink-400 to-rose-600 text-white ring-4 ring-pink-300 ring-opacity-50 shadow-[0_0_25px_rgba(244,114,182,0.5)]'
+                            : 'bg-white text-gray-600 border-gray-300'
                     )}>
                         R
                     </div>
@@ -631,17 +633,20 @@ export function LeftNavigationBar() {
                 <button
                     onClick={() => window.location.href = '/agenda'}
                     className={cn(
-                        "bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all",
+                        "bg-white rounded-3xl hover:shadow-xl transition-all",
                         isCompactMode
                             ? 'flex flex-col items-center gap-1 px-3 py-2 w-20' 
-                            : 'flex items-center gap-3 px-4 py-3 min-w-[220px]'
+                            : 'flex items-center gap-3 px-4 py-3 min-w-[220px]',
+                        pathname === '/agenda' ? 'shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200' : 'shadow-lg border-2 border-gray-300'
                     )}
                     title="Inscripciones (I): Clases pendientes esperando completar grupo"
                 >
                     <div className={cn(
-                        "rounded-full flex items-center justify-center flex-shrink-0 border-2 font-bold",
+                        "rounded-full flex items-center justify-center flex-shrink-0 border-2 font-bold transition-all duration-300",
                         isCompactMode ? 'w-10 h-10 text-lg' : 'w-14 h-14 text-2xl',
-                        'bg-white text-gray-500 border-gray-500'
+                        pathname === '/agenda'
+                            ? 'bg-gradient-to-br from-cyan-400 to-blue-600 text-white ring-4 ring-cyan-300 ring-opacity-50 shadow-[0_0_25px_rgba(34,211,238,0.5)]'
+                            : 'bg-white text-gray-600 border-gray-300'
                     )}>
                         I
                     </div>
@@ -663,16 +668,20 @@ export function LeftNavigationBar() {
                 <button
                     onClick={() => window.location.href = '/movimientos'}
                     className={cn(
-                        "bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all",
+                        "bg-white rounded-3xl hover:shadow-xl transition-all",
                         isCompactMode
                             ? 'flex flex-col items-center gap-1 px-3 py-2 w-20' 
-                            : 'flex items-center gap-3 px-4 py-3 min-w-[220px]'
+                            : 'flex items-center gap-3 px-4 py-3 min-w-[220px]',
+                        pathname === '/movimientos' ? 'shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200' : 'shadow-lg border-2 border-gray-300'
                     )}
                     title="Movimientos de Saldo: Consulta tu saldo y transacciones"
                 >
                     <div className={cn(
-                        "rounded-full flex items-center justify-center flex-shrink-0 bg-white text-gray-500 border-2 border-gray-500",
-                        isCompactMode ? 'w-10 h-10' : 'w-14 h-14'
+                        "rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all duration-300",
+                        isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
+                        pathname === '/movimientos'
+                            ? 'bg-gradient-to-br from-yellow-400 to-orange-600 text-white ring-4 ring-yellow-300 ring-opacity-50 shadow-[0_0_25px_rgba(251,191,36,0.5)]'
+                            : 'bg-white text-gray-600 border-gray-300'
                     )}>
                         <Wallet className={isCompactMode ? 'w-5 h-5' : 'w-8 h-8'} />
                     </div>
@@ -707,21 +716,17 @@ export function LeftNavigationBar() {
                             style={{ pointerEvents: 'auto', zIndex: 99999 }}
                         >
                             <div className={cn(
-                                "rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden transition-all duration-300",
+                                "rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden transition-all duration-300 border-2",
                                 isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
-                                item.key === 'calendario-club' && "bg-white text-gray-500 border-2 border-gray-500",
-                                item.key === 'base-datos' && "bg-white text-gray-500 border-2 border-gray-500",
-                                item.key === 'config-club' && "bg-white text-gray-500 border-2 border-gray-500",
-                                item.key === 'config-instructor' && "bg-white text-gray-500 border-2 border-gray-500",
-                                item.isActive && (
-                                    item.key === 'calendario-club' 
-                                        ? 'ring-4 ring-orange-300 ring-opacity-50 shadow-[0_0_25px_rgba(251,146,60,0.5)]'
-                                        : item.key === 'base-datos'
-                                        ? 'ring-4 ring-indigo-300 ring-opacity-50 shadow-[0_0_25px_rgba(129,140,248,0.5)]'
+                                item.isActive
+                                    ? item.key === 'base-datos'
+                                        ? 'bg-gradient-to-br from-indigo-400 to-purple-600 text-white ring-4 ring-indigo-300 ring-opacity-50 shadow-[0_0_25px_rgba(129,140,248,0.5)]'
+                                        : item.key === 'config-club'
+                                        ? 'bg-gradient-to-br from-slate-400 to-gray-600 text-white ring-4 ring-slate-300 ring-opacity-50 shadow-[0_0_25px_rgba(148,163,184,0.5)]'
                                         : item.key === 'config-instructor'
-                                        ? 'ring-4 ring-teal-300 ring-opacity-50 shadow-[0_0_25px_rgba(45,212,191,0.5)]'
-                                        : 'ring-4 ring-gray-300 ring-opacity-50 shadow-[0_0_25px_rgba(156,163,175,0.5)]'
-                                )
+                                        ? 'bg-gradient-to-br from-teal-400 to-emerald-600 text-white ring-4 ring-teal-300 ring-opacity-50 shadow-[0_0_25px_rgba(45,212,191,0.5)]'
+                                        : 'bg-white text-gray-600 border-gray-300'
+                                    : 'bg-white text-gray-600 border-gray-300'
                             )}>
                                 <IconComponent className={isCompactMode ? 'w-5 h-5' : 'w-8 h-8'} />
                             </div>

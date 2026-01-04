@@ -127,8 +127,7 @@ export async function POST(
         await createTransaction({
           userId,
           type: 'points',
-          action: 'unblock',
-          amount: booking.pointsUsed,
+-+  ºº            amount: booking.pointsUsed,
           concept: `Cancelación de inscripción - Partida ${matchGameId}`,
           relatedId: booking.id,
           relatedType: 'matchGameBooking'
