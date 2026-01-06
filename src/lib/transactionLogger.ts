@@ -8,7 +8,7 @@ interface CreateTransactionParams {
   type: TransactionType;
   action: TransactionAction;
   amount: number;
-  balance?: number;  // Opcional - se calculará automáticamente si no se proporciona
+  balance: number;
   concept: string;
   relatedId?: string;
   relatedType?: string;
@@ -26,7 +26,7 @@ export async function createTransaction(params: CreateTransactionParams) {
     type,
     action,
     amount,
-    balance: providedBalance,
+    balance,
     concept,
     relatedId,
     relatedType,
@@ -34,28 +34,6 @@ export async function createTransaction(params: CreateTransactionParams) {
   } = params;
 
   try {
-    // Si no se proporciona balance, calcularlo desde el usuario actual
-    let balance = providedBalance;
-    if (balance === undefined) {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { credits: true, blockedCredits: true, points: true, blockedPoints: true }
-      });
-
-      if (!user) {
-        throw new Error(`Usuario ${userId} no encontrado`);
-      }
-
-      // Calcular balance según el tipo de transacción
-      if (type === 'credit') {
-        // Créditos disponibles = total - bloqueados
-        balance = (user.credits - user.blockedCredits) / 100; // Convertir a euros
-      } else {
-        // Puntos disponibles = total - bloqueados
-        balance = user.points - user.blockedPoints;
-      }
-    }
-
     const transaction = await prisma.transaction.create({
       data: {
         userId,
@@ -70,7 +48,7 @@ export async function createTransaction(params: CreateTransactionParams) {
       },
     });
 
-    console.log(`✅ Transaction logged: ${type} ${action} ${amount} for user ${userId}, balance: ${balance}`);
+    console.log(`✅ Transaction logged: ${type} ${action} ${amount} for user ${userId}`);
     return transaction;
   } catch (error) {
     console.error('❌ Error creating transaction:', error);

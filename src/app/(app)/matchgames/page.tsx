@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -39,36 +39,21 @@ interface MatchGame {
   level?: string;
   genderCategory?: string;
   isOpen: boolean;
+  hasCourtReservation?: boolean;
+  courtReservationUser?: {
+    id: string;
+    name: string;
+    profilePictureUrl?: string;
+  } | null;
   bookings: MatchGameBooking[];
-  courtsAvailability?: Array<{
-    courtId: string;
-    courtNumber: number;
-    status: 'available' | 'occupied';
-  }>;
 }
 
 type TimeSlotFilter = 'all' | 'morning' | 'midday' | 'evening';
-type ViewFilter = 'all' | 'withBookings' | 'empty';
+type ViewFilter = 'all' | 'onlyEmpty' | 'onlyAvailable' | 'onlyMyMatches';
 
 export default function MatchGamesPage() {
   const { toast } = useToast();
   const [matches, setMatches] = useState<MatchGame[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<UserType | null>(null);
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [activeTab, setActiveTab] = useState('all');
-  const [timeSlotFilter, setTimeSlotFilter] = useState<TimeSlotFilter>('all');
-  const [viewFilter, setViewFilter] = useState<ViewFilter>('all');
-  const [showTimeFilterPanel, setShowTimeFilterPanel] = useState(false);
-  const [showViewFilterPanel, setShowViewFilterPanel] = useState(false);
-  const [userBookings, setUserBookings] = useState<any[]>([]);
-  
-  // 💾 Estado para filtros guardados en BD
-  const [savedFilters, setSavedFilters] = useState<{
-    timeSlot: string;
-    viewType: string;
-  } | null>(null);
-  const [loadingSavedFilters, setLoadingSavedFilters] = useState(true);
 
   // Estilos personalizados para scrollbar
   useEffect(() => {
@@ -110,6 +95,39 @@ export default function MatchGamesPage() {
       document.head.removeChild(style);
     };
   }, []);
+  const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<UserType | null>(null);
+  
+  // 📅 Leer fecha guardada del localStorage
+  const getSavedDate = (): Date => {
+    try {
+      const savedDate = localStorage.getItem('selectedCalendarDate');
+      if (savedDate) {
+        const parsed = new Date(savedDate);
+        if (!isNaN(parsed.getTime())) {
+          return parsed;
+        }
+      }
+    } catch (error) {
+      console.error('Error reading saved date:', error);
+    }
+    return new Date();
+  };
+  
+  const [selectedDate, setSelectedDate] = useState(getSavedDate());
+  const [activeTab, setActiveTab] = useState('all');
+  const [timeSlotFilter, setTimeSlotFilter] = useState<TimeSlotFilter>('all');
+  const [viewFilter, setViewFilter] = useState<ViewFilter>('all');
+  const [showTimeFilterPanel, setShowTimeFilterPanel] = useState(false);
+  const [showViewFilterPanel, setShowViewFilterPanel] = useState(false);
+  const [userBookings, setUserBookings] = useState<any[]>([]);
+  
+  // 💾 Estado para filtros guardados en BD
+  const [savedFilters, setSavedFilters] = useState<{
+    timeSlot: string;
+    viewType: string;
+  } | null>(null);
+  const [loadingSavedFilters, setLoadingSavedFilters] = useState(true);
 
 
   useEffect(() => {
@@ -163,7 +181,6 @@ export default function MatchGamesPage() {
             timeSlot: filters.timeSlot || 'all',
             viewType: filters.viewType || 'all'
           });
-          console.log('✅ Filtros de partidas cargados:', filters);
         }
       } catch (error) {
         console.error('❌ Error cargando filtros de partidas:', error);
@@ -225,7 +242,7 @@ export default function MatchGamesPage() {
     fetchUserBookings();
   }, [currentUser?.id]);
 
-  const loadMatches = useCallback(async () => {
+  const loadMatches = async () => {
     setLoading(true);
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -238,7 +255,7 @@ export default function MatchGamesPage() {
         throw new Error(data.error || 'Error al cargar partidas');
       }
     } catch (error) {
-      console.error('Error:', error);
+      console.error('❌ Error cargando matches:', error);
       toast({
         title: "Error",
         description: "No se pudieron cargar las partidas",
@@ -247,39 +264,31 @@ export default function MatchGamesPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedDate, toast]);
+  };
 
   useEffect(() => {
     loadMatches();
-  }, [selectedDate, loadMatches]);
+  }, [selectedDate]);
 
   const filteredMatches = matches.filter(match => {
     // 🕐 FILTRO DE HORARIOS PASADOS: Ocultar partidas cuya hora de inicio ya pasó
     const now = new Date();
     const matchTime = new Date(match.start);
-    const isPast = matchTime <= now; // Ocultar si ya llegó o pasó la hora de inicio
+    const isPast = matchTime <= now;
     
-    if (isPast) {
-      return false; // No mostrar partidas pasadas o en curso
-    }
+    if (isPast) return false;
     
-    // 🏟️ FILTRO DE DISPONIBILIDAD: No mostrar partidas sin pistas disponibles
-    const isUserInscribed = match.bookings.some(b => b.userId === currentUser?.id);
-    
-    // Si el usuario está inscrito, siempre mostrar la partida
-    if (!isUserInscribed) {
-      // Si el usuario no está inscrito, verificar disponibilidad de pistas
-      const hasAvailableCourts = match.courtsAvailability?.some(c => c.status === 'available');
-      
-      // Si no hay pistas disponibles, no mostrar la partida
-      if (!hasAvailableCourts) {
-        return false;
-      }
-    }
+    // Verificar si el usuario está inscrito en esta partida
+    const isUserInMatch = match.bookings.some(b => b.userId === currentUser?.id);
+    const isEmpty = match.bookings.length === 0;
+    const isFull = match.bookings.length >= match.maxPlayers;
+    const hasSpace = !isEmpty && !isFull; // Tiene entre 1 y maxPlayers-1 jugadores
     
     // Filtro de tab
-    if (activeTab === 'available' && match.bookings.length >= match.maxPlayers) return false;
-    if (activeTab === 'myMatches' && !match.bookings.some(b => b.userId === currentUser?.id)) return false;
+    if (activeTab === 'available') {
+      if (isFull && !isUserInMatch) return false;
+    }
+    if (activeTab === 'myMatches' && !isUserInMatch) return false;
     
     // Filtro de horario
     if (timeSlotFilter !== 'all') {
@@ -289,45 +298,46 @@ export default function MatchGamesPage() {
       if (timeSlotFilter === 'evening' && (hour < 18 || hour >= 24)) return false;
     }
     
-    // Filtro de tipo de vista
-    if (viewFilter === 'withBookings' && match.bookings.length === 0) return false;
-    if (viewFilter === 'empty' && match.bookings.length > 0) return false;
+    // Nuevos filtros de tipo de vista
+    if (viewFilter === 'onlyEmpty' && !isEmpty) return false; // Mostrar solo vacías
+    if (viewFilter === 'onlyAvailable' && !hasSpace) return false; // Mostrar solo con espacio (1-3 jugadores)
+    if (viewFilter === 'onlyMyMatches' && !isUserInMatch) return false; // Mostrar solo mis partidas
     
     return true;
   });
 
   return (
-    <>
-      <div className="relative">
+    <div className="relative">
       {/* Barra lateral de filtros */}
-      <div className="fixed left-4 top-[1150px] z-30 flex flex-col gap-1.5 items-start">
-        
+      <div className="fixed left-4 top-[1020px] z-30 flex flex-col gap-1.5 items-start">
         {/* Título Filtros */}
         <div className="text-gray-700 font-bold text-sm uppercase tracking-wide mb-1 ml-2">
           Filtros
         </div>
-        
+
+        {/* Espacio extra para bajar los botones dos posiciones */}
+        <div style={{ height: '112px' }} />
         {/* 🕐 Filtro de horario */}
         <button
           type="button"
           onClick={() => setShowTimeFilterPanel(true)}
-          className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-4 py-3 min-w-[220px]"
+          className={`rounded-3xl border-2 flex items-center gap-3 px-3.5 py-2.5 w-[198px] transition-all
+            ${timeSlotFilter !== 'all'
+              ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white border-purple-500 shadow-lg'
+              : 'bg-white text-gray-800 border-gray-300 hover:shadow-xl'}
+          `}
           title="Filtrar por horario"
         >
-          <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${
-            timeSlotFilter !== 'all'
-              ? 'bg-gradient-to-br from-blue-400 to-blue-600 border-blue-500 text-white'
-              : 'bg-white border-gray-300 text-gray-600'
-          }`}>
-            <Clock className="w-8 h-8" />
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${timeSlotFilter !== 'all' ? 'bg-white border-purple-400 text-purple-600' : 'bg-white border-gray-300 text-gray-400'}`}>
+            <Clock className={`w-7 h-7 ${timeSlotFilter !== 'all' ? 'text-purple-600' : 'text-gray-400'}`} />
           </div>
           <div className="text-left flex-1">
-            <div className="text-sm font-semibold text-gray-800">
+            <div className={`text-sm font-semibold ${timeSlotFilter !== 'all' ? 'text-white' : 'text-gray-800'}`}> 
               {timeSlotFilter === 'all' ? 'Todas las horas' :
                timeSlotFilter === 'morning' ? 'Mañana' :
                timeSlotFilter === 'midday' ? 'Mediodía' : 'Tarde/Noche'}
             </div>
-            <div className="text-xs text-gray-500">Filtrar por horario</div>
+            <div className={`text-xs ${timeSlotFilter !== 'all' ? 'text-purple-100' : 'text-gray-500'}`}>Filtrar por horario</div>
           </div>
         </button>
 
@@ -335,99 +345,98 @@ export default function MatchGamesPage() {
         <button
           type="button"
           onClick={() => setShowViewFilterPanel(true)}
-          className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-4 py-3 min-w-[220px]"
+          className={`rounded-3xl border-2 flex items-center gap-3 px-3.5 py-2.5 w-[198px] transition-all
+            ${viewFilter !== 'all'
+              ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white border-purple-500 shadow-lg'
+              : 'bg-white text-gray-800 border-gray-300 hover:shadow-xl'}
+          `}
           title="Filtrar por tipo de vista"
         >
-          <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${
-            viewFilter !== 'all'
-              ? 'bg-gradient-to-br from-purple-400 to-purple-600 border-purple-500 text-white'
-              : 'bg-white border-gray-300 text-gray-600'
-          }`}>
-            <Users className="w-8 h-8" />
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${viewFilter !== 'all' ? 'bg-white border-purple-400 text-purple-600' : 'bg-white border-gray-300 text-gray-400'}`}>
+            <Users className={`w-7 h-7 ${viewFilter !== 'all' ? 'text-purple-600' : 'text-gray-400'}`} />
           </div>
           <div className="text-left flex-1">
-            <div className="text-sm font-semibold text-gray-800">
-              {viewFilter === 'all' ? 'Todas' :
-               viewFilter === 'withBookings' ? 'Con Jugadores' : 'Vacías'}
+            <div className={`text-sm font-semibold ${viewFilter !== 'all' ? 'text-white' : 'text-gray-800'}`}> 
+              {viewFilter === 'all' ? 'Todas las partidas' :
+               viewFilter === 'onlyEmpty' ? 'Solo vacías' :
+               viewFilter === 'onlyAvailable' ? 'Con espacio' : 'Mis partidas'}
             </div>
-            <div className="text-xs text-gray-500">Estado de partida</div>
+            <div className={`text-xs ${viewFilter !== 'all' ? 'text-purple-100' : 'text-gray-500'}`}>Estado de partida</div>
           </div>
         </button>
-        
-        {/* Botón Guardar/Borrar Filtros */}
+
+        {/* Botón Guardar Filtros */}
         <button
           onClick={async () => {
             if (!currentUser) return;
-            
-            // Verificar si hay filtros guardados en BD
-            const hasFiltersInDB = savedFilters && (
-              savedFilters.timeSlot !== 'all' ||
-              savedFilters.viewType !== 'all'
-            );
-            
-            if (hasFiltersInDB) {
-              // BORRAR filtros guardados
-              try {
-                const response = await fetch('/api/users/filter-preferences', {
-                  method: 'DELETE',
-                  headers: {
-                    'x-user-id': currentUser.id
-                  }
+            // GUARDAR filtros actuales
+            try {
+              const response = await fetch('/api/users/filter-preferences', {
+                method: 'POST',
+                headers: {
+                  'x-user-id': currentUser.id,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  timeSlot: timeSlotFilter,
+                  viewType: viewFilter,
+                  playerCounts: [],
+                  instructorIds: [],
+                  type: 'matches'
+                })
+              });
+              if (response.ok) {
+                setSavedFilters({
+                  timeSlot: timeSlotFilter,
+                  viewType: viewFilter
                 });
-                
-                if (response.ok) {
-                  // Resetear a valores por defecto
-                  setTimeSlotFilter('all');
-                  setViewFilter('all');
-                  setSavedFilters(null);
-                  console.log('✅ Filtros de partidas borrados');
-                }
-              } catch (error) {
-                console.error('❌ Error al borrar filtros de partidas:', error);
+                console.log('✅ Filtros de partidas guardados');
               }
-            } else {
-              // GUARDAR filtros actuales
-              try {
-                const response = await fetch('/api/users/filter-preferences', {
-                  method: 'POST',
-                  headers: {
-                    'x-user-id': currentUser.id,
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({
-                    timeSlot: timeSlotFilter,
-                    viewType: viewFilter,
-                    playerCounts: [],
-                    instructorIds: [],
-                    type: 'matches'
-                  })
-                });
-                
-                if (response.ok) {
-                  setSavedFilters({
-                    timeSlot: timeSlotFilter,
-                    viewType: viewFilter
-                  });
-                  console.log('✅ Filtros de partidas guardados');
-                }
-              } catch (error) {
-                console.error('❌ Error al guardar filtros de partidas:', error);
-              }
+            } catch (error) {
+              console.error('❌ Error al guardar filtros de partidas:', error);
             }
           }}
-          className={`px-4 py-2 rounded-2xl font-medium text-xs transition-all shadow-md hover:shadow-lg w-full text-center ${
-            savedFilters && (savedFilters.timeSlot !== 'all' || savedFilters.viewType !== 'all')
-              ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white'
-              : (timeSlotFilter !== 'all' || viewFilter !== 'all')
-              ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white'
-              : 'bg-white border-2 border-gray-200 hover:border-gray-300 text-gray-700'
+          disabled={!currentUser || (timeSlotFilter === 'all' && viewFilter === 'all')}
+          className={`px-3.5 py-1.5 rounded-2xl font-medium text-xs transition-all shadow-md hover:shadow-lg w-full text-center ${
+            (timeSlotFilter !== 'all' || viewFilter !== 'all')
+              ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white hover:scale-105'
+              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
           }`}
         >
-          {savedFilters && (savedFilters.timeSlot !== 'all' || savedFilters.viewType !== 'all')
-            ? '🗑️ Borrar filtros'
-            : (timeSlotFilter !== 'all' || viewFilter !== 'all')
-            ? '💾 Guardar búsqueda'
-            : '💾 Guardar búsqueda'}
+          💾 Guardar búsqueda
+        </button>
+
+        {/* Botón Eliminar Filtros */}
+        <button
+          onClick={async () => {
+            if (!currentUser) return;
+            // BORRAR filtros guardados
+            try {
+              const response = await fetch('/api/users/filter-preferences', {
+                method: 'DELETE',
+                headers: {
+                  'x-user-id': currentUser.id
+                }
+              });
+              if (response.ok) {
+                // Resetear a valores por defecto
+                setTimeSlotFilter('all');
+                setViewFilter('all');
+                setSavedFilters(null);
+                console.log('✅ Filtros de partidas eliminados');
+              }
+            } catch (error) {
+              console.error('❌ Error al eliminar filtros de partidas:', error);
+            }
+          }}
+          disabled={!currentUser || !(savedFilters && (savedFilters.timeSlot !== 'all' || savedFilters.viewType !== 'all'))}
+          className={`px-3.5 py-1.5 rounded-2xl font-medium text-xs transition-all shadow-md hover:shadow-lg w-full text-center ${
+            savedFilters && (savedFilters.timeSlot !== 'all' || savedFilters.viewType !== 'all')
+              ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white hover:scale-105'
+              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+          }`}
+        >
+          🗑️ Eliminar filtros
         </button>
       </div>
 
@@ -489,20 +498,37 @@ export default function MatchGamesPage() {
                 🎾 Todas las partidas
               </button>
               <button
-                onClick={() => { setViewFilter('withBookings'); setShowViewFilterPanel(false); }}
+                onClick={() => { 
+                  setViewFilter('onlyEmpty'); 
+                  setShowViewFilterPanel(false); 
+                }}
                 className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
-                  viewFilter === 'withBookings' ? 'bg-purple-100 text-purple-900 font-semibold' : 'hover:bg-gray-100'
+                  viewFilter === 'onlyEmpty' ? 'bg-purple-100 text-purple-900 font-semibold' : 'hover:bg-gray-100'
                 }`}
               >
-                ✅ Con jugadores inscritos
+                ⭕ Solo partidas vacías (0 jugadores)
               </button>
               <button
-                onClick={() => { setViewFilter('empty'); setShowViewFilterPanel(false); }}
+                onClick={() => { 
+                  setViewFilter('onlyAvailable'); 
+                  setShowViewFilterPanel(false); 
+                }}
                 className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
-                  viewFilter === 'empty' ? 'bg-purple-100 text-purple-900 font-semibold' : 'hover:bg-gray-100'
+                  viewFilter === 'onlyAvailable' ? 'bg-purple-100 text-purple-900 font-semibold' : 'hover:bg-gray-100'
                 }`}
               >
-                ⭕ Vacías (sin jugadores)
+                ✅ Con espacio disponible (1-3 jugadores)
+              </button>
+              <button
+                onClick={() => { 
+                  setViewFilter('onlyMyMatches'); 
+                  setShowViewFilterPanel(false); 
+                }}
+                className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+                  viewFilter === 'onlyMyMatches' ? 'bg-purple-100 text-purple-900 font-semibold' : 'hover:bg-gray-100'
+                }`}
+              >
+                👤 Solo mis partidas
               </button>
             </div>
           </div>
@@ -519,35 +545,26 @@ export default function MatchGamesPage() {
         />
       </div>
 
-      {/* Botones de navegación rápida - Hoy y Mañana */}
-      <div className="flex justify-center gap-4 mb-4 mt-2">
-        <button
-          onClick={() => {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            setSelectedDate(today);
-          }}
-          className="w-20 h-12 rounded-t-full bg-white border-2 border-b-0 border-blue-400 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 flex items-center justify-center text-blue-600 font-bold text-sm"
-          title="Ir a Hoy"
-        >
-          HOY
-        </button>
-        <button
-          onClick={() => {
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            tomorrow.setHours(0, 0, 0, 0);
-            setSelectedDate(tomorrow);
-          }}
-          className="w-20 h-12 rounded-t-full bg-white border-2 border-b-0 border-green-400 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 flex items-center justify-center text-green-600 font-bold text-xs"
-          title="Ir a Mañana"
-        >
-          MAÑANA
-        </button>
-      </div>
-
       {/* Contenedor principal para tarjetas */}
       <div className="w-full ml-52 lg:ml-56 mr-4 px-0 py-1 matchgames-scrollbar overflow-y-auto" style={{ maxHeight: 'calc(100vh - 120px)' }}>
+
+        <div className="mb-2">
+        {/* Selector de fecha */}
+        <div className="flex gap-2 mb-2">
+          <Button
+            variant={format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'default' : 'outline'}
+            onClick={() => setSelectedDate(new Date())}
+          >
+            Hoy
+          </Button>
+          <Button
+            variant={format(selectedDate, 'yyyy-MM-dd') === format(new Date(Date.now() + 86400000), 'yyyy-MM-dd') ? 'default' : 'outline'}
+            onClick={() => setSelectedDate(new Date(Date.now() + 86400000))}
+          >
+            Mañana
+          </Button>
+        </div>
+      </div>
 
       {/* Lista de partidas */}
       {loading ? (
@@ -580,6 +597,5 @@ export default function MatchGamesPage() {
       )}
       </div>
     </div>
-    </>
   );
 }

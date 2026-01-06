@@ -30,6 +30,15 @@ export default function DateSelector({
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
 
+  // 💾 Guardar fecha seleccionada en localStorage
+  const saveSelectedDate = (date: Date) => {
+    try {
+      localStorage.setItem('selectedCalendarDate', date.toISOString());
+    } catch (error) {
+      console.error('Error saving date to localStorage:', error);
+    }
+  };
+
   // Generar array de fechas (próximos 30 días desde hoy)
   const dates = Array.from({ length: daysToShow }, (_, i) => {
     const date = new Date();
@@ -114,6 +123,7 @@ export default function DateSelector({
   };
 
   const handleDateClick = (date: Date) => {
+    saveSelectedDate(date);
     onDateChange(date);
   };
 

@@ -51,7 +51,29 @@ export function useActivityFilters(
   // --- Local State ---
   const activeView = (searchParams.get('view') as ActivityViewType) || 'clases';
   const selectedDateParam = searchParams.get('date');
-  const initialDate = selectedDateParam ? startOfDay(new Date(selectedDateParam)) : startOfDay(new Date());
+  
+  // 📅 Leer fecha guardada del localStorage si no hay parámetro en URL
+  const getSavedDate = (): Date => {
+    if (selectedDateParam) {
+      return startOfDay(new Date(selectedDateParam));
+    }
+    
+    try {
+      const savedDate = localStorage.getItem('selectedCalendarDate');
+      if (savedDate) {
+        const parsed = new Date(savedDate);
+        if (!isNaN(parsed.getTime())) {
+          return startOfDay(parsed);
+        }
+      }
+    } catch (error) {
+      console.error('Error reading saved date:', error);
+    }
+    
+    return startOfDay(new Date());
+  };
+  
+  const initialDate = getSavedDate();
   const [selectedDate, setSelectedDate] = useState<Date | null>(initialDate);
   const [isUpdatingFavorites, startFavoritesTransition] = useTransition();
 

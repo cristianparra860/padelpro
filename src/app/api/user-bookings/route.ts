@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
     // Query para obtener bookings del usuario en ese día
     const whereClause: any = {
       userId: userId,
+      status: { in: ['PENDING', 'CONFIRMED'] },
       timeSlot: {
         start: {
           gte: startOfDay,
@@ -40,12 +41,9 @@ export async function GET(request: NextRequest) {
       }
     };
 
-    // Si solo queremos confirmadas, filtrar por status CONFIRMED (no por courtId)
-    // Una reserva CONFIRMED significa que la clase está completa y tiene pista asignada
+    // Si solo queremos confirmadas, añadir filtro de courtId
     if (onlyConfirmed) {
-      whereClause.status = 'CONFIRMED';
-    } else {
-      whereClause.status = { in: ['PENDING', 'CONFIRMED'] };
+      whereClause.timeSlot.courtId = { not: null };
     }
 
     const bookings = await prisma.booking.findMany({

@@ -137,6 +137,16 @@ const ClubOpeningHours: React.FC<ClubOpeningHoursProps> = ({ club, onHoursUpdate
             });
 
             onHoursUpdated(updatedClub);
+            
+            // Disparar evento para recargar calendario
+            window.dispatchEvent(new CustomEvent('club-hours-updated', { 
+                detail: { clubId: club.id, openingHours: updatedClub.openingHours } 
+            }));
+            
+            // Disparar evento personalizado para notificar al calendario
+            window.dispatchEvent(new CustomEvent('club-hours-updated', { 
+                detail: { clubId: club.id, openingHours: updatedClub.openingHours } 
+            }));
         } catch (error) {
             console.error('Error guardando horarios:', error);
             toast({

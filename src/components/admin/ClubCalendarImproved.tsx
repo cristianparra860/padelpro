@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import ClassCardReal from '@/components/class/ClassCardReal';
+import MatchGameCard from '@/components/match/MatchGameCard';
 import DateSelector from '@/components/admin/DateSelector';
 import {
   Dialog,
@@ -11,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import InstructorCourtReservationDialog from '@/components/instructor/InstructorCourtReservationDialog';
 
 interface CalendarEvent {
   id: string;
@@ -62,11 +64,13 @@ interface CalendarData {
 export default function ClubCalendarImproved({
   clubId,
   currentUser,
-  viewMode = 'club'
+  viewMode = 'club',
+  instructorId
 }: {
   clubId: string;
   currentUser?: any;
   viewMode?: 'user' | 'club' | 'instructor';
+  instructorId?: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -86,6 +90,16 @@ export default function ClubCalendarImproved({
   const [pricePerPlayers, setPricePerPlayers] = useState<1 | 4>(4); // Selector precio partidas: 1 jugador o 4 jugadores
   const [viewType, setViewType] = useState<'clases' | 'partidas'>('partidas'); // Selector principal
   const [currentTime, setCurrentTime] = useState(new Date()); // Hora actual para overlay
+  
+  // Estados para reservas de instructor
+  const [instructorReservations, setInstructorReservations] = useState<any[]>([]);
+  const [showReservationDialog, setShowReservationDialog] = useState(false);
+  const [selectedReservationSlot, setSelectedReservationSlot] = useState<{
+    courtId: string;
+    courtNumber: number;
+    timeSlot: string;
+    existingReservation?: any;
+  } | null>(null);
 
   // Actualizar hora actual cada minuto
   useEffect(() => {
@@ -109,11 +123,12 @@ export default function ClubCalendarImproved({
     const today = getLocalDateString(currentDate);
     const nowDateStr = getLocalDateString(now);
     
-    // Si es un día diferente al actual, no aplicar overlay
+    // Si estamos viendo un día diferente al actual, no marcar nada como pasado
     if (today !== nowDateStr) {
-      return today < nowDateStr; // True si estamos viendo un día pasado
+      return false; // No aplicar overlay a días futuros o pasados completos
     }
     
+    // Solo si estamos en el día actual, verificar hora por hora
     // Parsear el slot (ej: "09:00" o "09:30")
     const [hours, minutes] = timeSlot.split(':').map(Number);
     const slotTime = new Date(now);
@@ -124,15 +139,27 @@ export default function ClubCalendarImproved({
     return slotEndTime < now;
   };
 
+  // Auto-seleccionar instructor si se proporciona instructorId
+  useEffect(() => {
+    if (instructorId) {
+      setSelectedInstructor(instructorId);
+      setViewType('clases');
+    }
+  }, [instructorId]);
+
   // Sincronizar viewType con selectedInstructor
   useEffect(() => {
     if (viewType === 'partidas') {
-      setSelectedInstructor(null);
+      if (!instructorId) { // Solo permitir cambio si no hay instructorId forzado
+        setSelectedInstructor(null);
+      }
     } else if (viewType === 'clases' && !selectedInstructor && calendarData?.instructors.length > 0) {
       // Auto-seleccionar primer instructor cuando se cambia a clases
-      setSelectedInstructor(calendarData.instructors[0].id);
+      if (!instructorId) {
+        setSelectedInstructor(calendarData.instructors[0].id);
+      }
     }
-  }, [viewType, calendarData]);
+  }, [viewType, calendarData, instructorId, selectedInstructor]);
 
   // Leer instructor de URL params al cargar
   useEffect(() => {
@@ -146,6 +173,64 @@ export default function ClubCalendarImproved({
     }
   }, [searchParams, calendarData]);
 
+  // Cargar reservas del instructor
+  useEffect(() => {
+    console.log('%c🎯 useEffect INSTRUCTOR RESERVATIONS - INICIANDO', 'background: #222; color: #bada55; font-size: 16px;');
+    console.log('📋 clubId:', clubId);
+    console.log('📋 currentDate:', currentDate);
+    console.log('📋 clubId existe?:', !!clubId);
+    
+    if (!clubId) {
+      console.log('%c⚠️ NO HAY clubId - SALTANDO', 'background: #ff0000; color: #ffffff; font-size: 14px;');
+      return;
+    }
+    
+    console.log('%c✅ CLUB ID DISPONIBLE - EJECUTANDO FETCH', 'background: #00ff00; color: #000000; font-size: 14px;');
+    
+    const loadInstructorReservations = async () => {
+      console.log('%c📅 FETCH - Iniciando carga de reservas', 'background: #0000ff; color: #ffffff; font-size: 14px;');
+      console.log('📅 Club:', clubId);
+      console.log('📅 Fecha:', getLocalDateString(currentDate));
+      
+      try {
+        const token = localStorage.getItem('auth_token');
+        const dateParam = getLocalDateString(currentDate);
+        
+        // Cargar TODAS las reservas de instructores del club (no solo del instructor actual)
+        const url = `/api/instructor/court-reservations?clubId=${clubId}&date=${dateParam}`;
+        
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setInstructorReservations(data.reservations || []);
+        }
+      } catch (error) {
+        // Error silencioso
+      }
+    };
+    
+    loadInstructorReservations();
+  }, [clubId, currentDate]);
+
+  // Listener para recargar cuando se actualizan los horarios del club
+  useEffect(() => {
+    const handleHoursUpdate = (event: CustomEvent) => {
+      if (event.detail.clubId === clubId) {
+        console.log('🔄 Horarios actualizados, recargando...');
+        // Forzar recarga cambiando referencia de fecha
+        setCurrentDate(new Date(currentDate.getTime()));
+      }
+    };
+    
+    window.addEventListener('club-hours-updated', handleHoursUpdate as EventListener);
+    return () => window.removeEventListener('club-hours-updated', handleHoursUpdate as EventListener);
+  }, [clubId, currentDate]);
+
   // Cargar datos del calendario
   useEffect(() => {
     const fetchData = async () => {
@@ -153,31 +238,41 @@ export default function ClubCalendarImproved({
         setLoading(true);
         const dateParam = getLocalDateString(currentDate);
         
-        // Cargar datos del calendario
         // Crear startDate (00:00) y endDate (23:59:59) del mismo día
         const startDate = `${dateParam}T00:00:00.000Z`;
         const endDate = `${dateParam}T23:59:59.999Z`;
-        const calRes = await fetch(`/api/admin/calendar?clubId=${clubId}&startDate=${startDate}&endDate=${endDate}`);
+        
+        // Cargar AMBOS endpoints en PARALELO (más rápido)
+        const [calRes, propsRes] = await Promise.all([
+          fetch(`/api/admin/calendar?clubId=${clubId}&startDate=${startDate}&endDate=${endDate}`),
+          fetch(`/api/timeslots?clubId=${clubId}&date=${dateParam}&limit=1000`)
+        ]);
+        
+        // Procesar respuesta del calendario
         if (calRes.ok) {
           const data = await calRes.json();
-          console.log('📊 Datos del calendario cargados:', data);
-          
-          // Verificar estructura de courts
-          if (data.courts && data.courts.length > 0) {
-            console.log('🏟️ Primer court:', JSON.stringify(data.courts[0], null, 2));
-            console.log('🏟️ Keys del primer court:', Object.keys(data.courts[0]));
-          }
+          console.log('📅 Datos del calendario recibidos:', data);
+          console.log('🕐 Horarios del club:', data.club?.openingHours);
+          console.log('🏆 Propuestas de partidas:', data.proposedMatches);
+          console.log('✅ Partidas confirmadas:', data.confirmedMatches);
           
           setCalendarData(data);
+          
+          // Extraer partidas del API
+          if (data.proposedMatches) {
+            console.log('🔵 Asignando propuestas de partidas:', data.proposedMatches.length);
+            setMatchProposals(data.proposedMatches);
+          }
+          if (data.confirmedMatches) {
+            console.log('🟢 Asignando partidas confirmadas:', data.confirmedMatches.length);
+            setConfirmedMatches(data.confirmedMatches);
+          }
         }
         
-        // Cargar propuestas de clases (TimeSlots)
-      const propsRes = await fetch(`/api/timeslots?clubId=${clubId}&date=${dateParam}&limit=1000`);
+        // Procesar respuesta de timeslots
         
         if (propsRes.ok) {
           const propsData = await propsRes.json();
-          console.log('📦 Datos completos timeslots:', propsData);
-          console.log('📦 Claves del objeto:', Object.keys(propsData));
           
           // El API puede devolver los datos directamente como array o en diferentes propiedades
           let allSlots = [];
@@ -190,84 +285,17 @@ export default function ClubCalendarImproved({
             allSlots = propsData.data;
           } else if (propsData.slots) {
             allSlots = propsData.slots;
-          } else {
-            console.warn('⚠️ Estructura de datos no reconocida:', propsData);
-          }
-          
-          console.log('📊 Total TimeSlots recibidos:', allSlots.length);
-          
-          // Mostrar horarios de los TimeSlots recibidos
-          if (allSlots.length > 0) {
-            const horarios = allSlots.map((ts: any) => {
-              const start = new Date(ts.start);
-              return `${start.getHours()}:${String(start.getMinutes()).padStart(2, '0')}`;
-            }).sort();
-            console.log('⏰ Horarios recibidos:', horarios);
-            console.log('⏰ Primer slot:', new Date(allSlots[0].start).toLocaleString());
-            console.log('⏰ Último slot:', new Date(allSlots[allSlots.length - 1].start).toLocaleString());
           }
           
           // Separar propuestas (sin courtId) de clases confirmadas (con courtId)
-          const proposals = allSlots.filter((ts: any) => {
-            const hasNoCourt = !ts.courtId || ts.courtId === null;
-            return hasNoCourt;
-          });
-          
-          const confirmed = allSlots.filter((ts: any) => {
-            const hasCourt = ts.courtId && ts.courtId !== null;
-            return hasCourt;
-          });
-          
-          console.log('📊 Propuestas cargadas (sin courtId):', proposals.length, proposals);
-          console.log('🎯 Clases confirmadas (con courtId):', confirmed.length, confirmed);
-          
-          // Verificar estructura de clases confirmadas
-          if (confirmed.length > 0) {
-            console.log('🎯 Primera clase confirmada:', JSON.stringify(confirmed[0], null, 2));
-            console.log('🎯 Keys de clase confirmada:', Object.keys(confirmed[0]));
-          }
+          const proposals = allSlots.filter((ts: any) => !ts.courtId || ts.courtId === null);
+          const confirmed = allSlots.filter((ts: any) => ts.courtId && ts.courtId !== null);
           
           setClassProposals(proposals);
           setConfirmedClasses(confirmed);
-        } else {
-          console.error('❌ Error loading timeslots:', propsRes.status, propsRes.statusText);
-        }
-        
-        // Cargar propuestas de partidas (MatchGames)
-        const matchesRes = await fetch(`/api/matchgames?clubId=${clubId}&date=${dateParam}`);
-        
-        if (matchesRes.ok) {
-          const matchesData = await matchesRes.json();
-          console.log('🎾 Datos completos matchgames:', matchesData);
-          
-          let allMatches = [];
-          
-          if (Array.isArray(matchesData)) {
-            allMatches = matchesData;
-          } else if (matchesData.matchGames) {
-            allMatches = matchesData.matchGames;
-          } else if (matchesData.data) {
-            allMatches = matchesData.data;
-          } else {
-            console.warn('⚠️ Estructura de matchgames no reconocida:', matchesData);
-          }
-          
-          console.log('📊 Total MatchGames recibidos:', allMatches.length);
-          
-          // Separar propuestas (sin courtId) de partidas confirmadas (con courtId)
-          const matchProps = allMatches.filter((mg: any) => !mg.courtId || mg.courtId === null);
-          const matchConf = allMatches.filter((mg: any) => mg.courtId && mg.courtId !== null);
-          
-          console.log('📊 Propuestas de partidas (sin courtId):', matchProps.length);
-          console.log('🎯 Partidas confirmadas (con courtId):', matchConf.length);
-          
-          setMatchProposals(matchProps);
-          setConfirmedMatches(matchConf);
-        } else {
-          console.error('❌ Error loading matchgames:', matchesRes.status, matchesRes.statusText);
         }
       } catch (error) {
-        console.error('Error loading calendar:', error);
+        // Error silencioso para mejor rendimiento
       } finally {
         setLoading(false);
       }
@@ -276,17 +304,71 @@ export default function ClubCalendarImproved({
     fetchData();
   }, [clubId, currentDate]);
 
-  // Generar slots de tiempo (9:00 - 22:00 cada 30 min)
-  const getTimeSlots = () => {
+  // Generar slots de tiempo según horario del club (reactivo)
+  const timeSlots = useMemo(() => {
+    console.log('🔄 Recalculando timeSlots');
+    console.log('📊 openingHours:', calendarData?.club?.openingHours);
+    console.log('📅 currentDate:', currentDate);
+    console.log('🏢 Club completo:', calendarData?.club);
+    
+    // Valores por defecto si no hay configuración del club
+    let startHour = 6;
+    let endHour = 23;
+    
+    // Obtener horarios del club si están disponibles
+    if (calendarData?.club?.openingHours) {
+      const openingHours = calendarData.club.openingHours;
+      console.log('📋 Tipo de openingHours:', typeof openingHours);
+      
+      // Nuevo formato: objeto con días de la semana (monday, tuesday, etc.) con arrays de booleanos
+      if (typeof openingHours === 'object' && !Array.isArray(openingHours)) {
+        const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][currentDate.getDay()];
+        console.log('📆 Día de la semana:', dayOfWeek);
+        const todayHours = openingHours[dayOfWeek as keyof typeof openingHours];
+        console.log('⏰ Horarios de hoy:', todayHours);
+        
+        if (Array.isArray(todayHours) && todayHours.length === 19) {
+          // Encontrar primera hora abierta (índice 0 = 6:00, índice 1 = 7:00, etc.)
+          const firstOpen = todayHours.findIndex(h => h);
+          const lastOpen = todayHours.lastIndexOf(true);
+          
+          if (firstOpen !== -1 && lastOpen !== -1) {
+            startHour = firstOpen + 6;  // índice 0 = 6:00 AM
+            endHour = lastOpen + 6;      // índice 18 = 24:00 (medianoche)
+            console.log(`✅ Horarios calculados: ${startHour}:00 - ${endHour + 1}:00`);
+          }
+        }
+      }
+      // Formato legacy: array de booleanos (todos los días iguales)
+      else if (Array.isArray(openingHours) && openingHours.length === 19) {
+        const firstOpen = openingHours.findIndex(h => h);
+        const lastOpen = openingHours.lastIndexOf(true);
+        
+        if (firstOpen !== -1 && lastOpen !== -1) {
+          startHour = firstOpen + 6;
+          endHour = lastOpen + 6;
+          console.log(`✅ Horarios legacy calculados: ${startHour}:00 - ${endHour + 1}:00`);
+        }
+      }
+      // Formato string "09:00-22:00"
+      else if (typeof openingHours === 'string') {
+        const match = openingHours.match(/(\d{1,2}):?(\d{2})?\s*-\s*(\d{1,2}):?(\d{2})?/);
+        if (match) {
+          startHour = parseInt(match[1]);
+          endHour = parseInt(match[3]) - 1;
+          console.log(`✅ Horarios string calculados: ${startHour}:00 - ${endHour + 1}:00`);
+        }
+      }
+    }
+    
     const slots = [];
-    for (let hour = 9; hour <= 21; hour++) {
+    for (let hour = startHour; hour <= endHour; hour++) {
       slots.push(`${hour.toString().padStart(2, '0')}:00`);
       slots.push(`${hour.toString().padStart(2, '0')}:30`);
     }
+    console.log(`📊 Slots generados: ${slots.length} (${slots[0]} - ${slots[slots.length - 1]})`);
     return slots;
-  };
-
-  const timeSlots = getTimeSlots();
+  }, [calendarData?.club?.openingHours, currentDate]);
 
   // Verificar si hay reserva en un slot específico (clases o partidas confirmadas)
   const hasReservationInSlot = (courtId: string, timeSlot: string) => {
@@ -647,6 +729,81 @@ export default function ClubCalendarImproved({
     return Math.ceil(durationMinutes / 30);
   };
 
+  // Funciones helper para reservas de instructor
+  const getInstructorReservationInSlot = (courtId: string, timeSlot: string) => {
+    if (instructorReservations.length === 0) return null;
+    
+    const [hour, minute] = timeSlot.split(':');
+    const slotTime = new Date(currentDate);
+    slotTime.setHours(parseInt(hour), parseInt(minute), 0, 0);
+    
+    // Buscar cualquier reserva de instructor en este slot (no solo del instructor actual)
+    return instructorReservations.find(res => {
+      const resStart = new Date(res.startTime);
+      const resEnd = new Date(res.endTime);
+      return res.courtId === courtId && slotTime >= resStart && slotTime < resEnd;
+    });
+  };
+
+  const isInstructorReservationStart = (reservation: any, timeSlot: string) => {
+    if (!reservation) return false;
+    const [hour, minute] = timeSlot.split(':');
+    const resStart = new Date(reservation.startTime);
+    return resStart.getHours() === parseInt(hour) && resStart.getMinutes() === parseInt(minute);
+  };
+
+  const calculateInstructorReservationRowSpan = (reservation: any) => {
+    const start = new Date(reservation.startTime);
+    const end = new Date(reservation.endTime);
+    const durationMinutes = (end.getTime() - start.getTime()) / (1000 * 60);
+    return Math.ceil(durationMinutes / 30);
+  };
+
+  const handleReservationClick = (courtId: string, courtNumber: number, timeSlot: string, existingReservation?: any) => {
+    setSelectedReservationSlot({
+      courtId,
+      courtNumber,
+      timeSlot,
+      existingReservation,
+    });
+    setShowReservationDialog(true);
+  };
+
+  const handleReservationSuccess = () => {
+    console.log('🎉 Reserva creada exitosamente, recargando datos...');
+    // Recargar reservas de todos los instructores del club
+    const loadReservations = async () => {
+      try {
+        const token = localStorage.getItem('auth_token');
+        const dateParam = getLocalDateString(currentDate);
+        console.log('📅 Recargando reservas para:', { clubId, dateParam });
+        const response = await fetch(
+          `/api/instructor/court-reservations?clubId=${clubId}&date=${dateParam}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          }
+        );
+        
+        console.log('📡 Response status:', response.status);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('✅ Reservas recargadas:', data.reservations?.length || 0, data.reservations);
+          setInstructorReservations(data.reservations || []);
+        } else {
+          const errorData = await response.json();
+          console.error('❌ Error en respuesta:', errorData);
+        }
+      } catch (error) {
+        console.error('❌ Error recargando reservas:', error);
+      }
+    };
+    
+    loadReservations();
+  };
+
   // Verificar si el instructor tiene clase en este slot
   const instructorHasClassInSlot = (timeSlot: string) => {
     if (!selectedInstructor || !calendarData) return false;
@@ -695,29 +852,31 @@ export default function ClubCalendarImproved({
           />
         </div>
 
-        {/* Toggle Clases / Partidas - Reposicionado */}
-        <div className="flex gap-2">
-          <button
-            onClick={() => setViewType('clases')}
-            className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all ${
-              viewType === 'clases'
-                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
-            }`}
-          >
-            📚 Clases
-          </button>
-          <button
-            onClick={() => setViewType('partidas')}
-            className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all ${
-              viewType === 'partidas'
-                ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-md'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
-            }`}
-          >
-            🏆 Partidas
-          </button>
-        </div>
+        {/* Toggle Clases / Partidas - Oculto en modo instructor */}
+        {!instructorId && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => setViewType('clases')}
+              className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all ${
+                viewType === 'clases'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
+              }`}
+            >
+              📚 Clases
+            </button>
+            <button
+              onClick={() => setViewType('partidas')}
+              className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all ${
+                viewType === 'partidas'
+                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
+              }`}
+            >
+              🏆 Partidas
+            </button>
+          </div>
+        )}
 
         {/* Banner del Instructor Seleccionado */}
         {viewType === 'clases' && selectedInstructor && calendarData.instructors.find(i => i.id === selectedInstructor) && (
@@ -880,21 +1039,6 @@ export default function ClubCalendarImproved({
                                   ? 'bg-blue-500 shadow-[0_4px_12px_rgba(59,130,246,0.4),inset_0_1px_0_rgba(255,255,255,0.2)]'
                                   : 'bg-green-500 shadow-[0_4px_12px_rgba(34,197,94,0.4),inset_0_1px_0_rgba(255,255,255,0.2)] cursor-pointer hover:shadow-[0_6px_16px_rgba(34,197,94,0.5)] transition-shadow'
                               }`}>
-                                {/* Overlay de tiempo pasado */}
-                                {isPast && (
-                                  <div 
-                                    onClick={() => {
-                                      if (reservation.type === 'match-confirmed' && reservation.id) {
-                                        setSelectedMatchIds([reservation.id]);
-                                      }
-                                    }}
-                                    className="absolute inset-0 z-20 rounded-xl cursor-pointer"
-                                    style={{
-                                      background: 'repeating-linear-gradient(45deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 10px, rgba(200,200,200,1) 10px, rgba(200,200,200,1) 20px)'
-                                    }}
-                                  />
-                                )}
-                                
                                 <div className="p-2 flex flex-col justify-center items-center h-full pointer-events-none">
                                   {reservation.type === 'match-confirmed' && (
                                     <>
@@ -1051,16 +1195,6 @@ export default function ClubCalendarImproved({
                                   }}
                                   className="bg-blue-500 rounded-xl h-full cursor-pointer hover:bg-blue-600 hover:scale-[1.02] transition-all shadow-[0_4px_12px_rgba(59,130,246,0.5)] border-2 border-blue-400 flex flex-col overflow-hidden relative"
                                 >
-                                  {/* Overlay de tiempo pasado */}
-                                  {isPast && (
-                                    <div 
-                                      className="absolute inset-0 z-20 rounded-xl cursor-not-allowed"
-                                      style={{
-                                        background: 'repeating-linear-gradient(45deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 10px, rgba(200,200,200,1) 10px, rgba(200,200,200,1) 20px)'
-                                      }}
-                                    />
-                                  )}
-                                  
                                   {/* Header con instructor y tipo */}
                                   <div className="p-1.5 pb-0.5">
                                     <div className="flex items-center gap-1 mb-1">
@@ -1232,19 +1366,67 @@ export default function ClubCalendarImproved({
                           }
                         }
                         
+                        // Verificar reservas de instructores (mostrar en TODOS los calendarios)
+                        const instructorReservation = getInstructorReservationInSlot(court.id, timeSlot);
+                        
+                        console.log(`🔍 Slot ${timeSlot} Court ${court.number}: instructorReservation=`, instructorReservation ? 'FOUND' : 'null');
+                        
+                        if (instructorReservation && isInstructorReservationStart(instructorReservation, timeSlot)) {
+                          const rowSpan = calculateInstructorReservationRowSpan(instructorReservation);
+                          const [hour, minute] = timeSlot.split(':');
+                          const duration = instructorReservation.duration || 60;
+                          const isOwner = instructorId && instructorReservation.instructorId === instructorId;
+                          
+                          return (
+                            <td
+                              key={court.id}
+                              rowSpan={rowSpan}
+                              className="border border-gray-200 p-0.5 bg-white"
+                            >
+                              <div
+                                onClick={() => {
+                                  // Solo permitir edición si es el dueño y no es pasado
+                                  if (isOwner && !isPast) {
+                                    handleReservationClick(
+                                      court.id,
+                                      court.number,
+                                      timeSlot,
+                                      instructorReservation
+                                    );
+                                  }
+                                }}
+                                className={`rounded-xl h-full flex flex-col justify-center items-center border-2 border-orange-400 bg-gradient-to-br from-orange-500 to-amber-500 shadow-lg ${
+                                  isOwner && !isPast ? 'cursor-pointer hover:from-orange-600 hover:to-amber-600 hover:scale-[1.02] transition-all' : ''
+                                }`}
+                              >
+                                <div className="p-2 text-center">
+                                  <div className="text-white text-xs font-bold mb-1">
+                                    {isOwner ? '📅 TU RESERVA' : '🔒 RESERVADO'}
+                                  </div>
+                                  <div className="text-white text-lg font-bold mb-1">{timeSlot}</div>
+                                  <div className="bg-white/90 rounded px-2 py-1 mb-1">
+                                    <div className="text-orange-700 text-xs font-semibold">{instructorReservation.label}</div>
+                                  </div>
+                                  {instructorReservation.instructorName && !isOwner && (
+                                    <div className="text-white text-xs opacity-90 mb-1">
+                                      Por: {instructorReservation.instructorName}
+                                    </div>
+                                  )}
+                                  <div className="text-white text-xs">{duration} min</div>
+                                </div>
+                              </div>
+                            </td>
+                          );
+                        }
+                        
+                        // Si no es inicio pero está dentro de una reserva, skip (rowspan lo cubre)
+                        if (instructorReservation) {
+                          return null;
+                        }
+                        
                         // Si no hay reserva ni clase confirmada, mostrar propuestas
                         return (
                           <td key={court.id} className={`border border-gray-200 p-0.5 h-10 bg-white relative ${isHalfHour ? 'border-b-[3px] border-b-gray-400 rounded-b-lg' : ''}`}>
-                            {/* Overlay de tiempo pasado para propuestas */}
-                            {isPast && (
-                              <div 
-                                className="absolute inset-0 z-10 cursor-not-allowed"
-                                style={{
-                                  background: 'repeating-linear-gradient(45deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 10px, rgba(220,220,220,1) 10px, rgba(220,220,220,1) 20px)'
-                                }}
-                              />
-                            )}
-                            
                             {selectedInstructor ? (() => {
                               const proposals = getClassProposalsInSlot(timeSlot, selectedInstructor);
                               const hasClass = instructorHasClassInSlot(timeSlot);
@@ -1272,11 +1454,12 @@ export default function ClubCalendarImproved({
                                 return (
                                   <div 
                                     onClick={() => handleProposalClick(timeSlot, selectedInstructor)}
-                                    className="bg-white rounded-lg p-1 cursor-pointer hover:shadow-xl hover:scale-105 transition-all h-full border border-gray-300 shadow-lg flex items-center relative overflow-hidden"
+                                    className="bg-white rounded-lg p-1 cursor-pointer hover:shadow-xl hover:scale-105 transition-all h-full border border-gray-300 shadow-lg flex items-center relative overflow-visible"
                                     style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1), inset 0 2px 4px 0 rgba(255, 255, 255, 0.6)' }}
                                   >
+                                    {/* Indicador de múltiples opciones - esquina superior izquierda */}
                                     {hasMultipleOptions && (
-                                      <div className="absolute -top-1 -right-1 bg-blue-500 text-white text-[7px] font-bold rounded-full w-3 h-3 flex items-center justify-center">
+                                      <div className="absolute -top-2 -left-2 bg-blue-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-md border-2 border-white z-10">
                                         {proposals.length}
                                       </div>
                                     )}
@@ -1307,6 +1490,22 @@ export default function ClubCalendarImproved({
                                         <div className="text-[7px] text-gray-600 leading-tight">jugador</div>
                                         <div className="text-sm font-bold text-gray-800 leading-tight">{Math.round(pricePerSlot)}€</div>
                                       </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              
+                              // No hay propuesta de clase
+                              // Si es modo instructor (instructorId definido), siempre mostrar opción de reservar
+                              if (instructorId && !isPast) {
+                                // Celda clickeable para instructor
+                                return (
+                                  <div 
+                                    onClick={() => handleReservationClick(court.id, court.number, timeSlot)}
+                                    className="bg-white rounded-lg p-0.5 h-full border-2 border-dashed border-orange-300 hover:border-orange-500 hover:bg-orange-50 shadow-[0_2px_4px_rgba(0,0,0,0.08)] flex items-center justify-center cursor-pointer transition-all group"
+                                  >
+                                    <div className="text-center">
+                                      <div className="text-[10px] text-orange-600 group-hover:text-orange-700 font-semibold">+ Reservar</div>
                                     </div>
                                   </div>
                                 );
@@ -1359,11 +1558,12 @@ export default function ClubCalendarImproved({
                                 return (
                                   <div 
                                     onClick={() => handleMatchProposalClick(timeSlot)}
-                                    className="bg-white rounded-lg p-1 cursor-pointer hover:shadow-xl hover:scale-105 transition-all h-full border border-gray-300 shadow-lg flex items-center relative overflow-hidden"
+                                    className="bg-white rounded-lg p-1 cursor-pointer hover:shadow-xl hover:scale-105 transition-all h-full border border-gray-300 shadow-lg flex items-center relative overflow-visible"
                                     style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1), inset 0 2px 4px 0 rgba(255, 255, 255, 0.6)' }}
                                   >
+                                    {/* Indicador de múltiples opciones - esquina superior izquierda */}
                                     {hasMultipleOptions && (
-                                      <div className="absolute -top-1 -right-1 bg-green-500 text-white text-[7px] font-bold rounded-full w-3 h-3 flex items-center justify-center">
+                                      <div className="absolute -top-2 -left-2 bg-green-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-md border-2 border-white z-10">
                                         {matchProposals.length}
                                       </div>
                                     )}
@@ -1397,7 +1597,22 @@ export default function ClubCalendarImproved({
                                 );
                               }
                               
-                              // No hay propuesta - mostrar celda vacía con precio genérico
+                              // No hay propuesta - mostrar celda vacía
+                              if (instructorId && !isPast) {
+                                // Celda clickeable para instructor
+                                return (
+                                  <div 
+                                    onClick={() => handleReservationClick(court.id, court.number, timeSlot)}
+                                    className="bg-white rounded-lg p-0.5 h-full border-2 border-dashed border-orange-300 hover:border-orange-500 hover:bg-orange-50 shadow-[0_2px_4px_rgba(0,0,0,0.08)] flex items-center justify-center cursor-pointer transition-all group"
+                                  >
+                                    <div className="text-center">
+                                      <div className="text-[10px] text-orange-600 group-hover:text-orange-700 font-semibold">+ Reservar</div>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              
+                              // Celda vacía normal (no instructor o pasado)
                               return (
                                 <div className="bg-white rounded-lg p-0.5 h-full border-2 border-gray-300 shadow-[0_2px_4px_rgba(0,0,0,0.08)] flex items-center justify-center">
                                   <div className="text-center">
@@ -1450,8 +1665,6 @@ export default function ClubCalendarImproved({
                 const confirmedMatch = confirmedMatches.find(m => m.id === selectedClassId);
                 
                 if (confirmedMatch) {
-                  const MatchGameCard = require('@/components/match/MatchGameCard').default;
-                  
                   return (
                     <MatchGameCard
                       matchGame={confirmedMatch}
@@ -1470,9 +1683,6 @@ export default function ClubCalendarImproved({
                 console.error('❌ No se encontró ni clase ni partida:', selectedClassId);
                 return <div className="p-4 text-center text-gray-600">No se encontró la actividad seleccionada</div>;
               }
-              
-              // Importar MatchGameCard dinámicamente
-              const MatchGameCard = require('@/components/match/MatchGameCard').default;
               
               return (
                 <MatchGameCard
@@ -1519,8 +1729,6 @@ export default function ClubCalendarImproved({
               const matchGame = matchProposals.find(m => m.id === itemId);
               
               if (matchGame) {
-                const MatchGameCard = require('@/components/match/MatchGameCard').default;
-                
                 return (
                   <div key={itemId} className="border-2 border-purple-200 rounded-lg p-2">
                     <MatchGameCard
@@ -1586,6 +1794,21 @@ export default function ClubCalendarImproved({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog de reservas del instructor */}
+      {instructorId && selectedReservationSlot && (
+        <InstructorCourtReservationDialog
+          open={showReservationDialog}
+          onOpenChange={setShowReservationDialog}
+          instructorId={instructorId}
+          courtId={selectedReservationSlot.courtId}
+          courtNumber={selectedReservationSlot.courtNumber}
+          timeSlot={selectedReservationSlot.timeSlot}
+          date={currentDate}
+          existingReservation={selectedReservationSlot.existingReservation}
+          onSuccess={handleReservationSuccess}
+        />
+      )}
     </div>
   );
 }

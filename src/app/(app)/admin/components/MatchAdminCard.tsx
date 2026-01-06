@@ -61,8 +61,48 @@ const MatchAdminCard: React.FC<MatchAdminCardProps> = ({
                     <CalendarClock className="h-3.5 w-3.5 mr-1"/> Pista {match.courtNumber} - {clubName}
                 </CardDescription>
             </div>
-            {isPastMatch && <Badge className="ml-2 text-xs bg-gray-100 text-gray-600 border-gray-300">Finalizada</Badge>}
-            {isMatchInProgress && !isPastMatch && <Badge className="ml-2 text-xs bg-green-100 text-green-700 border-green-400 animate-pulse">En Curso</Badge>}
+            <div className="flex items-center gap-2">
+              {isPastMatch && <Badge className="text-xs bg-gray-100 text-gray-600 border-gray-300">Finalizada</Badge>}
+              {isMatchInProgress && !isPastMatch && <Badge className="text-xs bg-green-100 text-green-700 border-green-400 animate-pulse">En Curso</Badge>}
+              {!isPastMatch && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={isProcessingActionForMatch('cancelMatch', match.id)}
+                      title="Cancelar partida"
+                    >
+                      {isProcessingActionForMatch('cancelMatch', match.id) ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>¿Confirmar Cancelación de Partida?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esto cancelará la partida para todos los jugadores inscritos.<br />
+                        Se les reembolsará el coste (si aplica). Esta acción no se puede deshacer.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={isProcessingActionForMatch('cancelMatch', match.id)}>Volver</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => onCancelMatch(match.id)}
+                        disabled={isProcessingActionForMatch('cancelMatch', match.id)}
+                        className="bg-destructive hover:bg-destructive/90"
+                      >
+                        {isProcessingActionForMatch('cancelMatch', match.id) ? <Loader2 className="animate-spin h-4 w-4" /> : "Sí, Cancelar Partida"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
         </div>
          <div className="flex flex-wrap gap-1.5 items-center mt-1.5 text-xs">
             <Badge variant="outline">Nivel: {match.level}</Badge>
@@ -141,46 +181,7 @@ const MatchAdminCard: React.FC<MatchAdminCardProps> = ({
           <p className="text-sm text-muted-foreground italic text-center py-3">Sin jugadores apuntados.</p>
         )}
       </CardContent>
-      {!isPastMatch && (
-        <CardFooter className="px-4 py-2 border-t mt-auto">
-            <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="w-full"
-                    disabled={isProcessingActionForMatch('cancelMatch', match.id)}
-                  >
-                    {isProcessingActionForMatch('cancelMatch', match.id) ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="mr-2 h-4 w-4" />
-                    )}
-                    Cancelar Partida Completa
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>¿Confirmar Cancelación de Partida?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Esto cancelará la partida para todos los jugadores inscritos.
-                            Se les reembolsará el coste (si aplica). Esta acción no se puede deshacer.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel disabled={isProcessingActionForMatch('cancelMatch', match.id)}>Volver</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={() => onCancelMatch(match.id)}
-                            disabled={isProcessingActionForMatch('cancelMatch', match.id)}
-                            className="bg-destructive hover:bg-destructive/90"
-                        >
-                        {isProcessingActionForMatch('cancelMatch', match.id) ? <Loader2 className="animate-spin h-4 w-4" /> : "Sí, Cancelar Partida"}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-        </CardFooter>
-      )}
+      {/* El botón de cancelar partida ahora está en el header */}
     </Card>
   );
 };

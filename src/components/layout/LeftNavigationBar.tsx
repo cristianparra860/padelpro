@@ -166,7 +166,7 @@ export function LeftNavigationBar() {
             };
             
             fetchBookingsStatus(currentUser.id);
-        }, 30000); // Cada 30 segundos (aumentado de 10 a 30)
+        }, 120000); // Cada 2 minutos para evitar sobrecarga
         
         return () => clearInterval(intervalId);
     }, [currentUser?.id]);
@@ -348,25 +348,25 @@ export function LeftNavigationBar() {
                 className={cn(
                     "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200 hover:border-red-400 shadow-lg",
                     isCompactMode
-                        ? 'flex flex-col items-center gap-1 px-3 py-2 w-20' 
-                        : 'flex items-center gap-3 px-4 py-3 min-w-[220px]'
+                        ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-18' 
+                        : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]'
                 )}
                 style={{ pointerEvents: 'auto', zIndex: 99999 }}
             >
                 <div className={cn(
                     "rounded-full flex items-center justify-center text-white flex-shrink-0",
-                    isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
+                    isCompactMode ? 'w-9 h-9' : 'w-12 h-12',
                     "bg-gradient-to-br from-red-400 to-red-600"
                 )}>
                     <Power className={isCompactMode ? 'w-5 h-5' : 'w-8 h-8'} />
                 </div>
-                <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
+                <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1 min-w-0 overflow-hidden')}>
                     {isCompactMode ? (
                         <div className="text-[10px] font-semibold text-gray-800">
                             {currentUser ? 'Salir' : 'Entrar'}
                         </div>
                     ) : (
-                        <div className="text-sm font-semibold text-red-600">
+                        <div className="text-sm font-semibold text-red-600 truncate">
                             {currentUser ? 'Cerrar sesión' : 'Iniciar sesión'}
                         </div>
                     )}
@@ -379,14 +379,14 @@ export function LeftNavigationBar() {
                     className={cn(
                         "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
                         isCompactMode
-                            ? 'flex flex-col items-center gap-1 px-3 py-2 w-20' 
-                            : 'flex items-center gap-3 px-4 py-3 min-w-[220px]',
+                            ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-18' 
+                            : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
                         pathname === '/club' ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg'
                     )}
                 >
                     <div className={cn(
                         "rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 transition-all duration-300",
-                        isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
+                        isCompactMode ? 'w-9 h-9' : 'w-12 h-12',
                         "bg-gradient-to-br from-red-400 to-red-600",
                         pathname === '/club' && 'ring-4 ring-red-300 ring-opacity-50 shadow-[0_0_25px_rgba(239,68,68,0.5)]'
                     )}>
@@ -405,15 +405,15 @@ export function LeftNavigationBar() {
                             </span>
                         )}
                     </div>
-                    <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
+                    <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1 min-w-0 overflow-hidden')}>
                         {isCompactMode ? (
                             <div className="text-[10px] font-semibold text-gray-800">Club</div>
                         ) : (
                             <>
-                                <div className="text-sm font-semibold text-gray-800">
+                                <div className="text-sm font-semibold text-gray-800 truncate">
                                     {clubInfo.name}
                                 </div>
-                                <div className="text-xs text-gray-500">Ver club</div>
+                                <div className="text-xs text-gray-500 truncate">Ver club</div>
                             </>
                         )}
                     </div>
@@ -427,15 +427,15 @@ export function LeftNavigationBar() {
                 className={cn(
                     "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
                     isCompactMode
-                        ? 'flex flex-col items-center gap-1 px-3 py-2 w-20' 
-                        : 'flex items-center gap-3 px-4 py-3 min-w-[220px]',
+                        ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-18' 
+                        : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
                     pathname === '/dashboard' ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg'
                 )}
                 style={{ pointerEvents: 'auto', zIndex: 99999 }}
             >
                 <div className={cn(
                     "rounded-full overflow-hidden flex items-center justify-center flex-shrink-0",
-                    isCompactMode ? 'w-12 h-12' : 'w-16 h-16'
+                    isCompactMode ? 'w-11 h-11' : 'w-14 h-14'
                 )}>
                     {currentUser?.profilePictureUrl ? (
                         <Avatar className={cn("w-full h-full", isCompactMode ? 'h-12 w-12' : 'h-16 w-16')}>
@@ -479,8 +479,8 @@ export function LeftNavigationBar() {
                             className={cn(
                                 "rounded-3xl hover:shadow-xl transition-all cursor-pointer",
                                 isCompactMode
-                                    ? 'flex flex-col items-center gap-1 px-3 py-2 w-20' 
-                                    : 'flex items-center gap-3 px-4 py-3 min-w-[220px]',
+                                    ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-18' 
+                                    : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
                                 item.isActive 
                                     ? 'bg-white shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200'
                                     : 'bg-white shadow-lg border-2 border-gray-300'
@@ -489,7 +489,7 @@ export function LeftNavigationBar() {
                         >
                             <div className={cn(
                                 "rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden transition-all duration-300",
-                                isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
+                                isCompactMode ? 'w-9 h-9' : 'w-12 h-12',
                                 item.isActive 
                                     ? item.key === 'clases'
                                         ? "bg-gradient-to-br from-blue-400 to-purple-600 text-white ring-4 ring-purple-300 ring-opacity-50 shadow-[0_0_25px_rgba(168,85,247,0.5)]"
@@ -498,19 +498,21 @@ export function LeftNavigationBar() {
                                         : "bg-gradient-to-br from-orange-400 to-red-600 text-white ring-4 ring-orange-300 ring-opacity-50 shadow-[0_0_25px_rgba(249,115,22,0.5)]"
                                     : "bg-white text-gray-600 border-2 border-gray-300"
                             )}>
-                                <IconComponent className={isCompactMode ? 'w-5 h-5' : 'w-8 h-8'} />
+                                <IconComponent className={isCompactMode ? 'w-4.5 h-4.5' : 'w-7 h-7'} />
                             </div>
-                            <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
+                            <div className={cn(
+                                isCompactMode ? 'text-center' : 'text-left flex-1 min-w-0 overflow-hidden'
+                            )}>
                                 {isCompactMode ? (
-                                    <div className="text-[10px] font-semibold text-gray-800">
+                                    <div className="text-[9px] font-semibold text-gray-800 truncate">
                                         {item.key === 'clases' ? 'Clases' : item.key === 'partidas' ? 'Partidas' : 'Calendario'}
                                     </div>
                                 ) : (
                                     <>
-                                        <div className="text-sm font-semibold text-gray-800">
+                                        <div className="text-sm font-semibold text-gray-800 truncate">
                                             {item.label}
                                         </div>
-                                        <div className="text-xs text-gray-500">
+                                        <div className="text-xs text-gray-500 truncate">
                                             {item.key === 'clases' ? 'Ver clases' : item.key === 'partidas' ? 'Ver partidas' : 'Ver calendario'}
                                         </div>
                                     </>
@@ -552,14 +554,14 @@ export function LeftNavigationBar() {
                                     "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 shadow-lg",
                                     isSelected ? 'border-blue-500 scale-105 animate-bounce-subtle' : 'border-gray-200',
                                     isCompactMode
-                                        ? 'flex flex-col items-center gap-1 px-3 py-2' 
-                                        : 'flex items-center gap-3 px-4 py-3 min-w-[220px]'
+                                        ? 'flex flex-col items-center gap-1 px-2.5 py-1.5' 
+                                        : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]'
                                 )}
                                 style={{ pointerEvents: 'auto', zIndex: 99999 }}
                             >
                                 <div className={cn(
                                     "rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 transition-all duration-300 border-2 border-white shadow-md",
-                                    isCompactMode ? 'w-10 h-10' : 'w-14 h-14'
+                                    isCompactMode ? 'w-9 h-9' : 'w-12 h-12'
                                 )}>
                                     <img 
                                         src={photoUrl} 
@@ -572,17 +574,17 @@ export function LeftNavigationBar() {
                                         }}
                                     />
                                 </div>
-                            <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
+                            <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1 min-w-0 overflow-hidden')}>
                                 {isCompactMode ? (
                                     <div className="text-[10px] font-semibold text-gray-800 max-w-[70px] truncate">
                                         {instructor.name.split(' ')[0]}
                                     </div>
                                 ) : (
                                     <>
-                                        <div className="text-sm font-semibold text-gray-800">
+                                        <div className="text-sm font-semibold text-gray-800 truncate">
                                             {instructor.name.split(' ')[0]}
                                         </div>
-                                        <div className="text-xs text-gray-500">Instructor</div>
+                                        <div className="text-xs text-gray-500 truncate">Instructor</div>
                                     </>
                                 )}
                             </div>
@@ -600,28 +602,28 @@ export function LeftNavigationBar() {
                     className={cn(
                         "bg-white rounded-3xl hover:shadow-xl transition-all",
                         isCompactMode
-                            ? 'flex flex-col items-center gap-1 px-3 py-2 w-20' 
-                            : 'flex items-center gap-3 px-4 py-3 min-w-[220px]',
+                            ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-18' 
+                            : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
                         pathname === '/agenda' ? 'shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200' : 'shadow-lg border-2 border-gray-300'
                     )}
                     title="Reservas (R): Clases confirmadas con pista asignada"
                 >
                     <div className={cn(
                         "rounded-full flex items-center justify-center flex-shrink-0 border-2 font-bold transition-all duration-300",
-                        isCompactMode ? 'w-10 h-10 text-lg' : 'w-14 h-14 text-2xl',
+                        isCompactMode ? 'w-9 h-9 text-lg' : 'w-12 h-12 text-2xl',
                         pathname === '/agenda' 
                             ? 'bg-gradient-to-br from-pink-400 to-rose-600 text-white ring-4 ring-pink-300 ring-opacity-50 shadow-[0_0_25px_rgba(244,114,182,0.5)]'
                             : 'bg-white text-gray-600 border-gray-300'
                     )}>
                         R
                     </div>
-                    <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
+                    <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1 min-w-0 overflow-hidden')}>
                         {isCompactMode ? (
                             <div className="text-[10px] font-semibold text-gray-800">Reservas</div>
                         ) : (
                             <>
-                                <div className="text-sm font-semibold text-gray-800">Reservas</div>
-                                <div className="text-xs text-gray-500">
+                                <div className="text-sm font-semibold text-gray-800 truncate">Reservas</div>
+                                <div className="text-xs text-gray-500 truncate">
                                     {hasReservations ? 'Tienes reservas' : 'Sin reservas'}
                                 </div>
                             </>
@@ -635,28 +637,28 @@ export function LeftNavigationBar() {
                     className={cn(
                         "bg-white rounded-3xl hover:shadow-xl transition-all",
                         isCompactMode
-                            ? 'flex flex-col items-center gap-1 px-3 py-2 w-20' 
-                            : 'flex items-center gap-3 px-4 py-3 min-w-[220px]',
+                            ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-18' 
+                            : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
                         pathname === '/agenda' ? 'shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200' : 'shadow-lg border-2 border-gray-300'
                     )}
                     title="Inscripciones (I): Clases pendientes esperando completar grupo"
                 >
                     <div className={cn(
                         "rounded-full flex items-center justify-center flex-shrink-0 border-2 font-bold transition-all duration-300",
-                        isCompactMode ? 'w-10 h-10 text-lg' : 'w-14 h-14 text-2xl',
+                        isCompactMode ? 'w-9 h-9 text-lg' : 'w-12 h-12 text-2xl',
                         pathname === '/agenda'
                             ? 'bg-gradient-to-br from-cyan-400 to-blue-600 text-white ring-4 ring-cyan-300 ring-opacity-50 shadow-[0_0_25px_rgba(34,211,238,0.5)]'
                             : 'bg-white text-gray-600 border-gray-300'
                     )}>
                         I
                     </div>
-                    <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
+                    <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1 min-w-0 overflow-hidden')}>
                         {isCompactMode ? (
                             <div className="text-[10px] font-semibold text-gray-800">Inscrip.</div>
                         ) : (
                             <>
-                                <div className="text-sm font-semibold text-gray-800">Inscripciones</div>
-                                <div className="text-xs text-gray-500">
+                                <div className="text-sm font-semibold text-gray-800 truncate">Inscripciones</div>
+                                <div className="text-xs text-gray-500 truncate">
                                     {hasInscriptions ? 'Pendientes' : 'Sin inscripciones'}
                                 </div>
                             </>
@@ -670,28 +672,28 @@ export function LeftNavigationBar() {
                     className={cn(
                         "bg-white rounded-3xl hover:shadow-xl transition-all",
                         isCompactMode
-                            ? 'flex flex-col items-center gap-1 px-3 py-2 w-20' 
-                            : 'flex items-center gap-3 px-4 py-3 min-w-[220px]',
+                            ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-18' 
+                            : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
                         pathname === '/movimientos' ? 'shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200' : 'shadow-lg border-2 border-gray-300'
                     )}
                     title="Movimientos de Saldo: Consulta tu saldo y transacciones"
                 >
                     <div className={cn(
                         "rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all duration-300",
-                        isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
+                        isCompactMode ? 'w-9 h-9' : 'w-12 h-12',
                         pathname === '/movimientos'
                             ? 'bg-gradient-to-br from-yellow-400 to-orange-600 text-white ring-4 ring-yellow-300 ring-opacity-50 shadow-[0_0_25px_rgba(251,191,36,0.5)]'
                             : 'bg-white text-gray-600 border-gray-300'
                     )}>
                         <Wallet className={isCompactMode ? 'w-5 h-5' : 'w-8 h-8'} />
                     </div>
-                    <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
+                    <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1 min-w-0 overflow-hidden')}>
                         {isCompactMode ? (
                             <div className="text-[10px] font-semibold text-gray-800">Saldo</div>
                         ) : (
                             <>
-                                <div className="text-sm font-semibold text-gray-800">Saldo</div>
-                                <div className="text-xs text-gray-500">Movimientos</div>
+                                <div className="text-sm font-semibold text-gray-800 truncate">Saldo</div>
+                                <div className="text-xs text-gray-500 truncate">Movimientos</div>
                             </>
                         )}
                     </div>
@@ -709,15 +711,15 @@ export function LeftNavigationBar() {
                             className={cn(
                                 "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
                                 isCompactMode
-                                    ? 'flex flex-col items-center gap-1 px-3 py-2 w-20' 
-                                    : 'flex items-center gap-3 px-4 py-3 min-w-[220px]',
+                                    ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-18' 
+                                    : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
                                 item.isActive ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg'
                             )}
                             style={{ pointerEvents: 'auto', zIndex: 99999 }}
                         >
                             <div className={cn(
                                 "rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden transition-all duration-300 border-2",
-                                isCompactMode ? 'w-10 h-10' : 'w-14 h-14',
+                                isCompactMode ? 'w-9 h-9' : 'w-12 h-12',
                                 item.isActive
                                     ? item.key === 'base-datos'
                                         ? 'bg-gradient-to-br from-indigo-400 to-purple-600 text-white ring-4 ring-indigo-300 ring-opacity-50 shadow-[0_0_25px_rgba(129,140,248,0.5)]'
@@ -730,7 +732,7 @@ export function LeftNavigationBar() {
                             )}>
                                 <IconComponent className={isCompactMode ? 'w-5 h-5' : 'w-8 h-8'} />
                             </div>
-                            <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
+                            <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1 min-w-0 overflow-hidden')}>
                                 {isCompactMode ? (
                                     <div className="text-[10px] font-semibold text-gray-800">
                                         {item.key === 'calendario-club' && 'Calend.'}

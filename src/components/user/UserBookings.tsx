@@ -5,7 +5,6 @@ import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import BookingCard from './BookingCard';
-import MatchGameCard from '@/components/match/MatchGameCard';
 import { Loader2 } from 'lucide-react';
 import type { User, TimeSlot } from '@/types';
 import { useToast } from '@/hooks/use-toast';
@@ -55,41 +54,11 @@ interface BookingWithTimeSlot {
   };
 }
 
-interface MatchGameBookingWithDetails {
-  id: string;
-  userId: string;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-  user: {
-    name: string;
-    email: string;
-    profilePictureUrl?: string;
-  };
-  matchGame: {
-    id: string;
-    start: string;
-    end: string;
-    level: string | null;
-    isOpen: boolean;
-    genderCategory: string | null;
-    price: number;
-    courtNumber: number | null;
-    clubId: string;
-    bookings?: any[];
-  };
-}
-
-type CombinedBooking = 
-  | { type: 'class'; data: BookingWithTimeSlot }
-  | { type: 'match'; data: MatchGameBookingWithDetails };
-
 const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActionSuccess }) => {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab') as 'confirmed' | 'pending' | 'past' | 'cancelled' | null;
   
   const [bookings, setBookings] = useState<BookingWithTimeSlot[]>([]);
-  const [matchBookings, setMatchBookings] = useState<MatchGameBookingWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<'confirmed' | 'pending' | 'past' | 'cancelled'>(tabParam || 'pending');
   const { toast } = useToast();
@@ -100,6 +69,14 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
       setActiveFilter(tabParam);
     }
   }, [tabParam]);
+
+  // Callback memoizado para onBookingSuccess
+  const handleBookingSuccess = useCallback(() => {
+    loadBookings();
+    if (onBookingActionSuccess) {
+      onBookingActionSuccess();
+    }
+  }, [onBookingActionSuccess]); // loadBookings es estable por useCallback
 
   // Cargar reservas del usuario - Memoizada con useCallback
   const loadBookings = useCallback(async () => {
@@ -112,44 +89,22 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
     setIsLoading(true);
     try {
       console.log('📚 Cargando bookings para usuario:', currentUser.id);
-      
-      // Cargar bookings de clases
-      const classBookingsResponse = await fetch(`/api/users/${currentUser.id}/bookings`);
-      if (classBookingsResponse.ok) {
-        const classData = await classBookingsResponse.json();
-        setBookings(classData);
-        console.log(`✅ Cargadas ${classData.length} reservas de clases`);
+      const response = await fetch(`/api/users/${currentUser.id}/bookings`);
+      if (response.ok) {
+        const data = await response.json();
+        setBookings(data);
+        console.log(`✅ Cargadas ${data.length} reservas del usuario`);
       } else {
-        console.error('❌ Error al cargar reservas de clases:', classBookingsResponse.statusText);
+        console.error('❌ Error al cargar reservas:', response.statusText);
         setBookings([]);
-      }
-      
-      // Cargar bookings de partidas
-      const matchBookingsResponse = await fetch(`/api/users/${currentUser.id}/match-bookings`);
-      if (matchBookingsResponse.ok) {
-        const matchData = await matchBookingsResponse.json();
-        setMatchBookings(matchData);
-        console.log(`✅ Cargadas ${matchData.length} reservas de partidas`);
-      } else {
-        console.error('❌ Error al cargar reservas de partidas:', matchBookingsResponse.statusText);
-        setMatchBookings([]);
       }
     } catch (error) {
       console.error('❌ Error al cargar reservas:', error);
       setBookings([]);
-      setMatchBookings([]);
     } finally {
       setIsLoading(false);
     }
   }, [currentUser?.id]);
-
-  // Callback memoizado para onBookingSuccess (después de loadBookings)
-  const handleBookingSuccess = useCallback(() => {
-    loadBookings();
-    if (onBookingActionSuccess) {
-      onBookingActionSuccess();
-    }
-  }, [loadBookings, onBookingActionSuccess]);
 
   // Función para cancelar booking
   const handleCancelBooking = async (bookingId: string) => {
@@ -216,83 +171,45 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
     }
   }, [currentUser?.id]);
 
-  // Memoizar filtrado combinado (clases + partidas)
-  const filteredCombinedBookings = useMemo((): CombinedBooking[] => {
+  // Memoizar filtrado para evitar recalcular en cada render
+  const filteredBookings = useMemo(() => {
     const now = new Date();
-    const combined: CombinedBooking[] = [];
     
-    // Filtrar bookings de clases
-    const filteredClassBookings = bookings.filter(b => {
-      switch (activeFilter) {
-        case 'confirmed': {
+    switch (activeFilter) {
+      case 'confirmed':
+        return bookings.filter(b => {
           const hasCourtAssigned = b.timeSlot.court !== null || b.timeSlot.courtId !== null || b.timeSlot.courtNumber !== null;
           const isFuture = new Date(b.timeSlot.start) >= now;
-          const isBookingConfirmed = b.status === 'CONFIRMED';
-          return hasCourtAssigned && isFuture && isBookingConfirmed;
-        }
-        case 'pending': {
+          const isNotCancelled = b.status !== 'CANCELLED';
+          return hasCourtAssigned && isFuture && isNotCancelled;
+        });
+      
+      case 'pending':
+        return bookings.filter(b => {
           const noCourtAssigned = b.timeSlot.court === null && (b.timeSlot.courtId === null || b.timeSlot.courtId === undefined) && (b.timeSlot.courtNumber === null || b.timeSlot.courtNumber === undefined);
           const isFuture = new Date(b.timeSlot.start) >= now;
           const isNotCancelled = b.status !== 'CANCELLED';
           return noCourtAssigned && isFuture && isNotCancelled;
-        }
-        case 'past': {
+        });
+      
+      case 'past':
+        return bookings.filter(b => {
           const isPast = new Date(b.timeSlot.start) < now;
           const isNotCancelled = b.status !== 'CANCELLED';
           return isPast && isNotCancelled;
-        }
-        case 'cancelled': {
+        });
+      
+      case 'cancelled':
+        return bookings.filter(b => {
           const isCancelled = b.status === 'CANCELLED';
-          const wasConfirmed = (b as any).wasConfirmed === true;
+          const wasConfirmed = (b as any).wasConfirmed === true; // Solo las que fueron confirmadas
           return isCancelled && wasConfirmed;
-        }
-        default:
-          return true;
-      }
-    });
-    
-    // Filtrar bookings de partidas
-    const filteredMatchBookings = matchBookings.filter(mb => {
-      switch (activeFilter) {
-        case 'confirmed': {
-          const hasCourtAssigned = mb.matchGame.courtNumber !== null;
-          const isFuture = new Date(mb.matchGame.start) >= now;
-          const isBookingConfirmed = mb.status === 'CONFIRMED';
-          return hasCourtAssigned && isFuture && isBookingConfirmed;
-        }
-        case 'pending': {
-          const noCourtAssigned = mb.matchGame.courtNumber === null;
-          const isFuture = new Date(mb.matchGame.start) >= now;
-          const isNotCancelled = mb.status !== 'CANCELLED';
-          return noCourtAssigned && isFuture && isNotCancelled;
-        }
-        case 'past': {
-          const isPast = new Date(mb.matchGame.start) < now;
-          const isNotCancelled = mb.status !== 'CANCELLED';
-          return isPast && isNotCancelled;
-        }
-        case 'cancelled': {
-          const isCancelled = mb.status === 'CANCELLED';
-          return isCancelled;
-        }
-        default:
-          return true;
-      }
-    });
-    
-    // Combinar y convertir a formato unificado
-    filteredClassBookings.forEach(b => combined.push({ type: 'class', data: b }));
-    filteredMatchBookings.forEach(mb => combined.push({ type: 'match', data: mb }));
-    
-    // Ordenar por fecha de inicio
-    combined.sort((a, b) => {
-      const dateA = new Date(a.type === 'class' ? a.data.timeSlot.start : a.data.matchGame.start);
-      const dateB = new Date(b.type === 'class' ? b.data.timeSlot.start : b.data.matchGame.start);
-      return dateA.getTime() - dateB.getTime();
-    });
-    
-    return combined;
-  }, [bookings, matchBookings, activeFilter]);
+        });
+      
+      default:
+        return bookings;
+    }
+  }, [bookings, activeFilter]);
 
   // Memoizar contadores para evitar recalcular en cada render
   const counts = useMemo(() => {
@@ -301,43 +218,27 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
       confirmed: bookings.filter(b => {
         const hasCourtAssigned = b.timeSlot.court !== null || b.timeSlot.courtId !== null || b.timeSlot.courtNumber !== null;
         const isFuture = new Date(b.timeSlot.start) >= now;
-        const isBookingConfirmed = b.status === 'CONFIRMED';
-        return hasCourtAssigned && isFuture && isBookingConfirmed;
-      }).length + matchBookings.filter(mb => {
-        const hasCourtAssigned = mb.matchGame.courtNumber !== null;
-        const isFuture = new Date(mb.matchGame.start) >= now;
-        const isBookingConfirmed = mb.status === 'CONFIRMED';
-        return hasCourtAssigned && isFuture && isBookingConfirmed;
+        const isNotCancelled = b.status !== 'CANCELLED';
+        return hasCourtAssigned && isFuture && isNotCancelled;
       }).length,
       pending: bookings.filter(b => {
         const noCourtAssigned = b.timeSlot.court === null && (b.timeSlot.courtId === null || b.timeSlot.courtId === undefined) && (b.timeSlot.courtNumber === null || b.timeSlot.courtNumber === undefined);
         const isFuture = new Date(b.timeSlot.start) >= now;
         const isNotCancelled = b.status !== 'CANCELLED';
         return noCourtAssigned && isFuture && isNotCancelled;
-      }).length + matchBookings.filter(mb => {
-        const noCourtAssigned = mb.matchGame.courtNumber === null;
-        const isFuture = new Date(mb.matchGame.start) >= now;
-        const isNotCancelled = mb.status !== 'CANCELLED';
-        return noCourtAssigned && isFuture && isNotCancelled;
       }).length,
       past: bookings.filter(b => {
         const isPast = new Date(b.timeSlot.start) < now;
         const isNotCancelled = b.status !== 'CANCELLED';
-        return isPast && isNotCancelled;
-      }).length + matchBookings.filter(mb => {
-        const isPast = new Date(mb.matchGame.start) < now;
-        const isNotCancelled = mb.status !== 'CANCELLED';
         return isPast && isNotCancelled;
       }).length,
       cancelled: bookings.filter(b => {
         const isCancelled = b.status === 'CANCELLED';
         const wasConfirmed = (b as any).wasConfirmed === true;
         return isCancelled && wasConfirmed;
-      }).length + matchBookings.filter(mb => {
-        return mb.status === 'CANCELLED';
       }).length,
     };
-  }, [bookings, matchBookings]);
+  }, [bookings]);
 
   // Calcular saldos bloqueados por fecha (inscripciones pendientes)
   // ⚠️ REGLA: Solo se bloquea el precio MÁS ALTO del día, porque solo puede tener 1 reserva confirmada por día
@@ -381,8 +282,8 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
     const confirmedBookings = bookings.filter(b => {
       const hasCourtAssigned = b.timeSlot.court !== null || b.timeSlot.courtId !== null || b.timeSlot.courtNumber !== null;
       const isFuture = new Date(b.timeSlot.start) >= now;
-      const isBookingConfirmed = b.status === 'CONFIRMED'; // ✅ Verificar que el booking esté CONFIRMED
-      return hasCourtAssigned && isFuture && isBookingConfirmed;
+      const isNotCancelled = b.status !== 'CANCELLED';
+      return hasCourtAssigned && isFuture && isNotCancelled;
     });
 
     // Agrupar por fecha y calcular monto pagado
@@ -502,7 +403,7 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
               }}
               className={`text-xs sm:text-sm lg:text-base font-bold py-3 px-2 sm:py-4 sm:px-4 shadow-lg transition-all flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg ${
                 activeFilter === 'pending' 
-                  ? 'scale-105 shadow-2xl ring-4 ring-blue-300 ring-opacity-50' 
+                  ? 'scale-105' 
                   : 'bg-white/50 hover:bg-white/80'
               }`}
             >
@@ -534,7 +435,7 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
               }}
               className={`text-xs sm:text-sm lg:text-base font-bold py-3 px-2 sm:py-4 sm:px-4 shadow-lg transition-all flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg ${
                 activeFilter === 'confirmed' 
-                  ? 'scale-105 shadow-2xl ring-4 ring-red-300 ring-opacity-50' 
+                  ? 'scale-105' 
                   : 'bg-white/50 hover:bg-white/80'
               }`}
             >
@@ -565,7 +466,7 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
               }}
               className={`text-xs sm:text-sm lg:text-base font-bold py-3 px-2 sm:py-4 sm:px-4 shadow-lg transition-all flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg ${
                 activeFilter === 'past' 
-                  ? 'scale-105 shadow-2xl animate-bounce-subtle ring-4 ring-gray-300 ring-opacity-50' 
+                  ? 'scale-105' 
                   : 'bg-white/50 hover:bg-white/80'
               }`}
             >
@@ -597,7 +498,7 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
               }}
               className={`text-xs sm:text-sm lg:text-base font-bold py-3 px-2 sm:py-4 sm:px-4 shadow-lg transition-all flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg ${
                 activeFilter === 'cancelled' 
-                  ? 'scale-105 shadow-2xl animate-bounce-subtle ring-4 ring-orange-300 ring-opacity-50' 
+                  ? 'scale-105' 
                   : 'bg-white/50 hover:bg-white/80'
               }`}
             >
@@ -776,7 +677,7 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
                 <span className="ml-2 text-gray-600">Cargando reservas...</span>
               </div>
-            ) : filteredCombinedBookings.length === 0 ? (
+            ) : filteredBookings.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-6xl mb-4">
                   {activeFilter === 'confirmed' && '✅'}
@@ -787,44 +688,26 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
                 <p className="text-xl sm:text-2xl font-semibold text-gray-700">
                   {activeFilter === 'confirmed' && 'No tienes reservas con pista asignada'}
                   {activeFilter === 'pending' && 'No tienes inscripciones pendientes'}
-                  {activeFilter === 'past' && 'No tienes clases o partidas pasadas'}
-                  {activeFilter === 'cancelled' && 'No tienes reservas canceladas'}
+                  {activeFilter === 'past' && 'No tienes clases pasadas'}
+                  {activeFilter === 'cancelled' && 'No tienes clases canceladas'}
                 </p>
                 <p className="text-sm text-gray-500 mt-2">
-                  {activeFilter === 'cancelled' ? 'Las reservas canceladas aparecerán aquí' : 'Inscríbete en una clase o partida para verla aquí'}
+                  {activeFilter === 'cancelled' ? 'Las clases canceladas aparecerán aquí' : 'Inscríbete en una clase para verla aquí'}
                 </p>
               </div>
             ) : (
               <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-                {filteredCombinedBookings.map((combinedBooking) => {
-                  if (combinedBooking.type === 'class') {
-                    return (
-                      <BookingCard
-                        key={`class-${combinedBooking.data.id}`}
-                        booking={combinedBooking.data}
-                        currentUser={currentUser}
-                        onBookingSuccess={handleBookingSuccess}
-                        onCancelBooking={handleCancelBooking}
-                        isPastClass={activeFilter === 'past'}
-                        isCancelled={combinedBooking.data.status === 'CANCELLED'}
-                      />
-                    );
-                  } else {
-                    // Renderizar tarjeta de partida usando MatchGameCard (mismo diseño que el panel principal)
-                    const mb = combinedBooking.data;
-                    
-                    return (
-                      <MatchGameCard
-                        key={`match-${mb.id}`}
-                        matchGame={mb.matchGame}
-                        currentUser={currentUser}
-                        onBookingSuccess={handleBookingSuccess}
-                        showLeaveButton={true}
-                        showPrivateBookingButton={false}
-                      />
-                    );
-                  }
-                })}
+                {filteredBookings.map((booking) => (
+                  <BookingCard
+                    key={booking.id}
+                    booking={booking}
+                    currentUser={currentUser}
+                    onBookingSuccess={handleBookingSuccess}
+                    onCancelBooking={handleCancelBooking}
+                    isPastClass={activeFilter === 'past'}
+                    isCancelled={booking.status === 'CANCELLED'}
+                  />
+                ))}
               </div>
             )}
           </TabsContent>

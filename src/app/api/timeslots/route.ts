@@ -17,7 +17,9 @@ export async function GET(request: NextRequest) {
     console.log('🔍 API Request params:', { clubId, date, instructorId, userLevel, userGender, timeSlotFilter, page, limit });
 
     // Build filter conditions for Prisma
-    const whereConditions: any = {};
+    const whereConditions: any = {
+      courtId: null // ⚡ SOLO propuestas sin pista asignada (más rápido)
+    };
     
     if (clubId) {
       whereConditions.clubId = clubId;

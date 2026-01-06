@@ -36,6 +36,7 @@ interface ClassCardRealProps {
   instructorId?: string; // 🎓 ID del instructor para validación
   creditsSlots?: number[]; // 🎁 Slots con puntos (pasado desde padre)
   isInscriptionSelected?: boolean; // 🔵 Si la tarjeta está seleccionada como inscripción
+  similarProposalsCount?: number; // 🔢 Número de propuestas similares (mismo horario/instructor)
   // Props para modo "Mi Agenda"
   agendaMode?: boolean; // Si es true, muestra botón cancelar en lugar de reservar
   bookingId?: string; // ID de la reserva para cancelar
@@ -71,6 +72,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   instructorId: instructorIdProp, // 🎓 ID del instructor
   creditsSlots: creditsSlotsProps = [], // 🎁 Recibir desde padre
   isInscriptionSelected = false, // 🔵 Nuevo prop para destacar inscripciones
+  similarProposalsCount, // 🔢 Número de propuestas similares
   // Props para modo "Mi Agenda"
   agendaMode = false,
   bookingId,
@@ -2016,34 +2018,37 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
               </div>
               
               {/* Price or Credits - Desglosado */}
-              <div className="text-right flex-shrink-0 ml-auto mr-2">
-                {hasAllCreditSlots && !isCancelled ? (
-                  // 🎁 Todas las plazas son con puntos (NO mostrar en canceladas)
-                  <div className="flex flex-col items-end gap-0.5">
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 border-amber-400 bg-white shadow-md">
-                      <div className="flex flex-col items-end">
-                        <span className="text-base font-bold text-amber-900 leading-none">{creditsCost}</span>
-                        <span className="text-[10px] font-semibold text-amber-800 leading-none">Puntos</span>
+              <div className="text-right flex-shrink-0 ml-auto mr-2 relative">
+                {/* Contenedor del precio */}
+                <div>
+                  {hasAllCreditSlots && !isCancelled ? (
+                    // 🎁 Todas las plazas son con puntos (NO mostrar en canceladas)
+                    <div className="flex flex-col items-end gap-0.5">
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 border-amber-400 bg-white shadow-md">
+                        <div className="flex flex-col items-end">
+                          <span className="text-base font-bold text-amber-900 leading-none">{creditsCost}</span>
+                          <span className="text-[10px] font-semibold text-amber-800 leading-none">Puntos</span>
+                        </div>
+                      </div>
+                      <span className="text-[9px] text-amber-600 font-medium">Todas con puntos</span>
+                    </div>
+                  ) : hasAnyCreditSlot && !isCancelled ? (
+                    // 💰+🎁 Algunas plazas con puntos, otras con euros (NO mostrar badge en canceladas)
+                    <div className="flex flex-col items-end gap-0.5">
+                      <div className="text-base font-bold text-gray-900">
+                        € {pricePerPerson.toFixed(2)}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px] text-amber-600 font-medium">Algunas con 🎁</span>
                       </div>
                     </div>
-                    <span className="text-[9px] text-amber-600 font-medium">Todas con puntos</span>
-                  </div>
-                ) : hasAnyCreditSlot && !isCancelled ? (
-                  // 💰+🎁 Algunas plazas con puntos, otras con euros (NO mostrar badge en canceladas)
-                  <div className="flex flex-col items-end gap-0.5">
+                  ) : (
+                    // 💰 Mostrar precio normal en euros (siempre visible, incluso en canceladas)
                     <div className="text-base font-bold text-gray-900">
                       € {pricePerPerson.toFixed(2)}
                     </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-[9px] text-amber-600 font-medium">Algunas con 🎁</span>
-                    </div>
-                  </div>
-                ) : (
-                  // 💰 Mostrar precio normal en euros (siempre visible, incluso en canceladas)
-                  <div className="text-base font-bold text-gray-900">
-                    € {pricePerPerson.toFixed(2)}
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
           );

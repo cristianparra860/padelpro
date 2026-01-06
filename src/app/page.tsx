@@ -27,10 +27,12 @@ export default function LoginPage() {
     const [password, setPassword] = React.useState('');
     const [loading, setLoading] = React.useState(false);
     
-    const doLogin = async (loginEmail: string, loginPassword: string) => {
-        console.log('🔐 Iniciando login con:', loginEmail);
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
         
-        if (!loginEmail || !loginPassword) {
+        console.log('🔐 Iniciando login con:', email);
+        
+        if (!email || !password) {
             toast({
                 title: "Error",
                 description: "Por favor, completa todos los campos",
@@ -47,7 +49,7 @@ export default function LoginPage() {
             const response = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: loginEmail, password: loginPassword })
+                body: JSON.stringify({ email, password })
             });
 
             console.log('📥 Respuesta recibida:', response.status);
@@ -105,11 +107,6 @@ export default function LoginPage() {
             });
             setLoading(false);
         }
-    };
-
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
-        await doLogin(email, password);
     };
 
   return (
@@ -211,9 +208,11 @@ export default function LoginPage() {
             <p className="text-xs font-semibold text-purple-700 dark:text-purple-400 mb-2">🟣 SUPER ADMINISTRADOR</p>
             <button
               type="button"
-              onClick={() => doLogin('superadmin@padelapp.com', 'Pass123!')}
-              disabled={loading}
-              className="w-full text-left px-3 py-2 bg-white dark:bg-gray-800 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded border border-purple-200 dark:border-purple-800 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => {
+                setEmail('superadmin@padelapp.com');
+                setPassword('Pass123!');
+              }}
+              className="w-full text-left px-3 py-2 bg-white dark:bg-gray-800 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded border border-purple-200 dark:border-purple-800 text-xs transition-colors"
             >
               <span className="font-medium text-purple-900 dark:text-purple-100">Super Administrador</span>
               <br />
@@ -226,9 +225,11 @@ export default function LoginPage() {
             <p className="text-xs font-semibold text-red-700 dark:text-red-400 mb-2">🔴 ADMINISTRADORES DE CLUB</p>
             <button
               type="button"
-              onClick={() => doLogin('club.admin@padelpro.com', 'Pass123!')}
-              disabled={loading}
-              className="w-full text-left px-3 py-2 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 rounded border border-red-200 dark:border-red-800 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => {
+                setEmail('club.admin@padelpro.com');
+                setPassword('Pass123!');
+              }}
+              className="w-full text-left px-3 py-2 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 rounded border border-red-200 dark:border-red-800 text-xs transition-colors"
             >
               <span className="font-medium text-red-900 dark:text-red-100">Admin Padel Estrella Madrid</span>
               <br />
@@ -252,9 +253,11 @@ export default function LoginPage() {
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => doLogin(user.email, user.password)}
-                  disabled={loading}
-                  className="w-full text-left px-3 py-2 bg-white dark:bg-gray-800 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded border border-amber-200 dark:border-amber-800 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => {
+                    setEmail(user.email);
+                    setPassword(user.password);
+                  }}
+                  className="w-full text-left px-3 py-2 bg-white dark:bg-gray-800 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded border border-amber-200 dark:border-amber-800 text-xs transition-colors"
                 >
                   <span className="font-medium text-amber-900 dark:text-amber-100">{user.name}</span>
                   <br />
@@ -277,9 +280,11 @@ export default function LoginPage() {
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => doLogin(user.email, user.password)}
-                  disabled={loading}
-                  className="w-full text-left px-3 py-2 bg-white dark:bg-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 rounded border border-green-200 dark:border-green-800 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => {
+                    setEmail(user.email);
+                    setPassword(user.password);
+                  }}
+                  className="w-full text-left px-3 py-2 bg-white dark:bg-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 rounded border border-green-200 dark:border-green-800 text-xs transition-colors"
                 >
                   <span className="font-medium text-green-900 dark:text-green-100">{user.name}</span>
                   <br />
@@ -290,7 +295,7 @@ export default function LoginPage() {
           </div>
           
           <p className="text-[10px] text-blue-700 dark:text-blue-300 mt-3 italic">
-            💡 Haz clic en cualquier usuario para hacer login automáticamente
+            💡 Haz clic en un usuario para rellenar automáticamente el formulario, luego presiona "Acceder"
           </p>
         </div>
         

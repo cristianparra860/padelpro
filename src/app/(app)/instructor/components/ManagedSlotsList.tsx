@@ -36,12 +36,11 @@ const ManagedSlotsList: React.FC<ManagedSlotsListProps> = ({ instructorId }) => 
   const [isCreatingBatch, setIsCreatingBatch] = useState(false);
   const { toast } = useToast();
 
-  // Generar horarios desde 6:00 hasta 21:30 cada 30 minutos
+  // Generar horarios desde 6:00 hasta 23:00 cada 30 minutos
   const timeSlots = useMemo(() => {
     const slots = [];
-    for (let hour = 6; hour <= 21; hour++) {
+    for (let hour = 6; hour <= 23; hour++) {
       for (let minute = 0; minute < 60; minute += 30) {
-        if (hour === 21 && minute > 30) break; // Parar en 21:30
         const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
         slots.push(time);
       }

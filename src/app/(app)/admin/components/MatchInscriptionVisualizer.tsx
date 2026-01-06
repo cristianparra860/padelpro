@@ -17,7 +17,11 @@ interface MatchInscriptionVisualizerProps {
 const MatchInscriptionVisualizer: React.FC<MatchInscriptionVisualizerProps> = ({ match, isConfirmed }) => {
   const bookedPlayers = match.bookedPlayers || [];
   const allStudents = getMockStudents();
-  const isPrivate = match.status === 'confirmed_private';
+  
+  // Detectar reserva privada: status=confirmed_private O 4 bookings del mismo usuario
+  const isPrivateBookingPattern = bookedPlayers.length === 4 && match.courtNumber && 
+    bookedPlayers.every(p => p.userId === bookedPlayers[0].userId);
+  const isPrivate = match.status === 'confirmed_private' || isPrivateBookingPattern;
   const isPlaceholder = match.isPlaceholder;
 
   const getPlayerDetails = (userId: string) => {
@@ -36,11 +40,11 @@ const MatchInscriptionVisualizer: React.FC<MatchInscriptionVisualizerProps> = ({
   return (
     <div className={cn(
         "h-full w-full flex flex-col items-center justify-center p-1", 
-        isPrivate ? "bg-purple-800 text-white" : 
+        isPrivate ? "bg-orange-600 text-white" : 
         isConfirmed ? "bg-rose-700 text-white" : 
         "bg-indigo-700 text-white"
     )}>
-       <p className="text-[10px] font-bold text-center leading-tight mb-0.5">{isPrivate ? `Privada (${bookedPlayers.length}/4)` : `Partida (${bookedPlayers.length}/4)`}</p>
+       <p className="text-[10px] font-bold text-center leading-tight mb-0.5">{isPrivate ? `Reserva Pista (4/4)` : `Partida (${bookedPlayers.length}/4)`}</p>
        <div className="flex flex-wrap items-center justify-center -space-x-2">
             {Array.from({ length: 4 }).map((_, index) => {
                 const player = bookedPlayers[index];

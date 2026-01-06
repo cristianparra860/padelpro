@@ -79,21 +79,21 @@ export async function POST(
           const updatedUser = await prisma.user.update({
             where: { id: booking.userId },
             data: {
-              points: {
+              loyaltyPoints: {
                 increment: pricePerPerson // Los puntos son 1:1 con euros
               }
             },
-            select: { points: true }
+            select: { loyaltyPoints: true }
           });
           
-          console.log('✅ Puntos devueltos. Nuevo balance:', updatedUser.points);
+          console.log('✅ Puntos devueltos. Nuevo balance:', updatedUser.loyaltyPoints);
           
           // Crear transacción de reembolso de puntos
           await prisma.transaction.create({
             data: {
               userId: booking.userId,
               amount: Number(pricePerPerson),
-              balance: Number(updatedUser.points),
+              balance: Number(updatedUser.loyaltyPoints),
               type: 'points',
               action: 'refund',
               concept: `Reembolso por cancelación de clase por instructor - ${classDate}`,
@@ -103,26 +103,26 @@ export async function POST(
           });
         } else {
           console.log('💳 Reembolsando CRÉDITOS');
-          // Devolver créditos en céntimos (solo incrementar credits, no tocar blockedCredits)
+          // Devolver créditos en céntimos (solo incrementar credit, no tocar blockedCredit)
           // Las reservas CONFIRMED no tienen crédito bloqueado, se liberó al confirmar
           const updatedUser = await prisma.user.update({
             where: { id: booking.userId },
             data: {
-              credits: {
+              credit: {
                 increment: amountToRefund
               }
             },
-            select: { credits: true }
+            select: { credit: true }
           });
           
-          console.log('✅ Créditos devueltos. Nuevo balance:', updatedUser.credits);
+          console.log('✅ Créditos devueltos. Nuevo balance:', updatedUser.credit);
           
           // Crear transacción de reembolso de créditos
           await prisma.transaction.create({
             data: {
               userId: booking.userId,
               amount: Number(amountToRefund),
-              balance: Number(updatedUser.credits),
+              balance: Number(updatedUser.credit),
               type: 'credit',
               action: 'refund',
               concept: `Reembolso por cancelación de clase por instructor - ${classDate}`,

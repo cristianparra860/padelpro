@@ -27,7 +27,7 @@ import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import InstructorClassCards from './InstructorClassCards';
-import ClubCalendar from '@/components/admin/ClubCalendar2';
+import ClubCalendarImproved from '@/components/admin/ClubCalendarImproved';
 
 interface InstructorPanelProps {
   instructor: InstructorType;
@@ -314,14 +314,15 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
               <CalendarSearch className="mr-2 h-5 w-5 text-primary" /> Calendario del Club
             </CardTitle>
             <CardDescription>
-              Visualiza todas las clases, propuestas y eventos del club {instructorData.assignedClubId || 'padel-estrella-madrid'}.
+              Visualiza todas las clases, propuestas y eventos del club. Gestiona tus clases desde aquí.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ClubCalendar 
-              clubId={instructorData.assignedClubId || 'padel-estrella-madrid'} 
+            <ClubCalendarImproved 
+              clubId={instructorData.assignedClubId || 'club-1'} 
               currentUser={currentUser}
               viewMode="instructor"
+              instructorId={instructorData.id}
             />
           </CardContent>
         </Card>

@@ -210,6 +210,33 @@ export async function GET(request: NextRequest) {
     const proposedMatches = matchGames.filter((m: any) => m.courtNumber === null);
     const confirmedMatches = matchGames.filter((m: any) => m.courtNumber !== null);
 
+    // 5. Obtener reservas directas de pista (CourtSchedule)
+    const courtReservations = await prisma.courtSchedule.findMany({
+      where: {
+        startTime: {
+          gte: new Date(startTime),
+          lte: new Date(endTime)
+        },
+        isOccupied: true,
+        timeSlotId: null, // Solo reservas directas, no las generadas por clases
+        ...(clubId && {
+          court: {
+            clubId: clubId
+          }
+        })
+      },
+      include: {
+        court: {
+          select: {
+            id: true,
+            number: true,
+            name: true
+          }
+        }
+      },
+      orderBy: { startTime: 'asc' }
+    });
+
     // Construir respuesta simplificada
     const calendarData = {
       courts: courts.map(court => ({
@@ -322,6 +349,17 @@ export async function GET(request: NextRequest) {
           color: '#7C3AED' // Morado oscuro para partidas confirmadas
         };
       }),
+      courtReservations: courtReservations.map((reservation: any) => ({
+        id: `reservation-${reservation.id}`,
+        type: 'court-reservation',
+        title: reservation.reason || 'Reserva de pista',
+        start: reservation.startTime.toISOString(),
+        end: reservation.endTime.toISOString(),
+        courtId: reservation.courtId,
+        courtNumber: reservation.court.number,
+        reason: reservation.reason,
+        color: '#F97316' // Naranja para reservas directas
+      })),
       events: [
         // Clases (TimeSlots) - mantener por compatibilidad
         ...classes.map((cls: any) => {
@@ -396,7 +434,7 @@ export async function GET(request: NextRequest) {
         id: club.id,
         name: club.name,
         logo: club.logo,
-        openingHours: club.openingHours
+        openingHours: club.openingHours ? JSON.parse(club.openingHours) : null
       } : null
     };
 
