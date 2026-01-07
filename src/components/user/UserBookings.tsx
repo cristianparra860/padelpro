@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import BookingCard from './BookingCard';
+import MatchGameCard from '@/components/match/MatchGameCard';
 import { Loader2 } from 'lucide-react';
 import type { User, TimeSlot } from '@/types';
 import { useToast } from '@/hooks/use-toast';
@@ -89,15 +90,28 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
     setIsLoading(true);
     try {
       console.log('📚 Cargando bookings para usuario:', currentUser.id);
-      const response = await fetch(`/api/users/${currentUser.id}/bookings`);
-      if (response.ok) {
-        const data = await response.json();
-        setBookings(data);
-        console.log(`✅ Cargadas ${data.length} reservas del usuario`);
-      } else {
-        console.error('❌ Error al cargar reservas:', response.statusText);
-        setBookings([]);
+      
+      // Cargar CLASES
+      const classResponse = await fetch(`/api/users/${currentUser.id}/bookings`);
+      let classBookings: any[] = [];
+      if (classResponse.ok) {
+        classBookings = await classResponse.json();
+        console.log(`✅ Cargadas ${classBookings.length} reservas de clases`);
       }
+      
+      // Cargar PARTIDAS
+      const matchResponse = await fetch(`/api/users/${currentUser.id}/match-bookings`);
+      let matchBookings: any[] = [];
+      if (matchResponse.ok) {
+        matchBookings = await matchResponse.json();
+        console.log(`✅ Cargadas ${matchBookings.length} reservas de partidas`);
+      }
+      
+      // Combinar ambos tipos de bookings
+      const allBookings = [...classBookings, ...matchBookings];
+      setBookings(allBookings);
+      console.log(`✅ Total de reservas cargadas: ${allBookings.length} (${classBookings.length} clases + ${matchBookings.length} partidas)`);
+      
     } catch (error) {
       console.error('❌ Error al cargar reservas:', error);
       setBookings([]);
@@ -175,28 +189,63 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
   const filteredBookings = useMemo(() => {
     const now = new Date();
     
+    console.log(`🔎 Filtrando bookings - Filtro activo: ${activeFilter}, Total bookings: ${bookings.length}`);
+    
     switch (activeFilter) {
       case 'confirmed':
         return bookings.filter(b => {
-          const hasCourtAssigned = b.timeSlot.court !== null || b.timeSlot.courtId !== null || b.timeSlot.courtNumber !== null;
-          const isFuture = new Date(b.timeSlot.start) >= now;
-          const isNotCancelled = b.status !== 'CANCELLED';
-          return hasCourtAssigned && isFuture && isNotCancelled;
+          // Detectar si es clase o partida
+          const isClassBooking = !!b.timeSlot;
+          const isMatchBooking = !!b.matchGame;
+          
+          if (isClassBooking) {
+            const hasCourtAssigned = b.timeSlot.court !== null || b.timeSlot.courtId !== null || b.timeSlot.courtNumber !== null;
+            const isFuture = new Date(b.timeSlot.start) >= now;
+            const isNotCancelled = b.status !== 'CANCELLED';
+            return hasCourtAssigned && isFuture && isNotCancelled;
+          } else if (isMatchBooking) {
+            const hasCourtAssigned = b.matchGame.courtId !== null || b.matchGame.courtNumber !== null;
+            const isFuture = new Date(b.matchGame.start) >= now;
+            const isNotCancelled = b.status !== 'CANCELLED';
+            return hasCourtAssigned && isFuture && isNotCancelled;
+          }
+          return false;
         });
       
       case 'pending':
         return bookings.filter(b => {
-          const noCourtAssigned = b.timeSlot.court === null && (b.timeSlot.courtId === null || b.timeSlot.courtId === undefined) && (b.timeSlot.courtNumber === null || b.timeSlot.courtNumber === undefined);
-          const isFuture = new Date(b.timeSlot.start) >= now;
-          const isNotCancelled = b.status !== 'CANCELLED';
-          return noCourtAssigned && isFuture && isNotCancelled;
+          const isClassBooking = !!b.timeSlot;
+          const isMatchBooking = !!b.matchGame;
+          
+          if (isClassBooking) {
+            const noCourtAssigned = b.timeSlot.court === null && (b.timeSlot.courtId === null || b.timeSlot.courtId === undefined) && (b.timeSlot.courtNumber === null || b.timeSlot.courtNumber === undefined);
+            const isFuture = new Date(b.timeSlot.start) >= now;
+            const isNotCancelled = b.status !== 'CANCELLED';
+            return noCourtAssigned && isFuture && isNotCancelled;
+          } else if (isMatchBooking) {
+            const noCourtAssigned = (b.matchGame.courtId === null || b.matchGame.courtId === undefined) && (b.matchGame.courtNumber === null || b.matchGame.courtNumber === undefined);
+            const isFuture = new Date(b.matchGame.start) >= now;
+            const isNotCancelled = b.status !== 'CANCELLED';
+            return noCourtAssigned && isFuture && isNotCancelled;
+          }
+          return false;
         });
       
       case 'past':
         return bookings.filter(b => {
-          const isPast = new Date(b.timeSlot.start) < now;
-          const isNotCancelled = b.status !== 'CANCELLED';
-          return isPast && isNotCancelled;
+          const isClassBooking = !!b.timeSlot;
+          const isMatchBooking = !!b.matchGame;
+          
+          if (isClassBooking) {
+            const isPast = new Date(b.timeSlot.start) < now;
+            const isNotCancelled = b.status !== 'CANCELLED';
+            return isPast && isNotCancelled;
+          } else if (isMatchBooking) {
+            const isPast = new Date(b.matchGame.start) < now;
+            const isNotCancelled = b.status !== 'CANCELLED';
+            return isPast && isNotCancelled;
+          }
+          return false;
         });
       
       case 'cancelled':
@@ -211,26 +260,60 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
     }
   }, [bookings, activeFilter]);
 
+  console.log(`📊 Bookings filtrados: ${filteredBookings.length} (clases: ${filteredBookings.filter(b => !!b.timeSlot).length}, partidas: ${filteredBookings.filter(b => !!b.matchGame).length})`);
+
   // Memoizar contadores para evitar recalcular en cada render
   const counts = useMemo(() => {
     const now = new Date();
     return {
       confirmed: bookings.filter(b => {
-        const hasCourtAssigned = b.timeSlot.court !== null || b.timeSlot.courtId !== null || b.timeSlot.courtNumber !== null;
-        const isFuture = new Date(b.timeSlot.start) >= now;
-        const isNotCancelled = b.status !== 'CANCELLED';
-        return hasCourtAssigned && isFuture && isNotCancelled;
+        const isClassBooking = !!b.timeSlot;
+        const isMatchBooking = !!b.matchGame;
+        
+        if (isClassBooking) {
+          const hasCourtAssigned = b.timeSlot.court !== null || b.timeSlot.courtId !== null || b.timeSlot.courtNumber !== null;
+          const isFuture = new Date(b.timeSlot.start) >= now;
+          const isNotCancelled = b.status !== 'CANCELLED';
+          return hasCourtAssigned && isFuture && isNotCancelled;
+        } else if (isMatchBooking) {
+          const hasCourtAssigned = b.matchGame.courtId !== null || b.matchGame.courtNumber !== null;
+          const isFuture = new Date(b.matchGame.start) >= now;
+          const isNotCancelled = b.status !== 'CANCELLED';
+          return hasCourtAssigned && isFuture && isNotCancelled;
+        }
+        return false;
       }).length,
       pending: bookings.filter(b => {
-        const noCourtAssigned = b.timeSlot.court === null && (b.timeSlot.courtId === null || b.timeSlot.courtId === undefined) && (b.timeSlot.courtNumber === null || b.timeSlot.courtNumber === undefined);
-        const isFuture = new Date(b.timeSlot.start) >= now;
-        const isNotCancelled = b.status !== 'CANCELLED';
-        return noCourtAssigned && isFuture && isNotCancelled;
+        const isClassBooking = !!b.timeSlot;
+        const isMatchBooking = !!b.matchGame;
+        
+        if (isClassBooking) {
+          const noCourtAssigned = b.timeSlot.court === null && (b.timeSlot.courtId === null || b.timeSlot.courtId === undefined) && (b.timeSlot.courtNumber === null || b.timeSlot.courtNumber === undefined);
+          const isFuture = new Date(b.timeSlot.start) >= now;
+          const isNotCancelled = b.status !== 'CANCELLED';
+          return noCourtAssigned && isFuture && isNotCancelled;
+        } else if (isMatchBooking) {
+          const noCourtAssigned = (b.matchGame.courtId === null || b.matchGame.courtId === undefined) && (b.matchGame.courtNumber === null || b.matchGame.courtNumber === undefined);
+          const isFuture = new Date(b.matchGame.start) >= now;
+          const isNotCancelled = b.status !== 'CANCELLED';
+          return noCourtAssigned && isFuture && isNotCancelled;
+        }
+        return false;
       }).length,
       past: bookings.filter(b => {
-        const isPast = new Date(b.timeSlot.start) < now;
-        const isNotCancelled = b.status !== 'CANCELLED';
-        return isPast && isNotCancelled;
+        const isClassBooking = !!b.timeSlot;
+        const isMatchBooking = !!b.matchGame;
+        
+        if (isClassBooking) {
+          const isPast = new Date(b.timeSlot.start) < now;
+          const isNotCancelled = b.status !== 'CANCELLED';
+          return isPast && isNotCancelled;
+        } else if (isMatchBooking) {
+          const isPast = new Date(b.matchGame.start) < now;
+          const isNotCancelled = b.status !== 'CANCELLED';
+          return isPast && isNotCancelled;
+        }
+        return false;
       }).length,
       cancelled: bookings.filter(b => {
         const isCancelled = b.status === 'CANCELLED';
@@ -245,24 +328,49 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
   const blockedBalances = useMemo(() => {
     const now = new Date();
     const pendingBookings = bookings.filter(b => {
-      const noCourtAssigned = b.timeSlot.court === null && 
-        (b.timeSlot.courtId === null || b.timeSlot.courtId === undefined) && 
-        (b.timeSlot.courtNumber === null || b.timeSlot.courtNumber === undefined);
-      const isFuture = new Date(b.timeSlot.start) >= now;
-      const isNotCancelled = b.status !== 'CANCELLED';
-      return noCourtAssigned && isFuture && isNotCancelled;
+      const isClassBooking = !!b.timeSlot;
+      const isMatchBooking = !!b.matchGame;
+      
+      if (isClassBooking) {
+        const noCourtAssigned = b.timeSlot.court === null && 
+          (b.timeSlot.courtId === null || b.timeSlot.courtId === undefined) && 
+          (b.timeSlot.courtNumber === null || b.timeSlot.courtNumber === undefined);
+        const isFuture = new Date(b.timeSlot.start) >= now;
+        const isNotCancelled = b.status !== 'CANCELLED';
+        return noCourtAssigned && isFuture && isNotCancelled;
+      } else if (isMatchBooking) {
+        const noCourtAssigned = (b.matchGame.courtId === null || b.matchGame.courtId === undefined) && 
+          (b.matchGame.courtNumber === null || b.matchGame.courtNumber === undefined);
+        const isFuture = new Date(b.matchGame.start) >= now;
+        const isNotCancelled = b.status !== 'CANCELLED';
+        return noCourtAssigned && isFuture && isNotCancelled;
+      }
+      return false;
     });
 
     // Agrupar por fecha y encontrar el precio MÁS ALTO de cada día
     const balancesByDate: { [date: string]: { date: Date, amount: number } } = {};
     
     pendingBookings.forEach(booking => {
-      const startDate = new Date(booking.timeSlot.start);
-      const dateKey = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      const isClassBooking = !!booking.timeSlot;
+      const isMatchBooking = !!booking.matchGame;
       
-      // ✅ Fórmula correcta: totalPrice dividido entre groupSize
-      // Ejemplo: Si totalPrice = 60€ y groupSize = 2, bloquea 30€ (60/2)
-      const blockedAmount = booking.timeSlot.totalPrice / booking.groupSize;
+      let startDate: Date;
+      let blockedAmount: number;
+      
+      if (isClassBooking) {
+        startDate = new Date(booking.timeSlot.start);
+        // ✅ Fórmula correcta: totalPrice dividido entre groupSize
+        blockedAmount = booking.timeSlot.totalPrice / booking.groupSize;
+      } else if (isMatchBooking) {
+        startDate = new Date(booking.matchGame.start);
+        // Para partidas: courtRentalPrice / 4 (o usar pricePerPlayer)
+        blockedAmount = booking.matchGame.pricePerPlayer || (booking.matchGame.courtRentalPrice / 4);
+      } else {
+        return;
+      }
+      
+      const dateKey = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
       
       if (!balancesByDate[dateKey]) {
         balancesByDate[dateKey] = { date: startDate, amount: blockedAmount };
@@ -280,21 +388,44 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
   const paidAmounts = useMemo(() => {
     const now = new Date();
     const confirmedBookings = bookings.filter(b => {
-      const hasCourtAssigned = b.timeSlot.court !== null || b.timeSlot.courtId !== null || b.timeSlot.courtNumber !== null;
-      const isFuture = new Date(b.timeSlot.start) >= now;
-      const isNotCancelled = b.status !== 'CANCELLED';
-      return hasCourtAssigned && isFuture && isNotCancelled;
+      const isClassBooking = !!b.timeSlot;
+      const isMatchBooking = !!b.matchGame;
+      
+      if (isClassBooking) {
+        const hasCourtAssigned = b.timeSlot.court !== null || b.timeSlot.courtId !== null || b.timeSlot.courtNumber !== null;
+        const isFuture = new Date(b.timeSlot.start) >= now;
+        const isNotCancelled = b.status !== 'CANCELLED';
+        return hasCourtAssigned && isFuture && isNotCancelled;
+      } else if (isMatchBooking) {
+        const hasCourtAssigned = b.matchGame.courtId !== null || b.matchGame.courtNumber !== null;
+        const isFuture = new Date(b.matchGame.start) >= now;
+        const isNotCancelled = b.status !== 'CANCELLED';
+        return hasCourtAssigned && isFuture && isNotCancelled;
+      }
+      return false;
     });
 
     // Agrupar por fecha y calcular monto pagado
     const amountsByDate: { [date: string]: { date: Date, amount: number } } = {};
     
     confirmedBookings.forEach(booking => {
-      const startDate = new Date(booking.timeSlot.start);
-      const dateKey = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      const isClassBooking = !!booking.timeSlot;
+      const isMatchBooking = !!booking.matchGame;
       
-      // Calcular el monto pagado por esta reserva
-      const paidAmount = booking.timeSlot.totalPrice / booking.groupSize;
+      let startDate: Date;
+      let paidAmount: number;
+      
+      if (isClassBooking) {
+        startDate = new Date(booking.timeSlot.start);
+        paidAmount = booking.timeSlot.totalPrice / booking.groupSize;
+      } else if (isMatchBooking) {
+        startDate = new Date(booking.matchGame.start);
+        paidAmount = booking.matchGame.pricePerPlayer || (booking.matchGame.courtRentalPrice / 4);
+      } else {
+        return;
+      }
+      
+      const dateKey = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
       
       if (!amountsByDate[dateKey]) {
         amountsByDate[dateKey] = { date: startDate, amount: paidAmount };
@@ -320,11 +451,23 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
     const pointsByDate: { [date: string]: { date: Date, amount: number } } = {};
     
     cancelledBookings.forEach(booking => {
-      const startDate = new Date(booking.timeSlot.start);
+      // Detectar tipo de booking
+      const isClassBooking = !!(booking as any).timeSlot;
+      const isMatchBooking = !!(booking as any).matchGame;
+      
+      if (!isClassBooking && !isMatchBooking) return;
+      
+      const startDate = isClassBooking 
+        ? new Date((booking as any).timeSlot.start)
+        : new Date((booking as any).matchGame.start);
       const dateKey = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
       
       // Calcular puntos retornados por esta cancelación
-      const refundedAmount = booking.timeSlot.totalPrice / booking.groupSize;
+      const totalPrice = isClassBooking
+        ? (booking as any).timeSlot.totalPrice
+        : (booking as any).matchGame.pricePerPlayer;
+      const groupSize = (booking as any).groupSize || 1;
+      const refundedAmount = totalPrice / groupSize;
       
       if (!pointsByDate[dateKey]) {
         pointsByDate[dateKey] = { date: startDate, amount: refundedAmount };
@@ -342,34 +485,71 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
   const expiredBalances = useMemo(() => {
     const now = new Date();
     const expiredBookings = bookings.filter(b => {
-      const noCourtAssigned = b.timeSlot.court === null && 
-        (b.timeSlot.courtId === null || b.timeSlot.courtId === undefined) && 
-        (b.timeSlot.courtNumber === null || b.timeSlot.courtNumber === undefined);
-      const isPast = new Date(b.timeSlot.start) < now;
-      const isNotCancelled = b.status !== 'CANCELLED';
-      // Estas son inscripciones que expiraron sin confirmarse
-      return noCourtAssigned && isPast && isNotCancelled;
+      const isClassBooking = !!b.timeSlot;
+      const isMatchBooking = !!b.matchGame;
+      
+      if (isClassBooking) {
+        const noCourtAssigned = b.timeSlot.court === null && 
+          (b.timeSlot.courtId === null || b.timeSlot.courtId === undefined) && 
+          (b.timeSlot.courtNumber === null || b.timeSlot.courtNumber === undefined);
+        const isPast = new Date(b.timeSlot.start) < now;
+        const isNotCancelled = b.status !== 'CANCELLED';
+        return noCourtAssigned && isPast && isNotCancelled;
+      } else if (isMatchBooking) {
+        const noCourtAssigned = (b.matchGame.courtId === null || b.matchGame.courtId === undefined) && 
+          (b.matchGame.courtNumber === null || b.matchGame.courtNumber === undefined);
+        const isPast = new Date(b.matchGame.start) < now;
+        const isNotCancelled = b.status !== 'CANCELLED';
+        return noCourtAssigned && isPast && isNotCancelled;
+      }
+      return false;
     });
 
     console.log('🔍 Inscripciones expiradas encontradas:', expiredBookings.length);
     if (expiredBookings.length > 0) {
-      console.log('📋 Detalles:', expiredBookings.map(b => ({
-        fecha: new Date(b.timeSlot.start).toLocaleString('es-ES'),
-        precio: b.timeSlot.totalPrice,
-        groupSize: b.groupSize,
-        calculado: b.timeSlot.totalPrice / b.groupSize
-      })));
+      console.log('📋 Detalles:', expiredBookings.map(b => {
+        const isClassBooking = !!b.timeSlot;
+        const isMatchBooking = !!b.matchGame;
+        if (isClassBooking) {
+          return {
+            tipo: 'clase',
+            fecha: new Date(b.timeSlot.start).toLocaleString('es-ES'),
+            precio: b.timeSlot.totalPrice,
+            groupSize: b.groupSize,
+            calculado: b.timeSlot.totalPrice / b.groupSize
+          };
+        } else if (isMatchBooking) {
+          return {
+            tipo: 'partida',
+            fecha: new Date(b.matchGame.start).toLocaleString('es-ES'),
+            precio: b.matchGame.pricePerPlayer || (b.matchGame.courtRentalPrice / 4)
+          };
+        }
+        return null;
+      }).filter(Boolean));
     }
 
     // Agrupar por fecha y sumar saldos desbloqueados
     const balancesByDate: { [date: string]: { date: Date, amount: number } } = {};
     
     expiredBookings.forEach(booking => {
-      const startDate = new Date(booking.timeSlot.start);
-      const dateKey = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      const isClassBooking = !!booking.timeSlot;
+      const isMatchBooking = !!booking.matchGame;
       
-      // Calcular saldo desbloqueado por esta inscripción expirada
-      const unlockedAmount = booking.timeSlot.totalPrice / booking.groupSize;
+      let startDate: Date;
+      let unlockedAmount: number;
+      
+      if (isClassBooking) {
+        startDate = new Date(booking.timeSlot.start);
+        unlockedAmount = booking.timeSlot.totalPrice / booking.groupSize;
+      } else if (isMatchBooking) {
+        startDate = new Date(booking.matchGame.start);
+        unlockedAmount = booking.matchGame.pricePerPlayer || (booking.matchGame.courtRentalPrice / 4);
+      } else {
+        return;
+      }
+      
+      const dateKey = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
       
       if (!balancesByDate[dateKey]) {
         balancesByDate[dateKey] = { date: startDate, amount: unlockedAmount };
@@ -697,17 +877,36 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
               </div>
             ) : (
               <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-                {filteredBookings.map((booking) => (
-                  <BookingCard
-                    key={booking.id}
-                    booking={booking}
-                    currentUser={currentUser}
-                    onBookingSuccess={handleBookingSuccess}
-                    onCancelBooking={handleCancelBooking}
-                    isPastClass={activeFilter === 'past'}
-                    isCancelled={booking.status === 'CANCELLED'}
-                  />
-                ))}
+                {filteredBookings.map((booking) => {
+                  const isClassBooking = !!booking.timeSlot;
+                  const isMatchBooking = !!booking.matchGame;
+                  
+                  if (isClassBooking) {
+                    return (
+                      <BookingCard
+                        key={booking.id}
+                        booking={booking}
+                        currentUser={currentUser}
+                        onBookingSuccess={handleBookingSuccess}
+                        onCancelBooking={handleCancelBooking}
+                        isPastClass={activeFilter === 'past'}
+                        isCancelled={booking.status === 'CANCELLED'}
+                      />
+                    );
+                  } else if (isMatchBooking) {
+                    return (
+                      <MatchGameCard
+                        key={booking.id}
+                        matchGame={booking.matchGame}
+                        currentUser={currentUser}
+                        onBookingSuccess={handleBookingSuccess}
+                        showLeaveButton={true}
+                        showPrivateBookingButton={false}
+                      />
+                    );
+                  }
+                  return null;
+                })}
               </div>
             )}
           </TabsContent>

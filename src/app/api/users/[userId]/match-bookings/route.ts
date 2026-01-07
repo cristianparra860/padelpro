@@ -53,7 +53,7 @@ export async function GET(
 
     console.log(`✅ Cargadas ${matchBookings.length} reservas de partidas para usuario ${userId}`);
 
-    // Transformar los datos para incluir userLevel y userGender en los bookings
+    // Transformar los datos para incluir el objeto user nested en los bookings
     const processedMatchBookings = matchBookings.map(mb => ({
       ...mb,
       matchGame: {
@@ -66,10 +66,12 @@ export async function GET(
           status: b.status,
           groupSize: b.groupSize,
           isRecycled: b.isRecycled,
-          name: b.user.name,
-          profilePictureUrl: b.user.profilePictureUrl,
-          userLevel: b.user.level,
-          userGender: b.user.gender
+          user: {
+            name: b.user.name,
+            profilePictureUrl: b.user.profilePictureUrl,
+            level: b.user.level,
+            gender: b.user.gender
+          }
         }))
       }
     }));

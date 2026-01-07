@@ -230,6 +230,9 @@ model MatchGame {
   // Relaciones
   bookings MatchGameBooking[]
 
+  // ⚡ Índices para optimizar queries del calendario
+  @@index([start, clubId])
+  @@index([start, courtNumber])
   @@map("MatchGame")
 }
 
@@ -326,6 +329,10 @@ model TimeSlot {
   // Relaciones
   bookings Booking[]
 
+  // ⚡ Índices para optimizar queries del calendario
+  @@index([start, clubId])
+  @@index([start, courtId])
+  @@index([instructorId, start])
   @@map("TimeSlot")
 }
 
@@ -347,6 +354,9 @@ model Booking {
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
+  // ⚡ Índices para optimizar queries del calendario y reservas
+  @@index([timeSlotId, status])
+  @@index([userId, status])
   // NOTA: No usamos @@unique porque SQLite no soporta partial indexes
   // La validación de duplicados se hace en el código del endpoint
   @@map("Booking")

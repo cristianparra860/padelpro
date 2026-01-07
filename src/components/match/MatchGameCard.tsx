@@ -29,6 +29,7 @@ interface MatchGameCardProps {
   onBookingSuccess: () => void;
   showLeaveButton?: boolean; // Control para mostrar/ocultar botón Cancelar
   showPrivateBookingButton?: boolean; // Control para mostrar/ocultar botón Reserva Privada
+  showAdminCancelButton?: boolean; // Control para mostrar botón de cancelar partida (admin)
 }
 
 interface Booking {
@@ -46,11 +47,14 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
   onBookingSuccess,
   showLeaveButton = false, // Por defecto no mostrar el botón en el calendario
   showPrivateBookingButton = true, // Por defecto mostrar botón Reserva Privada
+  showAdminCancelButton = false, // Por defecto no mostrar botón admin
 }) => {
   const { toast } = useToast();
   const [booking, setBooking] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   // Parse bookings
   const bookings: Booking[] = useMemo(() => {
@@ -84,7 +88,15 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
 
   // Level and gender info
   const levelInfo = useMemo(() => {
-    // Si no hay jugadores inscritos, mostrar "ABIERTO"
+    // 🔹 PRIORIDAD 1: Si la partida está clasificada (isOpen = false), usar el level de la BD
+    if (matchGame.isOpen === false && matchGame.level) {
+      return {
+        level: matchGame.level,
+        isAssigned: true
+      };
+    }
+    
+    // 🔹 PRIORIDAD 2: Si no hay jugadores inscritos, mostrar "ABIERTO"
     if (bookings.length === 0) {
       return {
         level: 'Abierto',
@@ -92,7 +104,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
       };
     }
     
-    // Si hay jugadores, obtener el nivel del primer jugador
+    // 🔹 PRIORIDAD 3: Si hay jugadores, obtener el nivel del primer jugador
     const firstPlayer = bookings[0];
     const playerLevel = firstPlayer.userLevel;
     
@@ -133,10 +145,18 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
       level: rangeLabel,
       isAssigned: true
     };
-  }, [bookings]);
+  }, [matchGame.isOpen, matchGame.level, bookings]);
 
   const categoryInfo = useMemo(() => {
-    // Si no hay jugadores inscritos, mostrar "Abierta"
+    // 🔹 PRIORIDAD 1: Si la partida está clasificada (isOpen = false), usar genderCategory de la BD
+    if (matchGame.isOpen === false && matchGame.genderCategory) {
+      return {
+        category: matchGame.genderCategory.toLowerCase(),
+        isAssigned: true
+      };
+    }
+    
+    // 🔹 PRIORIDAD 2: Si no hay jugadores inscritos, mostrar "Abierta"
     if (bookings.length === 0) {
       return {
         category: 'abierta',
@@ -144,7 +164,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
       };
     }
     
-    // Analizar géneros de TODOS los jugadores inscritos
+    // 🔹 PRIORIDAD 3: Analizar géneros de TODOS los jugadores inscritos
     const genders = bookings
       .map(b => b.userGender)
       .filter(g => g && g !== 'undefined' && g !== 'null');
@@ -176,7 +196,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
       category: categoryLabel,
       isAssigned: true
     };
-  }, [bookings]);
+  }, [matchGame.isOpen, matchGame.genderCategory, bookings]);
 
   const courtAssignment = useMemo(() => {
     if (matchGame.courtNumber) {
@@ -319,6 +339,45 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
     }
   };
 
+  // Handle cancel match (admin only)
+  const handleCancelMatch = async () => {
+    setCancelling(true);
+    try {
+      const response = await fetch(`/api/matchgames/${matchGame.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Partida cancelada",
+          description: "La partida ha sido cancelada exitosamente.",
+          className: "bg-green-600 text-white"
+        });
+
+        setShowCancelDialog(false);
+        onBookingSuccess();
+      } else {
+        const error = await response.json();
+        toast({
+          title: "Error al cancelar",
+          description: error.error || "No se pudo cancelar la partida",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error cancelling match:', error);
+      toast({
+        title: "Error de conexión",
+        description: "No se pudo conectar con el servidor",
+        variant: "destructive"
+      });
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   // Handle leave
   const handleLeave = async () => {
     if (!currentUser || !userBooking) {
@@ -385,6 +444,16 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             <Badge variant="outline" className="h-6 text-[10px] px-2 bg-blue-600 text-white border-white">
               Reserva Privada
             </Badge>
+          ) : showAdminCancelButton ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 text-[10px] px-2 bg-white hover:bg-red-50 text-red-700 border-white hover:border-red-200"
+              onClick={() => setShowCancelDialog(true)}
+              disabled={cancelling}
+            >
+              {cancelling ? 'Cancelando...' : 'Cancelar Partida'}
+            </Button>
           ) : showLeaveButton && isUserBooked ? (
             <Button
               size="sm"
@@ -543,8 +612,8 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             <div className="text-right flex-shrink-0">
               <div className="text-base font-bold text-gray-900">
                 € {isPrivateBooking 
-                  ? matchGame.courtRentalPrice.toFixed(2)
-                  : (matchGame.courtRentalPrice / 4).toFixed(2)
+                  ? (matchGame.courtRentalPrice || 0).toFixed(2)
+                  : ((matchGame.courtRentalPrice || 0) / 4).toFixed(2)
                 }
               </div>
               <div className="text-[9px] text-gray-500">
@@ -557,7 +626,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             {[0, 1, 2, 3].map((index) => {
               const booking = displayBookings[index];
               const isOccupied = !!booking;
-              const displayName = booking?.name || 'Disponible';
+              const displayName = booking?.user?.name || 'Disponible';
 
               return (
                 <div key={index} className="flex flex-col items-center gap-1">
@@ -570,7 +639,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
                         ? "bg-gray-100 border-gray-300 text-gray-400 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-not-allowed opacity-50"
                         : "bg-gray-100 border-gray-300 text-gray-400 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-pointer hover:bg-gray-200 hover:border-gray-400"
                     )}
-                    title={isOccupied ? booking.name : isPrivateBooking ? 'Reserva privada completa' : 'Clic para unirte'}
+                    title={isOccupied ? booking.user?.name : isPrivateBooking ? 'Reserva privada completa' : 'Clic para unirte'}
                     onClick={() => {
                       if (!isOccupied && !booking && !isUserBooked && !isPrivateBooking) {
                         setShowConfirmDialog(true);
@@ -578,16 +647,16 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
                     }}
                   >
                     {isOccupied ? (
-                      booking.profilePictureUrl ? (
+                      booking.user?.profilePictureUrl ? (
                         <img 
-                          src={booking.profilePictureUrl} 
-                          alt={booking.name || 'Usuario'}
+                          src={booking.user.profilePictureUrl} 
+                          alt={booking.user?.name || 'Usuario'}
                           className="w-full h-full object-cover rounded-full shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]"
                         />
                       ) : (
                         <div className="w-full h-full rounded-full bg-gradient-to-br from-purple-400 to-pink-500 flex items-center justify-center shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]">
                           <span className="text-white text-xs font-bold">
-                            {getInitials(booking.name || booking.userId)}
+                            {getInitials(booking.user?.name || booking.userId)}
                           </span>
                         </div>
                       )
@@ -736,7 +805,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
               <br />
               <strong>Duración:</strong> {matchGame.duration} minutos
               <br />
-              <strong>Precio:</strong> €{matchGame.pricePerPlayer.toFixed(2)}
+              <strong>Precio:</strong> €{(matchGame.pricePerPlayer || 0).toFixed(2)}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -783,6 +852,28 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             <AlertDialogCancel>Volver</AlertDialogCancel>
             <AlertDialogAction onClick={handleLeave} className="bg-red-600 hover:bg-red-700">
               {booking ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sí, Cancelar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cancel Match Dialog (Admin) */}
+      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancelar Partida Completa</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas cancelar esta partida?
+              <br /><br />
+              <strong className="text-red-600">⚠️ Esta acción no se puede deshacer.</strong>
+              <br />
+              Se notificará a todos los jugadores inscritos y se les reembolsarán sus créditos y puntos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Volver</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCancelMatch} className="bg-red-600 hover:bg-red-700">
+              {cancelling ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sí, Cancelar Partida'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

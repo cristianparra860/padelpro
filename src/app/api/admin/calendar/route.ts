@@ -95,26 +95,23 @@ export async function GET(request: NextRequest) {
     const startTime = adjustedStartDate.getTime();
     const endTime = adjustedEndDate.getTime();
     
-    // Query optimizada: filtrar en SQL en lugar de traer todo
-    const classesRaw = await prisma.$queryRaw`
-      SELECT 
-        id, start, end, maxPlayers, totalPrice, level, category, 
-        levelRange,
-        courtId, courtNumber, instructorId, clubId
-      FROM TimeSlot
-      WHERE start >= ${startTime} AND start <= ${endTime}
-      ORDER BY start ASC
-    ` as any[];
-    
-    const classesInRange = classesRaw;
+    // ⚡ Query optimizada con filtros en SQL
+    const classesRaw = await prisma.$queryRawUnsafe(
+      `SELECT id, start, end, maxPlayers, totalPrice, level, category, levelRange, 
+              courtId, courtNumber, instructorId, clubId
+       FROM TimeSlot
+       WHERE start >= ? AND start <= ?${clubId ? ' AND clubId = ?' : ''}
+       ORDER BY start ASC`,
+      ...(clubId ? [startTime, endTime, clubId] : [startTime, endTime])
+    ) as any[];
 
-    // Obtener todos los IDs de TimeSlots e Instructores para queries optimizadas
-    const timeSlotIds = classesInRange.map((c: any) => c.id);
-    const instructorIds = [...new Set(classesInRange.map((c: any) => c.instructorId).filter(Boolean))];
+    // Obtener todos los IDs para queries batch optimizadas
+    const timeSlotIds = classesRaw.map((c: any) => c.id);
+    const instructorIds = [...new Set(classesRaw.map((c: any) => c.instructorId).filter(Boolean))];
 
-    console.log('🔍 Loading data for:', timeSlotIds.length, 'timeslots and', instructorIds.length, 'instructors');
+    console.log('⚡ Cargando datos:', timeSlotIds.length, 'timeslots,', instructorIds.length, 'instructores');
 
-    // Cargar TODOS los instructores de las clases en una query
+    // Cargar TODOS los instructores en una query (batch optimizado)
     const classInstructors = await prisma.instructor.findMany({
       where: { id: { in: instructorIds } },
       include: {
@@ -129,19 +126,19 @@ export async function GET(request: NextRequest) {
 
     const instructorMap = new Map(classInstructors.map(i => [i.id, i]));
 
-    // Cargar TODOS los bookings en una query (incluye CANCELLED para mostrar en calendario)
+    // Cargar TODOS los bookings en una query (batch optimizado con índice)
     const allBookings = await prisma.booking.findMany({
       where: {
         timeSlotId: { in: timeSlotIds },
-        status: { in: ['PENDING', 'CONFIRMED', 'CANCELLED'] } // ✅ Incluir CANCELLED
+        status: { in: ['PENDING', 'CONFIRMED', 'CANCELLED'] }
       },
       select: {
         id: true,
         userId: true,
         timeSlotId: true,
         status: true,
-        groupSize: true, // ⭐ EXPLICITLY SELECT groupSize
-        isRecycled: true, // ♻️ Campo para detectar plazas recicladas
+        groupSize: true,
+        isRecycled: true,
         user: {
           select: {
             name: true,
@@ -161,9 +158,11 @@ export async function GET(request: NextRequest) {
     });
 
     // Combinar datos
-    const classes = classesInRange.map((timeSlot: any) => {
+    const classes = classesRaw.map((timeSlot: any) => {
       return {
         ...timeSlot,
+        start: new Date(Number(timeSlot.start)),
+        end: new Date(Number(timeSlot.end)),
         instructor: instructorMap.get(timeSlot.instructorId) || null,
         bookings: bookingsBySlot.get(timeSlot.id) || []
       };
@@ -206,9 +205,23 @@ export async function GET(request: NextRequest) {
     const proposedClasses = classes.filter((c: any) => c.courtId === null);
     const confirmedClasses = classes.filter((c: any) => c.courtId !== null);
 
+    // 🎯 Contar tarjetas de CLASES por instructor y horario (para mostrar círculos con número)
+    const cardCountByInstructorAndTime = new Map<string, number>();
+    proposedClasses.forEach((cls: any) => {
+      const key = `${cls.instructorId}_${cls.start.getTime()}`;
+      cardCountByInstructorAndTime.set(key, (cardCountByInstructorAndTime.get(key) || 0) + 1);
+    });
+
     // Separar partidas propuestas de confirmadas
     const proposedMatches = matchGames.filter((m: any) => m.courtNumber === null);
     const confirmedMatches = matchGames.filter((m: any) => m.courtNumber !== null);
+    
+    // 🎯 Contar tarjetas de PARTIDAS por horario (sin instructor, las partidas no tienen instructor)
+    const matchCardCountByTime = new Map<string, number>();
+    proposedMatches.forEach((match: any) => {
+      const key = `${match.start.getTime()}`;
+      matchCardCountByTime.set(key, (matchCardCountByTime.get(key) || 0) + 1);
+    });
 
     // 5. Obtener reservas directas de pista (CourtSchedule)
     const courtReservations = await prisma.courtSchedule.findMany({
@@ -237,6 +250,35 @@ export async function GET(request: NextRequest) {
       orderBy: { startTime: 'asc' }
     });
 
+    // Obtener nombres de usuarios e instructores para las reservas
+    const reservationUserIds = new Set<string>();
+    const reservationInstructorIds = new Set<string>();
+    
+    courtReservations.forEach((reservation: any) => {
+      if (reservation.reason) {
+        const parts = reservation.reason.split(':');
+        if (parts[0] === 'user_court_reservation' && parts[1]) {
+          reservationUserIds.add(parts[1]);
+        } else if (parts[0] === 'instructor_reservation' && parts[1]) {
+          reservationInstructorIds.add(parts[1]);
+        }
+      }
+    });
+
+    // Consultar nombres
+    const reservationUsers = await prisma.user.findMany({
+      where: { id: { in: Array.from(reservationUserIds) } },
+      select: { id: true, name: true }
+    });
+
+    const reservationInstructors = await prisma.instructor.findMany({
+      where: { id: { in: Array.from(reservationInstructorIds) } },
+      select: { id: true, name: true }
+    });
+
+    const reservationUserMap = new Map(reservationUsers.map(u => [u.id, u.name]));
+    const reservationInstructorMap = new Map(reservationInstructors.map(i => [i.id, i.name]));
+
     // Construir respuesta simplificada
     const calendarData = {
       courts: courts.map(court => ({
@@ -261,6 +303,10 @@ export async function GET(request: NextRequest) {
         const pendingBookings = cls.bookings?.filter((b: any) => b.status === 'PENDING') || [];
         const totalPlayers = pendingBookings.reduce((sum: number, b: any) => sum + (b.groupSize || 1), 0);
         
+        // 🎯 Obtener número de tarjetas para este instructor y horario
+        const key = `${cls.instructor?.id}_${cls.start.getTime()}`;
+        const totalCards = cardCountByInstructorAndTime.get(key) || 1;
+        
         return {
           id: `class-${cls.id}`,
           type: 'class-proposal',
@@ -278,8 +324,9 @@ export async function GET(request: NextRequest) {
           maxPlayers: cls.maxPlayers,
           availableSpots: cls.maxPlayers - totalPlayers,
           bookings: cls.bookings,
+          totalCards: totalCards, // 🆕 Número total de tarjetas para este horario/instructor
           color: '#FFA500' // Naranja para propuestas
-        };
+        }
       }),
       confirmedClasses: confirmedClasses.map((cls: any) => {
         // Calcular el groupSize real de la clase confirmada (suma de groupSize de bookings CONFIRMED)
@@ -312,8 +359,13 @@ export async function GET(request: NextRequest) {
         const pendingBookings = match.bookings?.filter((b: any) => b.status === 'PENDING') || [];
         const totalPlayers = countPlayerSlots(confirmedBookings) + countPlayerSlots(pendingBookings);
         
+        // 🎯 Obtener número de tarjetas para este horario (las partidas no tienen instructor)
+        const key = `${new Date(match.start).getTime()}`;
+        const totalCards = matchCardCountByTime.get(key) || 1;
+        
         return {
           id: `match-${match.id}`,
+          matchId: match.id, // ID original del MatchGame
           type: 'match-proposal',
           title: `Partida ${match.isOpen ? 'Abierta' : 'Clasificada'} (${totalPlayers}/4)`,
           start: new Date(match.start).toISOString(),
@@ -321,10 +373,12 @@ export async function GET(request: NextRequest) {
           level: match.level,
           isOpen: match.isOpen,
           genderCategory: match.genderCategory,
+          courtRentalPrice: match.courtRentalPrice,
           playersCount: totalPlayers,
           maxPlayers: 4,
           availableSpots: 4 - totalPlayers,
           bookings: match.bookings,
+          totalCards: totalCards, // 🆕 Número total de tarjetas para este horario
           color: '#9333EA' // Morado para partidas propuestas
         };
       }),
@@ -334,6 +388,7 @@ export async function GET(request: NextRequest) {
         
         return {
           id: `match-${match.id}`,
+          matchId: match.id, // ID original del MatchGame
           type: 'match-confirmed',
           title: `Partida - Pista ${match.courtNumber}`,
           start: new Date(match.start).toISOString(),
@@ -342,6 +397,7 @@ export async function GET(request: NextRequest) {
           level: match.level,
           isOpen: match.isOpen,
           genderCategory: match.genderCategory,
+          courtRentalPrice: match.courtRentalPrice,
           playersCount: totalPlayers,
           maxPlayers: 4,
           availableSpots: 0,
@@ -349,17 +405,33 @@ export async function GET(request: NextRequest) {
           color: '#7C3AED' // Morado oscuro para partidas confirmadas
         };
       }),
-      courtReservations: courtReservations.map((reservation: any) => ({
-        id: `reservation-${reservation.id}`,
-        type: 'court-reservation',
-        title: reservation.reason || 'Reserva de pista',
-        start: reservation.startTime.toISOString(),
-        end: reservation.endTime.toISOString(),
-        courtId: reservation.courtId,
-        courtNumber: reservation.court.number,
-        reason: reservation.reason,
-        color: '#F97316' // Naranja para reservas directas
-      })),
+      courtReservations: courtReservations.map((reservation: any) => {
+        let userName = null;
+        let instructorName = null;
+        
+        if (reservation.reason) {
+          const parts = reservation.reason.split(':');
+          if (parts[0] === 'user_court_reservation' && parts[1]) {
+            userName = reservationUserMap.get(parts[1]) || null;
+          } else if (parts[0] === 'instructor_reservation' && parts[1]) {
+            instructorName = reservationInstructorMap.get(parts[1]) || null;
+          }
+        }
+        
+        return {
+          id: `reservation-${reservation.id}`,
+          type: 'court-reservation',
+          title: reservation.reason || 'Reserva de pista',
+          start: reservation.startTime.toISOString(),
+          end: reservation.endTime.toISOString(),
+          courtId: reservation.courtId,
+          courtNumber: reservation.court.number,
+          reason: reservation.reason,
+          userName,
+          instructorName,
+          color: '#F97316' // Naranja para reservas directas
+        };
+      }),
       events: [
         // Clases (TimeSlots) - mantener por compatibilidad
         ...classes.map((cls: any) => {

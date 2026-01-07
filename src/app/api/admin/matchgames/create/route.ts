@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getCourtPriceForTime } from '@/lib/courtPricing';
 
 export async function POST(request: Request) {
   try {
@@ -45,16 +46,21 @@ export async function POST(request: Request) {
       );
     }
 
+    // Calcular precio de pista según horario y duración
+    const startDate = new Date(start);
+    const courtPricePerHour = await getCourtPriceForTime(clubId, startDate);
+    const courtPrice = courtPricePerHour * (duration / 60); // Precio proporcional
+    
     // Crear la partida
     const matchGame = await prisma.matchGame.create({
       data: {
         clubId,
-        start: new Date(start),
+        start: startDate,
         end: new Date(end),
         duration,
         maxPlayers: 4,
         pricePerPlayer,
-        courtRentalPrice: pricePerPlayer * 4,
+        courtRentalPrice: courtPrice,
         level: level || null,
         genderCategory: genderCategory || null,
         isOpen: isOpen ?? true,

@@ -52,6 +52,20 @@ export async function GET(request: NextRequest) {
       orderBy: { start: 'asc' }
     });
 
+    console.log(`🎾 GET /api/matchgames - Total partidas: ${matchGames.length}`);
+    const openMatches = matchGames.filter(m => m.isOpen);
+    const classifiedMatches = matchGames.filter(m => !m.isOpen);
+    console.log(`   - Partidas abiertas: ${openMatches.length}`);
+    console.log(`   - Partidas clasificadas: ${classifiedMatches.length}`);
+    
+    if (openMatches.length > 0) {
+      console.log(`   📋 Partidas abiertas:`, openMatches.map(m => ({
+        id: m.id,
+        hora: new Date(m.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+        jugadores: m.bookings.length
+      })));
+    }
+
     return NextResponse.json({
       success: true,
       matchGames

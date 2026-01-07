@@ -319,7 +319,22 @@ async function autoGenerateOpenSlot(originalTimeSlotId: string, prisma: any) {
 
     // Solo crear nueva tarjeta si es la primera inscripción
     if (count === 1) {
-      console.log('🎯 Primera inscripción detectada, creando nueva tarjeta abierta...');
+      console.log('🎯 Primera inscripción detectada, verificando si necesita crear tarjeta abierta...');
+      
+      // Verificar si ya existe una tarjeta ABIERTA para este instructor/horario
+      const existingOpen = await prisma.$queryRaw`
+        SELECT id FROM TimeSlot
+        WHERE instructorId = ${slot.instructorId}
+        AND start = ${slot.start}
+        AND level = 'ABIERTO'
+        AND category = 'ABIERTO'
+        AND courtId IS NULL
+      `;
+      
+      if ((existingOpen as any[]).length > 0) {
+        console.log('ℹ️ Ya existe una tarjeta ABIERTA para este horario/instructor');
+        return;
+      }
       
       // Crear nueva tarjeta con los mismos parámetros pero categoría y nivel "abierto"
       const newSlotId = `auto-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -327,7 +342,7 @@ async function autoGenerateOpenSlot(originalTimeSlotId: string, prisma: any) {
       await prisma.$executeRaw`
         INSERT INTO TimeSlot (
           id, clubId, courtId, instructorId, start, end, 
-          maxPlayers, totalPrice, level, category, createdAt, updatedAt
+          maxPlayers, totalPrice, level, category, genderCategory, createdAt, updatedAt
         )
         VALUES (
           ${newSlotId}, 
@@ -339,7 +354,8 @@ async function autoGenerateOpenSlot(originalTimeSlotId: string, prisma: any) {
           ${slot.maxPlayers || 4}, 
           ${slot.totalPrice}, 
           'ABIERTO', 
-          'ABIERTO', 
+          'ABIERTO',
+          'ABIERTO',
           datetime('now'), 
           datetime('now')
         )

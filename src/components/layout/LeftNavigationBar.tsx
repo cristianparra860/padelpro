@@ -311,6 +311,13 @@ export function LeftNavigationBar() {
                           pathname.startsWith('/admin/') ||
                           pathname.startsWith('/instructor');
 
+    // Detectar si estamos en modo clases sin instructor (para oscurecer botones)
+    const isInCalendar = pathname === '/admin/calendar';
+    const viewTypeParam = searchParams.get('viewType') || 'partidas'; // Default a partidas
+    const isInClasesMode = viewTypeParam === 'clases';
+    const noInstructorSelected = !searchParams.get('instructor');
+    const shouldDimOtherButtons = isInCalendar && isInClasesMode && noInstructorSelected && instructors.length > 0;
+
     // No mostrar nada mientras está cargando el usuario
     if (isLoading) {
         return null;
@@ -320,9 +327,12 @@ export function LeftNavigationBar() {
         <>
             <div 
                 className="fixed left-4 top-40 flex flex-col gap-2 items-start" 
-                style={{ pointerEvents: 'auto', zIndex: 50, position: 'fixed' }}
+                style={{ 
+                    pointerEvents: 'auto', 
+                    zIndex: 50, 
+                    position: 'fixed' 
+                }}
             >
-            {/* Botón de Cerrar Sesión / Iniciar Sesión - Grande y centrado */}
             <button
                 onClick={async (e) => {
                     e.preventDefault();
@@ -347,11 +357,11 @@ export function LeftNavigationBar() {
                 }}
                 className={cn(
                     "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200 hover:border-red-400 shadow-lg",
+                    shouldDimOtherButtons && "opacity-20 pointer-events-none",
                     isCompactMode
-                        ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-18' 
+                        ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-20' 
                         : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]'
                 )}
-                style={{ pointerEvents: 'auto', zIndex: 99999 }}
             >
                 <div className={cn(
                     "rounded-full flex items-center justify-center text-white flex-shrink-0",
@@ -378,8 +388,9 @@ export function LeftNavigationBar() {
                     href="/club"
                     className={cn(
                         "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
+                        shouldDimOtherButtons && "opacity-20 pointer-events-none",
                         isCompactMode
-                            ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-18' 
+                            ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-20' 
                             : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
                         pathname === '/club' ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg'
                     )}
@@ -426,12 +437,12 @@ export function LeftNavigationBar() {
                 onClick={(e) => handleNavClick(e, misDatosItem.href, misDatosItem.label)}
                 className={cn(
                     "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
+                    shouldDimOtherButtons && "opacity-20 pointer-events-none",
                     isCompactMode
-                        ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-18' 
+                        ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-20' 
                         : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
                     pathname === '/dashboard' ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg'
                 )}
-                style={{ pointerEvents: 'auto', zIndex: 99999 }}
             >
                 <div className={cn(
                     "rounded-full overflow-hidden flex items-center justify-center flex-shrink-0",
@@ -478,14 +489,14 @@ export function LeftNavigationBar() {
                             onClick={(e) => handleNavClick(e, item.href, item.label)}
                             className={cn(
                                 "rounded-3xl hover:shadow-xl transition-all cursor-pointer",
+                                shouldDimOtherButtons && "opacity-20 pointer-events-none",
                                 isCompactMode
-                                    ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-18' 
+                                    ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-20' 
                                     : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
                                 item.isActive 
                                     ? 'bg-white shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200'
                                     : 'bg-white shadow-lg border-2 border-gray-300'
                             )}
-                            style={{ pointerEvents: 'auto', zIndex: 99999 }}
                         >
                             <div className={cn(
                                 "rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden transition-all duration-300",
@@ -546,6 +557,11 @@ export function LeftNavigationBar() {
                         // Verificar si este instructor está seleccionado
                         const isSelected = searchParams.get('instructor') === instructor.id;
                         
+                        // Detectar si estamos en modo clases sin instructor seleccionado (para efecto pulsante)
+                        const viewTypeParam = searchParams.get('viewType') || 'partidas';
+                        const isInClasesMode = viewTypeParam === 'clases';
+                        const shouldPulse = isInCalendar && isInClasesMode && noInstructorSelected && instructors.length > 0;
+                        
                         return (
                             <button
                                 key={instructor.id}
@@ -553,14 +569,19 @@ export function LeftNavigationBar() {
                                 className={cn(
                                     "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 shadow-lg",
                                     isSelected ? 'border-blue-500 scale-105 animate-bounce-subtle' : 'border-gray-200',
+                                    shouldPulse && 'animate-pulse relative z-[150]',
                                     isCompactMode
-                                        ? 'flex flex-col items-center gap-1 px-2.5 py-1.5' 
+                                        ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-20' 
                                         : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]'
                                 )}
-                                style={{ pointerEvents: 'auto', zIndex: 99999 }}
+                                style={{ 
+                                    pointerEvents: 'auto', 
+                                    position: 'relative',
+                                    zIndex: shouldPulse ? 150 : 'auto' 
+                                }}
                             >
                                 <div className={cn(
-                                    "rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 transition-all duration-300 border-2 border-white shadow-md",
+                                    "rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 transition-all duration-300 border-2 shadow-md border-white",
                                     isCompactMode ? 'w-9 h-9' : 'w-12 h-12'
                                 )}>
                                     <img 
@@ -601,8 +622,9 @@ export function LeftNavigationBar() {
                     onClick={() => window.location.href = '/agenda?tab=confirmed'}
                     className={cn(
                         "bg-white rounded-3xl hover:shadow-xl transition-all",
+                        shouldDimOtherButtons && "opacity-20 pointer-events-none",
                         isCompactMode
-                            ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-18' 
+                            ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-20' 
                             : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
                         pathname === '/agenda' ? 'shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200' : 'shadow-lg border-2 border-gray-300'
                     )}
@@ -636,8 +658,9 @@ export function LeftNavigationBar() {
                     onClick={() => window.location.href = '/agenda'}
                     className={cn(
                         "bg-white rounded-3xl hover:shadow-xl transition-all",
+                        shouldDimOtherButtons && "opacity-20 pointer-events-none",
                         isCompactMode
-                            ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-18' 
+                            ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-20' 
                             : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
                         pathname === '/agenda' ? 'shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200' : 'shadow-lg border-2 border-gray-300'
                     )}
@@ -671,8 +694,9 @@ export function LeftNavigationBar() {
                     onClick={() => window.location.href = '/movimientos'}
                     className={cn(
                         "bg-white rounded-3xl hover:shadow-xl transition-all",
+                        shouldDimOtherButtons && "opacity-20 pointer-events-none",
                         isCompactMode
-                            ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-18' 
+                            ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-20' 
                             : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
                         pathname === '/movimientos' ? 'shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200' : 'shadow-lg border-2 border-gray-300'
                     )}
@@ -710,8 +734,9 @@ export function LeftNavigationBar() {
                             onClick={(e) => handleNavClick(e, item.href, item.label)}
                             className={cn(
                                 "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
+                                shouldDimOtherButtons && "opacity-20 pointer-events-none",
                                 isCompactMode
-                                    ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-18' 
+                                    ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-20' 
                                     : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
                                 item.isActive ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg'
                             )}

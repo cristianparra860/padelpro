@@ -111,7 +111,13 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     return null; // No renderizar si faltan datos críticos
   }
   
-  // 🔄 State local para el slot (permite actualización inmediata tras booking)
+  // � Helper para limpiar prefijos del ID (class-, match-, etc.)
+  const getCleanTimeSlotId = (id: string): string => {
+    if (!id) return id;
+    return id.replace(/^(class-|match-)/, '');
+  };
+  
+  // �🔄 State local para el slot (permite actualización inmediata tras booking)
   // Usar classData directamente en lugar de state para evitar loops infinitos
   const currentSlotData = classData;
   
@@ -233,7 +239,20 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   const bookingsData = (classData as any).bookings || classData.bookedPlayers || [];
   const bookings = Array.isArray(bookingsData) ? bookingsData : [];
 
-  // 🚫 Verificar si el usuario ya tiene una reserva confirmada este día
+  // � DEBUG: Verificar estructura de bookings
+  console.log('🔍 ClassCardReal - bookings:', {
+    classId: classData.id,
+    bookingsCount: bookings.length,
+    firstBooking: bookings[0] ? {
+      id: bookings[0].id,
+      hasUser: !!bookings[0].user,
+      userName: bookings[0].user?.name,
+      hasOldName: !!(bookings[0] as any).name,
+      oldName: (bookings[0] as any).name
+    } : null
+  });
+
+  // �🚫 Verificar si el usuario ya tiene una reserva confirmada este día
   // ⚠️ NO ejecutar esta validación en modo agenda (solo para mostrar reservas existentes)
   useEffect(() => {
     // Si estamos en modo agenda, salir inmediatamente sin hacer nada
@@ -336,7 +355,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          timeSlotId: currentSlotData.id,
+          timeSlotId: getCleanTimeSlotId(currentSlotData.id),
           userId: currentUser.id,
           groupSize: privateAttendees,
           isPrivate: true // Marcador de reserva privada
@@ -524,7 +543,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         credentials: 'include',
         body: JSON.stringify({
           userId: currentUser.id,
-          timeSlotId: currentSlotData.id,
+          timeSlotId: getCleanTimeSlotId(currentSlotData.id),
           groupSize,
           usePoints // 💰 Enviar flag de pago con puntos
         })
@@ -637,7 +656,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         credentials: 'include',
         body: JSON.stringify({
           userId: currentUser?.id || userId,
-          timeSlotId: currentSlotData.id,
+          timeSlotId: getCleanTimeSlotId(currentSlotData.id),
         })
       });
 
@@ -1812,7 +1831,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                   const isOccupied = !!booking;
                   const isCurrentUser = booking?.userId === currentUser?.id;
                   const isRecycled = booking?.status === 'CANCELLED' && booking?.isRecycled === true;
-                  const displayName = booking?.name ? booking.name.substring(0, 5) : '';
+                  const displayName = booking?.user?.name ? booking.user.name.substring(0, 5) : '';
                   
                   // 🎁 CAMBIO CRÍTICO: creditsSlots guarda groupSize (1-4), no absoluteIndex
                   // Si la modalidad de 2 jugadores está marcada, creditsSlots = [2]
@@ -1899,23 +1918,23 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                               ? `🎁 Reservable con ${creditsCost} puntos`
                             : isAnotherModalityConfirmed 
                               ? 'Opción bloqueada - Otra modalidad confirmada'
-                              : isOccupied ? booking.name : 'Disponible'
+                              : isOccupied ? booking.user?.name : 'Disponible'
                         }
                       >
                         {isCancelledSlot ? (
                           // 🔴 Plaza cancelada: foto con overlay rojo + X blanca (PRIORIDAD sobre reciclada)
                           <div className="relative w-full h-full rounded-full overflow-hidden">
                             {/* Foto de fondo del usuario */}
-                            {booking.profilePictureUrl ? (
+                            {booking.user?.profilePictureUrl ? (
                               <img 
-                                src={booking.profilePictureUrl} 
-                                alt={booking.name || 'Usuario'}
+                                src={booking.user.profilePictureUrl} 
+                                alt={booking.user?.name || 'Usuario'}
                                 className="absolute inset-0 w-full h-full object-cover"
                               />
                             ) : (
                               <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center">
                                 <span className="text-white text-lg font-bold">
-                                  {booking.name ? booking.name.charAt(0).toUpperCase() : '?'}
+                                  {booking.user?.name ? booking.user.name.charAt(0).toUpperCase() : '?'}
                                 </span>
                               </div>
                             )}
@@ -1936,23 +1955,26 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                             console.log(`🎨 Renderizando círculo ${index + 1}/${players}:`, {
                               hasProfilePic: !!booking.profilePictureUrl,
                               profilePicUrl: booking.profilePictureUrl,
-                              name: booking.name
+                              'booking.user': booking.user,
+                              'booking.user?.name': booking.user?.name,
+                              'booking.userId': booking.userId,
+                              'FULL_BOOKING': JSON.parse(JSON.stringify(booking))
                             });
                             
-                            if (booking.profilePictureUrl) {
+                            if (booking.user?.profilePictureUrl) {
                               return (
                                 <img 
-                                  src={booking.profilePictureUrl} 
-                                  alt={booking.name || 'Usuario'}
+                                  src={booking.user.profilePictureUrl} 
+                                  alt={booking.user?.name || 'Usuario'}
                                   className="w-full h-full object-cover rounded-full shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]"
-                                  onLoad={() => console.log('✅ Imagen cargada:', booking.profilePictureUrl)}
+                                  onLoad={() => console.log('✅ Imagen cargada:', booking.user.profilePictureUrl)}
                                   onError={(e) => {
-                                    console.error('❌ Error cargando imagen:', booking.profilePictureUrl);
+                                    console.error('❌ Error cargando imagen:', booking.user.profilePictureUrl);
                                     // Fallback a iniciales si la imagen falla
                                     const target = e.currentTarget;
                                     const parent = target.parentElement;
                                     if (parent) {
-                                      parent.innerHTML = `<div class="w-full h-full rounded-full bg-green-400 flex items-center justify-center shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]"><span class="text-white text-sm font-bold">${getInitials(booking.name || booking.userId)}</span></div>`;
+                                      parent.innerHTML = `<div class="w-full h-full rounded-full bg-green-400 flex items-center justify-center shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]"><span class="text-white text-sm font-bold">${getInitials(booking.user?.name || booking.userId)}</span></div>`;
                                     }
                                   }}
                                 />
@@ -1961,7 +1983,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                               return (
                                 <div className="w-full h-full rounded-full bg-green-400 flex items-center justify-center shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]">
                                   <span className="text-white text-sm font-bold">
-                                    {getInitials(booking.name || booking.userId)}
+                                    {getInitials(booking.user?.name || booking.userId)}
                                   </span>
                                 </div>
                               );

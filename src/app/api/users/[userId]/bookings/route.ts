@@ -76,11 +76,13 @@ export async function GET(
           groupSize: b.groupSize,
           status: b.status,
           isRecycled: b.isRecycled || false,
-          name: b.user?.name || '',
-          profilePictureUrl: b.user?.profilePictureUrl || null,
-          userLevel: b.user?.level || null,
-          userGender: b.user?.gender || null,
-          createdAt: b.createdAt?.toISOString()
+          createdAt: b.createdAt?.toISOString(),
+          user: {
+            name: b.user?.name || '',
+            profilePictureUrl: b.user?.profilePictureUrl || null,
+            level: b.user?.level || null,
+            gender: b.user?.gender || null
+          }
         })) || [];
       } else {
         // Si no está cancelado, mostrar solo bookings activos
@@ -90,15 +92,17 @@ export async function GET(
           groupSize: b.groupSize,
           status: b.status,
           isRecycled: b.isRecycled || false,
-          name: b.user?.name || '',
-          profilePictureUrl: b.user?.profilePictureUrl || null,
-          userLevel: b.user?.level || null,
-          userGender: b.user?.gender || null,
-          createdAt: b.createdAt?.toISOString()
+          createdAt: b.createdAt?.toISOString(),
+          user: {
+            name: b.user?.name || '',
+            profilePictureUrl: b.user?.profilePictureUrl || null,
+            level: b.user?.level || null,
+            gender: b.user?.gender || null
+          }
         })) || [];
       }
 
-      return {
+      const formattedBooking = {
         id: booking.id,
         userId: booking.userId,
         timeSlotId: booking.timeSlotId,
@@ -134,6 +138,8 @@ export async function GET(
           bookings: timeSlotBookings
         }
       };
+
+      return formattedBooking;
     });
 
     console.log(`✅ Cargadas ${formattedBookings.length} reservas para usuario ${userId}`);

@@ -47,6 +47,7 @@ interface CalendarEvent {
   bookings?: any[];
   isOpen?: boolean;
   genderCategory?: string;
+  totalCards?: number; // 🆕 Número de tarjetas abiertas para este horario/instructor
 }
 
 interface CalendarData {
@@ -117,6 +118,11 @@ export default function ClubCalendar2({
   const [selectedGroupSize, setSelectedGroupSize] = useState<1 | 2 | 3 | 4>(1);
   // Layout orientation: horizontal (instructores en filas) o vertical (horas en filas)
   const [layoutOrientation, setLayoutOrientation] = useState<'horizontal' | 'vertical'>('vertical');
+  // 🆕 Modo de vista: 'clases', 'partidas', 'reservar-pistas'
+  const [viewModeCalendar, setViewModeCalendar] = useState<'clases' | 'partidas' | 'reservar-pistas'>('clases');
+  // 🆕 Estado para diálogo de reserva de pista
+  const [showCourtReservation, setShowCourtReservation] = useState(false);
+  const [selectedCourtSlot, setSelectedCourtSlot] = useState<{ date: Date; time: string; courtNumber?: number } | null>(null);
   // Estado para el diálogo de cerrar sesión
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
 
@@ -791,6 +797,31 @@ export default function ClubCalendar2({
         />
       </div>
 
+      {/* 🆕 Botones de selección de modo: Clases, Partidas, Reservar Pistas */}
+      <div className="flex gap-2 mb-4 justify-center">
+        <Button
+          onClick={() => setViewModeCalendar('clases')}
+          variant={viewModeCalendar === 'clases' ? 'default' : 'outline'}
+          className="flex-1 max-w-[200px]"
+        >
+          🎓 Clases
+        </Button>
+        <Button
+          onClick={() => setViewModeCalendar('partidas')}
+          variant={viewModeCalendar === 'partidas' ? 'default' : 'outline'}
+          className="flex-1 max-w-[200px]"
+        >
+          🏆 Partidas
+        </Button>
+        <Button
+          onClick={() => setViewModeCalendar('reservar-pistas')}
+          variant={viewModeCalendar === 'reservar-pistas' ? 'default' : 'outline'}
+          className="flex-1 max-w-[200px]"
+        >
+          🎾 Reservar Pistas
+        </Button>
+      </div>
+
       {/* Vista del calendario basada en pistas - DISEÑO MEJORADO */}
       <Card className="shadow-xl border-gray-200">
         <CardContent className="p-0">
@@ -936,7 +967,11 @@ export default function ClubCalendar2({
                       });
                       // Buscar clases propuestas de ESTE instructor en este slot
                       const canStartClassHere = hasFullHourAvailable(instructor.id, time, currentDate);
-                      const instructorClasses = (calendarData?.proposedClasses || []).filter(cls => {
+                      
+                      // 🆕 Si estamos en modo "reservar-pistas", NO mostrar propuestas
+                      const showProposals = viewModeCalendar !== 'reservar-pistas';
+                      
+                      const instructorClasses = showProposals ? (calendarData?.proposedClasses || []).filter(cls => {
                         const clsStart = new Date(cls.start);
                         const [hourStr, minuteStr] = time.split(':');
                         const slotHour = parseInt(hourStr);
@@ -951,7 +986,7 @@ export default function ClubCalendar2({
                           matchesUserFilter = isParticipant || isInstructor;
                         }
                         return isSameInstructor && isSameDay && isSameTime && matchesUserFilter;
-                      });
+                      }) : [];
                       const hasBookings = instructorClasses.some(cls => cls.bookings && cls.bookings.length > 0);
                       const visibleClasses = (canStartClassHere || hasBookings) ? instructorClasses : [];
                       const sortedClasses = [...visibleClasses].sort((a, b) => {
@@ -1148,6 +1183,8 @@ export default function ClubCalendar2({
                                 // Calcular si tiene plazas recicladas
                                 const recycledCount = cls.bookings?.filter((b: any) => b.status === 'CANCELLED' && b.isRecycled === true).length || 0;
                                 const hasRecycledSlots = recycledCount > 0;
+                                // 🆕 Obtener número de tarjetas abiertas
+                                const totalCards = (cls as any).totalCards || 1;
                                 
                                 return (
                                   <div
@@ -1158,8 +1195,15 @@ export default function ClubCalendar2({
                                         : 'bg-white text-gray-700 border-gray-300'
                                     }`}
                                     onClick={() => handleEventClick(cls)}
-                                    title={`${cls.category || cls.level} - ${cls.playersCount || 0} alumno${(cls.playersCount || 0) !== 1 ? 's' : ''} inscrito${(cls.playersCount || 0) !== 1 ? 's' : ''} - ${pricePerSlot ? `${pricePerSlot.toFixed(0)}€ por plaza (${selectedGroupSize} ${selectedGroupSize === 1 ? 'jugador' : 'jugadores'})` : ''}${hasRecycledSlots ? ` - ${recycledCount} plaza${recycledCount !== 1 ? 's' : ''} reciclada${recycledCount !== 1 ? 's' : ''} (solo puntos)` : ''}`}
+                                    title={`${cls.category || cls.level} - ${cls.playersCount || 0} alumno${(cls.playersCount || 0) !== 1 ? 's' : ''} inscrito${(cls.playersCount || 0) !== 1 ? 's' : ''} - ${pricePerSlot ? `${pricePerSlot.toFixed(0)}€ por plaza (${selectedGroupSize} ${selectedGroupSize === 1 ? 'jugador' : 'jugadores'})` : ''}${hasRecycledSlots ? ` - ${recycledCount} plaza${recycledCount !== 1 ? 's' : ''} reciclada${recycledCount !== 1 ? 's' : ''} (solo puntos)` : ''}${totalCards > 1 ? ` - ${totalCards} tarjetas abiertas compitiendo` : ''}`}
                                   >
+                                    {/* 🆕 Indicador de número de tarjetas abiertas (círculo con número) */}
+                                    {totalCards > 1 && (
+                                      <div className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 border-2 border-white flex items-center justify-center shadow-lg z-20">
+                                        <span className="text-[9px] font-black text-white">{totalCards}</span>
+                                      </div>
+                                    )}
+                                    
                                     {/* Indicador de plaza reciclada */}
                                     {hasRecycledSlots && (
                                       <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-yellow-400 border border-yellow-600 flex items-center justify-center shadow-md z-10">
@@ -1203,7 +1247,29 @@ export default function ClubCalendar2({
                           </div>
                         );
                       }
-                      // 4. Celda vacía
+                      // 4. Celda vacía o botón de reservar pista
+                      // Si estamos en modo "reservar-pistas", mostrar botón "Reservar Pista"
+                      if (viewModeCalendar === 'reservar-pistas') {
+                        return (
+                          <div key={slotIndex} className="w-12 md:w-14 h-24 border-r relative flex-shrink-0 bg-blue-50/30 hover:bg-blue-100/50 transition-colors">
+                            <button
+                              onClick={() => {
+                                setSelectedCourtSlot({ date: currentDate, time, courtNumber: undefined });
+                                setShowCourtReservation(true);
+                              }}
+                              className="w-full h-full flex flex-col items-center justify-center text-blue-600 hover:text-blue-800 transition-colors group"
+                              title="Reservar pista en este horario"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mb-1 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                              </svg>
+                              <span className="text-[8px] font-bold uppercase">Reservar</span>
+                            </button>
+                          </div>
+                        );
+                      }
+                      
+                      // Celda vacía normal
                       return (
                         <div key={slotIndex} className="w-12 md:w-14 h-24 border-r relative flex-shrink-0"></div>
                       );
@@ -1355,7 +1421,10 @@ export default function ClubCalendar2({
                           });
                           
                           // Buscar clases propuestas de este instructor en este slot
-                          const instructorClasses = (calendarData?.proposedClasses || []).filter(cls => {
+                          // 🆕 Si estamos en modo "reservar-pistas", NO mostrar propuestas
+                          const showProposals = viewModeCalendar !== 'reservar-pistas';
+                          
+                          const instructorClasses = showProposals ? (calendarData?.proposedClasses || []).filter(cls => {
                             const clsStart = new Date(cls.start);
                             const [hourStr, minuteStr] = time.split(':');
                             const slotHour = parseInt(hourStr);
@@ -1380,7 +1449,7 @@ export default function ClubCalendar2({
                             if (aHasBookings && !bHasBookings) return -1;
                             if (!aHasBookings && bHasBookings) return 1;
                             return 0;
-                          });
+                          }) : [];
 
                           return (
                             <div 
@@ -1510,6 +1579,8 @@ export default function ClubCalendar2({
                                     // Calcular si tiene plazas recicladas
                                     const recycledCount = cls.bookings?.filter((b: any) => b.status === 'CANCELLED' && b.isRecycled === true).length || 0;
                                     const hasRecycledSlots = recycledCount > 0;
+                                    // 🆕 Obtener número de tarjetas abiertas
+                                    const totalCards = (cls as any).totalCards || 1;
                                     
                                     return (
                                       <div
@@ -1520,8 +1591,15 @@ export default function ClubCalendar2({
                                             : 'bg-white text-gray-700 border-gray-300'
                                         }`}
                                         onClick={() => handleEventClick(cls)}
-                                        title={`${cls.category || cls.level} - ${cls.playersCount || 0} alumno${(cls.playersCount || 0) !== 1 ? 's' : ''} inscrito${(cls.playersCount || 0) !== 1 ? 's' : ''} - ${pricePerSlot ? `${pricePerSlot.toFixed(0)}€ por plaza (${selectedGroupSize} ${selectedGroupSize === 1 ? 'jugador' : 'jugadores'})` : ''}${hasRecycledSlots ? ` - ${recycledCount} plaza${recycledCount !== 1 ? 's' : ''} reciclada${recycledCount !== 1 ? 's' : ''} (solo puntos)` : ''}`}
+                                        title={`${cls.category || cls.level} - ${cls.playersCount || 0} alumno${(cls.playersCount || 0) !== 1 ? 's' : ''} inscrito${(cls.playersCount || 0) !== 1 ? 's' : ''} - ${pricePerSlot ? `${pricePerSlot.toFixed(0)}€ por plaza (${selectedGroupSize} ${selectedGroupSize === 1 ? 'jugador' : 'jugadores'})` : ''}${hasRecycledSlots ? ` - ${recycledCount} plaza${recycledCount !== 1 ? 's' : ''} reciclada${recycledCount !== 1 ? 's' : ''} (solo puntos)` : ''}${totalCards > 1 ? ` - ${totalCards} tarjetas abiertas compitiendo` : ''}`}
                                       >
+                                        {/* 🆕 Indicador de número de tarjetas abiertas (círculo con número) */}
+                                        {totalCards > 1 && (
+                                          <div className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 border-2 border-white flex items-center justify-center shadow-lg z-20">
+                                            <span className="text-[9px] font-black text-white">{totalCards}</span>
+                                          </div>
+                                        )}
+                                        
                                         {/* Indicador de plaza reciclada */}
                                         {hasRecycledSlots && (
                                           <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-yellow-400 border border-yellow-600 flex items-center justify-center shadow-md z-10">
@@ -1562,6 +1640,23 @@ export default function ClubCalendar2({
                                     </div>
                                   )}
                                 </div>
+                              )}
+                              
+                              {/* 🆕 Botón "Reservar Pista" en modo reservar-pistas */}
+                              {viewModeCalendar === 'reservar-pistas' && confirmedInSlot.length === 0 && !isSecondSlotOfClass && !isBufferBeforeClass && instructorClasses.length === 0 && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedCourtSlot({ date: currentDate, time, courtNumber: undefined });
+                                    setShowCourtReservation(true);
+                                  }}
+                                  className="absolute inset-0 flex flex-col items-center justify-center text-blue-600 hover:text-blue-800 hover:bg-blue-100/30 transition-all group"
+                                  title="Reservar pista en este horario"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 mb-1 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                                  </svg>
+                                  <span className="text-[9px] font-bold uppercase">Reservar</span>
+                                </button>
                               )}
                             </div>
                           );
@@ -1704,6 +1799,34 @@ export default function ClubCalendar2({
         </DialogContent>
       </Dialog>
 
+      {/* 🆕 Modal para reservar pista */}
+      <Dialog open={showCourtReservation} onOpenChange={setShowCourtReservation}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reservar Pista</DialogTitle>
+          </DialogHeader>
+          <CourtReservationDialog 
+            selectedSlot={selectedCourtSlot}
+            clubId={clubId}
+            currentUser={currentUser}
+            calendarData={calendarData}
+            onClose={() => {
+              setShowCourtReservation(false);
+              setSelectedCourtSlot(null);
+            }}
+            onReservationSuccess={() => {
+              setShowCourtReservation(false);
+              setSelectedCourtSlot(null);
+              // Recargar calendario
+              setTimeout(() => {
+                loadCalendarData(false, true);
+                loadUserBookings();
+              }, 300);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
       {/* Diálogo de confirmación para cerrar sesión */}
       <LogoutConfirmationDialog
         isOpen={isLogoutDialogOpen}
@@ -1716,6 +1839,170 @@ export default function ClubCalendar2({
           window.location.href = '/auth/login';
         }}
       />
+    </div>
+  );
+}
+
+// 🆕 Componente para diálogo de reserva de pista
+function CourtReservationDialog({ 
+  selectedSlot, 
+  clubId, 
+  currentUser,
+  calendarData,
+  onClose, 
+  onReservationSuccess 
+}: { 
+  selectedSlot: { date: Date; time: string; courtNumber?: number } | null;
+  clubId: string;
+  currentUser: any;
+  calendarData: CalendarData | null;
+  onClose: () => void;
+  onReservationSuccess: () => void;
+}) {
+  const [duration, setDuration] = useState<30 | 60 | 90 | 120>(60);
+  const [loading, setLoading] = useState(false);
+  const [pricePerHour, setPricePerHour] = useState<number>(10);
+
+  useEffect(() => {
+    // Calcular precio por hora según la hora seleccionada
+    if (selectedSlot) {
+      fetchCourtPrice();
+    }
+  }, [selectedSlot]);
+
+  const fetchCourtPrice = async () => {
+    if (!selectedSlot) return;
+    
+    try {
+      const [hour, minute] = selectedSlot.time.split(':');
+      const startDate = new Date(selectedSlot.date);
+      startDate.setHours(parseInt(hour), parseInt(minute), 0, 0);
+      
+      // Obtener precio de pista para esa hora
+      const response = await fetch(`/api/court-pricing?clubId=${clubId}&date=${startDate.toISOString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        setPricePerHour(data.pricePerHour || 10);
+      }
+    } catch (error) {
+      console.error('Error fetching court price:', error);
+    }
+  };
+
+  const handleReservation = async () => {
+    if (!selectedSlot || !currentUser) return;
+    
+    setLoading(true);
+    try {
+      const [hour, minute] = selectedSlot.time.split(':');
+      const startDate = new Date(selectedSlot.date);
+      startDate.setHours(parseInt(hour), parseInt(minute), 0, 0);
+      
+      const endDate = new Date(startDate);
+      endDate.setMinutes(endDate.getMinutes() + duration);
+      
+      // Calcular precio proporcional
+      const totalPrice = pricePerHour * (duration / 60);
+      
+      // Crear reserva privada de pista
+      const response = await fetch('/api/bookings/court-reservation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clubId,
+          courtId: selectedSlot.courtNumber !== undefined && calendarData?.courts[selectedSlot.courtNumber] 
+            ? calendarData.courts[selectedSlot.courtNumber].id 
+            : null, // Si no hay pista específica, el backend asignará automáticamente
+          start: startDate.toISOString(),
+          end: endDate.toISOString(),
+          userId: currentUser.id,
+          duration,
+          totalPrice
+        })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Error al crear reserva');
+      }
+      
+      onReservationSuccess();
+    } catch (error) {
+      console.error('Error:', error);
+      alert(error instanceof Error ? error.message : 'Error al crear reserva');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!selectedSlot) return null;
+  
+  const totalPrice = pricePerHour * (duration / 60);
+
+  return (
+    <div className="space-y-4">
+      <div className="p-4 bg-blue-50 rounded-lg">
+        <p className="text-sm text-gray-700">
+          <strong>Fecha:</strong> {selectedSlot.date.toLocaleDateString('es-ES')}
+        </p>
+        <p className="text-sm text-gray-700">
+          <strong>Hora:</strong> {selectedSlot.time}
+        </p>
+        {selectedSlot.courtNumber !== undefined && (
+          <p className="text-sm text-gray-700">
+            <strong>Pista:</strong> {selectedSlot.courtNumber}
+          </p>
+        )}
+      </div>
+      
+      <div>
+        <label className="block text-sm font-medium mb-2">Duración</label>
+        <div className="grid grid-cols-2 gap-2">
+          {[30, 60, 90, 120].map((dur) => (
+            <Button
+              key={dur}
+              onClick={() => setDuration(dur as 30 | 60 | 90 | 120)}
+              variant={duration === dur ? 'default' : 'outline'}
+              className="w-full"
+            >
+              {dur} min
+            </Button>
+          ))}
+        </div>
+      </div>
+      
+      <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+        <div className="flex justify-between items-center">
+          <span className="font-medium">Precio por hora:</span>
+          <span className="text-lg font-bold">{pricePerHour.toFixed(2)}€</span>
+        </div>
+        <div className="flex justify-between items-center mt-2">
+          <span className="font-medium">Duración:</span>
+          <span>{duration} minutos</span>
+        </div>
+        <div className="flex justify-between items-center mt-2 pt-2 border-t border-green-300">
+          <span className="font-bold text-lg">Total a pagar:</span>
+          <span className="text-2xl font-bold text-green-700">{totalPrice.toFixed(2)}€</span>
+        </div>
+      </div>
+      
+      <div className="flex gap-2">
+        <Button
+          onClick={onClose}
+          variant="outline"
+          className="flex-1"
+          disabled={loading}
+        >
+          Cancelar
+        </Button>
+        <Button
+          onClick={handleReservation}
+          className="flex-1"
+          disabled={loading}
+        >
+          {loading ? 'Reservando...' : 'Confirmar Reserva'}
+        </Button>
+      </div>
     </div>
   );
 }

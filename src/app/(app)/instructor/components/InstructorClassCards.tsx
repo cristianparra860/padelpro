@@ -260,21 +260,21 @@ export default function InstructorClassCards({ instructor, onlyWithBookings = fa
         <div className="space-y-4">
           {/* Resumen de clases */}
           <div className="grid grid-cols-3 gap-4 mb-4">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
               <div className="text-sm text-blue-600 font-medium">Propuestas</div>
               <div className="text-2xl font-bold text-blue-700">
                 {filteredSlots.filter(s => !s.courtId).length}
               </div>
               <div className="text-xs text-blue-500">Sin pista asignada</div>
             </div>
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-2">
               <div className="text-sm text-green-600 font-medium">Confirmadas</div>
               <div className="text-2xl font-bold text-green-700">
                 {filteredSlots.filter(s => s.courtId).length}
               </div>
               <div className="text-xs text-green-500">Con pista asignada</div>
             </div>
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-2">
               <div className="text-sm text-purple-600 font-medium">Con Alumnos</div>
               <div className="text-2xl font-bold text-purple-700">
                 {filteredSlots.filter(s => s.bookings && s.bookings.length > 0).length}

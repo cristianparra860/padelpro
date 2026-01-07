@@ -5,6 +5,63 @@ import { getCourtPriceForTime } from '@/lib/courtPricing';
 const prisma = new PrismaClient();
 
 /**
+ * Calcula el precio del instructor según tarifas especiales por horario
+ */
+function getInstructorPriceForTime(
+  instructor: {
+    hourlyRate: number | null;
+    defaultRatePerHour: number | null;
+    rateTiers: string | null;
+  },
+  startDateTime: Date
+): number {
+  // Precio base por defecto
+  const basePrice = instructor.hourlyRate || instructor.defaultRatePerHour || 0;
+  
+  // Si no hay tarifas especiales, retornar precio base
+  if (!instructor.rateTiers) {
+    return basePrice;
+  }
+  
+  try {
+    const rateTiers = JSON.parse(instructor.rateTiers);
+    
+    // Si no es un array válido, retornar precio base
+    if (!Array.isArray(rateTiers) || rateTiers.length === 0) {
+      return basePrice;
+    }
+    
+    // Obtener día de la semana y hora de la clase
+    const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][startDateTime.getUTCDay()];
+    const timeString = startDateTime.toISOString().substring(11, 16); // "HH:MM"
+    
+    // Buscar tarifa especial aplicable
+    const matchingTier = rateTiers.find((tier: any) => {
+      // Verificar que tenga los campos necesarios
+      if (!tier.days || !Array.isArray(tier.days) || !tier.startTime || !tier.endTime || typeof tier.rate !== 'number') {
+        return false;
+      }
+      
+      // Verificar si el día coincide
+      const isDayMatch = tier.days.includes(dayOfWeek);
+      if (!isDayMatch) return false;
+      
+      // Verificar si la hora está en el rango (startTime <= timeString < endTime)
+      const isTimeInRange = timeString >= tier.startTime && timeString < tier.endTime;
+      
+      return isTimeInRange;
+    });
+    
+    // Si encontramos una tarifa especial, usarla; si no, usar precio base
+    return matchingTier ? matchingTier.rate : basePrice;
+    
+  } catch (error) {
+    console.warn('⚠️  Error parseando rateTiers, usando precio base:', error);
+    return basePrice;
+  }
+}
+
+/**
  * 🤖 API ENDPOINT: Generador automático de tarjetas
  * 
  * GET /api/cron/generate-cards?daysRange=30
@@ -143,8 +200,8 @@ async function generateCardsForDay(date: string, clubId: string) {
   }
 
   // Obtener TODOS los instructores activos con sus rangos de nivel y disponibilidad
-  const instructors = await prisma.$queryRaw<Array<{id: string; hourlyRate: number | null; defaultRatePerHour: number | null; levelRanges: string | null; unavailableHours: string | null}>>`
-    SELECT id, hourlyRate, defaultRatePerHour, levelRanges, unavailableHours FROM Instructor WHERE isActive = 1
+  const instructors = await prisma.$queryRaw<Array<{id: string; hourlyRate: number | null; defaultRatePerHour: number | null; levelRanges: string | null; unavailableHours: string | null; rateTiers: string | null}>>`
+    SELECT id, hourlyRate, defaultRatePerHour, levelRanges, unavailableHours, rateTiers FROM Instructor WHERE isActive = 1
   `;
 
   if (!instructors || instructors.length === 0) {
@@ -313,9 +370,9 @@ async function generateCardsForDay(date: string, clubId: string) {
       // CREAR TARJETA ABIERTA
       const timeSlotId = `ts_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // Calcular precio basado en franjas horarias
+      // Calcular precio basado en franjas horarias y tarifas especiales del instructor
       const courtPrice = await getCourtPriceForTime(clubId, startDateTime);
-      const instructorPrice = instructor.hourlyRate || instructor.defaultRatePerHour || 0;
+      const instructorPrice = getInstructorPriceForTime(instructor, startDateTime);
       const totalPrice = instructorPrice + courtPrice;
 
       // Convertir fechas a timestamps numéricos para SQLite

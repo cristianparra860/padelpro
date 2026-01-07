@@ -142,9 +142,10 @@ async function cancelOtherActivitiesOnSameDay(userId: string, confirmedMatchGame
     // Devolver créditos/puntos bloqueados
     if (booking.status === 'CONFIRMED') {
       if (isPaidWithPoints) {
-        await prisma.user.update({
+        const updatedUser = await prisma.user.update({
           where: { id: userId },
-          data: { points: { increment: pointsBlocked } }
+          data: { points: { increment: pointsBlocked } },
+          select: { points: true, blockedPoints: true }
         });
         
         await createTransaction({
@@ -152,17 +153,19 @@ async function cancelOtherActivitiesOnSameDay(userId: string, confirmedMatchGame
           type: 'points',
           action: 'refund',
           amount: pointsBlocked,
+          balance: updatedUser.points - updatedUser.blockedPoints,
           concept: `Reembolso por conflicto con partida ${confirmedMatchGameId}`,
           relatedId: booking.id,
           relatedType: 'booking'
         });
       } else {
-        await prisma.user.update({
+        const updatedUser = await prisma.user.update({
           where: { id: userId },
           data: { 
             credits: { increment: amountBlocked },
             blockedCredits: { decrement: amountBlocked }
-          }
+          },
+          select: { credits: true, blockedCredits: true }
         });
         
         await createTransaction({
@@ -170,6 +173,7 @@ async function cancelOtherActivitiesOnSameDay(userId: string, confirmedMatchGame
           type: 'credit',
           action: 'unblock',
           amount: amountBlocked,
+          balance: updatedUser.credits - updatedUser.blockedCredits,
           concept: `Desbloqueo por conflicto con partida ${confirmedMatchGameId}`,
           relatedId: booking.id,
           relatedType: 'booking'
@@ -206,9 +210,10 @@ async function cancelOtherActivitiesOnSameDay(userId: string, confirmedMatchGame
     // Devolver créditos/puntos bloqueados
     if (booking.status === 'CONFIRMED') {
       if (booking.paidWithPoints) {
-        await prisma.user.update({
+        const updatedUser = await prisma.user.update({
           where: { id: userId },
-          data: { points: { increment: pointsBlocked } }
+          data: { points: { increment: pointsBlocked } },
+          select: { points: true, blockedPoints: true }
         });
         
         await createTransaction({
@@ -216,17 +221,19 @@ async function cancelOtherActivitiesOnSameDay(userId: string, confirmedMatchGame
           type: 'points',
           action: 'refund',
           amount: pointsBlocked,
+          balance: updatedUser.points - updatedUser.blockedPoints,
           concept: `Reembolso por conflicto con partida ${confirmedMatchGameId}`,
           relatedId: booking.id,
           relatedType: 'matchGameBooking'
         });
       } else {
-        await prisma.user.update({
+        const updatedUser = await prisma.user.update({
           where: { id: userId },
           data: { 
             credits: { increment: amountBlocked },
             blockedCredits: { decrement: amountBlocked }
-          }
+          },
+          select: { credits: true, blockedCredits: true }
         });
         
         await createTransaction({
@@ -234,6 +241,7 @@ async function cancelOtherActivitiesOnSameDay(userId: string, confirmedMatchGame
           type: 'credit',
           action: 'unblock',
           amount: amountBlocked,
+          balance: updatedUser.credits - updatedUser.blockedCredits,
           concept: `Desbloqueo por conflicto con partida ${confirmedMatchGameId}`,
           relatedId: booking.id,
           relatedType: 'matchGameBooking'
@@ -355,11 +363,12 @@ async function cancelCompetingMatches(confirmedMatchGameId: string, prisma: any)
       // Reembolsar créditos o puntos
       if (booking.paidWithPoints) {
         // Devolver puntos bloqueados
-        await prisma.user.update({
+        const updatedUser = await prisma.user.update({
           where: { id: booking.userId },
           data: { 
             blockedPoints: { decrement: booking.pointsUsed }
-          }
+          },
+          select: { points: true, blockedPoints: true }
         });
         
         await createTransaction({
@@ -367,17 +376,19 @@ async function cancelCompetingMatches(confirmedMatchGameId: string, prisma: any)
           type: 'points',
           action: 'unblock',
           amount: booking.pointsUsed,
+          balance: updatedUser.points - updatedUser.blockedPoints,
           concept: `Reembolso por partida perdedora ${match.id} (ganó ${confirmedMatchGameId})`,
           relatedId: booking.id,
           relatedType: 'matchGameBooking'
         });
       } else {
         // Devolver créditos bloqueados
-        await prisma.user.update({
+        const updatedUser = await prisma.user.update({
           where: { id: booking.userId },
           data: { 
             blockedCredits: { decrement: booking.amountBlocked }
-          }
+          },
+          select: { credits: true, blockedCredits: true }
         });
         
         await createTransaction({
@@ -385,6 +396,7 @@ async function cancelCompetingMatches(confirmedMatchGameId: string, prisma: any)
           type: 'credit',
           action: 'unblock',
           amount: booking.amountBlocked,
+          balance: updatedUser.credits - updatedUser.blockedCredits,
           concept: `Reembolso por partida perdedora ${match.id} (ganó ${confirmedMatchGameId})`,
           relatedId: booking.id,
           relatedType: 'matchGameBooking'
@@ -559,9 +571,10 @@ export async function POST(request: Request) {
         
         console.log('💳 Bloqueando fondos...');
         // Bloquear fondos
-        await prisma.user.update({
+        const updatedUser = await prisma.user.update({
           where: { id: userId },
-          data: { blockedCredits: { increment: totalPriceToBlock } }
+          data: { blockedCredits: { increment: totalPriceToBlock } },
+          select: { credits: true, blockedCredits: true }
         });
         
         console.log('📝 Creando transacción...');
@@ -570,6 +583,7 @@ export async function POST(request: Request) {
           type: 'credit',
           action: 'block',
           amount: totalPriceToBlock,
+          balance: updatedUser.credits - updatedUser.blockedCredits,
           concept: `Reserva privada de pista ${availableCourt.number}`,
           relatedId: booking.id,
           relatedType: 'matchGameBooking'
@@ -696,9 +710,10 @@ export async function POST(request: Request) {
     
     // Bloquear fondos
     if (paymentMethod === 'CREDITS') {
-      await prisma.user.update({
+      const updatedUser = await prisma.user.update({
         where: { id: userId },
-        data: { blockedCredits: { increment: priceToBlock } }
+        data: { blockedCredits: { increment: priceToBlock } },
+        select: { credits: true, blockedCredits: true }
       });
       
       const matchDate = new Date(matchGame.start).toLocaleString('es-ES', {
@@ -714,14 +729,16 @@ export async function POST(request: Request) {
         type: 'credit',
         action: 'block',
         amount: priceToBlock,
+        balance: updatedUser.credits - updatedUser.blockedCredits,
         concept: `Reserva de partida ${matchDate}`,
         relatedId: booking.id,
         relatedType: 'matchGameBooking'
       });
     } else {
-      await prisma.user.update({
+      const updatedUser = await prisma.user.update({
         where: { id: userId },
-        data: { blockedPoints: { increment: matchGame.creditsCost } }
+        data: { blockedPoints: { increment: matchGame.creditsCost } },
+        select: { points: true, blockedPoints: true }
       });
       
       await createTransaction({
@@ -729,6 +746,7 @@ export async function POST(request: Request) {
         type: 'points',
         action: 'block',
         amount: matchGame.creditsCost,
+        balance: updatedUser.points - updatedUser.blockedPoints,
         concept: `Reserva de partida ${matchGameId}`,
         relatedId: booking.id,
         relatedType: 'matchGameBooking'
@@ -738,6 +756,10 @@ export async function POST(request: Request) {
     // Si es el primer jugador de una partida abierta, clasificar la partida
     if (isFirstPlayer) {
       console.log(`\n🎯 PRIMER JUGADOR - CLASIFICANDO PARTIDA`);
+      console.log(`   📊 Datos:`);
+      console.log(`      - isOpen: ${matchGame.isOpen}`);
+      console.log(`      - previousBookingsCount: ${previousBookingsCount}`);
+      console.log(`      - matchGameId: ${matchGameId}`);
       
       const userLevelNum = parseFloat(user.level);
       let levelRange = '0-7'; // Por defecto abierto a todos
@@ -757,9 +779,13 @@ export async function POST(request: Request) {
       });
       
       console.log(`   ✅ Partida clasificada: Nivel ${levelRange}, Género ${user.gender || 'mixto'}`);
+      console.log(`   🔄 Generando nueva partida abierta...`);
       
       // Generar nueva partida abierta
-      await generateNewOpenMatchGame(matchGame, prisma);
+      const newOpenMatch = await generateNewOpenMatchGame(matchGame, prisma);
+      console.log(`   ✅ Nueva partida abierta generada: ${newOpenMatch.id}`);
+    } else {
+      console.log(`\n⏭️ NO es primer jugador (isOpen: ${matchGame.isOpen}, count: ${previousBookingsCount})`);
     }
     
     // Verificar si la partida se completó
@@ -850,9 +876,10 @@ export async function POST(request: Request) {
             
             // Reembolsar
             if (booking.paidWithPoints) {
-              await prisma.user.update({
+              const updatedUser = await prisma.user.update({
                 where: { id: booking.userId },
-                data: { blockedPoints: { decrement: booking.pointsUsed } }
+                data: { blockedPoints: { decrement: booking.pointsUsed } },
+                select: { points: true, blockedPoints: true }
               });
               
               await createTransaction({
@@ -860,14 +887,16 @@ export async function POST(request: Request) {
                 type: 'points',
                 action: 'unblock',
                 amount: booking.pointsUsed,
+                balance: updatedUser.points - updatedUser.blockedPoints,
                 concept: `Reembolso - Sin pistas disponibles para ${new Date(match.start).toLocaleTimeString()}`,
                 relatedId: booking.id,
                 relatedType: 'matchGameBooking'
               });
             } else {
-              await prisma.user.update({
+              const updatedUser = await prisma.user.update({
                 where: { id: booking.userId },
-                data: { blockedCredits: { decrement: booking.amountBlocked } }
+                data: { blockedCredits: { decrement: booking.amountBlocked } },
+                select: { credits: true, blockedCredits: true }
               });
               
               await createTransaction({
@@ -875,6 +904,7 @@ export async function POST(request: Request) {
                 type: 'credit',
                 action: 'unblock',
                 amount: booking.amountBlocked,
+                balance: updatedUser.credits - updatedUser.blockedCredits,
                 concept: `Reembolso - Sin pistas disponibles para ${new Date(match.start).toLocaleTimeString()}`,
                 relatedId: booking.id,
                 relatedType: 'matchGameBooking'
@@ -920,12 +950,13 @@ export async function POST(request: Request) {
       
       for (const b of allBookings) {
         if (b.paidWithPoints) {
-          await prisma.user.update({
+          const updatedUser = await prisma.user.update({
             where: { id: b.userId },
             data: {
               blockedPoints: { decrement: b.pointsUsed },
               points: { decrement: b.pointsUsed }
-            }
+            },
+            select: { points: true, blockedPoints: true }
           });
           
           await createTransaction({
@@ -933,17 +964,19 @@ export async function POST(request: Request) {
             type: 'points',
             action: 'subtract',
             amount: b.pointsUsed,
+            balance: updatedUser.points - updatedUser.blockedPoints,
             concept: `Pago partida confirmada ${matchGameId}`,
             relatedId: b.id,
             relatedType: 'matchGameBooking'
           });
         } else {
-          await prisma.user.update({
+          const updatedUser = await prisma.user.update({
             where: { id: b.userId },
             data: {
               blockedCredits: { decrement: b.amountBlocked },
               credits: { decrement: b.amountBlocked }
-            }
+            },
+            select: { credits: true, blockedCredits: true }
           });
           
           await createTransaction({
@@ -951,6 +984,7 @@ export async function POST(request: Request) {
             type: 'credit',
             action: 'subtract',
             amount: b.amountBlocked,
+            balance: updatedUser.credits - updatedUser.blockedCredits,
             concept: `Pago partida confirmada ${matchGameId}`,
             relatedId: b.id,
             relatedType: 'matchGameBooking'
