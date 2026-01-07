@@ -1895,19 +1895,19 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                     <div key={index} className="flex flex-col items-center gap-0.5 relative w-10">
                       <div
                         className={cn(
-                          "w-10 h-10 rounded-full border flex items-center justify-center text-[10px] font-bold transition-all shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]",
+                          "w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all border-2",
                           isCancelledSlot
-                            ? 'border-red-600 bg-red-500 text-white ring-4 ring-red-300' // 🔴 Plaza cancelada en panel canceladas
+                            ? 'bg-white border-red-600 ring-4 ring-red-300' // 🔴 Plaza cancelada en panel canceladas
                             : isRecycledBooking
-                            ? 'border-yellow-500 bg-yellow-400 text-yellow-900 recycled-slot-blink' // ♻️ Plaza reciclada en panel principal
+                            ? 'bg-white border-yellow-500 recycled-slot-blink' // ♻️ Plaza reciclada en panel principal
                             : isOccupied 
-                              ? (isThisCircleCredits ? 'border-amber-500 bg-white' : 'border-green-500 bg-white')
+                              ? (isThisCircleCredits ? 'bg-white border-amber-500 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]' : 'bg-white border-gray-200 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]')
                               : (isThisCircleCredits 
-                                  ? 'border-4 border-yellow-400 bg-amber-50 text-amber-600 shadow-[0_0_20px_rgba(234,179,8,0.8)]' // 🎁 Plaza vacía con puntos - BORDE AMARILLO GRUESO + sombra amarilla
-                                  : 'border-dashed border-green-400 bg-white text-green-400'),
+                                  ? 'bg-amber-50 border-yellow-400 border-4 text-amber-600 shadow-[0_0_20px_rgba(234,179,8,0.8)]' // 🎁 Plaza vacía con puntos
+                                  : 'bg-gray-100 border-gray-300 text-gray-400 text-xl shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-pointer hover:bg-gray-200 hover:border-gray-400'),
                           isCurrentUser && 'ring-2 ring-blue-400 ring-offset-1',
                           isAnotherModalityConfirmed && 'grayscale opacity-50',
-                          isThisCircleCredits && !isOccupied && !isCancelledSlot && 'shadow-[0_0_15px_rgba(245,158,11,0.5)] animate-pulse' // 🎁 Glow dorado pulsante para plazas con puntos
+                          isThisCircleCredits && !isOccupied && !isCancelledSlot && 'shadow-[0_0_15px_rgba(245,158,11,0.5)] animate-pulse' // 🎁 Glow dorado pulsante
                         )}
                         title={
                           isCancelledSlot
@@ -1981,8 +1981,8 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                               );
                             } else {
                               return (
-                                <div className="w-full h-full rounded-full bg-green-400 flex items-center justify-center shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]">
-                                  <span className="text-white text-sm font-bold">
+                                <div className="w-full h-full rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]">
+                                  <span className="text-white text-xs font-bold">
                                     {getInitials(booking.user?.name || booking.userId)}
                                   </span>
                                 </div>
@@ -2015,7 +2015,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                               </div>
                             </div>
                           ) : isThisCircleCredits ? (
-                            <Gift className="w-2.5 h-2.5 text-amber-600" />
+                            <Gift className="w-5 h-5 text-amber-600" />
                           ) : (
                             '+'
                           )
@@ -2031,7 +2031,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                         ) : isThisCircleCredits ? (
                           <span className="text-amber-600 font-bold">{creditsCost}p</span>
                         ) : (
-                          <span className="text-green-400">Libre</span>
+                          <span className="text-gray-400">Libre</span>
                         )}
                       </span>
                     </div>

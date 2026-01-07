@@ -412,10 +412,10 @@ async function cancelCompetingMatches(confirmedMatchGameId: string, prisma: any)
 
 export async function POST(request: Request) {
   try {
-    const { matchGameId, userId, paymentMethod = 'CREDITS', privateBooking = false } = await request.json();
+    const { matchGameId, userId, paymentMethod = 'CREDITS', privateBooking = false, usePoints = false } = await request.json();
     
     console.log('\n🎾 === BOOKING MATCH GAME ===');
-    console.log('📝 Datos recibidos:', { matchGameId, userId, paymentMethod, privateBooking });
+    console.log('📝 Datos recibidos:', { matchGameId, userId, paymentMethod, privateBooking, usePoints });
     
     if (!matchGameId || !userId) {
       return NextResponse.json(
@@ -450,7 +450,12 @@ export async function POST(request: Request) {
       where: { id: matchGameId },
       include: {
         bookings: {
-          where: { status: { not: 'CANCELLED' } },
+          where: {
+            OR: [
+              { status: { not: 'CANCELLED' } },
+              { status: 'CANCELLED', isRecycled: true }
+            ]
+          },
           include: {
             user: {
               select: { id: true, name: true, level: true, gender: true }
@@ -462,6 +467,90 @@ export async function POST(request: Request) {
     
     if (!matchGame) {
       return NextResponse.json({ error: 'Partida no encontrada' }, { status: 404 });
+    }
+    
+    // 🔄 RESERVA CON PUNTOS (Plaza Reciclada)
+    if (usePoints) {
+      console.log('\n♻️ === RESERVA CON PUNTOS (PLAZA RECICLADA) ===');
+      
+      // Buscar plaza reciclada disponible
+      const recycledBooking = matchGame.bookings.find(b => b.status === 'CANCELLED' && b.isRecycled);
+      
+      if (!recycledBooking) {
+        return NextResponse.json(
+          { error: 'No hay plazas recicladas disponibles' },
+          { status: 400 }
+        );
+      }
+      
+      // Calcular coste en puntos (precio de pista / 4 jugadores)
+      const pointsRequired = Math.floor((matchGame.courtRentalPrice || 0) / 4);
+      
+      console.log(`💰 Coste en puntos: ${pointsRequired}`);
+      console.log(`👛 Puntos disponibles: ${user.points}`);
+      
+      // Verificar puntos suficientes
+      if (user.points < pointsRequired) {
+        return NextResponse.json(
+          { error: `Puntos insuficientes. Necesitas ${pointsRequired} puntos y tienes ${user.points}` },
+          { status: 400 }
+        );
+      }
+      
+      // Crear reserva con puntos
+      const result = await prisma.$transaction(async (tx) => {
+        // Deducir puntos del usuario
+        const updatedUser = await tx.user.update({
+          where: { id: userId },
+          data: { points: { decrement: pointsRequired } }
+        });
+        
+        // Marcar la plaza reciclada como ocupada (volver a CONFIRMED)
+        await tx.matchGameBooking.update({
+          where: { id: recycledBooking.id },
+          data: {
+            userId: userId,
+            status: 'CONFIRMED',
+            isRecycled: false,
+            paidWithPoints: true,
+            pointsUsed: pointsRequired
+          }
+        });
+        
+        // Crear registro de transacción
+        const matchDate = new Date(matchGame.start);
+        const dateStr = matchDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+        const timeStr = matchDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        
+        await tx.transaction.create({
+          data: {
+            userId: userId,
+            type: 'points',
+            action: 'subtract',
+            amount: pointsRequired,
+            balance: updatedUser.points,
+            concept: `Reserva plaza reciclada - ${dateStr} ${timeStr}h`,
+            relatedId: recycledBooking.id,
+            relatedType: 'matchGameBooking',
+            metadata: JSON.stringify({
+              matchGameId: matchGame.id,
+              bookingId: recycledBooking.id,
+              pointsUsed: pointsRequired
+            })
+          }
+        });
+        
+        return recycledBooking;
+      });
+      
+      console.log('✅ Reserva con puntos completada');
+      
+      return NextResponse.json({
+        success: true,
+        message: 'Plaza reciclada reservada con puntos',
+        booking: result,
+        pointsUsed: pointsRequired
+      });
     }
     
     // 🔢 GUARDAR el número de jugadores ANTES de añadir el nuevo

@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
     // ⚡ Query optimizada con filtros en SQL
     const classesRaw = await prisma.$queryRawUnsafe(
       `SELECT id, start, end, maxPlayers, totalPrice, level, category, levelRange, 
-              courtId, courtNumber, instructorId, clubId
+              courtId, courtNumber, instructorId, clubId, genderCategory
        FROM TimeSlot
        WHERE start >= ? AND start <= ?${clubId ? ' AND clubId = ?' : ''}
        ORDER BY start ASC`,

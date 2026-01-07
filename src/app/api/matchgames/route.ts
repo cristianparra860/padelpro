@@ -33,7 +33,10 @@ export async function GET(request: NextRequest) {
       include: {
         bookings: {
           where: {
-            status: { in: ['PENDING', 'CONFIRMED'] }
+            OR: [
+              { status: { in: ['PENDING', 'CONFIRMED'] } },
+              { status: 'CANCELLED', isRecycled: true } // ♻️ Incluir plazas recicladas
+            ]
           },
           include: {
             user: {

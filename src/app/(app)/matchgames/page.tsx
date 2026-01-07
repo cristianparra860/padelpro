@@ -54,6 +54,12 @@ type ViewFilter = 'all' | 'onlyEmpty' | 'onlyAvailable' | 'onlyMyMatches';
 export default function MatchGamesPage() {
   const { toast } = useToast();
   const [matches, setMatches] = useState<MatchGame[]>([]);
+  const [mounted, setMounted] = useState(false);
+
+  // Evitar hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Estilos personalizados para scrollbar
   useEffect(() => {
@@ -552,13 +558,13 @@ export default function MatchGamesPage() {
         {/* Selector de fecha */}
         <div className="flex gap-2 mb-2">
           <Button
-            variant={format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'default' : 'outline'}
+            variant={mounted && format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'default' : 'outline'}
             onClick={() => setSelectedDate(new Date())}
           >
             Hoy
           </Button>
           <Button
-            variant={format(selectedDate, 'yyyy-MM-dd') === format(new Date(Date.now() + 86400000), 'yyyy-MM-dd') ? 'default' : 'outline'}
+            variant={mounted && format(selectedDate, 'yyyy-MM-dd') === format(new Date(Date.now() + 86400000), 'yyyy-MM-dd') ? 'default' : 'outline'}
             onClick={() => setSelectedDate(new Date(Date.now() + 86400000))}
           >
             Mañana

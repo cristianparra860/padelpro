@@ -34,7 +34,8 @@ interface MatchGameCardProps {
 
 interface Booking {
   userId: string;
-  status: 'PENDING' | 'CONFIRMED';
+  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED';
+  isRecycled?: boolean; // Si la plaza es reciclada
   name?: string;
   profilePictureUrl?: string;
   userLevel?: string;
@@ -52,39 +53,59 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
   const { toast } = useToast();
   const [booking, setBooking] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showPointsDialog, setShowPointsDialog] = useState(false);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelling, setCancelling] = useState(false);
 
-  // Parse bookings
-  const bookings: Booking[] = useMemo(() => {
+  // Parse bookings activos (solo CONFIRMED/PENDING)
+  const activeBookings: Booking[] = useMemo(() => {
     if (!matchGame.bookings || !Array.isArray(matchGame.bookings)) return [];
-    return matchGame.bookings.filter((b: any) => b.status !== 'CANCELLED');
+    return matchGame.bookings.filter((b: any) => 
+      b.status === 'CONFIRMED' || 
+      b.status === 'PENDING'
+    );
   }, [matchGame.bookings]);
 
-  // Check if user is already booked
+  // Parse ALL bookings incluyendo reciclados (para mostrar círculos amarillos)
+  const displayBookings: Booking[] = useMemo(() => {
+    if (!matchGame.bookings || !Array.isArray(matchGame.bookings)) return [];
+    return matchGame.bookings.filter((b: any) => 
+      b.status === 'CONFIRMED' || 
+      b.status === 'PENDING' ||
+      (b.status === 'CANCELLED' && b.isRecycled === true)
+    );
+  }, [matchGame.bookings]);
+
+  // Check if user is already booked (solo en reservas activas, no recicladas)
   const userBooking = useMemo(() => {
     if (!currentUser?.id) return null;
-    return bookings.find(b => b.userId === currentUser.id);
-  }, [bookings, currentUser?.id]);
+    return activeBookings.find(b => b.userId === currentUser.id);
+  }, [activeBookings, currentUser?.id]);
 
   const isUserBooked = !!userBooking;
 
   // Detectar si es una reserva privada (1 usuario con las 4 plazas)
   const isPrivateBooking = useMemo(() => {
-    if (bookings.length !== 1) return false;
+    if (activeBookings.length !== 1) return false;
     // Si hay courtNumber asignado y solo 1 booking, es reserva privada
-    return matchGame.courtNumber && bookings.length === 1;
-  }, [bookings, matchGame.courtNumber]);
+    return matchGame.courtNumber && activeBookings.length === 1;
+  }, [activeBookings, matchGame.courtNumber]);
 
-  // Si es reserva privada, replicar el usuario 4 veces
-  const displayBookings = useMemo(() => {
-    if (isPrivateBooking && bookings.length === 1) {
-      const privateUser = bookings[0];
+  // Para mostrar en UI: si es reserva privada, replicar usuario 4 veces
+  // Si no, usar todos los bookings incluyendo reciclados
+  const bookingsForDisplay = useMemo(() => {
+    if (isPrivateBooking && activeBookings.length === 1) {
+      const privateUser = activeBookings[0];
       return [privateUser, privateUser, privateUser, privateUser];
     }
-    return bookings;
-  }, [isPrivateBooking, bookings]);
+    // Incluir bookings reciclados para mostrar círculos amarillos
+    return matchGame.bookings?.filter((b: any) => 
+      b.status === 'CONFIRMED' || 
+      b.status === 'PENDING' ||
+      (b.status === 'CANCELLED' && b.isRecycled === true)
+    ) || [];
+  }, [isPrivateBooking, activeBookings, matchGame.bookings]);
 
   // Level and gender info
   const levelInfo = useMemo(() => {
@@ -97,7 +118,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
     }
     
     // 🔹 PRIORIDAD 2: Si no hay jugadores inscritos, mostrar "ABIERTO"
-    if (bookings.length === 0) {
+    if (activeBookings.length === 0) {
       return {
         level: 'Abierto',
         isAssigned: false
@@ -105,7 +126,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
     }
     
     // 🔹 PRIORIDAD 3: Si hay jugadores, obtener el nivel del primer jugador
-    const firstPlayer = bookings[0];
+    const firstPlayer = activeBookings[0];
     const playerLevel = firstPlayer.userLevel;
     
     if (!playerLevel) {
@@ -145,7 +166,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
       level: rangeLabel,
       isAssigned: true
     };
-  }, [matchGame.isOpen, matchGame.level, bookings]);
+  }, [matchGame.isOpen, matchGame.level, activeBookings]);
 
   const categoryInfo = useMemo(() => {
     // 🔹 PRIORIDAD 1: Si la partida está clasificada (isOpen = false), usar genderCategory de la BD
@@ -157,7 +178,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
     }
     
     // 🔹 PRIORIDAD 2: Si no hay jugadores inscritos, mostrar "Abierta"
-    if (bookings.length === 0) {
+    if (activeBookings.length === 0) {
       return {
         category: 'abierta',
         isAssigned: false
@@ -165,7 +186,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
     }
     
     // 🔹 PRIORIDAD 3: Analizar géneros de TODOS los jugadores inscritos
-    const genders = bookings
+    const genders = activeBookings
       .map(b => b.userGender)
       .filter(g => g && g !== 'undefined' && g !== 'null');
     
@@ -196,7 +217,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
       category: categoryLabel,
       isAssigned: true
     };
-  }, [matchGame.isOpen, matchGame.genderCategory, bookings]);
+  }, [matchGame.isOpen, matchGame.genderCategory, activeBookings]);
 
   const courtAssignment = useMemo(() => {
     if (matchGame.courtNumber) {
@@ -275,6 +296,72 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
       }
     } catch (error) {
       console.error('Error booking:', error);
+      toast({
+        title: "Error de conexión",
+        description: "No se pudo conectar con el servidor",
+        variant: "destructive"
+      });
+    } finally {
+      setBooking(false);
+    }
+  };
+
+  // Handle booking with points (plaza reciclada)
+  const handleBookWithPoints = async () => {
+    if (!currentUser) {
+      toast({
+        title: "Error",
+        description: "Debes iniciar sesión para reservar",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const pointsRequired = Math.floor((matchGame.courtRentalPrice || 0) / 4);
+    
+    if ((currentUser.points || 0) < pointsRequired) {
+      toast({
+        title: "Puntos insuficientes",
+        description: `Necesitas ${pointsRequired} puntos pero solo tienes ${currentUser.points || 0}`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setBooking(true);
+    try {
+      const response = await fetch('/api/matchgames/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          userId: currentUser.id,
+          matchGameId: matchGame.id,
+          usePoints: true, // Indicador de reserva con puntos
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        toast({
+          title: "♻️ ¡Plaza reservada con puntos!",
+          description: result.message || `Has reservado la plaza usando ${pointsRequired} puntos.`,
+          className: "bg-yellow-500 text-white"
+        });
+
+        setShowPointsDialog(false);
+        onBookingSuccess();
+      } else {
+        const error = await response.json();
+        toast({
+          title: "Error en la reserva",
+          description: error.error || "No se pudo completar la reserva",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error booking with points:', error);
       toast({
         title: "Error de conexión",
         description: "No se pudo conectar con el servidor",
@@ -426,12 +513,12 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
     }
   };
 
-  const spotsLeft = 4 - bookings.length;
+  const spotsLeft = 4 - activeBookings.length;
 
   return (
     <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow bg-white border-2 border-gray-200 rounded-2xl w-full scale-[0.88]">
       {/* Header con Badge de estado */}
-      <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-1.5">
+      <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-3 py-1.5">
         <div className="flex items-center justify-between">
           {/* Icono decorativo y duración */}
           <div className="flex items-center gap-1.5">
@@ -439,7 +526,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             <span className="text-white text-[10px] font-semibold">(90min)</span>
           </div>
           
-          {/* Botón Reserva Privada O Botón Cancelar - No mostrar si es reserva privada */}
+          {/* Badge o botones de acción */}
           {isPrivateBooking ? (
             <Badge variant="outline" className="h-6 text-[10px] px-2 bg-blue-600 text-white border-white">
               Reserva Privada
@@ -464,59 +551,6 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             >
               {booking ? 'Cancelando...' : 'Cancelar'}
             </Button>
-          ) : showPrivateBookingButton ? (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-6 text-[10px] px-2 bg-white hover:bg-gray-50 text-blue-600 border-white font-bold shadow-[0_2px_8px_rgba(59,130,246,0.5)]"
-                  disabled={booking}
-                >
-                  {booking ? 'Reservando...' : 'clica aqui para reservar pista'}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Confirmar Reserva de Pista</AlertDialogTitle>
-                  <AlertDialogDescription className="space-y-3">
-                    <div className="text-base text-gray-900 font-medium">
-                      ¿Deseas reservar la pista completa para esta partida?
-                    </div>
-                    <div className="bg-blue-50 p-3 rounded-lg space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-gray-700">📅 Fecha:</span>
-                        <span className="font-medium">{format(new Date(matchGame.start), "EEEE d 'de' MMMM", { locale: es })}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-700">⏰ Hora:</span>
-                        <span className="font-medium">{format(new Date(matchGame.start), 'HH:mm')} - {format(new Date(matchGame.end), 'HH:mm')}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-700">⏱️ Duración:</span>
-                        <span className="font-medium">{matchGame.duration} minutos</span>
-                      </div>
-                      <div className="flex justify-between border-t border-blue-200 pt-2 mt-2">
-                        <span className="text-gray-700 font-semibold">💰 Precio Total:</span>
-                        <span className="font-bold text-lg text-blue-600">€{(matchGame.courtRentalPrice || 0).toFixed(2)}</span>
-                      </div>
-                    </div>
-                    <div className="text-sm text-gray-600 bg-yellow-50 p-2 rounded">
-                      <strong>Nota:</strong> Se te asignará una pista automáticamente y se bloqueará el importe total de tu saldo.
-                    </div>
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction 
-                    onClick={handlePrivateBooking}
-                    className="bg-blue-600 hover:bg-blue-700"
-                  >
-                    Confirmar Reserva
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
           ) : null}
         </div>
       </div>
@@ -625,7 +659,8 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
           <div className="flex justify-center items-center gap-3 py-1.5">
             {[0, 1, 2, 3].map((index) => {
               const booking = displayBookings[index];
-              const isOccupied = !!booking;
+              const isOccupied = !!booking && booking.status !== 'CANCELLED';
+              const isRecycled = booking?.status === 'CANCELLED' && booking?.isRecycled === true;
               const displayName = booking?.user?.name || 'Disponible';
 
               return (
@@ -635,13 +670,25 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
                       "w-12 h-12 rounded-full flex items-center justify-center text-xl font-semibold transition-all border-2",
                       isOccupied 
                         ? "bg-white border-gray-200 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-default" 
+                        : isRecycled
+                        ? "bg-yellow-100 border-yellow-400 text-yellow-600 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-pointer hover:bg-yellow-200 hover:border-yellow-500"
                         : isPrivateBooking
                         ? "bg-gray-100 border-gray-300 text-gray-400 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-not-allowed opacity-50"
                         : "bg-gray-100 border-gray-300 text-gray-400 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-pointer hover:bg-gray-200 hover:border-gray-400"
                     )}
-                    title={isOccupied ? booking.user?.name : isPrivateBooking ? 'Reserva privada completa' : 'Clic para unirte'}
+                    title={
+                      isOccupied 
+                        ? booking.user?.name 
+                        : isRecycled
+                        ? 'Plaza reciclada - Solo con puntos'
+                        : isPrivateBooking 
+                        ? 'Reserva privada completa' 
+                        : 'Clic para unirte'
+                    }
                     onClick={() => {
-                      if (!isOccupied && !booking && !isUserBooked && !isPrivateBooking) {
+                      if (isRecycled && !isUserBooked) {
+                        setShowPointsDialog(true);
+                      } else if (!isOccupied && !booking && !isUserBooked && !isPrivateBooking) {
                         setShowConfirmDialog(true);
                       }
                     }}
@@ -654,12 +701,17 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
                           className="w-full h-full object-cover rounded-full shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]"
                         />
                       ) : (
-                        <div className="w-full h-full rounded-full bg-gradient-to-br from-purple-400 to-pink-500 flex items-center justify-center shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]">
+                        <div className="w-full h-full rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]">
                           <span className="text-white text-xs font-bold">
                             {getInitials(booking.user?.name || booking.userId)}
                           </span>
                         </div>
                       )
+                    ) : isRecycled ? (
+                      <div className="flex flex-col items-center">
+                        <span className="text-yellow-600 text-xs font-bold">♻️</span>
+                        <span className="text-yellow-600 text-[8px] font-bold">PTS</span>
+                      </div>
                     ) : (
                       '+'
                     )}
@@ -667,6 +719,8 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
                   <span className="text-[10px] font-medium leading-none">
                     {isOccupied ? (
                       <span className="text-gray-700">{displayName.split(' ')[0]}</span>
+                    ) : isRecycled ? (
+                      <span className="text-yellow-600">Puntos</span>
                     ) : isPrivateBooking ? (
                       <span className="text-gray-400">Ocupado</span>
                     ) : (
@@ -812,6 +866,53 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleBook} className="bg-purple-600 hover:bg-purple-700">
               {booking ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirmar Reserva'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Points Dialog - Reserva con puntos (plaza reciclada) */}
+      <AlertDialog open={showPointsDialog} onOpenChange={setShowPointsDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <span className="text-yellow-600">♻️</span>
+              Reservar Plaza Reciclada
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta plaza fue liberada por otro jugador y solo se puede reservar con puntos de compensación.
+              <br /><br />
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <strong>Costo:</strong>
+                  <span className="text-yellow-700 font-bold">{Math.floor((matchGame.courtRentalPrice || 0) / 4)} puntos</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <strong>Tus puntos:</strong>
+                  <span className={cn(
+                    "font-bold",
+                    (currentUser?.points || 0) >= Math.floor((matchGame.courtRentalPrice || 0) / 4)
+                      ? "text-green-600"
+                      : "text-red-600"
+                  )}>
+                    {currentUser?.points || 0} puntos
+                  </span>
+                </div>
+              </div>
+              <br />
+              <strong>Fecha:</strong> {format(new Date(matchGame.start), "d 'de' MMMM 'a las' HH:mm", { locale: es })}
+              <br />
+              <strong>Duración:</strong> {matchGame.duration} minutos
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleBookWithPoints} 
+              className="bg-yellow-500 hover:bg-yellow-600 text-white"
+              disabled={(currentUser?.points || 0) < Math.floor((matchGame.courtRentalPrice || 0) / 4) || booking}
+            >
+              {booking ? <Loader2 className="w-4 h-4 animate-spin" /> : '♻️ Reservar con Puntos'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

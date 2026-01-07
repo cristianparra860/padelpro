@@ -1,7 +1,7 @@
 // src/components/admin/DateSelector.tsx
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -29,6 +29,12 @@ export default function DateSelector({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  // Evitar hydration mismatch - solo renderizar después de montar en cliente
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // 💾 Guardar fecha seleccionada en localStorage
   const saveSelectedDate = (date: Date) => {
@@ -39,12 +45,16 @@ export default function DateSelector({
     }
   };
 
-  // Generar array de fechas (próximos 30 días desde hoy)
-  const dates = Array.from({ length: daysToShow }, (_, i) => {
-    const date = new Date();
-    date.setDate(date.getDate() + i);
-    return date;
-  });
+  // Generar array de fechas (próximos X días desde hoy)
+  // Usar useMemo para evitar regenerar en cada render y evitar hydration mismatch
+  const dates = useMemo(() => {
+    return Array.from({ length: daysToShow }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() + i);
+      date.setHours(0, 0, 0, 0); // Normalizar hora para evitar diferencias
+      return date;
+    });
+  }, [daysToShow]);
 
   // 🆕 Función para obtener el estado de un día (inscripción o confirmado)
   const getDayBookingStatus = (date: Date): 'pending' | 'confirmed' | null => {
@@ -115,11 +125,14 @@ export default function DateSelector({
 
   const isToday = (date: Date) => {
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     return date.toDateString() === today.toDateString();
   };
 
   const isSelected = (date: Date) => {
-    return date.toDateString() === selectedDate.toDateString();
+    const selected = new Date(selectedDate);
+    selected.setHours(0, 0, 0, 0);
+    return date.toDateString() === selected.toDateString();
   };
 
   const handleDateClick = (date: Date) => {
@@ -169,17 +182,18 @@ export default function DateSelector({
           const bookingStatus = getDayBookingStatus(date); // 🆕 Obtener estado del día
 
           // 🆕 Estilo armonizado con el panel de clases
+          // Usar mounted para evitar mismatch entre servidor y cliente
           let borderColor = 'border-gray-300';
           let shadowStyle = 'shadow-[inset_0_1px_3px_rgba(0,0,0,0.05)]';
           let textColor = 'text-gray-500';
           let dayTextColor = 'text-gray-800';
           
-          if (selected) {
+          if (mounted && selected) {
             borderColor = 'border-green-500';
             shadowStyle = 'shadow-[inset_0_2px_8px_rgba(34,197,94,0.3)]';
             textColor = 'text-green-600';
             dayTextColor = 'text-green-700';
-          } else if (today) {
+          } else if (mounted && today) {
             borderColor = 'border-blue-300';
             shadowStyle = 'shadow-[inset_0_1px_3px_rgba(59,130,246,0.15)]';
             textColor = 'text-blue-500';
@@ -194,7 +208,7 @@ export default function DateSelector({
                   flex flex-col items-center justify-center rounded-lg
                   transition-all duration-200 cursor-pointer border-2 bg-white
                   ${borderColor} ${shadowStyle}
-                  ${selected 
+                  ${mounted && selected 
                     ? layoutOrientation === 'vertical' 
                       ? 'w-[94px] h-[75px] scale-110 ring-2 ring-green-200' 
                       : 'w-[63px] h-[75px] scale-110 ring-2 ring-green-200'
@@ -204,13 +218,13 @@ export default function DateSelector({
                   }
                 `}
               >
-                <span className={`${selected ? 'text-[13px]' : 'text-[9px]'} font-bold uppercase ${textColor}`}>
+                <span className={`${mounted && selected ? 'text-[13px]' : 'text-[9px]'} font-bold uppercase ${textColor}`}>
                   {dayName}
                 </span>
-                <span className={`${selected ? 'text-2xl' : 'text-lg'} font-bold leading-none ${dayTextColor}`}>
+                <span className={`${mounted && selected ? 'text-2xl' : 'text-lg'} font-bold leading-none ${dayTextColor}`}>
                   {dayNumber}
                 </span>
-                <span className={`${selected ? 'text-[11px]' : 'text-[8px]'} uppercase ${textColor}`}>
+                <span className={`${mounted && selected ? 'text-[11px]' : 'text-[8px]'} uppercase ${textColor}`}>
                   {monthName}
                 </span>
               </button>

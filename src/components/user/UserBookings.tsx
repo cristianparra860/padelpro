@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import BookingCard from './BookingCard';
 import MatchGameCard from '@/components/match/MatchGameCard';
+import CourtReservationCard from './CourtReservationCard';
 import { Loader2 } from 'lucide-react';
 import type { User, TimeSlot } from '@/types';
 import { useToast } from '@/hooks/use-toast';
@@ -59,7 +60,7 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab') as 'confirmed' | 'pending' | 'past' | 'cancelled' | null;
   
-  const [bookings, setBookings] = useState<BookingWithTimeSlot[]>([]);
+  const [bookings, setBookings] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<'confirmed' | 'pending' | 'past' | 'cancelled'>(tabParam || 'pending');
   const { toast } = useToast();
@@ -107,10 +108,18 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
         console.log(`✅ Cargadas ${matchBookings.length} reservas de partidas`);
       }
       
-      // Combinar ambos tipos de bookings
-      const allBookings = [...classBookings, ...matchBookings];
+      // Cargar RESERVAS DE PISTAS
+      const courtResponse = await fetch(`/api/users/${currentUser.id}/court-reservations`);
+      let courtReservations: any[] = [];
+      if (courtResponse.ok) {
+        courtReservations = await courtResponse.json();
+        console.log(`✅ Cargadas ${courtReservations.length} reservas de pistas`);
+      }
+      
+      // Combinar todos los tipos de bookings
+      const allBookings = [...classBookings, ...matchBookings, ...courtReservations];
       setBookings(allBookings);
-      console.log(`✅ Total de reservas cargadas: ${allBookings.length} (${classBookings.length} clases + ${matchBookings.length} partidas)`);
+      console.log(`✅ Total de reservas cargadas: ${allBookings.length} (${classBookings.length} clases + ${matchBookings.length} partidas + ${courtReservations.length} pistas)`);
       
     } catch (error) {
       console.error('❌ Error al cargar reservas:', error);
@@ -162,6 +171,47 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
     }
   };
 
+  // Función para cancelar reserva de pista
+  const handleCancelCourtReservation = async (reservationId: string) => {
+    try {
+      console.log('📞 Cancelando reserva de pista:', reservationId);
+      
+      const response = await fetch(`/api/bookings/court-reservation/${reservationId}`, {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        toast({
+          title: "¡Reserva cancelada!",
+          description: "Tu reserva de pista ha sido cancelada exitosamente",
+          className: "bg-orange-600 text-white"
+        });
+        
+        // Recargar bookings
+        await loadBookings();
+        
+        // Notificar al padre para que actualice el calendario
+        if (onBookingActionSuccess) {
+          onBookingActionSuccess();
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        toast({
+          title: "Error al cancelar",
+          description: errorData.error || 'No se pudo cancelar la reserva',
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error canceling court reservation:', error);
+      toast({
+        title: "Error de conexión",
+        description: 'No se pudo conectar con el servidor',
+        variant: "destructive"
+      });
+    }
+  };
+
   useEffect(() => {
     if (currentUser?.id) {
       console.log('🔄 useEffect triggered - Loading bookings for:', currentUser.id);
@@ -194,9 +244,10 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
     switch (activeFilter) {
       case 'confirmed':
         return bookings.filter(b => {
-          // Detectar si es clase o partida
+          // Detectar tipo de reserva
           const isClassBooking = !!b.timeSlot;
           const isMatchBooking = !!b.matchGame;
+          const isCourtReservation = b.type === 'court-reservation';
           
           if (isClassBooking) {
             const hasCourtAssigned = b.timeSlot.court !== null || b.timeSlot.courtId !== null || b.timeSlot.courtNumber !== null;
@@ -208,6 +259,10 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
             const isFuture = new Date(b.matchGame.start) >= now;
             const isNotCancelled = b.status !== 'CANCELLED';
             return hasCourtAssigned && isFuture && isNotCancelled;
+          } else if (isCourtReservation) {
+            const isFuture = new Date(b.end) >= now;
+            const isNotCancelled = b.status !== 'CANCELLED';
+            return isFuture && isNotCancelled;
           }
           return false;
         });
@@ -235,6 +290,7 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
         return bookings.filter(b => {
           const isClassBooking = !!b.timeSlot;
           const isMatchBooking = !!b.matchGame;
+          const isCourtReservation = b.type === 'court-reservation';
           
           if (isClassBooking) {
             const isPast = new Date(b.timeSlot.start) < now;
@@ -242,6 +298,10 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
             return isPast && isNotCancelled;
           } else if (isMatchBooking) {
             const isPast = new Date(b.matchGame.start) < now;
+            const isNotCancelled = b.status !== 'CANCELLED';
+            return isPast && isNotCancelled;
+          } else if (isCourtReservation) {
+            const isPast = new Date(b.end) < now;
             const isNotCancelled = b.status !== 'CANCELLED';
             return isPast && isNotCancelled;
           }
@@ -260,7 +320,7 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
     }
   }, [bookings, activeFilter]);
 
-  console.log(`📊 Bookings filtrados: ${filteredBookings.length} (clases: ${filteredBookings.filter(b => !!b.timeSlot).length}, partidas: ${filteredBookings.filter(b => !!b.matchGame).length})`);
+  console.log(`📊 Bookings filtrados: ${filteredBookings.length} (clases: ${filteredBookings.filter(b => !!b.timeSlot).length}, partidas: ${filteredBookings.filter(b => !!b.matchGame).length}, pistas: ${filteredBookings.filter(b => b.type === 'court-reservation').length})`);
 
   // Memoizar contadores para evitar recalcular en cada render
   const counts = useMemo(() => {
@@ -269,6 +329,7 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
       confirmed: bookings.filter(b => {
         const isClassBooking = !!b.timeSlot;
         const isMatchBooking = !!b.matchGame;
+        const isCourtReservation = b.type === 'court-reservation';
         
         if (isClassBooking) {
           const hasCourtAssigned = b.timeSlot.court !== null || b.timeSlot.courtId !== null || b.timeSlot.courtNumber !== null;
@@ -280,6 +341,10 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
           const isFuture = new Date(b.matchGame.start) >= now;
           const isNotCancelled = b.status !== 'CANCELLED';
           return hasCourtAssigned && isFuture && isNotCancelled;
+        } else if (isCourtReservation) {
+          const isFuture = new Date(b.end) >= now;
+          const isNotCancelled = b.status !== 'CANCELLED';
+          return isFuture && isNotCancelled;
         }
         return false;
       }).length,
@@ -303,6 +368,7 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
       past: bookings.filter(b => {
         const isClassBooking = !!b.timeSlot;
         const isMatchBooking = !!b.matchGame;
+        const isCourtReservation = b.type === 'court-reservation';
         
         if (isClassBooking) {
           const isPast = new Date(b.timeSlot.start) < now;
@@ -310,6 +376,10 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
           return isPast && isNotCancelled;
         } else if (isMatchBooking) {
           const isPast = new Date(b.matchGame.start) < now;
+          const isNotCancelled = b.status !== 'CANCELLED';
+          return isPast && isNotCancelled;
+        } else if (isCourtReservation) {
+          const isPast = new Date(b.end) < now;
           const isNotCancelled = b.status !== 'CANCELLED';
           return isPast && isNotCancelled;
         }
@@ -880,6 +950,7 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
                 {filteredBookings.map((booking) => {
                   const isClassBooking = !!booking.timeSlot;
                   const isMatchBooking = !!booking.matchGame;
+                  const isCourtReservation = booking.type === 'court-reservation';
                   
                   if (isClassBooking) {
                     return (
@@ -902,6 +973,14 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
                         onBookingSuccess={handleBookingSuccess}
                         showLeaveButton={true}
                         showPrivateBookingButton={false}
+                      />
+                    );
+                  } else if (isCourtReservation) {
+                    return (
+                      <CourtReservationCard
+                        key={booking.id}
+                        reservation={booking}
+                        onCancel={handleCancelCourtReservation}
                       />
                     );
                   }

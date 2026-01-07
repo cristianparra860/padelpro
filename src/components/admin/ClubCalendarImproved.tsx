@@ -6,6 +6,9 @@ import { Card } from '@/components/ui/card';
 import ClassCardReal from '@/components/class/ClassCardReal';
 import MatchGameCard from '@/components/match/MatchGameCard';
 import DateSelector from '@/components/admin/DateSelector';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { MapPin, Clock } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -101,6 +104,7 @@ export default function ClubCalendarImproved({
   const [showCourtReservation, setShowCourtReservation] = useState(false);
   const [selectedCourtSlot, setSelectedCourtSlot] = useState<{ date: Date; time: string; courtNumber?: number } | null>(null);
   const [isReserving, setIsReserving] = useState(false);
+  const [reservationStep, setReservationStep] = useState<1 | 2>(1); // Paso de confirmación para reserva de pista
   const { toast } = useToast();
   const [selectedReservationSlot, setSelectedReservationSlot] = useState<{
     courtId: string;
@@ -108,6 +112,8 @@ export default function ClubCalendarImproved({
     timeSlot: string;
     existingReservation?: any;
   } | null>(null);
+  const [showCourtReservationDetails, setShowCourtReservationDetails] = useState(false);
+  const [selectedCourtReservationDetails, setSelectedCourtReservationDetails] = useState<any>(null);
 
   // Actualizar hora actual cada minuto
   useEffect(() => {
@@ -1593,7 +1599,11 @@ export default function ClubCalendarImproved({
                               className="border border-gray-200 p-0.5 bg-white"
                             >
                               <div
-                                className={`rounded-xl h-full flex flex-col justify-center items-center border-2 ${
+                                onClick={() => {
+                                  setSelectedCourtReservationDetails(userReservation);
+                                  setShowCourtReservationDetails(true);
+                                }}
+                                className={`rounded-xl h-full flex flex-col justify-center items-center border-2 cursor-pointer hover:opacity-90 transition-opacity ${
                                   isMyReservation 
                                     ? 'border-green-400 bg-gradient-to-br from-green-500 to-emerald-500' 
                                     : 'border-purple-400 bg-gradient-to-br from-purple-500 to-pink-500'
@@ -1913,6 +1923,7 @@ export default function ClubCalendarImproved({
                                   <div 
                                     onClick={() => {
                                       setSelectedCourtSlot({ date: currentDate, time: timeSlot, courtNumber: court.number });
+                                      setReservationStep(1); // Resetear al paso 1
                                       setShowCourtReservation(true);
                                     }}
                                     className="bg-white rounded-lg p-1 cursor-pointer hover:shadow-xl hover:scale-105 transition-all h-full border border-gray-300 shadow-lg flex items-center relative overflow-visible"
@@ -2149,7 +2160,12 @@ export default function ClubCalendarImproved({
       )}
 
       {/* Dialog para reservar pista (usuarios normales) */}
-      <Dialog open={showCourtReservation} onOpenChange={setShowCourtReservation}>
+      <Dialog open={showCourtReservation} onOpenChange={(open) => {
+        setShowCourtReservation(open);
+        if (!open) {
+          setReservationStep(1); // Resetear al paso 1 cuando se cierra
+        }
+      }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-orange-600">🎾 Reservar Pista</DialogTitle>
@@ -2196,7 +2212,10 @@ export default function ClubCalendarImproved({
                     return (
                       <button
                         key={duration}
-                        onClick={() => setSelectedDuration(duration as 30 | 60 | 90 | 120)}
+                        onClick={() => {
+                          setSelectedDuration(duration as 30 | 60 | 90 | 120);
+                          setReservationStep(1); // Resetear al paso 1 cuando cambia la duración
+                        }}
                         className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all ${
                           isSelected
                             ? 'bg-orange-500 border-orange-600 text-white shadow-lg scale-105'
@@ -2227,12 +2246,32 @@ export default function ClubCalendarImproved({
                 </div>
               </div>
 
+              {/* Mensaje de confirmación en paso 2 */}
+              {reservationStep === 2 && (
+                <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                      <span className="text-white text-xl font-bold">✓</span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-green-800 font-bold text-sm mb-1">
+                        Selección confirmada
+                      </div>
+                      <div className="text-green-700 text-xs">
+                        Has seleccionado <span className="font-bold">{selectedDuration} minutos</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Botones de acción */}
               <div className="flex gap-2">
                 <button
                   onClick={() => {
                     setShowCourtReservation(false);
                     setSelectedCourtSlot(null);
+                    setReservationStep(1); // Resetear paso
                   }}
                   className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-all"
                 >
@@ -2240,6 +2279,13 @@ export default function ClubCalendarImproved({
                 </button>
                 <button
                   onClick={async () => {
+                    // Paso 1: Mostrar confirmación
+                    if (reservationStep === 1) {
+                      setReservationStep(2);
+                      return;
+                    }
+                    
+                    // Paso 2: Procesar la reserva
                     console.log('🔍 DEBUG: Iniciando reserva', {
                       hasSlot: !!selectedCourtSlot,
                       hasUser: !!currentUser,
@@ -2406,16 +2452,194 @@ export default function ClubCalendarImproved({
                     } finally {
                       console.log('🏁 Finalizando proceso de reserva...');
                       setIsReserving(false);
+                      setReservationStep(1); // Resetear paso después de la reserva
                     }
                   }}
                   disabled={isReserving}
                   className="flex-1 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg font-bold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isReserving ? 'Procesando...' : 'Confirmar Reserva'}
+                  {isReserving ? 'Procesando...' : reservationStep === 1 ? 'Seleccionar' : 'Confirmar Reserva'}
                 </button>
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para ver detalles de reserva de pista */}
+      <Dialog open={showCourtReservationDetails} onOpenChange={setShowCourtReservationDetails}>
+        <DialogContent className="max-w-md p-0 overflow-hidden">
+          {selectedCourtReservationDetails && (() => {
+            const start = new Date(selectedCourtReservationDetails.start || selectedCourtReservationDetails.startTime);
+            const end = new Date(selectedCourtReservationDetails.end || selectedCourtReservationDetails.endTime);
+            const duration = Math.round((end.getTime() - start.getTime()) / 1000 / 60);
+            const userId = selectedCourtReservationDetails.reason?.split(':')[1] || '';
+            const isMyReservation = currentUser && currentUser.id === userId;
+            const isPast = end < new Date();
+            const courtNumber = selectedCourtReservationDetails.courtNumber || calendarData?.courts.find(c => c.id === selectedCourtReservationDetails.courtId)?.number;
+            
+            return (
+              <div className="bg-white rounded-lg overflow-hidden">
+                {/* Header con gradiente */}
+                <div className={`bg-gradient-to-r px-4 py-3 ${
+                  isMyReservation 
+                    ? 'from-green-600 to-emerald-600' 
+                    : 'from-blue-600 to-cyan-600'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-5 h-5 text-white" />
+                      <span className="text-white text-sm font-semibold">
+                        {isMyReservation ? 'Tu Reserva de Pista' : 'Reserva de Pista'} ({duration}min)
+                      </span>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      isPast 
+                        ? 'bg-gray-600 text-white' 
+                        : 'bg-white/20 text-white border border-white/30'
+                    }`}>
+                      {isPast ? 'Completada' : 'Confirmada'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-4">
+                  {/* Grid de información */}
+                  <div className="grid grid-cols-3 gap-2 text-center text-sm mb-3 pb-3 border-b border-gray-100">
+                    <div>
+                      <div className="font-medium text-gray-900 text-xs mb-1">Usuario</div>
+                      <div className={`px-2 py-1 rounded-full text-xs font-medium shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] ${
+                        isMyReservation 
+                          ? 'bg-green-100 text-green-700' 
+                          : 'bg-purple-100 text-purple-700'
+                      }`}>
+                        {selectedCourtReservationDetails.userName?.split(' ')[0] || 'Usuario'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-medium text-gray-900 text-xs mb-1">Pista</div>
+                      <div className="px-2 py-1 rounded-full text-xs font-medium shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] bg-blue-100 text-blue-700">
+                        Pista {courtNumber || '-'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-medium text-gray-900 text-xs mb-1">Duración</div>
+                      <div className="px-2 py-1 rounded-full text-xs font-medium shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] bg-purple-100 text-purple-700">
+                        {duration} min
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Fecha y hora */}
+                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-200 mb-3">
+                    <div className="flex items-center justify-between">
+                      {/* Fecha - Izquierda */}
+                      <div className="flex items-center gap-2">
+                        <div className="text-2xl font-black text-gray-900 leading-none min-w-[2rem] text-center">
+                          {format(start, 'dd', { locale: es })}
+                        </div>
+                        <div className="flex flex-col justify-center gap-0.5">
+                          <div className="text-xs font-bold text-gray-900 uppercase tracking-tight leading-none">
+                            {format(start, 'EEEE', { locale: es })}
+                          </div>
+                          <div className="text-[10px] font-normal text-gray-500 capitalize leading-none">
+                            {format(start, 'MMMM', { locale: es })}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Hora - Derecha */}
+                      <div className="text-right">
+                        <div className="text-xl font-bold text-gray-900 leading-none">
+                          {format(start, 'HH:mm')}
+                        </div>
+                        <div className="text-[10px] text-gray-500 flex items-center justify-end gap-1 mt-0.5">
+                          <Clock className="w-2.5 h-2.5" />
+                          <span>{format(start, 'HH:mm')} - {format(end, 'HH:mm')}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Detalles adicionales */}
+                  <div className="bg-blue-50 rounded-lg p-3 border border-blue-100 mb-3">
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">📍 Ubicación:</span>
+                        <span className="font-medium text-gray-900">
+                          {selectedCourtReservationDetails.courtName || `Pista ${courtNumber}`}
+                        </span>
+                      </div>
+                      {isMyReservation && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-600">✅ Estado:</span>
+                          <span className="font-medium text-green-700">Esta es tu reserva</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">⏱️ Tiempo:</span>
+                        <span className="font-medium text-gray-900">{duration} minutos</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Botones de acción */}
+                  <div className="space-y-2">
+                    {isMyReservation && !isPast && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const response = await fetch(`/api/bookings/court-reservation/${selectedCourtReservationDetails.id}`, {
+                              method: 'DELETE',
+                            });
+
+                            if (response.ok) {
+                              toast({
+                                title: "¡Reserva cancelada!",
+                                description: "Tu reserva de pista ha sido cancelada exitosamente",
+                                className: "bg-orange-600 text-white"
+                              });
+                              setShowCourtReservationDetails(false);
+                              // Recargar calendario
+                              setTimeout(() => {
+                                const dateParam = getLocalDateString(currentDate);
+                                sessionStorage.removeItem(`calendar-${clubId}-${dateParam}`);
+                                setCurrentDate(new Date(currentDate.getTime()));
+                              }, 300);
+                            } else {
+                              const error = await response.json();
+                              toast({
+                                title: "Error al cancelar",
+                                description: error.error || 'No se pudo cancelar la reserva',
+                                variant: "destructive"
+                              });
+                            }
+                          } catch (error) {
+                            console.error('Error canceling court reservation:', error);
+                            toast({
+                              title: "Error de conexión",
+                              description: 'No se pudo conectar con el servidor',
+                              variant: "destructive"
+                            });
+                          }
+                        }}
+                        className="w-full px-4 py-2.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors font-semibold border border-red-200"
+                      >
+                        Cancelar Reserva
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => setShowCourtReservationDetails(false)}
+                      className="w-full px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-semibold"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>
