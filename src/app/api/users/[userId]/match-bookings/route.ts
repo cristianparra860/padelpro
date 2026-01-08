@@ -11,7 +11,8 @@ export async function GET(
     // Obtener todos los MatchGameBookings del usuario
     const matchBookings = await prisma.matchGameBooking.findMany({
       where: {
-        userId: userId
+        userId: userId,
+        hiddenFromHistory: false // 🗑️ Excluir bookings ocultos del historial
       },
       include: {
         user: {

@@ -15,16 +15,31 @@ import DateSelector from '@/components/admin/DateSelector';
 interface InstructorClassCardsProps {
   instructor: InstructorType;
   onlyWithBookings?: boolean;
+  selectedDate?: Date;
+  onDateChange?: (date: Date) => void;
 }
 
-export default function InstructorClassCards({ instructor, onlyWithBookings = false }: InstructorClassCardsProps) {
+export default function InstructorClassCards({ instructor, onlyWithBookings = false, selectedDate: externalDate, onDateChange }: InstructorClassCardsProps) {
   const [timeSlots, setTimeSlots] = useState<ApiTimeSlot[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date>(externalDate || new Date());
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past' | 'all'>('upcoming');
   const [instructorBookings, setInstructorBookings] = useState<any[]>([]); // 📊 Reservas del instructor para calendario
+  // Sincronizar con fecha externa
+  useEffect(() => {
+    if (externalDate && externalDate.getTime() !== selectedDate.getTime()) {
+      setSelectedDate(externalDate);
+    }
+  }, [externalDate]);
 
+  // Función para cambiar fecha y notificar al padre
+  const handleDateChange = (newDate: Date) => {
+    setSelectedDate(newDate);
+    if (onDateChange) {
+      onDateChange(newDate);
+    }
+  };
   // 📊 Cargar todas las reservas del instructor para los próximos 30 días
   useEffect(() => {
     const loadInstructorBookings = async () => {
@@ -226,7 +241,7 @@ export default function InstructorClassCards({ instructor, onlyWithBookings = fa
       {/* Selector de fecha horizontal con scroll */}
       <DateSelector
         selectedDate={selectedDate}
-        onDateChange={setSelectedDate}
+        onDateChange={handleDateChange}
         daysToShow={30}
         userBookings={instructorBookings} // 📊 Pasar reservas del instructor
       />

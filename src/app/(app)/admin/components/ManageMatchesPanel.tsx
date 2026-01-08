@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useTransition, useMemo } from 'react';
 import type { Match } from '@/types';
-import { fetchMatches, deleteMatch, removePlayerFromMatch } from '@/lib/mockData';
+import { fetchMatches, removePlayerFromMatch } from '@/lib/mockData';
 import MatchAdminCard from './MatchAdminCard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, Trophy } from 'lucide-react';
@@ -64,14 +64,38 @@ const ManageMatchesPanel: React.FC<ManageMatchesPanelProps> = ({ clubId }) => {
   const handleCancelMatch = (matchId: string) => {
     setProcessingAction({ type: 'cancelMatch', entityId: matchId });
     startTransition(async () => {
-      const result = await deleteMatch(matchId);
-      if ('error' in result) {
-        toast({ title: "Error al Cancelar Partida", description: result.error, variant: "destructive" });
-      } else {
-        toast({ title: "Partida Cancelada", description: result.message, className: "bg-accent text-accent-foreground", duration: 5000 });
-        setRefreshKey(prev => prev + 1);
+      try {
+        const response = await fetch(`/api/admin/matchgames/${matchId}`, {
+          method: 'DELETE'
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          toast({ 
+            title: "Error al Cancelar Partida", 
+            description: result.error || 'Error desconocido', 
+            variant: "destructive" 
+          });
+        } else {
+          toast({ 
+            title: "Partida Cancelada", 
+            description: result.message || 'Partida eliminada correctamente', 
+            className: "bg-accent text-accent-foreground", 
+            duration: 5000 
+          });
+          setRefreshKey(prev => prev + 1);
+        }
+      } catch (error) {
+        console.error('Error al cancelar partida:', error);
+        toast({ 
+          title: "Error de Conexión", 
+          description: "No se pudo conectar con el servidor", 
+          variant: "destructive" 
+        });
+      } finally {
+        setProcessingAction(null);
       }
-      setProcessingAction(null);
     });
   };
 

@@ -46,6 +46,7 @@ interface ClassCardRealProps {
   cancelledGroupSize?: number; // Tamaño del grupo que fue cancelado (para marcar plaza específica)
   cancelledUserData?: { name?: string; profilePictureUrl?: string }; // Datos del usuario que canceló
   userBookedGroupSize?: number; // 🆕 Tamaño del grupo que el usuario reservó (para resaltar en Mis Reservas)
+  onHideFromHistory?: () => void; // 🗑️ Callback para ocultar del historial (solo en clases pasadas)
   // Props para modo instructor
   instructorView?: boolean; // Si es true, muestra opciones de gestión para instructor
 }
@@ -82,6 +83,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   cancelledGroupSize,
   cancelledUserData,
   userBookedGroupSize, // 🆕 Tamaño del grupo reservado por el usuario
+  onHideFromHistory, // 🗑️ Callback para ocultar del historial
   // Props para modo instructor
   instructorView = false
 }) => {
@@ -1382,7 +1384,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
               );
             })()
           ) : agendaMode && (isCancelled || isPastClass) ? (
-            // Clase ya cancelada O clase pasada - mostrar botón eliminar
+            // Clase ya cancelada O clase pasada - mostrar botón eliminar del historial
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <button className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-lg font-medium text-[10px] transition-colors shadow-lg flex items-center gap-1 justify-center mt-1">
@@ -1392,39 +1394,73 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>¿Eliminar {isPastClass ? 'clase finalizada' : 'clase cancelada'}?</AlertDialogTitle>
+                  <AlertDialogTitle>¿Eliminar del historial?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Esta acción eliminará permanentemente esta reserva del historial. No podrás recuperarla.
+                    Esta clase se ocultará de tu historial de "Pasadas". Esta acción no elimina la reserva de la base de datos.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>No, mantener</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={async () => {
-                      if (!bookingId) return;
-                      
-                      try {
-                        const response = await fetch(`/api/bookings/${bookingId}`, {
-                          method: 'DELETE',
-                        });
+                      if (onHideFromHistory) {
+                        await onHideFromHistory();
+                      }
+                    }}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Sí, Eliminar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : agendaMode && (isCancelled || isPastClass) ? (
+            // Clase ya cancelada O clase pasada - mostrar botón eliminar del historial
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-lg font-medium text-[10px] transition-colors shadow-lg flex items-center gap-1 justify-center mt-1">
+                  <X className="w-3.5 h-3.5" />
+                  Eliminar
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Eliminar del historial?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta clase se ocultará de tu historial de "Pasadas". Esta acción no elimina la reserva de la base de datos.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>No, mantener</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={async () => {
+                      if (onHideFromHistory) {
+                        await onHideFromHistory();
+                      } else if (bookingId) {
+                        // Fallback: eliminar permanentemente
+                        try {
+                          const response = await fetch(`/api/bookings/${bookingId}`, {
+                            method: 'DELETE',
+                          });
 
-                        if (!response.ok) {
-                          throw new Error('Error al eliminar la reserva');
+                          if (!response.ok) {
+                            throw new Error('Error al eliminar la reserva');
+                          }
+
+                          toast({
+                            title: '✅ Eliminada',
+                            description: `La clase ${isPastClass ? 'finalizada' : 'cancelada'} se eliminó correctamente`,
+                          });
+
+                          onBookingSuccess();
+                        } catch (error) {
+                          console.error('Error eliminando reserva:', error);
+                          toast({
+                            title: '❌ Error',
+                            description: 'No se pudo eliminar la reserva',
+                            variant: 'destructive',
+                          });
                         }
-
-                        toast({
-                          title: '✅ Eliminada',
-                          description: `La clase ${isPastClass ? 'finalizada' : 'cancelada'} se eliminó correctamente`,
-                        });
-
-                        onBookingSuccess();
-                      } catch (error) {
-                        console.error('Error eliminando reserva:', error);
-                        toast({
-                          title: '❌ Error',
-                          description: 'No se pudo eliminar la reserva',
-                          variant: 'destructive',
-                        });
                       }
                     }}
                     className="bg-red-600 hover:bg-red-700"

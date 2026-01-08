@@ -12,6 +12,7 @@ interface BookingCardProps {
   onCancelBooking: (bookingId: string) => Promise<void>;
   isPastClass?: boolean;
   isCancelled?: boolean;
+  onHideFromHistory?: () => void;
 }
 
 // Wrapper component que memoriza la conversión de Booking → TimeSlot
@@ -21,7 +22,8 @@ const BookingCard = ({
   onBookingSuccess, 
   onCancelBooking,
   isPastClass = false,
-  isCancelled = false
+  isCancelled = false,
+  onHideFromHistory
 }: BookingCardProps) => {
   // Verificar si es clase o partida
   const isClassBooking = !!booking.timeSlot;
@@ -111,6 +113,7 @@ const BookingCard = ({
         name: booking.user?.name || currentUser?.name,
         profilePictureUrl: booking.user?.profilePictureUrl || currentUser?.profilePictureUrl
       } : undefined}
+      onHideFromHistory={onHideFromHistory}
     />
   );
 };

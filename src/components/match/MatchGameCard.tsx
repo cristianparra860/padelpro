@@ -30,6 +30,7 @@ interface MatchGameCardProps {
   showLeaveButton?: boolean; // Control para mostrar/ocultar botón Cancelar
   showPrivateBookingButton?: boolean; // Control para mostrar/ocultar botón Reserva Privada
   showAdminCancelButton?: boolean; // Control para mostrar botón de cancelar partida (admin)
+  onHideFromHistory?: () => void; // 🗑️ Callback para ocultar del historial (solo en partidas pasadas)
 }
 
 interface Booking {
@@ -49,6 +50,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
   showLeaveButton = false, // Por defecto no mostrar el botón en el calendario
   showPrivateBookingButton = true, // Por defecto mostrar botón Reserva Privada
   showAdminCancelButton = false, // Por defecto no mostrar botón admin
+  onHideFromHistory, // 🗑️ Callback para ocultar del historial
 }) => {
   const { toast } = useToast();
   const [booking, setBooking] = useState(false);
@@ -84,6 +86,11 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
   }, [activeBookings, currentUser?.id]);
 
   const isUserBooked = !!userBooking;
+
+  // Detectar si la partida ya pasó
+  const isPastMatch = useMemo(() => {
+    return new Date(matchGame.start) < new Date();
+  }, [matchGame.start]);
 
   // Detectar si es una reserva privada (1 usuario con las 4 plazas)
   const isPrivateBooking = useMemo(() => {
@@ -430,7 +437,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
   const handleCancelMatch = async () => {
     setCancelling(true);
     try {
-      const response = await fetch(`/api/matchgames/${matchGame.id}`, {
+      const response = await fetch(`/api/admin/matchgames/${matchGame.id}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -550,6 +557,15 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
               disabled={booking}
             >
               {booking ? 'Cancelando...' : 'Cancelar'}
+            </Button>
+          ) : isPastMatch && onHideFromHistory ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 text-[10px] px-2 bg-red-600 hover:bg-red-700 text-white border-red-600"
+              onClick={onHideFromHistory}
+            >
+              Eliminar
             </Button>
           ) : null}
         </div>

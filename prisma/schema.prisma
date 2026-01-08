@@ -251,6 +251,7 @@ model MatchGameBooking {
   amountBlocked        Int           @default(0)
   groupSize            Int           @default(1) // Número de plazas que ocupa este booking (1-4)
   isRecycled           Boolean       @default(false)
+  hiddenFromHistory    Boolean       @default(false) // Si el usuario ocultó esta reserva del historial de "Pasadas"
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
@@ -351,6 +352,7 @@ model Booking {
   amountBlocked        Int           @default(0) // Cantidad bloqueada en céntimos
   isRecycled           Boolean       @default(false) // Si es una plaza reciclada (solo reservable con puntos)
   isInstructorSubsidy  Boolean       @default(false) // Si es un booking del instructor para subsidiar última plaza
+  hiddenFromHistory    Boolean       @default(false) // Si el usuario ocultó esta reserva del historial de "Pasadas"
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 

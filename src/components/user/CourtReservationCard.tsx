@@ -9,9 +9,10 @@ import { Calendar, Clock, MapPin } from 'lucide-react';
 interface CourtReservationCardProps {
   reservation: any;
   onCancel?: (reservationId: string) => void;
+  onHideFromHistory?: () => void; // 🗑️ Callback para ocultar del historial
 }
 
-export default function CourtReservationCard({ reservation, onCancel }: CourtReservationCardProps) {
+export default function CourtReservationCard({ reservation, onCancel, onHideFromHistory }: CourtReservationCardProps) {
   const startDate = new Date(reservation.start);
   const endDate = new Date(reservation.end);
   const isPast = endDate < new Date();
@@ -142,6 +143,16 @@ export default function CourtReservationCard({ reservation, onCancel }: CourtRes
             className="w-full mt-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium border border-red-200"
           >
             Cancelar Reserva
+          </button>
+        )}
+
+        {/* Botón de eliminar del historial (solo si ha pasado) */}
+        {isPast && onHideFromHistory && (
+          <button
+            onClick={onHideFromHistory}
+            className="w-full mt-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+          >
+            Eliminar del Historial
           </button>
         )}
       </div>

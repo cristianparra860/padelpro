@@ -21,21 +21,36 @@ import { useTransition } from 'react';
 
 interface ManagedSlotsListProps {
   instructorId: string;
+  selectedDate?: Date;
+  onDateChange?: (date: Date) => void;
 }
 
 
-const ManagedSlotsList: React.FC<ManagedSlotsListProps> = ({ instructorId }) => {
+const ManagedSlotsList: React.FC<ManagedSlotsListProps> = ({ instructorId, selectedDate: externalDate, onDateChange }) => {
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [processingAction, setProcessingAction] = useState<string | null>(null);
   const [isProcessing, startTransition] = useTransition();
-  const [selectedDate, setSelectedDate] = useState<Date>(startOfDay(new Date()));
+  const [selectedDate, setSelectedDate] = useState<Date>(externalDate || startOfDay(new Date()));
   const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
   const [isCreatingBatch, setIsCreatingBatch] = useState(false);
   const { toast } = useToast();
+  // Sincronizar con fecha externa
+  useEffect(() => {
+    if (externalDate && externalDate.getTime() !== selectedDate.getTime()) {
+      setSelectedDate(externalDate);
+    }
+  }, [externalDate]);
 
+  // Función para cambiar fecha y notificar al padre
+  const handleDateChange = (newDate: Date) => {
+    setSelectedDate(newDate);
+    if (onDateChange) {
+      onDateChange(newDate);
+    }
+  };
   // Generar horarios desde 6:00 hasta 23:00 cada 30 minutos
   const timeSlots = useMemo(() => {
     const slots = [];

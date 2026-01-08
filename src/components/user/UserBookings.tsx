@@ -212,6 +212,52 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
     }
   };
 
+  // Función para ocultar del historial (sin eliminar de DB)
+  const handleHideFromHistory = async (bookingId: string, bookingType: 'class' | 'match' | 'court') => {
+    try {
+      console.log('🚫 Ocultando del historial:', bookingId, bookingType);
+      
+      let endpoint = '';
+      if (bookingType === 'class') {
+        endpoint = `/api/bookings/${bookingId}/hide`;
+      } else if (bookingType === 'match') {
+        endpoint = `/api/matchgames/bookings/${bookingId}/hide`;
+      } else {
+        // Para court reservations, eliminar directamente porque no tienen historial
+        endpoint = `/api/bookings/court-reservation/${bookingId}`;
+      }
+      
+      const response = await fetch(endpoint, {
+        method: bookingType === 'court' ? 'DELETE' : 'PATCH',
+      });
+      
+      if (response.ok) {
+        toast({
+          title: "¡Eliminado del historial!",
+          description: "La reserva ha sido eliminada de tu historial",
+          className: "bg-green-600 text-white"
+        });
+        
+        // Recargar bookings
+        await loadBookings();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        toast({
+          title: "Error al ocultar",
+          description: errorData.error || 'No se pudo ocultar la reserva',
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error hiding from history:', error);
+      toast({
+        title: "Error de conexión",
+        description: 'No se pudo conectar con el servidor',
+        variant: "destructive"
+      });
+    }
+  };
+
   useEffect(() => {
     if (currentUser?.id) {
       console.log('🔄 useEffect triggered - Loading bookings for:', currentUser.id);
@@ -292,9 +338,21 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
           const isMatchBooking = !!b.matchGame;
           const isCourtReservation = b.type === 'court-reservation';
           
+          // Filtrar los que están ocultos del historial
+          if (b.hiddenFromHistory === true) {
+            return false;
+          }
+          
           if (isClassBooking) {
             const isPast = new Date(b.timeSlot.start) < now;
             const isNotCancelled = b.status !== 'CANCELLED';
+            console.log('🔍 Class booking:', {
+              date: b.timeSlot.start,
+              isPast,
+              isNotCancelled,
+              now: now.toISOString(),
+              willShow: isPast && isNotCancelled
+            });
             return isPast && isNotCancelled;
           } else if (isMatchBooking) {
             const isPast = new Date(b.matchGame.start) < now;
@@ -962,6 +1020,7 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
                         onCancelBooking={handleCancelBooking}
                         isPastClass={activeFilter === 'past'}
                         isCancelled={booking.status === 'CANCELLED'}
+                        onHideFromHistory={activeFilter === 'past' ? () => handleHideFromHistory(booking.id, 'class') : undefined}
                       />
                     );
                   } else if (isMatchBooking) {
@@ -973,6 +1032,7 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
                         onBookingSuccess={handleBookingSuccess}
                         showLeaveButton={true}
                         showPrivateBookingButton={false}
+                        onHideFromHistory={activeFilter === 'past' ? () => handleHideFromHistory(booking.id, 'match') : undefined}
                       />
                     );
                   } else if (isCourtReservation) {
@@ -981,6 +1041,7 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
                         key={booking.id}
                         reservation={booking}
                         onCancel={handleCancelCourtReservation}
+                        onHideFromHistory={activeFilter === 'past' ? () => handleHideFromHistory(booking.id, 'court') : undefined}
                       />
                     );
                   }

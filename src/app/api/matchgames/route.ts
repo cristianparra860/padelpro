@@ -27,6 +27,13 @@ export async function GET(request: NextRequest) {
       };
     }
 
+    // Obtener todas las pistas del club para calcular disponibilidad
+    const allCourts = await prisma.court.findMany({
+      where: { clubId, isActive: true },
+      select: { id: true, number: true },
+      orderBy: { number: 'asc' }
+    });
+
     // Obtener todas las partidas (propuestas y confirmadas)
     const matchGames = await prisma.matchGame.findMany({
       where: whereConditions,
@@ -55,9 +62,61 @@ export async function GET(request: NextRequest) {
       orderBy: { start: 'asc' }
     });
 
-    console.log(`🎾 GET /api/matchgames - Total partidas: ${matchGames.length}`);
-    const openMatches = matchGames.filter(m => m.isOpen);
-    const classifiedMatches = matchGames.filter(m => !m.isOpen);
+    // Obtener todas las partidas confirmadas (con pista asignada) para calcular ocupación
+    const confirmedMatches = await prisma.matchGame.findMany({
+      where: {
+        clubId,
+        courtNumber: { not: null },
+        ...(date && {
+          start: {
+            gte: new Date(date + 'T00:00:00.000Z'),
+            lte: new Date(date + 'T23:59:59.999Z')
+          }
+        })
+      },
+      select: {
+        id: true,
+        courtNumber: true,
+        start: true,
+        end: true
+      }
+    });
+
+    // Enriquecer cada partida con información de disponibilidad de pistas
+    const matchGamesWithAvailability = matchGames.map(match => {
+      const matchStart = new Date(match.start).getTime();
+      const matchEnd = new Date(match.end).getTime();
+
+      // Calcular disponibilidad de cada pista para este horario
+      const courtsAvailability = allCourts.map(court => {
+        // Verificar si esta pista está ocupada durante este horario
+        const isOccupied = confirmedMatches.some(confirmedMatch => {
+          const confirmedStart = new Date(confirmedMatch.start).getTime();
+          const confirmedEnd = new Date(confirmedMatch.end).getTime();
+          
+          // Verificar si es la misma pista Y hay solapamiento de horario
+          const isSameCourt = confirmedMatch.courtNumber === court.number;
+          const hasOverlap = matchStart < confirmedEnd && matchEnd > confirmedStart;
+          
+          return isSameCourt && hasOverlap;
+        });
+
+        return {
+          courtNumber: court.number,
+          courtId: court.id,
+          status: isOccupied ? 'occupied' : 'available'
+        };
+      });
+
+      return {
+        ...match,
+        courtsAvailability
+      };
+    });
+
+    console.log(`🎾 GET /api/matchgames - Total partidas: ${matchGamesWithAvailability.length}`);
+    const openMatches = matchGamesWithAvailability.filter(m => m.isOpen);
+    const classifiedMatches = matchGamesWithAvailability.filter(m => !m.isOpen);
     console.log(`   - Partidas abiertas: ${openMatches.length}`);
     console.log(`   - Partidas clasificadas: ${classifiedMatches.length}`);
     
@@ -71,7 +130,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      matchGames
+      matchGames: matchGamesWithAvailability
     });
   } catch (error) {
     console.error('Error fetching match games:', error);

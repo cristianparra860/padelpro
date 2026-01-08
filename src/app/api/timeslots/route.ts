@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getCourtPriceForTime } from '@/lib/courtPricing';
 
 export async function GET(request: NextRequest) {
   try {
@@ -709,6 +710,63 @@ export async function GET(request: NextRequest) {
 }
 
 // POST: Crear nueva clase (TimeSlot)
+/**
+ * Calcula el precio del instructor según tarifas especiales por horario
+ */
+function getInstructorPriceForTime(
+  instructor: {
+    hourlyRate: number | null;
+    defaultRatePerHour: number | null;
+    rateTiers: string | null;
+  },
+  startDateTime: Date
+): number {
+  // Precio base por defecto
+  const basePrice = instructor.hourlyRate || instructor.defaultRatePerHour || 0;
+  
+  // Si no hay tarifas especiales, retornar precio base
+  if (!instructor.rateTiers) {
+    return basePrice;
+  }
+  
+  try {
+    const rateTiers = JSON.parse(instructor.rateTiers);
+    
+    // Si no es un array válido, retornar precio base
+    if (!Array.isArray(rateTiers) || rateTiers.length === 0) {
+      return basePrice;
+    }
+    
+    // Obtener día de la semana y hora de la clase
+    const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][startDateTime.getUTCDay()];
+    const timeString = startDateTime.toISOString().substring(11, 16); // "HH:MM"
+    
+    // Buscar tarifa especial aplicable
+    const matchingTier = rateTiers.find((tier: any) => {
+      // Verificar que tenga los campos necesarios
+      if (!tier.days || !Array.isArray(tier.days) || !tier.startTime || !tier.endTime || typeof tier.rate !== 'number') {
+        return false;
+      }
+      
+      // Verificar si el día coincide
+      const isDayMatch = tier.days.includes(dayOfWeek);
+      if (!isDayMatch) return false;
+      
+      // Verificar si la hora está en el rango (startTime <= timeString < endTime)
+      const isTimeInRange = timeString >= tier.startTime && timeString < tier.endTime;
+      
+      return isTimeInRange;
+    });
+    
+    // Si encontramos una tarifa especial, usarla; si no, usar precio base
+    return matchingTier ? matchingTier.rate : basePrice;
+    
+  } catch (error) {
+    console.warn('⚠️  Error parseando rateTiers, usando precio base:', error);
+    return basePrice;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     console.log('🚀 POST /api/timeslots - Creating new class');
@@ -743,9 +801,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verificar que el instructor existe
+    // Verificar que el instructor existe y obtener sus tarifas
     const instructor = await prisma.instructor.findUnique({
-      where: { id: instructorId }
+      where: { id: instructorId },
+      select: {
+        id: true,
+        hourlyRate: true,
+        defaultRatePerHour: true,
+        rateTiers: true,
+        clubId: true,
+        isActive: true
+      }
     });
 
     if (!instructor) {
@@ -781,11 +847,19 @@ export async function POST(request: NextRequest) {
       levelRangeString = 'abierto';
     }
 
-    // Calcular precios
-    // Usar hourlyRate si está configurado, sino defaultRatePerHour como fallback
-    const instructorPricePerHour = instructor.hourlyRate || instructor.defaultRatePerHour || 0;
-    const courtRentalPrice = club.courtRentalPrice || 0; // Precio de la pista del club
+    // Calcular precios con tarifas especiales por horario
+    const instructorPricePerHour = getInstructorPriceForTime(instructor, startDate);
+    const courtRentalPrice = await getCourtPriceForTime(clubId, startDate);
     const totalPrice = (instructorPricePerHour + courtRentalPrice) * (durationMinutes / 60);
+    
+    console.log('💰 Precio calculado:', {
+      instructor: instructorPricePerHour,
+      court: courtRentalPrice,
+      total: totalPrice,
+      duration: durationMinutes,
+      hasRateTiers: !!instructor.rateTiers,
+      startTime: startDate.toISOString()
+    });
 
     // Crear el TimeSlot como PROPUESTA (sin pista asignada)
     const newTimeSlot = await prisma.timeSlot.create({

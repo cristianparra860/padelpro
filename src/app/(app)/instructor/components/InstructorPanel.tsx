@@ -67,6 +67,7 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
   const [availableClubs, setAvailableClubs] = useState<Club[]>([]);
   const [availableCourtsForSelectedClub, setAvailableCourtsForSelectedClub] = useState<PadelCourt[]>([]);
   const [isSavingSettings, startSettingsTransition] = useTransition();
+  const [clubCalendarDate, setClubCalendarDate] = useState<Date>(new Date()); // Memorizar fecha del calendario
   const { toast } = useToast();
 
   const preferencesForm = useForm<PreferencesFormData>({
@@ -263,11 +264,20 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
               </TabsList>
               
               <TabsContent value="all">
-                <InstructorClassCards instructor={instructorData} />
+                <InstructorClassCards 
+                  instructor={instructorData} 
+                  selectedDate={clubCalendarDate}
+                  onDateChange={setClubCalendarDate}
+                />
               </TabsContent>
               
               <TabsContent value="withStudents">
-                <InstructorClassCards instructor={instructorData} onlyWithBookings={true} />
+                <InstructorClassCards 
+                  instructor={instructorData} 
+                  onlyWithBookings={true}
+                  selectedDate={clubCalendarDate}
+                  onDateChange={setClubCalendarDate}
+                />
               </TabsContent>
             </Tabs>
           </CardContent>
@@ -280,7 +290,12 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
             <CardTitle className="flex items-center text-lg"><ListChecks className="mr-2 h-5 w-5 text-primary" /> Clases Gestionadas</CardTitle>
           </CardHeader>
           <CardContent>
-            <ManagedSlotsList key={refreshKey} instructorId={instructorData.id} />
+            <ManagedSlotsList 
+              key={refreshKey} 
+              instructorId={instructorData.id}
+              selectedDate={clubCalendarDate}
+              onDateChange={setClubCalendarDate}
+            />
           </CardContent>
         </Card>
       </TabsContent>
@@ -323,6 +338,8 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
               currentUser={currentUser}
               viewMode="instructor"
               instructorId={instructorData.id}
+              initialDate={clubCalendarDate}
+              onDateChange={setClubCalendarDate}
             />
           </CardContent>
         </Card>

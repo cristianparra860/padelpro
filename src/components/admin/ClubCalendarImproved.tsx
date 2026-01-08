@@ -6,9 +6,6 @@ import { Card } from '@/components/ui/card';
 import ClassCardReal from '@/components/class/ClassCardReal';
 import MatchGameCard from '@/components/match/MatchGameCard';
 import DateSelector from '@/components/admin/DateSelector';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
-import { MapPin, Clock } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -70,18 +67,22 @@ export default function ClubCalendarImproved({
   clubId,
   currentUser,
   viewMode = 'club',
-  instructorId
+  instructorId,
+  initialDate,
+  onDateChange
 }: {
   clubId: string;
   currentUser?: any;
   viewMode?: 'user' | 'club' | 'instructor';
   instructorId?: string;
+  initialDate?: Date;
+  onDateChange?: (date: Date) => void;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(initialDate || new Date());
   const [selectedInstructor, setSelectedInstructor] = useState<string | null>(null);
   const [classProposals, setClassProposals] = useState<any[]>([]);
   const [confirmedClasses, setConfirmedClasses] = useState<any[]>([]); // Clases confirmadas con courtId
@@ -94,8 +95,24 @@ export default function ClubCalendarImproved({
   const [selectedGroupSize, setSelectedGroupSize] = useState<1 | 2 | 3 | 4>(1); // Selector de precios por alumnos
   const [pricePerPlayers, setPricePerPlayers] = useState<1 | 4>(4); // Selector precio partidas: 1 jugador o 4 jugadores
   const [selectedDuration, setSelectedDuration] = useState<30 | 60 | 90 | 120>(60); // Selector de duración para reservar pistas
+  const [durationConfirmed, setDurationConfirmed] = useState(false); // Control de confirmación de duración
   const [viewType, setViewType] = useState<'clases' | 'partidas' | 'reservar-pistas'>('partidas'); // Selector principal
   const [currentTime, setCurrentTime] = useState(new Date()); // Hora actual para overlay
+  
+  // Sincronizar cambios de fecha con el padre
+  const handleDateChange = (newDate: Date) => {
+    setCurrentDate(newDate);
+    if (onDateChange) {
+      onDateChange(newDate);
+    }
+  };
+  
+  // Sincronizar currentDate cuando cambia initialDate (al volver a la pestaña)
+  useEffect(() => {
+    if (initialDate && initialDate.getTime() !== currentDate.getTime()) {
+      setCurrentDate(initialDate);
+    }
+  }, [initialDate]);
   
   // Estados para reservas de instructor y reservas de pistas
   const [instructorReservations, setInstructorReservations] = useState<any[]>([]);
@@ -104,7 +121,6 @@ export default function ClubCalendarImproved({
   const [showCourtReservation, setShowCourtReservation] = useState(false);
   const [selectedCourtSlot, setSelectedCourtSlot] = useState<{ date: Date; time: string; courtNumber?: number } | null>(null);
   const [isReserving, setIsReserving] = useState(false);
-  const [reservationStep, setReservationStep] = useState<1 | 2>(1); // Paso de confirmación para reserva de pista
   const { toast } = useToast();
   const [selectedReservationSlot, setSelectedReservationSlot] = useState<{
     courtId: string;
@@ -112,8 +128,6 @@ export default function ClubCalendarImproved({
     timeSlot: string;
     existingReservation?: any;
   } | null>(null);
-  const [showCourtReservationDetails, setShowCourtReservationDetails] = useState(false);
-  const [selectedCourtReservationDetails, setSelectedCourtReservationDetails] = useState<any>(null);
 
   // Actualizar hora actual cada minuto
   useEffect(() => {
@@ -239,7 +253,7 @@ export default function ClubCalendarImproved({
       if (event.detail.clubId === clubId) {
         console.log('🔄 Horarios actualizados, recargando...');
         // Forzar recarga cambiando referencia de fecha
-        setCurrentDate(new Date(currentDate.getTime()));
+        handleDateChange(new Date(currentDate.getTime()));
       }
     };
     
@@ -793,34 +807,30 @@ export default function ClubCalendarImproved({
 
   // Funciones helper para reservas de instructor
   const getInstructorReservationInSlot = (courtId: string, timeSlot: string) => {
-    if (courtReservations.length === 0) return null;
+    if (instructorReservations.length === 0) return null;
     
     const [hour, minute] = timeSlot.split(':');
-    const slotDate = new Date(currentDate);
-    slotDate.setHours(parseInt(hour, 10), parseInt(minute, 10), 0, 0);
-    const slotTime = slotDate.getTime();
+    const slotTime = new Date(currentDate);
+    slotTime.setHours(parseInt(hour), parseInt(minute), 0, 0);
     
-    // ✅ Buscar SOLO reservas de instructor (tienen reason con formato especial)
-    return courtReservations.find(res => {
-      const start = new Date(res.start || res.startTime).getTime();
-      const end = new Date(res.end || res.endTime).getTime();
-      const isInSlot = res.courtId === courtId && slotTime >= start && slotTime < end;
-      const isInstructorReservation = res.reason && res.reason.startsWith('instructor_reservation:');
-      
-      return isInSlot && isInstructorReservation;
+    // Buscar cualquier reserva de instructor en este slot (no solo del instructor actual)
+    return instructorReservations.find(res => {
+      const resStart = new Date(res.startTime);
+      const resEnd = new Date(res.endTime);
+      return res.courtId === courtId && slotTime >= resStart && slotTime < resEnd;
     });
   };
 
   const isInstructorReservationStart = (reservation: any, timeSlot: string) => {
     if (!reservation) return false;
     const [hour, minute] = timeSlot.split(':');
-    const resStart = new Date(reservation.start || reservation.startTime);
+    const resStart = new Date(reservation.startTime);
     return resStart.getHours() === parseInt(hour) && resStart.getMinutes() === parseInt(minute);
   };
 
   const calculateInstructorReservationRowSpan = (reservation: any) => {
-    const start = new Date(reservation.start || reservation.startTime);
-    const end = new Date(reservation.end || reservation.endTime);
+    const start = new Date(reservation.startTime);
+    const end = new Date(reservation.endTime);
     const durationMinutes = (end.getTime() - start.getTime()) / (1000 * 60);
     return Math.ceil(durationMinutes / 30);
   };
@@ -870,7 +880,7 @@ export default function ClubCalendarImproved({
     loadReservations();
   };
 
-  // Funciones para reservas de usuarios normales (EXCLUYE reservas de instructor)
+  // Funciones para reservas de usuarios normales
   const getUserReservationInSlot = (courtId: string, timeSlot: string) => {
     if (courtReservations.length === 0) return null;
     
@@ -882,12 +892,7 @@ export default function ClubCalendarImproved({
     return courtReservations.find(res => {
       const start = new Date(res.start || res.startTime).getTime();
       const end = new Date(res.end || res.endTime).getTime();
-      const isInSlot = res.courtId === courtId && slotTime >= start && slotTime < end;
-      
-      // ✅ EXCLUIR reservas de instructor (tienen reason con formato especial)
-      const isInstructorReservation = res.reason && res.reason.startsWith('instructor_reservation:');
-      
-      return isInSlot && !isInstructorReservation;
+      return res.courtId === courtId && slotTime >= start && slotTime < end;
     });
   };
 
@@ -953,7 +958,7 @@ export default function ClubCalendarImproved({
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3">
           <DateSelector
             selectedDate={currentDate}
-            onDateChange={setCurrentDate}
+            onDateChange={handleDateChange}
             daysToShow={14}
             userBookings={getUserBookingsForDateSelector()}
             layoutOrientation="horizontal"
@@ -1090,11 +1095,11 @@ export default function ClubCalendarImproved({
         {/* Banner del Calendario de Partidas */}
         {viewType === 'partidas' && (
           <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-2xl shadow-lg p-2">
-            <div className="relative flex items-center justify-between gap-4">
-              {/* Izquierda: Contenedor con usuario identificado */}
+            <div className="flex items-center justify-between gap-4">
+              {/* Izquierda: Contenedor con logo y texto */}
               {currentUser && (
-                <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm rounded-xl px-3 py-1.5 shadow-md">
-                  <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-green-500 shadow-lg bg-white flex items-center justify-center">
+                <div className="flex items-center gap-3 bg-white/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-md">
+                  <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-green-500 shadow-lg bg-white flex items-center justify-center">
                     <img
                       src={currentUser.profilePicture || currentUser.photo || currentUser.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name || 'Usuario')}&background=10b981&color=fff&size=128`}
                       alt={currentUser.name}
@@ -1106,14 +1111,11 @@ export default function ClubCalendarImproved({
                     />
                   </div>
                   <div>
-                    <div className="text-xs font-semibold text-green-600 leading-tight">{currentUser.name}</div>
+                    <h3 className="text-base font-bold text-green-900 leading-tight">Calendario de Partidas</h3>
                     <div className="text-xs text-green-700 leading-tight">Nivel: {currentUser.level || 'N/A'}</div>
                   </div>
                 </div>
               )}
-              
-              {/* Centro: Título del banner */}
-              <h3 className="text-xl font-bold text-white leading-tight absolute left-1/2 transform -translate-x-1/2">Calendario de Partidas</h3>
               
               {/* Derecha: Selector de precio por 1 jugador o 4 jugadores */}
               <div className="flex items-center gap-2">
@@ -1423,9 +1425,11 @@ export default function ClubCalendarImproved({
                                         />
                                       </div>
                                       <div className="flex-1">
-                                        <div className="text-[11px] font-bold text-white/95 mb-0.5">CLASE</div>
-                                        <span className="text-[9px] font-medium text-white/90 truncate block">
-                                          Instructor: {confirmedClass.instructorName || 'N/A'}
+                                        <div className="flex items-center gap-1">
+                                          <span className="text-[8px] font-semibold text-white/90">🎾 Clase</span>
+                                        </div>
+                                        <span className="text-[10px] font-bold text-white truncate block">
+                                          {confirmedClass.instructorName || 'Instructor'}
                                         </span>
                                       </div>
                                     </div>
@@ -1599,11 +1603,7 @@ export default function ClubCalendarImproved({
                               className="border border-gray-200 p-0.5 bg-white"
                             >
                               <div
-                                onClick={() => {
-                                  setSelectedCourtReservationDetails(userReservation);
-                                  setShowCourtReservationDetails(true);
-                                }}
-                                className={`rounded-xl h-full flex flex-col justify-center items-center border-2 cursor-pointer hover:opacity-90 transition-opacity ${
+                                className={`rounded-xl h-full flex flex-col justify-center items-center border-2 ${
                                   isMyReservation 
                                     ? 'border-green-400 bg-gradient-to-br from-green-500 to-emerald-500' 
                                     : 'border-purple-400 bg-gradient-to-br from-purple-500 to-pink-500'
@@ -1611,20 +1611,13 @@ export default function ClubCalendarImproved({
                               >
                                 <div className="p-2 text-center">
                                   <div className="text-white text-xs font-bold mb-1">
-                                    {isMyReservation ? '✅ TU RESERVA DE PISTA' : '🔒 RESERVA DE PISTA'}
+                                    {isMyReservation ? '✅ TU RESERVA' : '🔒 RESERVADO'}
                                   </div>
-                                  <div className="bg-white/90 rounded px-2 py-1 mb-2">
+                                  <div className="text-white text-lg font-bold mb-1">{timeSlot}</div>
+                                  <div className="bg-white/90 rounded px-2 py-1 mb-1">
                                     <div className="text-gray-700 text-xs font-semibold">
-                                      Usuario
+                                      {isMyReservation ? 'Pista Reservada' : 'Reserva de Usuario'}
                                     </div>
-                                    {userReservation.userName && (
-                                      <div className="text-gray-600 text-[10px] font-medium mt-0.5">
-                                        {userReservation.userName}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="text-white text-[10px] mb-1">
-                                    {start.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                                   </div>
                                   <div className="text-white text-xs">{duration} min</div>
                                 </div>
@@ -1646,18 +1639,8 @@ export default function ClubCalendarImproved({
                         if (instructorReservation && isInstructorReservationStart(instructorReservation, timeSlot)) {
                           const rowSpan = calculateInstructorReservationRowSpan(instructorReservation);
                           const [hour, minute] = timeSlot.split(':');
-                          
-                          // Extraer información del campo reason: "instructor_reservation:instructorId:label"
-                          const reasonParts = instructorReservation.reason?.split(':') || [];
-                          const reservationInstructorId = reasonParts[1] || '';
-                          const label = reasonParts.slice(2).join(':') || 'Reserva de Instructor';
-                          
-                          // Calcular duración
-                          const start = new Date(instructorReservation.start || instructorReservation.startTime);
-                          const end = new Date(instructorReservation.end || instructorReservation.endTime);
-                          const duration = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
-                          
-                          const isOwner = instructorId && reservationInstructorId === instructorId;
+                          const duration = instructorReservation.duration || 60;
+                          const isOwner = instructorId && instructorReservation.instructorId === instructorId;
                           
                           return (
                             <td
@@ -1683,20 +1666,17 @@ export default function ClubCalendarImproved({
                               >
                                 <div className="p-2 text-center">
                                   <div className="text-white text-xs font-bold mb-1">
-                                    {isOwner ? '📅 TU RESERVA DE PISTA' : '🔒 RESERVA DE PISTA'}
+                                    {isOwner ? '📅 TU RESERVA' : '🔒 RESERVADO'}
                                   </div>
-                                  <div className="text-orange-700 text-[9px] font-bold mb-1">INSTRUCTOR</div>
-                                  <div className="bg-white/90 rounded px-2 py-1 mb-2">
-                                    <div className="text-orange-700 text-xs font-semibold">{label}</div>
-                                    {instructorReservation.instructorName && (
-                                      <div className="text-orange-600 text-[10px] font-medium mt-0.5">
-                                        {instructorReservation.instructorName}
-                                      </div>
-                                    )}
+                                  <div className="text-white text-lg font-bold mb-1">{timeSlot}</div>
+                                  <div className="bg-white/90 rounded px-2 py-1 mb-1">
+                                    <div className="text-orange-700 text-xs font-semibold">{instructorReservation.label}</div>
                                   </div>
-                                  <div className="text-white text-[10px] mb-1">
-                                    {start.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                                  </div>
+                                  {instructorReservation.instructorName && !isOwner && (
+                                    <div className="text-white text-xs opacity-90 mb-1">
+                                      Por: {instructorReservation.instructorName}
+                                    </div>
+                                  )}
                                   <div className="text-white text-xs">{duration} min</div>
                                 </div>
                               </div>
@@ -1923,7 +1903,6 @@ export default function ClubCalendarImproved({
                                   <div 
                                     onClick={() => {
                                       setSelectedCourtSlot({ date: currentDate, time: timeSlot, courtNumber: court.number });
-                                      setReservationStep(1); // Resetear al paso 1
                                       setShowCourtReservation(true);
                                     }}
                                     className="bg-white rounded-lg p-1 cursor-pointer hover:shadow-xl hover:scale-105 transition-all h-full border border-gray-300 shadow-lg flex items-center relative overflow-visible"
@@ -2163,7 +2142,8 @@ export default function ClubCalendarImproved({
       <Dialog open={showCourtReservation} onOpenChange={(open) => {
         setShowCourtReservation(open);
         if (!open) {
-          setReservationStep(1); // Resetear al paso 1 cuando se cierra
+          setDurationConfirmed(false);
+          setSelectedDuration(60);
         }
       }}>
         <DialogContent className="max-w-md">
@@ -2214,13 +2194,14 @@ export default function ClubCalendarImproved({
                         key={duration}
                         onClick={() => {
                           setSelectedDuration(duration as 30 | 60 | 90 | 120);
-                          setReservationStep(1); // Resetear al paso 1 cuando cambia la duración
+                          setDurationConfirmed(false);
                         }}
+                        disabled={durationConfirmed}
                         className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all ${
                           isSelected
                             ? 'bg-orange-500 border-orange-600 text-white shadow-lg scale-105'
                             : 'bg-white border-gray-300 text-gray-700 hover:border-orange-400 hover:bg-orange-50'
-                        }`}
+                        } ${durationConfirmed ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         <div className="text-lg font-bold">{duration}</div>
                         <div className="text-[10px]">min</div>
@@ -2231,35 +2212,39 @@ export default function ClubCalendarImproved({
                     );
                   })}
                 </div>
+                {/* Botón Seleccionar */}
+                {!durationConfirmed && (
+                  <button
+                    onClick={() => setDurationConfirmed(true)}
+                    className="mt-3 w-full px-4 py-2.5 bg-orange-500 text-white rounded-lg font-semibold hover:bg-orange-600 transition-all shadow-md"
+                  >
+                    Seleccionar {selectedDuration} minutos
+                  </button>
+                )}
               </div>
 
-              {/* Resumen del precio */}
-              <div className="bg-gradient-to-r from-orange-500 to-red-600 rounded-lg p-4 text-white">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm opacity-90">Total a pagar:</div>
-                    <div className="text-xs opacity-75">Duración: {selectedDuration} minutos</div>
-                  </div>
-                  <div className="text-3xl font-bold">
-                    {((10 * selectedDuration) / 60).toFixed(0)}€
+              {/* Mensaje de confirmación de selección */}
+              {durationConfirmed && (
+                <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-green-700">
+                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <span className="font-semibold">Has seleccionado {selectedDuration} minutos</span>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Mensaje de confirmación en paso 2 */}
-              {reservationStep === 2 && (
-                <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                  <div className="flex items-center gap-3">
-                    <div className="flex-shrink-0 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
-                      <span className="text-white text-xl font-bold">✓</span>
+              {/* Resumen del precio */}
+              {durationConfirmed && (
+                <div className="bg-gradient-to-r from-orange-500 to-red-600 rounded-lg p-4 text-white">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm opacity-90">Total a pagar:</div>
+                      <div className="text-xs opacity-75">Duración: {selectedDuration} minutos</div>
                     </div>
-                    <div className="flex-1">
-                      <div className="text-green-800 font-bold text-sm mb-1">
-                        Selección confirmada
-                      </div>
-                      <div className="text-green-700 text-xs">
-                        Has seleccionado <span className="font-bold">{selectedDuration} minutos</span>
-                      </div>
+                    <div className="text-3xl font-bold">
+                      {((10 * selectedDuration) / 60).toFixed(0)}€
                     </div>
                   </div>
                 </div>
@@ -2271,21 +2256,15 @@ export default function ClubCalendarImproved({
                   onClick={() => {
                     setShowCourtReservation(false);
                     setSelectedCourtSlot(null);
-                    setReservationStep(1); // Resetear paso
+                    setDurationConfirmed(false);
                   }}
                   className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-all"
                 >
                   Cancelar
                 </button>
+                {durationConfirmed && (
                 <button
                   onClick={async () => {
-                    // Paso 1: Mostrar confirmación
-                    if (reservationStep === 1) {
-                      setReservationStep(2);
-                      return;
-                    }
-                    
-                    // Paso 2: Procesar la reserva
                     console.log('🔍 DEBUG: Iniciando reserva', {
                       hasSlot: !!selectedCourtSlot,
                       hasUser: !!currentUser,
@@ -2415,7 +2394,7 @@ export default function ClubCalendarImproved({
                         // Recargar después de un breve delay para asegurar que la DB se actualizó
                         setTimeout(() => {
                           console.log('⏱️ Ejecutando recarga del calendario...');
-                          setCurrentDate(new Date(currentDate.getTime() + 1)); // Cambiar referencia
+                          handleDateChange(new Date(currentDate.getTime() + 1)); // Cambiar referencia
                         }, 100);
                         
                       } else {
@@ -2452,194 +2431,17 @@ export default function ClubCalendarImproved({
                     } finally {
                       console.log('🏁 Finalizando proceso de reserva...');
                       setIsReserving(false);
-                      setReservationStep(1); // Resetear paso después de la reserva
                     }
                   }}
                   disabled={isReserving}
                   className="flex-1 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg font-bold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isReserving ? 'Procesando...' : reservationStep === 1 ? 'Seleccionar' : 'Confirmar Reserva'}
+                  {isReserving ? 'Procesando...' : 'Confirmar Reserva'}
                 </button>
+                )}
               </div>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal para ver detalles de reserva de pista */}
-      <Dialog open={showCourtReservationDetails} onOpenChange={setShowCourtReservationDetails}>
-        <DialogContent className="max-w-md p-0 overflow-hidden">
-          {selectedCourtReservationDetails && (() => {
-            const start = new Date(selectedCourtReservationDetails.start || selectedCourtReservationDetails.startTime);
-            const end = new Date(selectedCourtReservationDetails.end || selectedCourtReservationDetails.endTime);
-            const duration = Math.round((end.getTime() - start.getTime()) / 1000 / 60);
-            const userId = selectedCourtReservationDetails.reason?.split(':')[1] || '';
-            const isMyReservation = currentUser && currentUser.id === userId;
-            const isPast = end < new Date();
-            const courtNumber = selectedCourtReservationDetails.courtNumber || calendarData?.courts.find(c => c.id === selectedCourtReservationDetails.courtId)?.number;
-            
-            return (
-              <div className="bg-white rounded-lg overflow-hidden">
-                {/* Header con gradiente */}
-                <div className={`bg-gradient-to-r px-4 py-3 ${
-                  isMyReservation 
-                    ? 'from-green-600 to-emerald-600' 
-                    : 'from-blue-600 to-cyan-600'
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-5 h-5 text-white" />
-                      <span className="text-white text-sm font-semibold">
-                        {isMyReservation ? 'Tu Reserva de Pista' : 'Reserva de Pista'} ({duration}min)
-                      </span>
-                    </div>
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      isPast 
-                        ? 'bg-gray-600 text-white' 
-                        : 'bg-white/20 text-white border border-white/30'
-                    }`}>
-                      {isPast ? 'Completada' : 'Confirmada'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-4">
-                  {/* Grid de información */}
-                  <div className="grid grid-cols-3 gap-2 text-center text-sm mb-3 pb-3 border-b border-gray-100">
-                    <div>
-                      <div className="font-medium text-gray-900 text-xs mb-1">Usuario</div>
-                      <div className={`px-2 py-1 rounded-full text-xs font-medium shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] ${
-                        isMyReservation 
-                          ? 'bg-green-100 text-green-700' 
-                          : 'bg-purple-100 text-purple-700'
-                      }`}>
-                        {selectedCourtReservationDetails.userName?.split(' ')[0] || 'Usuario'}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="font-medium text-gray-900 text-xs mb-1">Pista</div>
-                      <div className="px-2 py-1 rounded-full text-xs font-medium shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] bg-blue-100 text-blue-700">
-                        Pista {courtNumber || '-'}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="font-medium text-gray-900 text-xs mb-1">Duración</div>
-                      <div className="px-2 py-1 rounded-full text-xs font-medium shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] bg-purple-100 text-purple-700">
-                        {duration} min
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Fecha y hora */}
-                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-200 mb-3">
-                    <div className="flex items-center justify-between">
-                      {/* Fecha - Izquierda */}
-                      <div className="flex items-center gap-2">
-                        <div className="text-2xl font-black text-gray-900 leading-none min-w-[2rem] text-center">
-                          {format(start, 'dd', { locale: es })}
-                        </div>
-                        <div className="flex flex-col justify-center gap-0.5">
-                          <div className="text-xs font-bold text-gray-900 uppercase tracking-tight leading-none">
-                            {format(start, 'EEEE', { locale: es })}
-                          </div>
-                          <div className="text-[10px] font-normal text-gray-500 capitalize leading-none">
-                            {format(start, 'MMMM', { locale: es })}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Hora - Derecha */}
-                      <div className="text-right">
-                        <div className="text-xl font-bold text-gray-900 leading-none">
-                          {format(start, 'HH:mm')}
-                        </div>
-                        <div className="text-[10px] text-gray-500 flex items-center justify-end gap-1 mt-0.5">
-                          <Clock className="w-2.5 h-2.5" />
-                          <span>{format(start, 'HH:mm')} - {format(end, 'HH:mm')}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Detalles adicionales */}
-                  <div className="bg-blue-50 rounded-lg p-3 border border-blue-100 mb-3">
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-600">📍 Ubicación:</span>
-                        <span className="font-medium text-gray-900">
-                          {selectedCourtReservationDetails.courtName || `Pista ${courtNumber}`}
-                        </span>
-                      </div>
-                      {isMyReservation && (
-                        <div className="flex justify-between text-xs">
-                          <span className="text-gray-600">✅ Estado:</span>
-                          <span className="font-medium text-green-700">Esta es tu reserva</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-600">⏱️ Tiempo:</span>
-                        <span className="font-medium text-gray-900">{duration} minutos</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Botones de acción */}
-                  <div className="space-y-2">
-                    {isMyReservation && !isPast && (
-                      <button
-                        onClick={async () => {
-                          try {
-                            const response = await fetch(`/api/bookings/court-reservation/${selectedCourtReservationDetails.id}`, {
-                              method: 'DELETE',
-                            });
-
-                            if (response.ok) {
-                              toast({
-                                title: "¡Reserva cancelada!",
-                                description: "Tu reserva de pista ha sido cancelada exitosamente",
-                                className: "bg-orange-600 text-white"
-                              });
-                              setShowCourtReservationDetails(false);
-                              // Recargar calendario
-                              setTimeout(() => {
-                                const dateParam = getLocalDateString(currentDate);
-                                sessionStorage.removeItem(`calendar-${clubId}-${dateParam}`);
-                                setCurrentDate(new Date(currentDate.getTime()));
-                              }, 300);
-                            } else {
-                              const error = await response.json();
-                              toast({
-                                title: "Error al cancelar",
-                                description: error.error || 'No se pudo cancelar la reserva',
-                                variant: "destructive"
-                              });
-                            }
-                          } catch (error) {
-                            console.error('Error canceling court reservation:', error);
-                            toast({
-                              title: "Error de conexión",
-                              description: 'No se pudo conectar con el servidor',
-                              variant: "destructive"
-                            });
-                          }
-                        }}
-                        className="w-full px-4 py-2.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors font-semibold border border-red-200"
-                      >
-                        Cancelar Reserva
-                      </button>
-                    )}
-
-                    <button
-                      onClick={() => setShowCourtReservationDetails(false)}
-                      className="w-full px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-semibold"
-                    >
-                      Cerrar
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
         </DialogContent>
       </Dialog>
     </div>

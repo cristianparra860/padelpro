@@ -11,7 +11,8 @@ export async function GET(
     // Obtener todas las reservas del usuario usando Prisma ORM
     const bookings = await prisma.booking.findMany({
       where: {
-        userId: userId
+        userId: userId,
+        hiddenFromHistory: false // 🗑️ Excluir bookings ocultos del historial
       },
       include: {
         user: {
