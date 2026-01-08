@@ -355,8 +355,18 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
             });
             return isPast && isNotCancelled;
           } else if (isMatchBooking) {
-            const isPast = new Date(b.matchGame.start) < now;
+            const startDate = new Date(b.matchGame.start);
+            const isPast = startDate < now;
             const isNotCancelled = b.status !== 'CANCELLED';
+            console.log('🔍 Match booking:', {
+              id: b.id,
+              date: b.matchGame.start,
+              startDate: startDate.toISOString(),
+              isPast,
+              isNotCancelled,
+              now: now.toISOString(),
+              willShow: isPast && isNotCancelled
+            });
             return isPast && isNotCancelled;
           } else if (isCourtReservation) {
             const isPast = new Date(b.end) < now;

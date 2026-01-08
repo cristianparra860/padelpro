@@ -534,10 +534,15 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
           </div>
           
           {/* Badge o botones de acción */}
-          {isPrivateBooking ? (
-            <Badge variant="outline" className="h-6 text-[10px] px-2 bg-blue-600 text-white border-white">
-              Reserva Privada
-            </Badge>
+          {isPastMatch && onHideFromHistory ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 text-[10px] px-2 bg-red-600 hover:bg-red-700 text-white border-red-600"
+              onClick={onHideFromHistory}
+            >
+              🗑️ Eliminar
+            </Button>
           ) : showAdminCancelButton ? (
             <Button
               size="sm"
@@ -548,7 +553,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             >
               {cancelling ? 'Cancelando...' : 'Cancelar Partida'}
             </Button>
-          ) : showLeaveButton && isUserBooked ? (
+          ) : showLeaveButton && isUserBooked && !isPastMatch ? (
             <Button
               size="sm"
               variant="outline"
@@ -558,16 +563,19 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             >
               {booking ? 'Cancelando...' : 'Cancelar'}
             </Button>
-          ) : isPastMatch && onHideFromHistory ? (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-6 text-[10px] px-2 bg-red-600 hover:bg-red-700 text-white border-red-600"
-              onClick={onHideFromHistory}
-            >
-              Eliminar
-            </Button>
-          ) : null}
+          ) : isPrivateBooking ? (
+            <Badge variant="outline" className="h-6 text-[10px] px-2 bg-blue-600 text-white border-white">
+              Reserva Privada
+            </Badge>
+          ) : courtAssignment.isAssigned ? (
+            <Badge variant="outline" className="h-6 text-[10px] px-2 bg-green-600 text-white border-white">
+              Pista {courtAssignment.courtNumber}
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="h-6 text-[10px] px-2 bg-orange-500 text-white border-white">
+              [Abierta]
+            </Badge>
+          )}
         </div>
       </div>
 

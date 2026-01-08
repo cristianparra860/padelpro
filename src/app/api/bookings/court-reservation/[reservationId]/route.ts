@@ -46,15 +46,25 @@ export async function DELETE(
     const userId = reasonMatch[1];
     const duration = parseInt(reasonMatch[2]);
 
-    // Verificar que la reserva no haya pasado
-    if (new Date(reservation.endTime) < new Date()) {
-      return NextResponse.json(
-        { error: 'No se puede cancelar una reserva pasada' },
-        { status: 400 }
-      );
+    // Verificar si la reserva ya pasó
+    const isPastReservation = new Date(reservation.endTime) < new Date();
+
+    if (isPastReservation) {
+      // Para reservas pasadas, simplemente eliminar el registro sin devolver créditos
+      await prisma.courtSchedule.delete({
+        where: { id: reservationId },
+      });
+
+      console.log(`✅ Reserva de pista pasada eliminada del historial: ${reservationId}`);
+
+      return NextResponse.json({
+        success: true,
+        message: 'Reserva eliminada del historial correctamente',
+        refundAmount: 0
+      });
     }
 
-    // Buscar la transacción original para saber cuánto cobrar
+    // Para reservas futuras, buscar la transacción original y devolver créditos
     const originalTransaction = await prisma.transaction.findFirst({
       where: {
         userId,
