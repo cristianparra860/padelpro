@@ -1414,62 +1414,6 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          ) : agendaMode && (isCancelled || isPastClass) ? (
-            // Clase ya cancelada O clase pasada - mostrar botón eliminar del historial
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <button className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-lg font-medium text-[10px] transition-colors shadow-lg flex items-center gap-1 justify-center mt-1">
-                  <X className="w-3.5 h-3.5" />
-                  Eliminar
-                </button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>¿Eliminar del historial?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Esta clase se ocultará de tu historial de "Pasadas". Esta acción no elimina la reserva de la base de datos.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>No, mantener</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={async () => {
-                      if (onHideFromHistory) {
-                        await onHideFromHistory();
-                      } else if (bookingId) {
-                        // Fallback: eliminar permanentemente
-                        try {
-                          const response = await fetch(`/api/bookings/${bookingId}`, {
-                            method: 'DELETE',
-                          });
-
-                          if (!response.ok) {
-                            throw new Error('Error al eliminar la reserva');
-                          }
-
-                          toast({
-                            title: '✅ Eliminada',
-                            description: `La clase ${isPastClass ? 'finalizada' : 'cancelada'} se eliminó correctamente`,
-                          });
-
-                          onBookingSuccess();
-                        } catch (error) {
-                          console.error('Error eliminando reserva:', error);
-                          toast({
-                            title: '❌ Error',
-                            description: 'No se pudo eliminar la reserva',
-                            variant: 'destructive',
-                          });
-                        }
-                      }
-                    }}
-                    className="bg-red-600 hover:bg-red-700"
-                  >
-                    Sí, eliminar
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
           ) : instructorView ? (
             // Botón de Anular Clase/Propuesta para instructores
             <AlertDialog open={showCancelClassDialog} onOpenChange={setShowCancelClassDialog}>
