@@ -224,6 +224,7 @@ export async function GET(request: NextRequest) {
     });
 
     // 5. Obtener reservas directas de pista (CourtSchedule)
+    // EXCLUIR reservas de instructores (esas se cargan por separado en instructorReservations)
     const courtReservations = await prisma.courtSchedule.findMany({
       where: {
         startTime: {
@@ -232,6 +233,11 @@ export async function GET(request: NextRequest) {
         },
         isOccupied: true,
         timeSlotId: null, // Solo reservas directas, no las generadas por clases
+        NOT: {
+          reason: {
+            startsWith: 'instructor_reservation:' // EXCLUIR reservas de instructores
+          }
+        },
         ...(clubId && {
           court: {
             clubId: clubId
@@ -250,34 +256,25 @@ export async function GET(request: NextRequest) {
       orderBy: { startTime: 'asc' }
     });
 
-    // Obtener nombres de usuarios e instructores para las reservas
+    // Obtener nombres de usuarios para las reservas
     const reservationUserIds = new Set<string>();
-    const reservationInstructorIds = new Set<string>();
     
     courtReservations.forEach((reservation: any) => {
       if (reservation.reason) {
         const parts = reservation.reason.split(':');
         if (parts[0] === 'user_court_reservation' && parts[1]) {
           reservationUserIds.add(parts[1]);
-        } else if (parts[0] === 'instructor_reservation' && parts[1]) {
-          reservationInstructorIds.add(parts[1]);
         }
       }
     });
 
-    // Consultar nombres
+    // Consultar nombres de usuarios
     const reservationUsers = await prisma.user.findMany({
       where: { id: { in: Array.from(reservationUserIds) } },
       select: { id: true, name: true }
     });
 
-    const reservationInstructors = await prisma.instructor.findMany({
-      where: { id: { in: Array.from(reservationInstructorIds) } },
-      select: { id: true, name: true }
-    });
-
     const reservationUserMap = new Map(reservationUsers.map(u => [u.id, u.name]));
-    const reservationInstructorMap = new Map(reservationInstructors.map(i => [i.id, i.name]));
 
     // Construir respuesta simplificada
     const calendarData = {
@@ -319,6 +316,7 @@ export async function GET(request: NextRequest) {
           level: cls.level,
           category: cls.category,
           levelRange: cls.levelRange,
+          genderCategory: cls.genderCategory, // ✅ Agregar para sincronizar con tarjetas principales
           price: cls.totalPrice,
           playersCount: totalPlayers, // Total de jugadores inscritos (PENDING)
           maxPlayers: cls.maxPlayers,
@@ -346,6 +344,7 @@ export async function GET(request: NextRequest) {
           level: cls.level,
           category: cls.category,
           levelRange: cls.levelRange,
+          genderCategory: cls.genderCategory, // ✅ Agregar para sincronizar con tarjetas principales
           price: cls.totalPrice,
           playersCount: actualGroupSize, // Total de jugadores confirmados
           maxPlayers: actualGroupSize, // Capacidad = jugadores confirmados
@@ -407,14 +406,11 @@ export async function GET(request: NextRequest) {
       }),
       courtReservations: courtReservations.map((reservation: any) => {
         let userName = null;
-        let instructorName = null;
         
         if (reservation.reason) {
           const parts = reservation.reason.split(':');
           if (parts[0] === 'user_court_reservation' && parts[1]) {
             userName = reservationUserMap.get(parts[1]) || null;
-          } else if (parts[0] === 'instructor_reservation' && parts[1]) {
-            instructorName = reservationInstructorMap.get(parts[1]) || null;
           }
         }
         
@@ -428,7 +424,6 @@ export async function GET(request: NextRequest) {
           courtNumber: reservation.court.number,
           reason: reservation.reason,
           userName,
-          instructorName,
           color: '#F97316' // Naranja para reservas directas
         };
       }),

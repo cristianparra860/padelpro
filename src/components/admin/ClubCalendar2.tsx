@@ -1087,6 +1087,9 @@ export default function ClubCalendar2({
                                 onClick={() => handleEventClick(confirmedClassHorizontal)}
                                 title={`✅ CONFIRMADA - Pista ${confirmedClassHorizontal.courtNumber} - ${confirmedClassHorizontal.playersCount}/${confirmedClassHorizontal.maxPlayers}`}
                               >
+                                {/* Título CLASES */}
+                                <div className="text-[11px] font-black uppercase mb-1">CLASES (60 MIN)</div>
+                                
                                 {/* Contenedor superior: Instructor centrado CON BORDE */}
                                 <div className="flex flex-col items-center w-full mb-1 border border-white/40 rounded p-1.5">
                                   {/* Foto instructor */}
@@ -1486,6 +1489,9 @@ export default function ClubCalendar2({
                                         onClick={() => handleEventClick(cls)}
                                         title={`✅ CONFIRMADA - Pista ${cls.courtNumber} - ${cls.playersCount}/${cls.maxPlayers} alumnos`}
                                       >
+                                        {/* Título CLASES */}
+                                        <div className="text-[11px] font-black uppercase mb-1">CLASES (60 MIN)</div>
+                                        
                                         {/* Contenedor superior: Instructor centrado CON BORDE */}
                                         <div className="flex flex-col items-center w-full mb-1 border border-white/40 rounded p-1">
                                           {/* Foto del instructor */}

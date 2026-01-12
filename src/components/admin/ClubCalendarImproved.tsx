@@ -82,7 +82,28 @@ export default function ClubCalendarImproved({
   const searchParams = useSearchParams();
   const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentDate, setCurrentDate] = useState(initialDate || new Date());
+  
+  // Cargar fecha guardada en sessionStorage o usar initialDate o fecha actual
+  const getInitialDate = () => {
+    if (initialDate) return initialDate;
+    
+    try {
+      const savedDate = sessionStorage.getItem('calendar_selected_date');
+      if (savedDate) {
+        const parsedDate = new Date(savedDate);
+        // Validar que la fecha sea válida
+        if (!isNaN(parsedDate.getTime())) {
+          return parsedDate;
+        }
+      }
+    } catch (error) {
+      console.error('Error al cargar fecha guardada:', error);
+    }
+    
+    return new Date();
+  };
+  
+  const [currentDate, setCurrentDate] = useState(getInitialDate());
   const [selectedInstructor, setSelectedInstructor] = useState<string | null>(null);
   const [classProposals, setClassProposals] = useState<any[]>([]);
   const [confirmedClasses, setConfirmedClasses] = useState<any[]>([]); // Clases confirmadas con courtId
@@ -99,9 +120,17 @@ export default function ClubCalendarImproved({
   const [viewType, setViewType] = useState<'clases' | 'partidas' | 'reservar-pistas'>('partidas'); // Selector principal
   const [currentTime, setCurrentTime] = useState(new Date()); // Hora actual para overlay
   
-  // Sincronizar cambios de fecha con el padre
+  // Sincronizar cambios de fecha con el padre y guardar en sessionStorage
   const handleDateChange = (newDate: Date) => {
     setCurrentDate(newDate);
+    
+    // Guardar fecha seleccionada en sessionStorage
+    try {
+      sessionStorage.setItem('calendar_selected_date', newDate.toISOString());
+    } catch (error) {
+      console.error('Error al guardar fecha:', error);
+    }
+    
     if (onDateChange) {
       onDateChange(newDate);
     }
@@ -505,6 +534,17 @@ export default function ClubCalendarImproved({
   // Handler para abrir tarjeta de clase (con filtrado inteligente por nivel)
   const handleProposalClick = (timeSlot: string, instructorId: string) => {
     const classes = getClassProposalsInSlot(timeSlot, instructorId);
+    
+    console.log('🔍 handleProposalClick - Classes found:', classes.length);
+    if (classes.length > 0) {
+      console.log('📊 First class data:', {
+        id: classes[0].id,
+        levelRange: classes[0].levelRange,
+        genderCategory: classes[0].genderCategory,
+        category: classes[0].category,
+        level: classes[0].level
+      });
+    }
     
     if (classes.length === 0) return;
     
@@ -1593,8 +1633,11 @@ export default function ClubCalendarImproved({
                           const start = new Date(userReservation.start || userReservation.startTime);
                           const end = new Date(userReservation.end || userReservation.endTime);
                           const duration = Math.round((end.getTime() - start.getTime()) / 1000 / 60);
+                          const startTime = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`;
+                          const endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
                           const userId = userReservation.reason?.split(':')[1] || '';
                           const isMyReservation = currentUser && currentUser.id === userId;
+                          const userName = userReservation.userName || 'Usuario';
                           
                           return (
                             <td
@@ -1610,13 +1653,11 @@ export default function ClubCalendarImproved({
                                 } shadow-lg`}
                               >
                                 <div className="p-2 text-center">
-                                  <div className="text-white text-xs font-bold mb-1">
-                                    {isMyReservation ? '✅ TU RESERVA' : '🔒 RESERVADO'}
-                                  </div>
-                                  <div className="text-white text-lg font-bold mb-1">{timeSlot}</div>
+                                  <div className="text-white text-xs font-bold mb-1">Pista reservada</div>
+                                  <div className="text-white text-lg font-bold mb-1">{startTime} - {endTime}</div>
                                   <div className="bg-white/90 rounded px-2 py-1 mb-1">
                                     <div className="text-gray-700 text-xs font-semibold">
-                                      {isMyReservation ? 'Pista Reservada' : 'Reserva de Usuario'}
+                                      Usuario: {userName}
                                     </div>
                                   </div>
                                   <div className="text-white text-xs">{duration} min</div>
@@ -1640,6 +1681,10 @@ export default function ClubCalendarImproved({
                           const rowSpan = calculateInstructorReservationRowSpan(instructorReservation);
                           const [hour, minute] = timeSlot.split(':');
                           const duration = instructorReservation.duration || 60;
+                          const startTime = new Date(instructorReservation.startTime);
+                          const endTime = new Date(instructorReservation.endTime);
+                          const startTimeStr = `${String(startTime.getHours()).padStart(2, '0')}:${String(startTime.getMinutes()).padStart(2, '0')}`;
+                          const endTimeStr = `${String(endTime.getHours()).padStart(2, '0')}:${String(endTime.getMinutes()).padStart(2, '0')}`;
                           const isOwner = instructorId && instructorReservation.instructorId === instructorId;
                           
                           return (
@@ -1665,18 +1710,14 @@ export default function ClubCalendarImproved({
                                 }`}
                               >
                                 <div className="p-2 text-center">
-                                  <div className="text-white text-xs font-bold mb-1">
-                                    {isOwner ? '📅 TU RESERVA' : '🔒 RESERVADO'}
-                                  </div>
-                                  <div className="text-white text-lg font-bold mb-1">{timeSlot}</div>
+                                  <div className="text-white text-xs font-bold mb-1">Pista reservada</div>
+                                  <div className="text-white text-lg font-bold mb-1">{startTimeStr} - {endTimeStr}</div>
                                   <div className="bg-white/90 rounded px-2 py-1 mb-1">
-                                    <div className="text-orange-700 text-xs font-semibold">{instructorReservation.label}</div>
+                                    <div className="text-orange-700 text-xs font-semibold">Instructor: {instructorReservation.instructorName || 'Instructor'}</div>
                                   </div>
-                                  {instructorReservation.instructorName && !isOwner && (
-                                    <div className="text-white text-xs opacity-90 mb-1">
-                                      Por: {instructorReservation.instructorName}
-                                    </div>
-                                  )}
+                                  <div className="bg-white/90 rounded px-2 py-1 mb-1">
+                                    <div className="text-orange-600 text-xs font-semibold">{instructorReservation.label}</div>
+                                  </div>
                                   <div className="text-white text-xs">{duration} min</div>
                                 </div>
                               </div>
@@ -2047,9 +2088,29 @@ export default function ClubCalendarImproved({
 
       {/* Diálogo para múltiples opciones de partidas o clases */}
       <Dialog open={showMatchOptions} onOpenChange={setShowMatchOptions}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto [&>button]:hidden">
+          <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
             <DialogTitle>Selecciona una opción</DialogTitle>
+            <button
+              onClick={() => setShowMatchOptions(false)}
+              className="rounded-full bg-red-500 hover:bg-red-600 p-2 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+              aria-label="Cerrar"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="white"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
           </DialogHeader>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             {selectedMatchIds.map(itemId => {
@@ -2146,12 +2207,38 @@ export default function ClubCalendarImproved({
           setSelectedDuration(60);
         }
       }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-orange-600">🎾 Reservar Pista</DialogTitle>
-            <DialogDescription className="text-sm text-gray-600">
-              Selecciona la duración de tu reserva
-            </DialogDescription>
+        <DialogContent className="max-w-md [&>button]:hidden">
+          <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+            <div>
+              <DialogTitle className="text-xl font-bold text-orange-600">🎾 Reservar Pista</DialogTitle>
+              <DialogDescription className="text-sm text-gray-600">
+                Selecciona la duración de tu reserva
+              </DialogDescription>
+            </div>
+            <button
+              onClick={() => {
+                setShowCourtReservation(false);
+                setSelectedCourtSlot(null);
+                setDurationConfirmed(false);
+              }}
+              className="rounded-full bg-red-500 hover:bg-red-600 p-2 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 shrink-0"
+              aria-label="Cerrar"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="white"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
           </DialogHeader>
 
           {selectedCourtSlot && (
@@ -2251,18 +2338,8 @@ export default function ClubCalendarImproved({
               )}
 
               {/* Botones de acción */}
+              {durationConfirmed && (
               <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setShowCourtReservation(false);
-                    setSelectedCourtSlot(null);
-                    setDurationConfirmed(false);
-                  }}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-all"
-                >
-                  Cancelar
-                </button>
-                {durationConfirmed && (
                 <button
                   onClick={async () => {
                     console.log('🔍 DEBUG: Iniciando reserva', {
@@ -2438,8 +2515,8 @@ export default function ClubCalendarImproved({
                 >
                   {isReserving ? 'Procesando...' : 'Confirmar Reserva'}
                 </button>
-                )}
               </div>
+              )}
             </div>
           )}
         </DialogContent>

@@ -524,59 +524,22 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
 
   return (
     <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow bg-white border-2 border-gray-200 rounded-2xl w-full scale-[0.88]">
-      {/* Header con Badge de estado */}
-      <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-3 py-1.5">
-        <div className="flex items-center justify-between">
-          {/* Icono decorativo y duración */}
-          <div className="flex items-center gap-1.5">
-            <Trophy className="w-3.5 h-3.5 text-white" />
-            <span className="text-white text-[10px] font-semibold">(90min)</span>
-          </div>
-          
-          {/* Badge o botones de acción */}
-          {isPastMatch && onHideFromHistory ? (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-6 text-[10px] px-2 bg-red-600 hover:bg-red-700 text-white border-red-600"
-              onClick={onHideFromHistory}
-            >
-              🗑️ Eliminar
-            </Button>
-          ) : showAdminCancelButton ? (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-6 text-[10px] px-2 bg-white hover:bg-red-50 text-red-700 border-white hover:border-red-200"
-              onClick={() => setShowCancelDialog(true)}
-              disabled={cancelling}
-            >
-              {cancelling ? 'Cancelando...' : 'Cancelar Partida'}
-            </Button>
-          ) : showLeaveButton && isUserBooked && !isPastMatch ? (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-6 text-[10px] px-2 bg-white hover:bg-red-50 text-red-700 border-white hover:border-red-200"
-              onClick={() => setShowLeaveDialog(true)}
-              disabled={booking}
-            >
-              {booking ? 'Cancelando...' : 'Cancelar'}
-            </Button>
-          ) : isPrivateBooking ? (
-            <Badge variant="outline" className="h-6 text-[10px] px-2 bg-blue-600 text-white border-white">
-              Reserva Privada
-            </Badge>
-          ) : courtAssignment.isAssigned ? (
-            <Badge variant="outline" className="h-6 text-[10px] px-2 bg-green-600 text-white border-white">
-              Pista {courtAssignment.courtNumber}
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="h-6 text-[10px] px-2 bg-orange-500 text-white border-white">
-              [Abierta]
-            </Badge>
-          )}
-        </div>
+      {/* Header con título PARTIDA */}
+      <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-3 py-2 flex items-center justify-between">
+        <div className="text-white text-sm font-black uppercase">PARTIDA (90 MIN)</div>
+        
+        {/* Botón Eliminar (solo para admins) */}
+        {showAdminCancelButton && !isPastMatch && (
+          <Button
+            onClick={() => setShowCancelDialog(true)}
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 text-white hover:bg-red-600 hover:text-white transition-colors"
+            title="Cancelar partida"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        )}
       </div>
 
       <div className="p-2.5">

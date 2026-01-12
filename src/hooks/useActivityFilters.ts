@@ -58,16 +58,19 @@ export function useActivityFilters(
       return startOfDay(new Date(selectedDateParam));
     }
     
-    try {
-      const savedDate = localStorage.getItem('selectedCalendarDate');
-      if (savedDate) {
-        const parsed = new Date(savedDate);
-        if (!isNaN(parsed.getTime())) {
-          return startOfDay(parsed);
+    // ✅ Solo acceder a localStorage en el cliente
+    if (typeof window !== 'undefined') {
+      try {
+        const savedDate = localStorage.getItem('selectedCalendarDate');
+        if (savedDate) {
+          const parsed = new Date(savedDate);
+          if (!isNaN(parsed.getTime())) {
+            return startOfDay(parsed);
+          }
         }
+      } catch (error) {
+        console.error('Error reading saved date:', error);
       }
-    } catch (error) {
-      console.error('Error reading saved date:', error);
     }
     
     return startOfDay(new Date());

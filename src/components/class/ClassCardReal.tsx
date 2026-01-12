@@ -105,6 +105,18 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     console.log('🎓 ClassCardReal - instructorView:', instructorView, 'classId:', classData.id, 'start:', classData.start);
   }, [instructorView, classData.id]);
 
+  // 🔍 DEBUG: Verificar datos recibidos para nivel y categoría
+  useEffect(() => {
+    console.log('📊 ClassCardReal - Datos recibidos:', {
+      id: classData.id,
+      level: (classData as any).level,
+      levelRange: (classData as any).levelRange,
+      category: (classData as any).category,
+      genderCategory: (classData as any).genderCategory,
+      instructorName: (classData as any).instructorName
+    });
+  }, [classData.id]);
+
   const [isCancellingClass, setIsCancellingClass] = useState(false);
   
   // ✅ Validar que classData tiene los datos mínimos necesarios
@@ -1041,19 +1053,35 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
 
   // Determinar categoría dinámica basada en el primer usuario inscrito
   const getDynamicCategory = () => {
-    // PRIMERO: Verificar si el TimeSlot ya tiene una categoría asignada (de la BD)
-    if (currentSlotData.genderCategory && currentSlotData.genderCategory !== 'ABIERTO' && currentSlotData.genderCategory.toLowerCase() !== 'abierto') {
-      const genderMapping: Record<string, string> = {
-        'femenino': 'Chica',
-        'masculino': 'Chico',
-        'mujer': 'Chica',
-        'hombre': 'Chico'
-      };
-      const category = genderMapping[currentSlotData.genderCategory.toLowerCase()] || 'Abierta';
-      return { category, isAssigned: true };
+    // PRIMERO: Verificar si el TimeSlot ya tiene una categoría asignada (de la BD o del API)
+    // Buscar en classData.genderCategory (API) primero, luego category, luego currentSlotData
+    const genderCategoryValue = (classData as any).genderCategory || (classData as any).category || currentSlotData.genderCategory;
+    
+    console.log('🔍 getDynamicCategory - classData.genderCategory:', (classData as any).genderCategory);
+    console.log('🔍 getDynamicCategory - classData.category:', (classData as any).category);
+    console.log('🔍 getDynamicCategory - currentSlotData.genderCategory:', currentSlotData.genderCategory);
+    console.log('🔍 getDynamicCategory - genderCategoryValue final:', genderCategoryValue);
+    console.log('🔍 getDynamicCategory - classData.id:', classData.id);
+    
+    if (genderCategoryValue && genderCategoryValue !== 'null') {
+      // Si es "ABIERTO", mostrar "Abierta" como no asignado
+      if (genderCategoryValue.toLowerCase() === 'abierto' || genderCategoryValue.toLowerCase() === 'abierta') {
+        console.log('⚪ ABIERTO detectado - mostrar Abierta');
+        // Continuar a calcular del primer usuario, pero si no hay, mostrar "Abierta"
+      } else {
+        const genderMapping: Record<string, string> = {
+          'femenino': 'Chicas',
+          'masculino': 'Chicos',
+          'mujer': 'Chicas',
+          'hombre': 'Chicos'
+        };
+        const category = genderMapping[genderCategoryValue.toLowerCase()] || 'Abierta';
+        console.log('✅ Using category:', category);
+        return { category, isAssigned: true };
+      }
     }
 
-    // SEGUNDO: Si no hay categoría en el TimeSlot, calcular de las bookings
+    // SEGUNDO: Si no hay categoría en el TimeSlot O es "ABIERTO", calcular del primer usuario
     if (!Array.isArray(bookings) || bookings.length === 0) {
       return { category: 'Abierta', isAssigned: false };
     }
@@ -1067,12 +1095,12 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     if (firstUser?.userGender) {
       // Mapear diferentes tipos de género a la categoría mostrada
       const genderMapping: Record<string, string> = {
-        'chica': 'Chica',
-        'chico': 'Chico', 
-        'femenino': 'Chica',
-        'masculino': 'Chico',
-        'mujer': 'Chica',
-        'hombre': 'Chico'
+        'chica': 'Chicas',
+        'chico': 'Chicos', 
+        'femenino': 'Chicas',
+        'masculino': 'Chicos',
+        'mujer': 'Chicas',
+        'hombre': 'Chicos'
       };
       
       const gender = firstUser.userGender.toLowerCase();
@@ -1081,36 +1109,42 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
       return { category, isAssigned: true };
     }
 
+    // Sin categoría asignada - retornar "Abierta" como placeholder
+    console.log('⚪ Sin categoría asignada - mostrando "Abierta"');
     return { category: 'Abierta', isAssigned: false };
   };
 
   // Determinar nivel dinámico basado en el levelRange del TimeSlot o el primer usuario inscrito  
   const getDynamicLevel = (): { level: string; isAssigned: boolean } => {
     // 🐛 DEBUG: Log para ver qué datos recibe el componente
-    console.log('🔍 getDynamicLevel - Data received:', {
-      classDataId: classData.id.substring(0, 12),
-      classDataLevel: (classData as any)?.level,
-      classDataLevelRange: (classData as any)?.levelRange,
-      currentSlotDataLevel: (currentSlotData as any)?.level,
-      currentSlotDataLevelRange: (currentSlotData as any)?.levelRange,
-      instructorName: classData.instructorName
-    });
+    console.log('🔍 getDynamicLevel - classData.id:', classData.id.substring(0, 12));
+    console.log('🔍 getDynamicLevel - classData.level:', (classData as any)?.level);
+    console.log('🔍 getDynamicLevel - classData.levelRange:', (classData as any)?.levelRange);
+    console.log('🔍 getDynamicLevel - currentSlotData.level:', (currentSlotData as any)?.level);
+    console.log('🔍 getDynamicLevel - currentSlotData.levelRange:', (currentSlotData as any)?.levelRange);
 
     // 🎯 PRIORIDAD 1: Usar levelRange del TimeSlot si está definido (usar classData que viene del API)
     const levelRange = (classData as any).levelRange || (currentSlotData as any).levelRange;
-    if (levelRange && levelRange !== 'null' && levelRange.toLowerCase() !== 'abierto') {
-      console.log('✅ Using levelRange:', levelRange);
-      return { 
-        level: levelRange, 
-        isAssigned: true 
-      };
+    if (levelRange && levelRange !== 'null') {
+      // Si es "ABIERTO", mostrar "Abierto" como no asignado
+      if (levelRange.toLowerCase() === 'abierto') {
+        console.log('⚪ ABIERTO detectado - mostrando como nivel abierto');
+        // Retornar "Abierto" como valor sin asignar para que se calcule dinámicamente
+        // Pero si no hay bookings, se mostrará "Abierto"
+      } else {
+        console.log('✅ Using levelRange:', levelRange);
+        return { 
+          level: levelRange, 
+          isAssigned: true 
+        };
+      }
     }
 
     // 🎯 PRIORIDAD 2: Usar el campo "level" del TimeSlot directamente
     // Este campo ya contiene el rango correcto (ej: "5-7") gracias al backend
     const slotLevel = (classData as any)?.level || (currentSlotData as any)?.level;
     
-    if (slotLevel && slotLevel !== 'abierto' && slotLevel !== 'ABIERTO' && slotLevel !== 'null') {
+    if (slotLevel && slotLevel !== 'null' && slotLevel.toLowerCase() !== 'abierto') {
       return { level: slotLevel, isAssigned: true };
     }
     
@@ -1155,14 +1189,23 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
       }
     }
     
+    // Sin datos asignados - retornar "Abierto" como placeholder
+    console.log('⚪ Sin nivel asignado - mostrando "Abierto"');
     return { level: 'Abierto', isAssigned: false };
   };
 
   const categoryInfo = getDynamicCategory();
   const levelInfo = getDynamicLevel();
 
-  // ♻️ PLAZAS RECICLADAS - Usar datos del TimeSlot de la API
-  const hasCourtNumber = currentSlotData.courtNumber != null && currentSlotData.courtNumber > 0;
+  console.log('🎨 VALORES FINALES:');
+  console.log('  📊 categoryInfo.category:', categoryInfo.category);
+  console.log('  📊 categoryInfo.isAssigned:', categoryInfo.isAssigned);
+  console.log('  📊 levelInfo.level:', levelInfo.level);
+  console.log('  📊 levelInfo.isAssigned:', levelInfo.isAssigned);
+  console.log('  📊 Tipo de categoryInfo.category:', typeof categoryInfo.category);
+  console.log('  📊 Tipo de levelInfo.level:', typeof levelInfo.level);
+  
+  const hasCourtNumber = Boolean(currentSlotData.courtNumber);
   const hasRecycledSlots = currentSlotData.hasRecycledSlots === true;
   const availableRecycledSlots = currentSlotData.availableRecycledSlots || 0;
   const recycledSlotsOnlyPoints = currentSlotData.recycledSlotsOnlyPoints === true;
@@ -1194,6 +1237,13 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         ? 'border-4 border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.5)]' 
         : 'border-gray-100'
     }`}>
+      {/* 🎓 Header CLASES */}
+      {!isCancelled && (
+        <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-3 py-2 flex items-center justify-center">
+          <div className="text-white text-sm font-black uppercase">CLASES (60 MIN)</div>
+        </div>
+      )}
+      
       {/* ❌ Badge de Clase Cancelada */}
       {isCancelled && (
         <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-3 py-2 flex items-center justify-center gap-2 shadow-lg">
@@ -1520,10 +1570,10 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           <div>
             <div className="font-medium text-gray-900 text-[10px]">Nivel</div>
             <div 
-              className={`capitalize px-2 py-1.5 rounded-full text-xs font-medium shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${
+              className={`capitalize px-2 py-1.5 rounded-full text-xs font-semibold shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${
                 levelInfo.isAssigned 
-                  ? 'bg-blue-100 text-blue-700' 
-                  : 'text-gray-600'
+                  ? 'bg-blue-100 text-blue-800' 
+                  : 'bg-white text-gray-600'
               }`}
             >
               {levelInfo.level}
@@ -1532,10 +1582,10 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           <div>
             <div className="font-medium text-gray-900 text-[10px]">Cat.</div>
             <div 
-              className={`capitalize px-1 py-0.5 rounded-full text-[10px] font-medium shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${
+              className={`capitalize px-2 py-1.5 rounded-full text-xs font-semibold shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${
                 categoryInfo.isAssigned 
-                  ? 'bg-blue-100 text-blue-700' 
-                  : 'text-gray-600'
+                  ? 'bg-blue-100 text-blue-800' 
+                  : 'bg-white text-gray-600'
               }`}
             >
               {categoryInfo.category}
@@ -1544,7 +1594,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           <div>
             <div className="font-medium text-gray-900 text-[10px]">Pista</div>
             <div 
-              className={`px-1 py-0.5 rounded-full text-[9px] font-medium shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${
+              className={`px-2 py-1.5 rounded-full text-xs font-semibold shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${
                 courtAssignment.isAssigned 
                   ? 'bg-blue-100 text-blue-700' 
                   : 'text-gray-600'

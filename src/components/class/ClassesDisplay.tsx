@@ -663,6 +663,12 @@ export function ClassesDisplay({
       userLevel: b.userLevel,
       userGender: b.userGender,
       createdAt: b.createdAt,
+      // ✅ AGREGAR OBJETO USER para que ClassCardReal pueda acceder a user.name y user.profilePictureUrl
+      user: {
+        id: b.userId,
+        name: b.name || b.userName || 'Usuario',
+        profilePictureUrl: b.profilePictureUrl
+      }
     }));
 
     return {
