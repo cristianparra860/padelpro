@@ -94,7 +94,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   const [privateAttendees, setPrivateAttendees] = useState<number>(4);
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCancelClassDialog, setShowCancelClassDialog] = useState(false);
-  
+
   // 🆕 Estados para cesión parcial de plazas
   const [showPartialTransferDialog, setShowPartialTransferDialog] = useState(false);
   const [slotsToTransfer, setSlotsToTransfer] = useState<number>(1);
@@ -118,23 +118,23 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   }, [classData.id]);
 
   const [isCancellingClass, setIsCancellingClass] = useState(false);
-  
+
   // ✅ Validar que classData tiene los datos mínimos necesarios
   if (!classData || !classData.start || !classData.end) {
     console.error('❌ ClassCardReal: classData inválido:', classData);
     return null; // No renderizar si faltan datos críticos
   }
-  
+
   // � Helper para limpiar prefijos del ID (class-, match-, etc.)
   const getCleanTimeSlotId = (id: string): string => {
     if (!id) return id;
     return id.replace(/^(class-|match-)/, '');
   };
-  
+
   // �🔄 State local para el slot (permite actualización inmediata tras booking)
   // Usar classData directamente en lugar de state para evitar loops infinitos
   const currentSlotData = classData;
-  
+
   // � Parsear creditsSlots desde classData o desde prop
   const parsedCreditsSlots = useMemo(() => {
     console.log('🎁 parsedCreditsSlots - Props recibidos:', JSON.stringify({
@@ -145,13 +145,13 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
       'isArray creditsSlots': Array.isArray(classData.creditsSlots),
       'classData.id': classData.id?.substring(0, 20)
     }, null, 2));
-    
+
     // Prioridad 1: creditsSlotsProps (si se pasa explícitamente desde padre)
     if (creditsSlotsProps && creditsSlotsProps.length > 0) {
       console.log('✅ Usando creditsSlotsProps:', creditsSlotsProps);
       return creditsSlotsProps;
     }
-    
+
     // Prioridad 2: classData.creditsSlots (string JSON desde DB) - USAR classData, NO currentSlotData
     if (classData.creditsSlots) {
       // Si ya es un array, devolverlo directamente
@@ -159,7 +159,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         console.log('✅ creditsSlots ya es array:', classData.creditsSlots);
         return classData.creditsSlots;
       }
-      
+
       // Si es string, intentar parsearlo
       if (typeof classData.creditsSlots === 'string' && classData.creditsSlots.trim() !== '') {
         try {
@@ -172,20 +172,20 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         }
       }
     }
-    
+
     console.log('⚠️ No hay creditsSlots válidos, retornando []');
     return [];
   }, [creditsSlotsProps, classData.creditsSlots]);
-  
+
   // 🎓 Use parsedCreditsSlots directly instead of state to avoid infinite loops
   const creditsSlots = parsedCreditsSlots;
   const [loadingSlot, setLoadingSlot] = useState<number | null>(null);
-  
+
   // ♻️ Combinar creditsSlots del padre con plazas recicladas
   // Las plazas recicladas deben comportarse como creditsSlots automáticamente
   const effectiveCreditsSlots = useMemo(() => {
     const combined = new Set(creditsSlots);
-    
+
     // 🐛 DEBUG: Mostrar siempre qué está recibiendo
     console.log('🔧 effectiveCreditsSlots calculando:', JSON.stringify({
       creditsSlots: creditsSlots,
@@ -197,31 +197,31 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
       instructor: currentSlotData.instructorName,
       slotId: currentSlotData.id?.substring(0, 15)
     }, null, 2));
-    
+
     // ♻️ Si hay plazas recicladas, agregar TODOS los círculos de esa modalidad
     if (currentSlotData.hasRecycledSlots && currentSlotData.availableRecycledSlots > 0) {
       const bookings = currentSlotData.bookings || [];
-      
+
       // Buscar bookings reciclados para determinar la modalidad
-      const recycledBookings = bookings.filter(b => 
+      const recycledBookings = bookings.filter(b =>
         b.status === 'CANCELLED' && b.isRecycled === true
       );
-      
+
       console.log('♻️ Bookings reciclados encontrados:', recycledBookings.length, recycledBookings);
-      
+
       if (recycledBookings.length > 0) {
         // Tomar el primer booking reciclado para obtener el groupSize
         const groupSize = recycledBookings[0].groupSize;
-        
+
         // Calcular el rango de índices para esa modalidad
-        const startIndex = [1,2,3,4].slice(0, groupSize - 1).reduce((sum, p) => sum + p, 0);
+        const startIndex = [1, 2, 3, 4].slice(0, groupSize - 1).reduce((sum, p) => sum + p, 0);
         const endIndex = startIndex + groupSize;
-        
+
         // Agregar TODOS los círculos de esa modalidad como creditsSlots
         for (let i = startIndex; i < endIndex; i++) {
           combined.add(i);
         }
-        
+
         console.log('♻️ Modalidad reciclada detectada:', {
           groupSize,
           startIndex,
@@ -230,15 +230,15 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         });
       }
     }
-    
+
     return Array.from(combined).sort((a, b) => a - b);
   }, [creditsSlots, currentSlotData.bookings, currentSlotData.hasRecycledSlots, currentSlotData.availableRecycledSlots, currentSlotData.instructorName]);
-  
+
   // 🔍 Si no hay opciones de jugadores permitidas, no renderizar la tarjeta
   const availableOptions = useMemo(() => {
     return [1, 2, 3, 4].filter(count => allowedPlayerCounts.includes(count));
   }, [allowedPlayerCounts]);
-  
+
   if (availableOptions.length === 0) {
     return null; // Ocultar completamente la tarjeta
   }
@@ -280,7 +280,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
 
       try {
         // Verificar si el usuario tiene booking EN ESTA tarjeta
-        const userInThisSlot = bookings.some(b => 
+        const userInThisSlot = bookings.some(b =>
           b.userId === currentUser.id && b.status !== 'CANCELLED'
         );
         setUserHasBookingInThisSlot(userInThisSlot);
@@ -298,7 +298,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         if (response.ok) {
           const data = await response.json();
           // Si tiene alguna reserva confirmada (courtId != null) ese día, bloquear OTRAS tarjetas
-          const hasConfirmed = data.bookings?.some((b: any) => 
+          const hasConfirmed = data.bookings?.some((b: any) =>
             b.timeSlot?.courtId !== null && b.status === 'CONFIRMED'
           );
           setHasConfirmedBookingToday(hasConfirmed);
@@ -315,7 +315,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
 
   const handleBookClick = (groupSize: number) => {
     console.log('🎯 handleBookClick llamado con groupSize:', groupSize);
-    
+
     if (!currentUser) {
       toast({
         title: "Error",
@@ -335,7 +335,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
       });
       return;
     }
-    
+
     // Mostrar diálogo de confirmación
     setPendingGroupSize(groupSize);
     setShowConfirmDialog(true);
@@ -408,8 +408,8 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         onBookingSuccess();
       }
 
-      window.dispatchEvent(new CustomEvent('bookingUpdate', { 
-        detail: { timeSlotId: currentSlotData.id, action: 'book' } 
+      window.dispatchEvent(new CustomEvent('bookingUpdate', {
+        detail: { timeSlotId: currentSlotData.id, action: 'book' }
       }));
 
     } catch (error) {
@@ -431,59 +431,59 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     console.log('🆔 User:', currentUser);
     console.log('🆔 User ID:', currentUser?.id);
     console.log('📋 TimeSlot ID:', currentSlotData.id);
-    
+
     setShowConfirmDialog(false);
     console.log('🆔 User ID que se va a enviar:', currentUser?.id);
     console.log('📋 Tipo de currentUser.id:', typeof currentUser?.id);
-    
+
     // 🎁 VERIFICAR SI ES UNA PLAZA CON PUNTOS (creditsSlot)
     // Calcular creditsCost basado en el precio por persona de la modalidad (redondeado)
     const totalPrice = currentSlotData.totalPrice || 25;
     let creditsCost = Math.ceil(roundPrice(totalPrice / groupSize)); // Precio en puntos = precio en euros redondeado (usar let para permitir reasignación)
-    
+
     // Calcular índices para esta modalidad
-    const startIndex = [1,2,3,4].slice(0, groupSize - 1).reduce((sum, p) => sum + p, 0);
+    const startIndex = [1, 2, 3, 4].slice(0, groupSize - 1).reduce((sum, p) => sum + p, 0);
     const endIndex = startIndex + groupSize;
-    
+
     // Filtrar las reservas de esta modalidad
     const modalityBookings = bookings.filter(b => b.groupSize === groupSize);
-    
+
     // Verificar qué plazas están ocupadas y cuál sería la siguiente disponible
     let nextAvailableIndex = -1;
     for (let i = 0; i < groupSize; i++) {
       const absoluteIndex = startIndex + i;
-      const isOccupied = modalityBookings[i] && 
-                        modalityBookings[i].status !== 'CANCELLED';
-      
+      const isOccupied = modalityBookings[i] &&
+        modalityBookings[i].status !== 'CANCELLED';
+
       if (!isOccupied) {
         nextAvailableIndex = absoluteIndex;
         break;
       }
     }
-    
-    console.log(`🎯 Modalidad ${groupSize}: índices ${startIndex}-${endIndex-1}, próxima plaza disponible: ${nextAvailableIndex}`);
-    
+
+    console.log(`🎯 Modalidad ${groupSize}: índices ${startIndex}-${endIndex - 1}, próxima plaza disponible: ${nextAvailableIndex}`);
+
     // Verificar si la próxima plaza disponible es una creditsSlot
-    const isCreditsSlot = nextAvailableIndex >= 0 && 
-                         Array.isArray(creditsSlots) && 
-                         creditsSlots.includes(nextAvailableIndex);
-    
+    const isCreditsSlot = nextAvailableIndex >= 0 &&
+      Array.isArray(creditsSlots) &&
+      creditsSlots.includes(nextAvailableIndex);
+
     console.log(`🎁 ¿Es creditsSlot? ${isCreditsSlot} (índice ${nextAvailableIndex} en array [${creditsSlots.join(', ')}])`);
-    
+
     let usePoints = false;
-    
+
     // 🎁 Verificar si esta plaza es reservable con puntos (incluye plazas recicladas)
     if (isCreditsSlot) {
       // 🎁 Esta plaza es reservable con puntos - verificar que el usuario tenga suficientes
       const userPoints = (currentUser as any).points || 0;
-      
+
       console.log(`🎁 Plaza con puntos detectada. Puntos usuario: ${userPoints}, Requeridos: ${creditsCost}`);
-      
+
       if (userPoints >= creditsCost) {
         // Usuario tiene suficientes puntos - usar automáticamente
         usePoints = true;
         console.log('✅ Usuario tiene suficientes puntos - Se usarán automáticamente');
-        
+
         // Mostrar confirmación al usuario
         toast({
           title: "🎁 Reserva con Puntos",
@@ -502,23 +502,23 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         return; // 🚫 No continuar con la reserva
       }
     }
-    
+
     // ♻️ VERIFICAR SI HAY PLAZAS RECICLADAS EN ESTA CLASE (solo si no es credits slot)
     if (!isCreditsSlot) {
       // Verificar si HAY CUALQUIER plaza reciclada en la clase, sin importar groupSize
-      const hasRecycledSlots = bookings.some(b => 
-        b.status === 'CANCELLED' && 
+      const hasRecycledSlots = bookings.some(b =>
+        b.status === 'CANCELLED' &&
         b.isRecycled === true
       );
-      
+
       if (hasRecycledSlots) {
         // ♻️ Hay plazas recicladas - OBLIGATORIO usar puntos
         const userPoints = (currentUser as any).points || 0;
         const pricePerSlot = ((currentSlotData.totalPrice || 25) / groupSize);
         const pointsRequired = Math.floor(pricePerSlot);
-        
+
         console.log(`♻️ Plaza reciclada detectada en clase. Puntos usuario: ${userPoints}, Requeridos: ${pointsRequired}`);
-        
+
         if (userPoints >= pointsRequired) {
           // Usuario tiene suficientes puntos - usar automáticamente
           usePoints = true;
@@ -541,16 +541,16 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         }
       }
     }
-    
+
     setBooking(true);
     try {
-      console.log('📝 Enviando booking:', { 
-        userId: currentUser.id, 
-        timeSlotId: currentSlotData.id, 
+      console.log('📝 Enviando booking:', {
+        userId: currentUser.id,
+        timeSlotId: currentSlotData.id,
         groupSize,
-        usePoints 
+        usePoints
       });
-      
+
       const response = await fetch('/api/classes/book', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -565,7 +565,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
 
       if (response.ok) {
         const result = await response.json();
-        
+
         console.log('🎉 ========================================');
         console.log('🎉 BOOKING EXITOSO');
         console.log('📦 Respuesta del API:', {
@@ -573,12 +573,12 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           hasUpdatedSlot: !!result.updatedSlot,
           bookingsInUpdatedSlot: result.updatedSlot?.bookings?.length || 0
         });
-        
+
         // ✅ Si la API devolvió el slot actualizado, usarlo para actualización inmediata
         if (result.updatedSlot) {
           console.log('✅ Slot actualizado recibido del API');
           console.log('📋 Bookings en updatedSlot:', result.updatedSlot.bookings?.length || 0);
-          
+
           if (result.updatedSlot.bookings && result.updatedSlot.bookings.length > 0) {
             console.log('👤 Primer booking en respuesta:', {
               id: result.updatedSlot.bookings[0].id,
@@ -587,7 +587,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
               profilePictureUrl: result.updatedSlot.bookings[0].profilePictureUrl ? 'SÍ (tiene)' : 'NO'
             });
           }
-          
+
           // Convertir el slot del API al formato TimeSlot
           const updatedSlot: TimeSlot = {
             ...result.updatedSlot,
@@ -599,7 +599,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
             bookedPlayers: result.updatedSlot.bookings || [],
             bookings: result.updatedSlot.bookings || []
           };
-          
+
           console.log('📦 Slot convertido para el padre:', {
             id: updatedSlot.id,
             level: updatedSlot.level,
@@ -607,10 +607,10 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
             genderCategory: updatedSlot.genderCategory,
             bookings: updatedSlot.bookings?.length || 0
           });
-          
+
           // ✅ Los bookings se actualizarán automáticamente cuando el padre reciba onBookingSuccess
           console.log('✅ Slot actualizado, bookings se sincronizarán desde padre');
-          
+
           console.log('📞 Llamando onBookingSuccess(updatedSlot)...');
           // Notificar al padre con el slot actualizado
           onBookingSuccess(updatedSlot);
@@ -622,7 +622,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
             onBookingSuccess();
           }, 100);
         }
-        
+
         toast({
           title: "¡Reserva realizada!",
           description: `Has reservado una plaza para ${groupSize} jugador${groupSize > 1 ? 'es' : ''}.`,
@@ -630,7 +630,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         });
       } else {
         const error = await response.json();
-        
+
         // Mensaje especial para saldo insuficiente
         if (error.error?.includes('Saldo insuficiente') || error.details) {
           toast({
@@ -676,20 +676,20 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
 
       if (response.ok) {
         const data = await response.json();
-        
+
         // 🔄 Notificar a TODAS las páginas abiertas que se canceló una reserva
         localStorage.setItem('bookingCancelled', JSON.stringify({
           timeSlotId: currentSlotData.id,
           userId: currentUser?.id || userId,
           timestamp: Date.now()
         }));
-        
+
         toast({
           title: "¡Reserva cancelada!",
           description: "Redirigiendo al calendario...",
           className: "bg-orange-600 text-white"
         });
-        
+
         // 🔄 Si estamos en el dashboard, redirigir al calendario CON RECARGA FORZADA
         if (window.location.pathname.includes('/dashboard')) {
           setTimeout(() => {
@@ -745,7 +745,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
 
       if (response.ok) {
         const data = await response.json();
-        
+
         toast({
           title: `♻️ ${slots} plaza${slots > 1 ? 's' : ''} cedida${slots > 1 ? 's' : ''}`,
           description: `Has recibido ${data.pointsGranted || 0} puntos de compensación. Las plazas están disponibles para otros jugadores.`,
@@ -780,7 +780,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   // �🎓 Anular clase por instructor
   const handleCancelClass = async () => {
     console.log('🔍 handleCancelClass - instructorView:', instructorView, 'classData.id:', classData.id);
-    
+
     if (!instructorView || !classData.id) {
       console.error('❌ No se puede anular: instructorView =', instructorView, ', classData.id =', classData.id);
       toast({
@@ -790,7 +790,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
       });
       return;
     }
-    
+
     setIsCancellingClass(true);
     try {
       console.log('📤 Enviando petición POST a /api/instructor/cancel-class/' + classData.id);
@@ -833,7 +833,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   const getAvailableSpots = (groupSize: number) => {
     if (!Array.isArray(bookings)) return groupSize;
     // Contar cuántos usuarios han reservado específicamente para este groupSize
-    const modalityBookedUsers = bookings.filter(b => 
+    const modalityBookedUsers = bookings.filter(b =>
       b.status !== 'CANCELLED' && b.groupSize === groupSize
     ).length;
     return Math.max(0, groupSize - modalityBookedUsers);
@@ -850,8 +850,8 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   // 🆕 Función para detectar si es una reserva privada (usuario tiene 4 bookings CONFIRMED en esta clase)
   const isPrivateBooking = () => {
     if (!currentUser?.id || !Array.isArray(bookings)) return false;
-    const userBookings = bookings.filter(b => 
-      b.userId === currentUser.id && 
+    const userBookings = bookings.filter(b =>
+      b.userId === currentUser.id &&
       b.status === 'CONFIRMED'
     );
     return userBookings.length === 4;
@@ -860,8 +860,8 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   // 🆕 Función para contar cuántos bookings confirmados tiene el usuario en esta clase
   const getUserConfirmedBookingsCount = () => {
     if (!currentUser?.id || !Array.isArray(bookings)) return 0;
-    return bookings.filter(b => 
-      b.userId === currentUser.id && 
+    return bookings.filter(b =>
+      b.userId === currentUser.id &&
       b.status === 'CONFIRMED'
     ).length;
   };
@@ -869,9 +869,9 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   const isUserBooked = (groupSize: number) => {
     if (!Array.isArray(bookings) || !currentUser?.id) return false;
     // Verificar si el usuario actual tiene una reserva específica para este groupSize
-    return bookings.some(b => 
-      b.status !== 'CANCELLED' && 
-      b.userId === currentUser.id && 
+    return bookings.some(b =>
+      b.status !== 'CANCELLED' &&
+      b.userId === currentUser.id &&
       b.groupSize === groupSize
     );
   };
@@ -894,30 +894,30 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
       console.error('❌ No hay fecha disponible ni en parámetro ni en slot');
       return new Date();
     }
-    
+
     if (date instanceof Date) return date;
     if (typeof date === 'number') return new Date(date);
-    
+
     // Para strings, intentar parsear
     const parsed = new Date(date);
     if (isNaN(parsed.getTime())) {
       console.error('⚠️ toDateObject: Invalid date string:', date);
       return new Date();
     }
-    
+
     return parsed;
   };
 
   const formatTime = (date: Date | string | number) => {
     try {
       const dateObj = toDateObject(date);
-      
+
       // Validar que es un Date válido
       if (!(dateObj instanceof Date) || isNaN(dateObj.getTime())) {
         console.warn('⚠️ Invalid date in formatTime:', date);
         return '00:00';
       }
-      
+
       const hours = dateObj.getHours().toString().padStart(2, '0');
       const minutes = dateObj.getMinutes().toString().padStart(2, '0');
       return `${hours}:${minutes}`;
@@ -931,15 +931,15 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     const stars = [];
     for (let i = 1; i <= 5; i++) {
       stars.push(
-        <Star 
-          key={i} 
-          className={`h-3.5 w-3.5 ${i <= rating ? 'text-yellow-400 fill-current' : 'text-gray-300'}`} 
+        <Star
+          key={i}
+          className={`h-3.5 w-3.5 ${i <= rating ? 'text-yellow-400 fill-current' : 'text-gray-300'}`}
         />
       );
     }
     return (
       <div className="flex items-center">
-        {stars} 
+        {stars}
         <span className="ml-1.5 text-sm text-gray-600 font-medium">({rating.toFixed(1)})</span>
       </div>
     );
@@ -1001,12 +1001,12 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   const getCourtAssignment = () => {
     // Primero: Si ya tiene courtNumber o courtId en la BD, usarlo directamente
     if (currentSlotData.courtNumber != null && currentSlotData.courtNumber > 0) {
-      return { 
-        isAssigned: true, 
-        courtNumber: currentSlotData.courtNumber 
+      return {
+        isAssigned: true,
+        courtNumber: currentSlotData.courtNumber
       };
     }
-    
+
     // También verificar courtId (puede estar en la BD pero no courtNumber)
     if (currentSlotData.courtId != null) {
       // Si tiene courtId pero no courtNumber, intentar obtenerlo de los bookings o usar valor por defecto
@@ -1032,7 +1032,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
       const modalityBookings = bookings.filter(
         b => b.groupSize === modalitySize && b.status !== 'CANCELLED'
       );
-      
+
       // Si esta modalidad está completa
       if (modalityBookings.length >= modalitySize) {
         // Si hay confirmados, la pista debe estar asignada
@@ -1056,13 +1056,13 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     // PRIMERO: Verificar si el TimeSlot ya tiene una categoría asignada (de la BD o del API)
     // Buscar en classData.genderCategory (API) primero, luego category, luego currentSlotData
     const genderCategoryValue = (classData as any).genderCategory || (classData as any).category || currentSlotData.genderCategory;
-    
+
     console.log('🔍 getDynamicCategory - classData.genderCategory:', (classData as any).genderCategory);
     console.log('🔍 getDynamicCategory - classData.category:', (classData as any).category);
     console.log('🔍 getDynamicCategory - currentSlotData.genderCategory:', currentSlotData.genderCategory);
     console.log('🔍 getDynamicCategory - genderCategoryValue final:', genderCategoryValue);
     console.log('🔍 getDynamicCategory - classData.id:', classData.id);
-    
+
     if (genderCategoryValue && genderCategoryValue !== 'null') {
       // Si es "ABIERTO", mostrar "Abierta" como no asignado
       if (genderCategoryValue.toLowerCase() === 'abierto' || genderCategoryValue.toLowerCase() === 'abierta') {
@@ -1087,25 +1087,25 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     }
 
     // Buscar el primer usuario inscrito (ordenado por fecha de creación)
-    const sortedBookings = [...bookings].sort((a, b) => 
+    const sortedBookings = [...bookings].sort((a, b) =>
       new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
     );
-    
+
     const firstUser = sortedBookings[0];
     if (firstUser?.userGender) {
       // Mapear diferentes tipos de género a la categoría mostrada
       const genderMapping: Record<string, string> = {
         'chica': 'Chicas',
-        'chico': 'Chicos', 
+        'chico': 'Chicos',
         'femenino': 'Chicas',
         'masculino': 'Chicos',
         'mujer': 'Chicas',
         'hombre': 'Chicos'
       };
-      
+
       const gender = firstUser.userGender.toLowerCase();
       const category = genderMapping[gender] || 'Abierta';
-      
+
       return { category, isAssigned: true };
     }
 
@@ -1133,9 +1133,9 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         // Pero si no hay bookings, se mostrará "Abierto"
       } else {
         console.log('✅ Using levelRange:', levelRange);
-        return { 
-          level: levelRange, 
-          isAssigned: true 
+        return {
+          level: levelRange,
+          isAssigned: true
         };
       }
     }
@@ -1143,22 +1143,22 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
     // 🎯 PRIORIDAD 2: Usar el campo "level" del TimeSlot directamente
     // Este campo ya contiene el rango correcto (ej: "5-7") gracias al backend
     const slotLevel = (classData as any)?.level || (currentSlotData as any)?.level;
-    
+
     if (slotLevel && slotLevel !== 'null' && slotLevel.toLowerCase() !== 'abierto') {
       return { level: slotLevel, isAssigned: true };
     }
-    
+
     // 🎯 PRIORIDAD 3: Si hay bookings confirmados/pendientes, calcular el nivel dinámicamente
-    const bookingsWithLevel = currentSlotData.bookings?.filter((b: any) => 
+    const bookingsWithLevel = currentSlotData.bookings?.filter((b: any) =>
       (b.status === 'CONFIRMED' || b.status === 'PENDING') && b.userLevel && b.userLevel !== 'abierto'
     ) || [];
-    
-    console.log('🔍 Bookings con nivel:', { 
-      total: currentSlotData.bookings?.length, 
+
+    console.log('🔍 Bookings con nivel:', {
+      total: currentSlotData.bookings?.length,
       withLevel: bookingsWithLevel.length,
       levels: bookingsWithLevel.map((b: any) => ({ name: b.userName, level: b.userLevel }))
     });
-    
+
     if (bookingsWithLevel.length > 0) {
       // Extraer solo niveles numéricos (0.0 - 7.0)
       const userLevels = bookingsWithLevel
@@ -1168,27 +1168,27 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           return (isNaN(numericLevel) || numericLevel < 0 || numericLevel > 7) ? null : numericLevel;
         })
         .filter((l: number | null): l is number => l !== null);
-      
+
       if (userLevels.length > 0) {
         const minLevel = Math.min(...userLevels);
         const maxLevel = Math.max(...userLevels);
-        
+
         // Formatear con un decimal (ej: 5.0, 5.5, 6.0)
         const formatLevel = (level: number) => level.toFixed(1);
-        
+
         // Si solo hay un usuario o todos tienen el mismo nivel
         if (minLevel === maxLevel) {
           const singleLevelText = formatLevel(minLevel);
           console.log('📊 Nivel único:', singleLevelText);
           return { level: singleLevelText, isAssigned: true };
         }
-        
+
         const calculatedRange = `${formatLevel(minLevel)} a ${formatLevel(maxLevel)}`;
         console.log('📊 Rango calculado:', calculatedRange);
         return { level: calculatedRange, isAssigned: true };
       }
     }
-    
+
     // Sin datos asignados - retornar "Abierto" como placeholder
     console.log('⚪ Sin nivel asignado - mostrando "Abierto"');
     return { level: 'Abierto', isAssigned: false };
@@ -1204,15 +1204,15 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   console.log('  📊 levelInfo.isAssigned:', levelInfo.isAssigned);
   console.log('  📊 Tipo de categoryInfo.category:', typeof categoryInfo.category);
   console.log('  📊 Tipo de levelInfo.level:', typeof levelInfo.level);
-  
+
   const hasCourtNumber = Boolean(currentSlotData.courtNumber);
   const hasRecycledSlots = currentSlotData.hasRecycledSlots === true;
   const availableRecycledSlots = currentSlotData.availableRecycledSlots || 0;
   const recycledSlotsOnlyPoints = currentSlotData.recycledSlotsOnlyPoints === true;
-  
+
   // Badge se muestra si la clase tiene pista Y tiene plazas recicladas disponibles
   const shouldShowBadge = hasCourtNumber && hasRecycledSlots && availableRecycledSlots > 0;
-  
+
   // 🔍 DEBUG LOG - Para clases con datos de reciclaje
   if (hasRecycledSlots || availableRecycledSlots > 0) {
     console.log('♻️ CLASE CON DATOS DE RECICLAJE:', {
@@ -1232,18 +1232,17 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   }
 
   return (
-    <div className={`bg-white rounded-2xl shadow-[0_8px_16px_rgba(0,0,0,0.3)] border overflow-hidden w-full scale-[0.88] relative ${
-      isInscriptionSelected 
-        ? 'border-4 border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.5)]' 
+    <div className={`bg-white rounded-2xl shadow-[0_8px_16px_rgba(0,0,0,0.3)] border overflow-hidden w-full scale-[0.88] relative ${isInscriptionSelected
+        ? 'border-4 border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.5)]'
         : 'border-gray-100'
-    }`}>
+      }`}>
       {/* 🎓 Header CLASES */}
       {!isCancelled && (
         <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-3 py-2 flex items-center justify-center">
           <div className="text-white text-sm font-black uppercase">CLASES (60 MIN)</div>
         </div>
       )}
-      
+
       {/* ❌ Badge de Clase Cancelada */}
       {isCancelled && (
         <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-3 py-2 flex items-center justify-center gap-2 shadow-lg">
@@ -1257,7 +1256,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           </div>
         </div>
       )}
-      
+
       {/* Header with Instructor Info */}
       <div className="px-3 pt-2 pb-1">
         <div className="flex items-center justify-between mb-1">
@@ -1265,7 +1264,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
             {/* Instructor Avatar */}
             <div className="w-12 h-12 rounded-full bg-gray-200 overflow-hidden flex items-center justify-center flex-shrink-0">
               {(currentSlotData.instructorProfilePicture || currentSlotData.instructorPhoto) ? (
-                <img 
+                <img
                   src={currentSlotData.instructorProfilePicture || currentSlotData.instructorPhoto}
                   alt={currentSlotData.instructorName || 'Instructor'}
                   className="w-full h-full object-cover"
@@ -1277,14 +1276,14 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                   }}
                 />
               ) : null}
-              <div 
+              <div
                 className="fallback-avatar w-full h-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-semibold text-base"
                 style={{ display: (currentSlotData.instructorProfilePicture || currentSlotData.instructorPhoto) ? 'none' : 'flex' }}
               >
                 {(currentSlotData.instructorName || 'I').charAt(0).toUpperCase()}
               </div>
             </div>
-            
+
             {/* Instructor Name and Rating */}
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-gray-900 text-xs leading-tight line-clamp-2 break-words">
@@ -1295,7 +1294,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                 <div className="flex items-center">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <svg key={star} className="w-1.5 h-1.5 text-yellow-400 fill-current" viewBox="0 0 20 20">
-                      <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"/>
+                      <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
                     </svg>
                   ))}
                 </div>
@@ -1303,7 +1302,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
               </div>
             </div>
           </div>
-          
+
           {/* Reserve/Cancel Button */}
           {agendaMode && !isCancelled && !isPastClass ? (
             // Botón condicional para modo "Mi Agenda"
@@ -1311,14 +1310,18 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
               const hoursUntilClass = getHoursUntilClass();
               const isPrivate = isPrivateBooking();
               const userBookingsCount = getUserConfirmedBookingsCount();
-              const canFullCancel = hoursUntilClass >= 24;
+              const userBooking = bookings?.find((b: any) => b.userId === currentUser?.id && b.status !== 'CANCELLED');
+              const isPending = userBooking?.status === 'PENDING';
+
+              // Si es pendiente, siempre se puede cancelar sin penalización. Si es confirmada, depende de las 24h.
+              const canFullCancel = isPending || hoursUntilClass >= 24;
 
               // Si es reserva privada o tiene múltiples bookings Y faltan menos de 24h, mostrar cesión parcial
               if ((isPrivate || userBookingsCount > 1) && !canFullCancel) {
                 return (
                   <AlertDialog open={showPartialTransferDialog} onOpenChange={setShowPartialTransferDialog}>
                     <AlertDialogTrigger asChild>
-                      <button 
+                      <button
                         className="bg-yellow-600 hover:bg-yellow-700 text-white px-2 py-1 rounded-lg font-medium text-[10px] transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed mt-1"
                         disabled={isTransferring}
                       >
@@ -1329,7 +1332,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                       <AlertDialogHeader>
                         <AlertDialogTitle>♻️ Ceder Plazas de Reserva</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Tienes {userBookingsCount} plaza{userBookingsCount > 1 ? 's' : ''} confirmada{userBookingsCount > 1 ? 's' : ''} en esta clase. 
+                          Tienes {userBookingsCount} plaza{userBookingsCount > 1 ? 's' : ''} confirmada{userBookingsCount > 1 ? 's' : ''} en esta clase.
                           Selecciona cuántas plazas deseas ceder. Recibirás puntos de compensación por cada plaza cedida.
                           {hoursUntilClass < 24 && (
                             <span className="block mt-2 text-red-600 font-semibold">
@@ -1338,13 +1341,13 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                           )}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
-                      
+
                       {/* Grid de opciones de plazas a ceder */}
                       <div className="grid grid-cols-2 gap-3 my-4">
                         {[1, 2, 3, 4].slice(0, userBookingsCount).map((count) => {
                           const pricePerSlot = calculateSlotPrice(currentSlotData.totalPrice || 0, count);
                           const pointsForOption = Math.round(pricePerSlot * count);
-                          
+
                           return (
                             <button
                               key={count}
@@ -1374,8 +1377,8 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
 
                       <AlertDialogFooter>
                         <AlertDialogCancel>Volver</AlertDialogCancel>
-                        <AlertDialogAction 
-                          onClick={() => handlePartialTransfer(slotsToTransfer)} 
+                        <AlertDialogAction
+                          onClick={() => handlePartialTransfer(slotsToTransfer)}
                           className="bg-yellow-600 hover:bg-yellow-700"
                         >
                           Ceder {slotsToTransfer} Plaza{slotsToTransfer > 1 ? 's' : ''}
@@ -1390,7 +1393,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
               return (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <button 
+                    <button
                       className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-lg font-medium text-[10px] transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed mt-1"
                       disabled={isCancelling}
                     >
@@ -1401,29 +1404,40 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                     <AlertDialogHeader>
                       <AlertDialogTitle>Confirmar Cancelación</AlertDialogTitle>
                       <AlertDialogDescription>
-                        {canFullCancel ? (
+                        {isPending ? (
                           <>
-                            ¿Estás seguro que quieres cancelar tu inscripción? 
+                            ¿Estás seguro que quieres cancelar tu inscripción?
+                            <br /><br />
+                            <span className="text-green-600 font-semibold">
+                              Al ser una inscripción pendiente, no hay penalización.
+                            </span>
+                          </>
+                        ) : canFullCancel ? (
+                          <>
+                            ¿Estás seguro que quieres cancelar tu inscripción?
                             Como faltan más de 24 horas, no se aplicará penalización.
                           </>
                         ) : (
                           <>
-                            ¿Estás seguro que quieres cancelar tu inscripción? 
-                            Se te podría aplicar una penalización.
+                            ¿Estás seguro que quieres cancelar tu inscripción?
+                            <br /><br />
+                            <span className="text-red-600 font-semibold">
+                              ⚠️ Se te aplicará una penalización porque faltan menos de 24 horas.
+                            </span>
                           </>
                         )}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Volver</AlertDialogCancel>
-                      <AlertDialogAction 
+                      <AlertDialogAction
                         onClick={async () => {
                           if (bookingId && onCancelBooking) {
                             setIsCancelling(true);
                             await onCancelBooking(bookingId);
                             setIsCancelling(false);
                           }
-                        }} 
+                        }}
                         className="bg-destructive hover:bg-destructive/90"
                       >
                         Sí, Cancelar
@@ -1521,7 +1535,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
             </AlertDialog>
           ) : (
             // Botón de Reserva Privada para modo normal
-            <button 
+            <button
               className={cn(
                 "px-2 py-1 rounded-lg font-medium text-[10px] transition-colors shadow-lg flex items-center gap-1.5 mt-1",
                 (hasConfirmedBookingToday && !userHasBookingInThisSlot) || hasRecycledSlots || courtAssignment.isAssigned
@@ -1564,44 +1578,41 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
             </button>
           )}
         </div>
-        
+
         {/* Class Info */}
         <div className="grid grid-cols-3 gap-1 text-center text-sm text-gray-600 border-b border-gray-100 pb-0.5">
           <div>
             <div className="font-medium text-gray-900 text-[10px]">Nivel</div>
-            <div 
-              className={`capitalize px-2 py-1.5 rounded-full text-xs font-semibold shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${
-                levelInfo.isAssigned 
-                  ? 'bg-blue-100 text-blue-800' 
+            <div
+              className={`capitalize px-2 py-1.5 rounded-full text-xs font-semibold shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${levelInfo.isAssigned
+                  ? 'bg-blue-100 text-blue-800'
                   : 'bg-white text-gray-600'
-              }`}
+                }`}
             >
               {levelInfo.level}
             </div>
           </div>
           <div>
             <div className="font-medium text-gray-900 text-[10px]">Cat.</div>
-            <div 
-              className={`capitalize px-2 py-1.5 rounded-full text-xs font-semibold shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${
-                categoryInfo.isAssigned 
-                  ? 'bg-blue-100 text-blue-800' 
+            <div
+              className={`capitalize px-2 py-1.5 rounded-full text-xs font-semibold shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${categoryInfo.isAssigned
+                  ? 'bg-blue-100 text-blue-800'
                   : 'bg-white text-gray-600'
-              }`}
+                }`}
             >
               {categoryInfo.category}
             </div>
           </div>
           <div>
             <div className="font-medium text-gray-900 text-[10px]">Pista</div>
-            <div 
-              className={`px-2 py-1.5 rounded-full text-xs font-semibold shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${
-                courtAssignment.isAssigned 
-                  ? 'bg-blue-100 text-blue-700' 
+            <div
+              className={`px-2 py-1.5 rounded-full text-xs font-semibold shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${courtAssignment.isAssigned
+                  ? 'bg-blue-100 text-blue-700'
                   : 'text-gray-600'
-              }`}
+                }`}
             >
-              {courtAssignment.isAssigned 
-                ? `Pista ${courtAssignment.courtNumber}` 
+              {courtAssignment.isAssigned
+                ? `Pista ${courtAssignment.courtNumber}`
                 : 'Pista'
               }
             </div>
@@ -1629,7 +1640,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                 </div>
               </div>
             </div>
-            
+
             {/* Hora y duración - Derecha */}
             <div className="flex items-center gap-3">
               <div className="text-right">
@@ -1641,8 +1652,8 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                   <span>60 min</span>
                 </div>
               </div>
-              
-              <button 
+
+              <button
                 className="text-gray-400 hover:text-gray-600 transition-colors"
                 aria-label="Compartir clase"
                 title="Compartir clase"
@@ -1662,70 +1673,70 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         {hasConfirmedBookingToday && !userHasBookingInThisSlot && !loadingBookingCheck && (
           <p className="text-[10px] text-red-600 font-medium mb-1">Tienes reserva confirmada hoy</p>
         )}
-        
+
         {[1, 2, 3, 4].filter(players => allowedPlayerCounts.includes(players)).map((players) => {
           // ♻️ BLOQUEO DE MODALIDADES: Si hay plazas recicladas en el slot, solo habilitar modalidades con reciclaje
           const hasRecycledInSlot = currentSlotData.hasRecycledSlots && currentSlotData.availableRecycledSlots > 0;
-          
+
           // ♻️ CRÍTICO: Determinar si ESTA modalidad específica tiene reciclaje
           // Primero necesitamos filtrar los bookings de esta modalidad
           const allBookingsForThisModality = (currentSlotData.bookings || []).filter(b => b.groupSize === players);
-          const thisModalityHasRecycling = allBookingsForThisModality.some(b => 
+          const thisModalityHasRecycling = allBookingsForThisModality.some(b =>
             b.status === 'CANCELLED' && b.isRecycled === true
           );
-          
+
           // ♻️ Si hay reciclaje en el slot y esta modalidad NO tiene reciclaje, deshabilitar
           const isDisabledByRecycling = hasRecycledInSlot && !thisModalityHasRecycling;
-          
+
           // ♻️ SOLO incluir bookings activos (NO reciclados) - los reciclados se muestran como círculos vacíos amarillos
-          const modalityBookings = Array.isArray(bookings) 
+          const modalityBookings = Array.isArray(bookings)
             ? bookings.filter(b => {
-                // Incluir SOLO activos (PENDING/CONFIRMED), excluir TODOS los CANCELLED
-                return b.groupSize === players && b.status !== 'CANCELLED';
-              })
+              // Incluir SOLO activos (PENDING/CONFIRMED), excluir TODOS los CANCELLED
+              return b.groupSize === players && b.status !== 'CANCELLED';
+            })
             : [];
-          
+
           // Para el conteo de confirmados, solo usar los NO cancelados
           const activeModalityBookings = modalityBookings.filter(b => b.status !== 'CANCELLED');
-          
+
           // ♻️ Calcular plazas recicladas en esta modalidad específica usando currentSlotData.bookings (que incluye CANCELLED)
-          const recycledInThisModality = allBookingsForThisModality.filter(b => 
+          const recycledInThisModality = allBookingsForThisModality.filter(b =>
             b.status === 'CANCELLED' && b.isRecycled === true
           );
           const hasExactRecycledCount = recycledInThisModality.length === players;
-          
+
           // Verificar si esta modalidad está confirmada (tiene pista asignada)
-          const isThisModalityConfirmed = courtAssignment.isAssigned && 
-            activeModalityBookings.length >= players && 
+          const isThisModalityConfirmed = courtAssignment.isAssigned &&
+            activeModalityBookings.length >= players &&
             activeModalityBookings.some(b => b.status === 'CONFIRMED');
-          
+
           // Verificar si OTRA modalidad está confirmada
           // ♻️ CRÍTICO: Si ESTA modalidad tiene reciclaje (thisModalityHasRecycling), NO bloquearla
-          const isAnotherModalityConfirmed = courtAssignment.isAssigned && 
-            !isThisModalityConfirmed && 
+          const isAnotherModalityConfirmed = courtAssignment.isAssigned &&
+            !isThisModalityConfirmed &&
             !thisModalityHasRecycling; // ♻️ Usar thisModalityHasRecycling que se calculó correctamente
-          
+
           // ♻️ Contar cuántas plazas recicladas hay en ESTA modalidad específica
-          const recycledCountInModality = modalityBookings.filter(b => 
+          const recycledCountInModality = modalityBookings.filter(b =>
             b.status === 'CANCELLED' && b.isRecycled === true
           ).length;
           const hasExactRecycledMatch = recycledCountInModality === players;
-          
+
           // 🎁 Verificar si esta modalidad es reservable con puntos
           // Calcular creditsCost dinámicamente: precio por persona redondeado
           const totalPrice = currentSlotData.totalPrice || 25;
           const creditsCost = Math.ceil(roundPrice(totalPrice / players));
-          
+
           // Calcular cuántas plazas de esta modalidad son de puntos (incluye recicladas)
-          const startIndex = [1,2,3,4].slice(0, players - 1).reduce((sum, p) => sum + p, 0);
+          const startIndex = [1, 2, 3, 4].slice(0, players - 1).reduce((sum, p) => sum + p, 0);
           const endIndex = startIndex + players;
-          const creditsSlotIndicesForThisModality = Array.isArray(effectiveCreditsSlots) 
+          const creditsSlotIndicesForThisModality = Array.isArray(effectiveCreditsSlots)
             ? effectiveCreditsSlots.filter(idx => idx >= startIndex && idx < endIndex)
             : [];
-          
+
           const hasAnyCreditSlot = creditsSlotIndicesForThisModality.length > 0 || thisModalityHasRecycling;
           const hasAllCreditSlots = creditsSlotIndicesForThisModality.length === players || thisModalityHasRecycling;
-          
+
           // 🔍 DEBUG: Mostrar datos antes de calcular isCreditsSlot
           console.log(`🔍 Pre-isCreditsSlot check (${players}p):`, JSON.stringify({
             players,
@@ -1734,11 +1745,11 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
             hasAllCreditSlots,
             thisModalityHasRecycling
           }, null, 2));
-          
+
           // ♻️ Si hay plazas recicladas, toda la modalidad debe ser de puntos
-          const isCreditsSlot = thisModalityHasRecycling || (Array.isArray(effectiveCreditsSlots) && 
+          const isCreditsSlot = thisModalityHasRecycling || (Array.isArray(effectiveCreditsSlots) &&
             (effectiveCreditsSlots.includes(players) || hasAllCreditSlots));
-          
+
           // 🐛 DEBUG temporal para Cristian Parra slot
           if (currentSlotData.id.includes('z9y4veby1rd')) {
             console.log(`🐛 DEBUG slot ${currentSlotData.id.substring(0, 12)}:`, {
@@ -1751,7 +1762,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
               creditsCost
             });
           }
-          
+
           // Debug log para mostrar el filtrado
           if (bookings.length > 0) {
             console.log(`🎯 Clase ${currentSlotData.id.substring(0, 8)}: Modalidad ${players} jugadores`);
@@ -1761,14 +1772,14 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
             console.log(`♻️ Tiene plazas recicladas:`, thisModalityHasRecycling);
             console.log(`🎁 Es plaza con puntos:`, isCreditsSlot, '- Coste:', creditsCost);
           }
-          
+
           // Para esta modalidad específica, determinar qué bookings mostrar
           // 🔴 EN PANEL DE CANCELADAS: Mostrar bookings cancelados para indicar qué plaza fue cancelada
           // ♻️ EN PANEL NORMAL: Mostrar solo activos (los reciclados se ven como círculos amarillos vacíos)
-          const bookedUsers = isCancelled 
+          const bookedUsers = isCancelled
             ? allBookingsForThisModality.slice(0, players) // Panel canceladas: mostrar TODOS (incluye CANCELLED)
             : modalityBookings.slice(0, players); // Panel normal: solo activos (excluye CANCELLED)
-          
+
           // 🐛 DEBUG: Verificar datos de bookings reciclados
           if (thisModalityHasRecycling) {
             console.log(`♻️♻️♻️ MODALIDAD ${players}:`, {
@@ -1779,29 +1790,29 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
               shouldBeReservable: hasExactRecycledCount
             });
           }
-          
+
           const isUserBookedForOption = isUserBooked(players);
           const pricePerPerson = roundPrice((currentSlotData.totalPrice || 25) / players); // Precio en euros redondeado
-          
+
           // 🆕 Verificar si esta es la opción específica que el usuario reservó
           const isUserBookedOption = agendaMode && userBookedGroupSize === players;
-          
+
           return (
-            <div 
-              key={players} 
+            <div
+              key={players}
               className={cn(
                 "flex items-center justify-between gap-2 p-1 rounded-lg transition-colors min-w-0 relative",
                 // 🆕 Resaltar la opción que el usuario reservó en modo agenda
                 isUserBookedOption
                   ? "bg-blue-100 border-2 border-blue-500 shadow-md"
                   : // No aplicar opacity si es una clase cancelada (solo mostrar información)
-                isCancelled
-                  ? "bg-gray-50"
-                  : isDisabledByRecycling
-                  ? "opacity-30 cursor-not-allowed bg-gray-100" // ♻️ Deshabilitar modalidades no recicladas
-                  : (hasConfirmedBookingToday && !userHasBookingInThisSlot) || isAnotherModalityConfirmed 
-                  ? "opacity-40 cursor-not-allowed bg-gray-100" 
-                  : "cursor-pointer hover:bg-gray-50"
+                  isCancelled
+                    ? "bg-gray-50"
+                    : isDisabledByRecycling
+                      ? "opacity-30 cursor-not-allowed bg-gray-100" // ♻️ Deshabilitar modalidades no recicladas
+                      : (hasConfirmedBookingToday && !userHasBookingInThisSlot) || isAnotherModalityConfirmed
+                        ? "opacity-40 cursor-not-allowed bg-gray-100"
+                        : "cursor-pointer hover:bg-gray-50"
               )}
               onClick={() => {
                 if (isCancelled) {
@@ -1840,8 +1851,8 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
               {/* Capa transparente para bloquear clics en clase confirmada */}
               {/* ♻️ SOLO bloquear si NO hay plazas recicladas en esta modalidad */}
               {courtAssignment.isAssigned && !thisModalityHasRecycling && (
-                <div 
-                  className="absolute inset-0 z-10 cursor-not-allowed" 
+                <div
+                  className="absolute inset-0 z-10 cursor-not-allowed"
                   onClick={(e) => {
                     e.stopPropagation();
                     toast({
@@ -1862,17 +1873,17 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                   const isCurrentUser = booking?.userId === currentUser?.id;
                   const isRecycled = booking?.status === 'CANCELLED' && booking?.isRecycled === true;
                   const displayName = booking?.user?.name ? booking.user.name.substring(0, 5) : '';
-                  
+
                   // 🎁 CAMBIO CRÍTICO: creditsSlots guarda groupSize (1-4), no absoluteIndex
                   // Si la modalidad de 2 jugadores está marcada, creditsSlots = [2]
                   const groupSize = players;
-                  
+
                   // Verificar si TODA la modalidad (groupSize) está marcada como creditsSlot
                   const isMarkedAsCreditsSlot = Array.isArray(effectiveCreditsSlots) && effectiveCreditsSlots.includes(groupSize);
-                  
+
                   // Si la modalidad está marcada como credits, TODOS los círculos de esa modalidad se muestran en verde
                   const isThisCircleCredits = isMarkedAsCreditsSlot;
-                  
+
                   // 🐛 DEBUG para ver la lógica - LOG SIEMPRE para debug
                   if (index === 0) {
                     console.log(`🎯 Plaza ${players}p:`, {
@@ -1885,20 +1896,20 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                       creditsSlotsState: creditsSlots
                     });
                   }
-                  
+
                   // �🔴 Detectar si este círculo es la plaza cancelada (para panel de canceladas)
                   // Si estamos en modo isCancelled, TODOS los círculos ocupados deben ser rojos
-                  const isCancelledSlot = isCancelled && 
-                    isOccupied && 
+                  const isCancelledSlot = isCancelled &&
+                    isOccupied &&
                     booking.status === 'CANCELLED';
-                  
+
                   // ♻️ Detectar si es plaza reciclada (CANCELLED + isRecycled)
                   // Solo mostrar amarilla si NO estamos en panel de canceladas
-                  const isRecycledBooking = !isCancelled && 
-                    isOccupied && 
-                    booking.status === 'CANCELLED' && 
+                  const isRecycledBooking = !isCancelled &&
+                    isOccupied &&
+                    booking.status === 'CANCELLED' &&
                     booking.isRecycled === true;
-                  
+
                   // 🐛 DEBUG: Log para verificar detección
                   if (isOccupied && (booking.status === 'CANCELLED' || booking.isRecycled)) {
                     console.log('🔍 SLOT DETECTADO:', {
@@ -1913,14 +1924,14 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                       name: booking.name
                     });
                   }
-                  
+
                   // Debug log para ver los datos del booking
                   if (isOccupied && index === 0) {
                     console.log('🖼️ Booking completo:', booking);
                     console.log('📸 profilePictureUrl:', booking.profilePictureUrl);
                     console.log('♻️ isRecycled:', isRecycled);
                   }
-                  
+
                   return (
                     <div key={index} className="flex flex-col items-center gap-0.5 relative w-10">
                       <div
@@ -1929,10 +1940,10 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                           isCancelledSlot
                             ? 'bg-white border-red-600 ring-4 ring-red-300' // 🔴 Plaza cancelada en panel canceladas
                             : isRecycledBooking
-                            ? 'bg-white border-yellow-500 recycled-slot-blink' // ♻️ Plaza reciclada en panel principal
-                            : isOccupied 
-                              ? (isThisCircleCredits ? 'bg-white border-amber-500 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]' : 'bg-white border-gray-200 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]')
-                              : (isThisCircleCredits 
+                              ? 'bg-white border-yellow-500 recycled-slot-blink' // ♻️ Plaza reciclada en panel principal
+                              : isOccupied
+                                ? (isThisCircleCredits ? 'bg-white border-amber-500 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]' : 'bg-white border-gray-200 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]')
+                                : (isThisCircleCredits
                                   ? 'bg-amber-50 border-yellow-400 border-4 text-amber-600 shadow-[0_0_20px_rgba(234,179,8,0.8)]' // 🎁 Plaza vacía con puntos
                                   : 'bg-gray-100 border-gray-300 text-gray-400 text-xl shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-pointer hover:bg-gray-200 hover:border-gray-400'),
                           isCurrentUser && 'ring-2 ring-blue-400 ring-offset-1',
@@ -1943,12 +1954,12 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                           isCancelledSlot
                             ? '🔴 Plaza cancelada'
                             : isRecycledBooking
-                            ? '♻️ Plaza reciclada - Reservable con puntos'
-                            : isThisCircleCredits
-                              ? `🎁 Reservable con ${creditsCost} puntos`
-                            : isAnotherModalityConfirmed 
-                              ? 'Opción bloqueada - Otra modalidad confirmada'
-                              : isOccupied ? booking.user?.name : 'Disponible'
+                              ? '♻️ Plaza reciclada - Reservable con puntos'
+                              : isThisCircleCredits
+                                ? `🎁 Reservable con ${creditsCost} puntos`
+                                : isAnotherModalityConfirmed
+                                  ? 'Opción bloqueada - Otra modalidad confirmada'
+                                  : isOccupied ? booking.user?.name : 'Disponible'
                         }
                       >
                         {isCancelledSlot ? (
@@ -1956,8 +1967,8 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                           <div className="relative w-full h-full rounded-full overflow-hidden">
                             {/* Foto de fondo del usuario */}
                             {booking.user?.profilePictureUrl ? (
-                              <img 
-                                src={booking.user.profilePictureUrl} 
+                              <img
+                                src={booking.user.profilePictureUrl}
                                 alt={booking.user?.name || 'Usuario'}
                                 className="absolute inset-0 w-full h-full object-cover"
                               />
@@ -1990,11 +2001,11 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                               'booking.userId': booking.userId,
                               'FULL_BOOKING': JSON.parse(JSON.stringify(booking))
                             });
-                            
+
                             if (booking.user?.profilePictureUrl) {
                               return (
-                                <img 
-                                  src={booking.user.profilePictureUrl} 
+                                <img
+                                  src={booking.user.profilePictureUrl}
                                   alt={booking.user?.name || 'Usuario'}
                                   className="w-full h-full object-cover rounded-full shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]"
                                   onLoad={() => console.log('✅ Imagen cargada:', booking.user.profilePictureUrl)}
@@ -2025,8 +2036,8 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                             <div className="relative w-full h-full rounded-full overflow-hidden">
                               {/* Foto de fondo del usuario cancelado */}
                               {cancelledUserData?.profilePictureUrl ? (
-                                <img 
-                                  src={cancelledUserData.profilePictureUrl} 
+                                <img
+                                  src={cancelledUserData.profilePictureUrl}
                                   alt={cancelledUserData.name || 'Usuario cancelado'}
                                   className="absolute inset-0 w-full h-full object-cover"
                                 />
@@ -2068,7 +2079,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                   );
                 })}
               </div>
-              
+
               {/* Price or Credits - Desglosado */}
               <div className="text-right flex-shrink-0 ml-auto mr-2 relative">
                 {/* Contenedor del precio */}
@@ -2115,26 +2126,26 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
               <div className="text-[10px] text-gray-500 text-center mb-1">Pista asignada:</div>
               <div className="flex items-center justify-center gap-1">
                 <div className="flex flex-col items-center">
-                  <svg 
-                    className="shadow-inner-custom" 
-                    width="19" 
-                    height="32" 
-                    viewBox="0 0 40 60" 
-                    fill="none" 
+                  <svg
+                    className="shadow-inner-custom"
+                    width="19"
+                    height="32"
+                    viewBox="0 0 40 60"
+                    fill="none"
                     xmlns="http://www.w3.org/2000/svg"
                   >
                     <defs>
                       <filter id="innerShadow-assigned" x="-50%" y="-50%" width="200%" height="200%">
-                        <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur"/>
-                        <feOffset in="blur" dx="0" dy="1" result="offsetBlur"/>
-                        <feFlood floodColor="#000000" floodOpacity="0.25" result="offsetColor"/>
-                        <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur"/>
-                        <feComposite in="SourceGraphic" in2="offsetBlur" operator="over"/>
+                        <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
+                        <feOffset in="blur" dx="0" dy="1" result="offsetBlur" />
+                        <feFlood floodColor="#000000" floodOpacity="0.25" result="offsetColor" />
+                        <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur" />
+                        <feComposite in="SourceGraphic" in2="offsetBlur" operator="over" />
                       </filter>
                     </defs>
-                    <rect x="2" y="2" width="36" height="56" rx="4" fill="#10B981" stroke="#059669" strokeWidth="2" filter="url(#innerShadow-assigned)"/>
-                    <line x1="20" y1="2" x2="20" y2="58" stroke="#FFFFFF" strokeWidth="1.5" strokeDasharray="3 3"/>
-                    <line x1="2" y1="30" x2="38" y2="30" stroke="#FFFFFF" strokeWidth="1" opacity="0.5"/>
+                    <rect x="2" y="2" width="36" height="56" rx="4" fill="#10B981" stroke="#059669" strokeWidth="2" filter="url(#innerShadow-assigned)" />
+                    <line x1="20" y1="2" x2="20" y2="58" stroke="#FFFFFF" strokeWidth="1.5" strokeDasharray="3 3" />
+                    <line x1="2" y1="30" x2="38" y2="30" stroke="#FFFFFF" strokeWidth="1" opacity="0.5" />
                   </svg>
                   <div className="text-green-600 font-semibold text-[9px] leading-none mt-0.5">
                     PISTA {courtAssignment.courtNumber}
@@ -2150,67 +2161,67 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
               <div className="flex items-center justify-center gap-2">
                 {(() => {
                   const courts = (classData as any).courtsAvailability;
-                  
+
                   // Validación rápida sin logs para evitar bucle infinito
                   if (!courts || !Array.isArray(courts) || courts.length === 0) {
                     return false;
                   }
-                  
+
                   return true;
                 })() ? (
                   (classData as any).courtsAvailability.map((court: any) => {
-                    const fillColor = court.status === 'available' 
+                    const fillColor = court.status === 'available'
                       ? '#10B981'  // Verde - disponible
                       : court.status === 'occupied'
-                      ? '#EF4444'  // Rojo - ocupada
-                      : '#9CA3AF'; // Gris - no disponible
-                    
+                        ? '#EF4444'  // Rojo - ocupada
+                        : '#9CA3AF'; // Gris - no disponible
+
                     const strokeColor = court.status === 'available'
                       ? '#059669'
                       : court.status === 'occupied'
-                      ? '#DC2626'
-                      : '#6B7280';
-                    
+                        ? '#DC2626'
+                        : '#6B7280';
+
                     const statusText = court.status === 'available'
                       ? 'Disponible'
                       : court.status === 'occupied'
-                      ? 'Ocupada'
-                      : 'No disponible';
-                    
+                        ? 'Ocupada'
+                        : 'No disponible';
+
                     return (
                       <div key={court.courtId} className="relative group flex flex-col items-center" title={`Pista ${court.courtNumber}: ${statusText}`}>
-                        <svg 
-                          className="transition-transform hover:scale-110 shadow-inner-custom" 
-                          width="19" 
-                          height="32" 
-                          viewBox="0 0 40 60" 
-                          fill="none" 
+                        <svg
+                          className="transition-transform hover:scale-110 shadow-inner-custom"
+                          width="19"
+                          height="32"
+                          viewBox="0 0 40 60"
+                          fill="none"
                           xmlns="http://www.w3.org/2000/svg"
                         >
                           <defs>
                             <filter id={`innerShadow-${court.courtId}`} x="-50%" y="-50%" width="200%" height="200%">
-                              <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur"/>
-                              <feOffset in="blur" dx="0" dy="1" result="offsetBlur"/>
-                              <feFlood floodColor="#000000" floodOpacity="0.25" result="offsetColor"/>
-                              <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur"/>
-                              <feComposite in="SourceGraphic" in2="offsetBlur" operator="over"/>
+                              <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
+                              <feOffset in="blur" dx="0" dy="1" result="offsetBlur" />
+                              <feFlood floodColor="#000000" floodOpacity="0.25" result="offsetColor" />
+                              <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur" />
+                              <feComposite in="SourceGraphic" in2="offsetBlur" operator="over" />
                             </filter>
                           </defs>
-                          <rect x="2" y="2" width="36" height="56" rx="4" fill={fillColor} stroke={strokeColor} strokeWidth="2" filter={`url(#innerShadow-${court.courtId})`}/>
-                          <line x1="20" y1="2" x2="20" y2="58" stroke="#FFFFFF" strokeWidth="1.5" strokeDasharray="3 3"/>
-                          <line x1="2" y1="30" x2="38" y2="30" stroke="#FFFFFF" strokeWidth="1" opacity="0.5"/>
+                          <rect x="2" y="2" width="36" height="56" rx="4" fill={fillColor} stroke={strokeColor} strokeWidth="2" filter={`url(#innerShadow-${court.courtId})`} />
+                          <line x1="20" y1="2" x2="20" y2="58" stroke="#FFFFFF" strokeWidth="1.5" strokeDasharray="3 3" />
+                          <line x1="2" y1="30" x2="38" y2="30" stroke="#FFFFFF" strokeWidth="1" opacity="0.5" />
                         </svg>
-                        
+
                         {/* 🔴 X ROJA para pistas ocupadas */}
                         {court.status === 'occupied' && (
                           <div className="text-red-600 font-bold text-xs leading-none mt-0.5">✕</div>
                         )}
-                        
+
                         {/* 🟢 LIBRE para pistas disponibles */}
                         {court.status === 'available' && (
                           <div className="text-green-600 font-semibold text-[9px] leading-none mt-0.5">LIBRE</div>
                         )}
-                        
+
                         {/* Tooltip */}
                         <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
                           Pista {court.courtNumber}: {statusText}
@@ -2228,7 +2239,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
         </div>
       </div>
 
-      
+
       {/* Diálogo de Confirmación */}
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <AlertDialogContent>
@@ -2275,11 +2286,10 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                       key={num}
                       type="button"
                       onClick={() => setPrivateAttendees(num)}
-                      className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
-                        privateAttendees === num
+                      className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${privateAttendees === num
                           ? 'bg-purple-600 text-white'
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
+                        }`}
                     >
                       {num}
                     </button>
@@ -2309,10 +2319,10 @@ export default React.memo(ClassCardReal, (prevProps, nextProps) => {
   const bookedPlayersChanged = JSON.stringify(prevProps.classData.bookedPlayers) !== JSON.stringify(nextProps.classData.bookedPlayers);
   const bookingsChanged = JSON.stringify((prevProps.classData as any).bookings) !== JSON.stringify((nextProps.classData as any).bookings);
   const courtNumberChanged = prevProps.classData.courtNumber !== nextProps.classData.courtNumber;
-  
+
   // Si algo cambió, NO bloquear el re-render (retornar false)
   const shouldBlock = !classIdChanged && !userChanged && !bookedPlayersChanged && !bookingsChanged && !courtNumberChanged;
-  
+
   return shouldBlock;
 });
 

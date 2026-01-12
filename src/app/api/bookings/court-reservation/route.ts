@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     const totalCredits = Number(user.credits) / 100; // Convertir de céntimos a euros
     if (totalCredits < totalPrice) {
       return NextResponse.json(
-        { 
+        {
           error: 'Créditos insuficientes',
           requiredCredits: totalPrice,
           availableCredits: totalCredits
@@ -130,14 +130,23 @@ export async function POST(request: NextRequest) {
     });
 
     // Registrar transacción
+    const formattedDate = startDate.toLocaleString('es-ES', {
+      timeZone: 'Europe/Madrid',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
     await prisma.transaction.create({
       data: {
         userId,
         type: 'credit',
         action: 'subtract',
-        amount: totalPrice,
-        balance: newBalance / 100, // Balance en euros
-        concept: `Reserva de pista - ${duration} minutos`,
+        amount: chargeAmountCents,
+        balance: newBalance, // Balance en céntimos
+        concept: `Reserva de pista ${formattedDate} - ${duration} minutos`,
         relatedId: courtSchedule.id,
         relatedType: 'court_reservation',
         createdAt: new Date(),
@@ -158,7 +167,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error creating court reservation:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Error al crear la reserva',
         details: error instanceof Error ? error.message : 'Unknown error'
       },

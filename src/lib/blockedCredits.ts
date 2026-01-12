@@ -12,18 +12,40 @@ import { prisma } from '@/lib/prisma';
  * @param userId - ID del usuario
  * @returns Monto en CÉNTIMOS que debe estar bloqueado
  */
+import { createTransaction } from '@/lib/transactionLogger';
+
+/**
+ * Calcula el saldo que debe estar bloqueado para un usuario.
+ * 
+ * REGLA: "Suma de los Máximos por Día"
+ * 1. Agrupar inscripciones pendientes por día.
+ * 2. En cada día, tomar la inscripción de mayor valor.
+ * 3. Sumar esos máximos diarios.
+ * 
+ * @param userId - ID del usuario
+ * @returns Monto en CÉNTIMOS que debe estar bloqueado
+ */
 export async function calculateBlockedCredits(userId: string): Promise<number> {
   // Obtener todas las inscripciones pendientes del usuario donde el TimeSlot NO tenga pista asignada
+  // Y que sean FUTURAS (para no bloquear saldo de clases pasadas)
   const pendingBookings = await prisma.booking.findMany({
     where: {
       userId,
-      status: 'PENDING', // Solo las que están pendientes
+      status: 'PENDING',
       timeSlot: {
-        courtId: null // Solo TimeSlots sin pista asignada (incompletas)
+        courtId: null, // Solo TimeSlots sin pista asignada
+        start: {
+          gt: new Date() // ✅ SOLO FUTURAS
+        }
       }
     },
     select: {
-      amountBlocked: true
+      amountBlocked: true,
+      timeSlot: {
+        select: {
+          start: true
+        }
+      }
     }
   });
 
@@ -31,10 +53,149 @@ export async function calculateBlockedCredits(userId: string): Promise<number> {
     return 0;
   }
 
-  // Encontrar el monto MÁS ALTO (la clase más cara) en CÉNTIMOS
-  const maxAmount = Math.max(...pendingBookings.map(b => b.amountBlocked || 0));
+  // Agrupar por fecha (YYYY-MM-DD)
+  const maxPerDay: Record<string, number> = {};
 
-  return maxAmount;
+  pendingBookings.forEach(booking => {
+    const dateKey = new Date(booking.timeSlot.start).toISOString().split('T')[0];
+    const amount = booking.amountBlocked || 0;
+
+    if (!maxPerDay[dateKey] || amount > maxPerDay[dateKey]) {
+      maxPerDay[dateKey] = amount;
+    }
+  });
+
+  // Sumar los máximos de cada día
+  const totalBlocked = Object.values(maxPerDay).reduce((sum, val) => sum + val, 0);
+
+  return totalBlocked;
+}
+
+/**
+ * Obtiene el desglose del saldo bloqueado por día.
+ * Útil para mostrar al usuario qué días están bloqueando saldo.
+ */
+export async function getBlockedCreditsBreakdown(userId: string) {
+  const pendingBookings = await prisma.booking.findMany({
+    where: {
+      userId,
+      status: 'PENDING',
+      timeSlot: {
+        courtId: null,
+        start: {
+          gt: new Date()
+        }
+      }
+    },
+    select: {
+      id: true,
+      amountBlocked: true,
+      timeSlot: {
+        select: {
+          start: true
+        }
+      }
+    }
+  });
+
+  const breakdown: Record<string, { date: string, amount: number, count: number }> = {};
+
+  pendingBookings.forEach(booking => {
+    const dateKey = new Date(booking.timeSlot.start).toISOString().split('T')[0];
+    const amount = booking.amountBlocked || 0;
+
+    if (!breakdown[dateKey]) {
+      breakdown[dateKey] = { date: dateKey, amount: 0, count: 0 };
+    }
+
+    // Guardar el máximo del día
+    if (amount > breakdown[dateKey].amount) {
+      breakdown[dateKey].amount = amount;
+    }
+
+    breakdown[dateKey].count++;
+  });
+
+  // Convertir a array ordenado por fecha
+  return Object.values(breakdown).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/**
+ * Finaliza reservas pendientes expiradas (que ya pasaron de fecha sin confirmarse).
+ * 1. Las marca como CANCELLED.
+ * 2. Recalcula el saldo bloqueado.
+ * 3. Si se libera saldo, crea una transacción de devolución.
+ */
+export async function finalizeExpiredBookings(userId: string): Promise<void> {
+  const now = new Date();
+
+  // 1. Buscar inscripciones expiradas (PENDING + fecha pasada)
+  const expiredBookings = await prisma.booking.findMany({
+    where: {
+      userId,
+      status: 'PENDING',
+      timeSlot: {
+        start: {
+          lt: now // Solo pasadas
+        }
+      }
+    },
+    include: {
+      timeSlot: true
+    }
+  });
+
+  if (expiredBookings.length === 0) {
+    // Si no hay expiradas, solo asegurarnos que el saldo bloqueado esté actualizado
+    // (Pudo haber cambiado por reservas confirmadas de otros usuarios)
+    await updateUserBlockedCredits(userId);
+    return;
+  }
+
+  console.log(`🧹 Encontradas ${expiredBookings.length} inscripciones expiradas para ${userId}`);
+
+  // 2. Obtener saldo bloqueado ANTES de limpiar
+  const userBefore = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { blockedCredits: true, credits: true }
+  });
+  const blockedBefore = userBefore?.blockedCredits || 0;
+
+  // 3. Cancelar inscripciones expiradas
+  for (const booking of expiredBookings) {
+    await prisma.booking.update({
+      where: { id: booking.id },
+      data: { status: 'CANCELLED' }
+    });
+    console.log(`   ❌ Cancelada inscripción expirada: ${booking.id} (${booking.timeSlot.start})`);
+  }
+
+  // 4. Recalcular saldo bloqueado (ahora sin las expiradas)
+  const blockedAfter = await calculateBlockedCredits(userId);
+
+  // 5. Actualizar usuario
+  await prisma.user.update({
+    where: { id: userId },
+    data: { blockedCredits: blockedAfter }
+  });
+
+  // 6. Calcular diferencia liberada
+  const releasedAmount = blockedBefore - blockedAfter;
+
+  // 7. Si se liberó saldo positivo, registrar transacción
+  if (releasedAmount > 0) {
+    console.log(`   💰 Liberando €${releasedAmount / 100} bloqueados al usuario ${userId}`);
+
+    await createTransaction({
+      userId,
+      type: 'credit',
+      action: 'unblock', // Usamos 'unblock' o 'add' según prefieras visualmente. 'unblock' es semánticamente correcto.
+      amount: releasedAmount,
+      balance: (userBefore?.credits || 0) - blockedAfter, // El saldo real disponible sube
+      concept: `Saldo desbloqueado (Clases incompletas expiradas)`,
+      relatedType: 'system_cleanup'
+    });
+  }
 }
 
 /**
@@ -45,7 +206,7 @@ export async function calculateBlockedCredits(userId: string): Promise<number> {
  */
 export async function updateUserBlockedCredits(userId: string): Promise<number> {
   const blockedAmount = await calculateBlockedCredits(userId);
-  
+
   await prisma.user.update({
     where: { id: userId },
     data: { blockedCredits: blockedAmount }
@@ -122,10 +283,10 @@ export async function markSlotAsRecycled(timeSlotId: string): Promise<void> {
   // Calcular plazas recicladas disponibles
   const recycledBookings = timeSlot.bookings.filter(b => b.status === 'CANCELLED' && b.isRecycled);
   const activeBookings = timeSlot.bookings.filter(b => b.status !== 'CANCELLED');
-  
+
   const maxPlayers = Number(timeSlot.maxPlayers || 4);
   const availableRecycledSlots = Math.max(0, maxPlayers - activeBookings.length);
-  
+
   console.log(`♻️ Actualizando TimeSlot ${timeSlotId}:`, {
     maxPlayers,
     activeBookings: activeBookings.length,
@@ -137,7 +298,7 @@ export async function markSlotAsRecycled(timeSlotId: string): Promise<void> {
   // Actualizar el timeslot con los valores calculados
   await prisma.timeSlot.update({
     where: { id: timeSlotId },
-    data: { 
+    data: {
       hasRecycledSlots: true,
       availableRecycledSlots: availableRecycledSlots,
       recycledSlotsOnlyPoints: true
@@ -200,23 +361,23 @@ export async function resetSlotCategoryIfEmpty(timeSlotId: string): Promise<bool
     FROM Booking 
     WHERE timeSlotId = ${timeSlotId}
     AND status IN ('PENDING', 'CONFIRMED')
-  ` as Array<{count: number}>;
+  ` as Array<{ count: number }>;
 
   const count = activeBookings[0]?.count || 0;
 
   // Si no hay usuarios, resetear nivel y categoría
   if (count === 0) {
     console.log(`🔄 TimeSlot ${timeSlotId} sin usuarios - reseteando nivel y categoría...`);
-    
+
     await prisma.$executeRaw`
       UPDATE TimeSlot
       SET genderCategory = NULL,
-          level = 'abierto',
-          levelRange = NULL,
-          updatedAt = datetime('now')
-      WHERE id = ${timeSlotId}
+      level = 'abierto',
+      levelRange = NULL,
+      updatedAt = datetime('now')
+    WHERE id = ${timeSlotId}
     `;
-    
+
     console.log(`✅ TimeSlot reseteado a valores por defecto (level='abierto', genderCategory=NULL, levelRange=NULL)`);
     return true;
   }

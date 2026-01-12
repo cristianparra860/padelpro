@@ -16,10 +16,10 @@ interface BookingCardProps {
 }
 
 // Wrapper component que memoriza la conversión de Booking → TimeSlot
-const BookingCard = ({ 
-  booking, 
-  currentUser, 
-  onBookingSuccess, 
+const BookingCard = ({
+  booking,
+  currentUser,
+  onBookingSuccess,
   onCancelBooking,
   isPastClass = false,
   isCancelled = false,
@@ -28,7 +28,7 @@ const BookingCard = ({
   // Verificar si es clase o partida
   const isClassBooking = !!booking.timeSlot;
   const isMatchBooking = !!booking.matchGame;
-  
+
   // Memoizar la conversión para que el objeto no cambie si booking.id no cambia
   const timeSlotData = useMemo<TimeSlot>(() => {
     if (!isClassBooking) {
@@ -79,16 +79,16 @@ const BookingCard = ({
           gender: b.user.gender
         } : null
       })),
-      courtsAvailability: []
+      courtsAvailability: booking.timeSlot.courtsAvailability || []
     };
   }, [
     isClassBooking,
-    booking.id, 
+    booking.id,
     booking.timeSlot?.id,
-    booking.timeSlot?.courtNumber, 
+    booking.timeSlot?.courtNumber,
     booking.timeSlot?.bookings?.length
   ]); // NO incluir start/end para evitar cambios de referencia
-  
+
   // Si no es una clase, no renderizar este componente (necesitaría otro componente para partidas)
   if (!isClassBooking) {
     return null;

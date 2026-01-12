@@ -1,10 +1,20 @@
-// src/app/(app)/movimientos/page.tsx
 "use client";
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Wallet, Trophy, ArrowLeft, Plus, Repeat } from 'lucide-react';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { Wallet, Trophy, ArrowLeft, Plus, Repeat, Calendar, Clock, Award, LayoutGrid, Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import type { User as UserType, Transaction } from '@/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -15,7 +25,10 @@ import ConvertBalanceDialog from '@/components/user/ConvertBalanceDialog';
 const MovimientosPage: React.FC = () => {
   const router = useRouter();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [blockedBreakdown, setBlockedBreakdown] = useState<{ date: string; amount: number; count: number }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
   const [showAddCreditDialog, setShowAddCreditDialog] = useState(false);
   const [showConvertBalanceDialog, setShowConvertBalanceDialog] = useState(false);
@@ -25,14 +38,14 @@ const MovimientosPage: React.FC = () => {
       try {
         console.log('🔍 Cargando usuario actual para movimientos...');
         const response = await fetch('/api/auth/me');
-        
+
         if (response.status === 401) {
           // No autenticado, redirigir al login
           console.warn('⚠️ Usuario no autenticado');
           router.push('/');
           return;
         }
-        
+
         if (response.ok) {
           const data = await response.json();
           const userData = data.user;
@@ -48,95 +61,83 @@ const MovimientosPage: React.FC = () => {
   }, [router]);
 
   useEffect(() => {
-    const loadTransactions = async () => {
+    const loadData = async () => {
       if (!currentUser?.id) return;
 
       setLoading(true);
       try {
-        // Cargar transacciones desde la API
+        // 1. Cargar desglose de bloqueos
+        const breakdownRes = await fetch(`/api/users/${currentUser.id}/blocked-credits-detail`);
+        if (breakdownRes.ok) {
+          const breakdownData = await breakdownRes.json();
+          setBlockedBreakdown(breakdownData.breakdown || []);
+        }
+
+        // 2. Cargar transacciones
         const response = await fetch(`/api/users/${currentUser.id}/transactions?limit=50`);
         if (response.ok) {
           const data = await response.json();
-          
-          // Separar transacciones de créditos y puntos
+
           const allTransactions = data.transactions;
-          
-          // Mapear transacciones de la DB al formato del componente
+
+          // Mapear transacciones
           const mappedTransactions: Transaction[] = allTransactions.map((tx: any) => {
-            // Determinar si es entrada (+) o salida (-)
             const isPositive = tx.action === 'add' || tx.action === 'refund' || tx.action === 'unblock';
-            
-            // Convertir amount de céntimos a euros si es transacción de crédito
-            const amountInDisplayUnit = tx.type === 'credit' 
-              ? tx.amount / 100  // Convertir céntimos a euros
-              : tx.amount;       // Los puntos se quedan igual
-            
+
+            const amountInDisplayUnit = tx.type === 'credit'
+              ? tx.amount / 100
+              : tx.amount;
+
             return {
               id: tx.id,
               userId: tx.userId,
               type: tx.concept,
               description: tx.concept,
-              amount: isPositive ? amountInDisplayUnit : -amountInDisplayUnit, // +X para add/refund, -X para subtract
+              amount: isPositive ? amountInDisplayUnit : -amountInDisplayUnit,
               date: tx.createdAt,
-              balanceAfter: tx.type === 'credit' ? tx.balance / 100 : tx.balance, // Convertir balance también
-              transactionType: tx.type, // 'credit' o 'points'
-              action: tx.action, // 'add', 'subtract', 'block', 'unblock', 'refund'
-              rawAmount: amountInDisplayUnit // Guardar el amount original sin signo pero convertido
+              balanceAfter: tx.type === 'credit' ? tx.balance / 100 : tx.balance,
+              transactionType: tx.type,
+              action: tx.action,
+              rawAmount: amountInDisplayUnit
             };
           });
-          
-          // Calcular saldos históricos correctamente
-          // Las transacciones vienen DESC (más reciente primero)
-          // Vamos a calcular HACIA ATRÁS desde el saldo actual
-          
-          // Saldo actual real de la BD (convertir céntimos a euros)
+
+          // Calcular saldos históricos
           const currentCreditBalance = (currentUser.credits ?? 0) / 100;
           const currentPointsBalance = currentUser.points ?? 0;
-          
-          // Calcular hacia atrás: por cada transacción, restar el movimiento
+
           let runningCreditBalance = currentCreditBalance;
           let runningPointsBalance = currentPointsBalance;
-          
-          const transactionsWithHistoricBalances = mappedTransactions.map((tx: any, index: number) => {
-            // Para la primera transacción (más reciente), el saldo DESPUÉS es el actual
-            // Para las siguientes, vamos restando el movimiento
-            
-            // Saldo DESPUÉS de esta transacción
+
+          const transactionsWithHistoricBalances = mappedTransactions.map((tx: any) => {
             const balanceAfterCreditCol = runningCreditBalance;
             const balanceAfterPointsCol = runningPointsBalance;
-            
-            // Calcular saldo ANTES restando el movimiento (hacia atrás en el tiempo)
-            // Si tx.amount = +50 (se ganó dinero), antes tenía 50 menos
-            // Si tx.amount = -20 (se gastó), antes tenía 20 más
+
             if (tx.transactionType === 'credit') {
-              runningCreditBalance -= tx.amount; // Restar el movimiento para ir hacia atrás
+              runningCreditBalance -= tx.amount;
             } else {
               runningPointsBalance -= tx.amount;
             }
-            
-            // Saldo ANTES de aplicar esta transacción
+
             const balanceBeforeCreditCol = runningCreditBalance;
             const balanceBeforePointsCol = runningPointsBalance;
-            
+
             return {
               ...tx,
-              // Para la columna que tiene movimiento
               balanceBefore: tx.transactionType === 'credit' ? balanceBeforeCreditCol : balanceBeforePointsCol,
               balanceAfter: tx.transactionType === 'credit' ? balanceAfterCreditCol : balanceAfterPointsCol,
-              // Para ambas columnas (siempre mostrar saldo actual)
               creditBalanceBefore: balanceBeforeCreditCol,
               creditBalanceAfter: balanceAfterCreditCol,
               pointsBalanceBefore: balanceBeforePointsCol,
               pointsBalanceAfter: balanceAfterPointsCol
             };
           });
-          
-          // Filtrar solo transacciones con movimiento real (amount !== 0)
-          // INCLUIR 'block' y 'unblock' para mostrar el historial completo de bloqueos
-          const transactionsWithMovement = transactionsWithHistoricBalances.filter((tx: any) => 
+
+          // Filtrar movimientos reales
+          const transactionsWithMovement = transactionsWithHistoricBalances.filter((tx: any) =>
             tx.amount !== 0
           );
-          
+
           setTransactions(transactionsWithMovement);
         } else {
           console.error('Error fetching transactions:', response.statusText);
@@ -144,16 +145,41 @@ const MovimientosPage: React.FC = () => {
         }
 
       } catch (error) {
-        console.error("Error fetching movements data:", error);
+        console.error("Error fetching data:", error);
       } finally {
         setLoading(false);
       }
     };
 
     if (currentUser) {
-      loadTransactions();
+      loadData();
     }
   }, [currentUser]);
+
+  const handleDeleteHistory = async () => {
+    if (!currentUser) return;
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/users/${currentUser.id}/transactions`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setTransactions([]);
+        // toast.success("Historial eliminado correctamente");
+      } else {
+        console.error("Error eliminando historial:", data.error);
+        // toast.error("Error al eliminar el historial");
+      }
+    } catch (error) {
+      console.error("Error de conexión:", error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   if (!currentUser) {
     return (
@@ -163,236 +189,323 @@ const MovimientosPage: React.FC = () => {
     );
   }
 
-  // Usar credits (sin 's' en el total, con 's' en el bloqueado)
-  const totalCredit = ((currentUser as any).credits ?? 0) / 100; // Convertir céntimos a euros
-  const blockedCredit = ((currentUser as any).blockedCredits ?? 0) / 100;
+  // Cálculos de saldo - simplificados para evitar errores de parser
+  const userAny = currentUser as any;
+  const totalCredit = (userAny.credits || 0) / 100;
+  const blockedCredit = (userAny.blockedCredits || 0) / 100;
   const availableCredit = totalCredit - blockedCredit;
-  
-  const totalPoints = currentUser.points ?? 0;
-  const blockedPoints = (currentUser as any).blockedPoints ?? 0;
+
+  const totalPoints = userAny.points || 0;
+  const blockedPoints = userAny.blockedPoints || 0;
   const availablePoints = totalPoints - blockedPoints;
 
   return (
     <div className="p-3 sm:p-6 max-w-4xl mx-auto mb-20 sm:mb-6 pl-20 sm:pl-20 md:pl-24">
       {/* Header */}
       <div className="mb-3">
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           onClick={() => router.back()}
           className="mb-2 h-7 text-xs"
         >
           <ArrowLeft className="mr-1 h-3 w-3" />
           Volver
         </Button>
-        
+
         <div className="flex items-center gap-1 mb-1">
           <Wallet className="h-4 w-4 text-primary" />
           <h1 className="text-lg font-bold">Movimientos de Saldo</h1>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Consulta tu saldo disponible, el crédito bloqueado por pre-inscripciones y tu historial de transacciones.
-        </p>
       </div>
 
-      {/* Balance Summary - Franja Superior Mejorada */}
-      <div className="mb-6 p-6 bg-gradient-to-r from-blue-50 to-green-50 rounded-xl border-2 border-gray-300 shadow-lg">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Columna izquierda: Euros */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Wallet className="h-5 w-5 text-blue-600" />
-              <h3 className="font-bold text-base text-gray-800">Saldo en Euros</h3>
-            </div>
-            
-            {/* Saldo Total */}
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-4 border-2 border-blue-700 shadow-md">
-              <p className="text-xs text-white/80 mb-1">Saldo Total</p>
-              <p className="text-3xl font-bold text-white">{totalCredit.toFixed(0)}€</p>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white rounded-lg p-3 border border-gray-200 shadow-sm">
-                <p className="text-xs text-gray-600 mb-1">Disponible</p>
-                <p className="text-xl font-bold text-green-600">{availableCredit.toFixed(0)}€</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 border border-gray-200 shadow-sm">
-                <p className="text-xs text-gray-600 mb-1">Bloqueado</p>
-                <p className="text-xl font-bold text-orange-600">{blockedCredit.toFixed(0)}€</p>
-              </div>
-            </div>
-          </div>
-          
-          {/* Columna derecha: Puntos */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Trophy className="h-5 w-5 text-yellow-600" />
-              <h3 className="font-bold text-base text-gray-800">Saldo en Puntos</h3>
-            </div>
-            
-            {/* Saldo Total */}
-            <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-lg p-4 border-2 border-yellow-700 shadow-md">
-              <p className="text-xs text-white/80 mb-1">Saldo Total</p>
-              <p className="text-3xl font-bold text-white">{totalPoints} Ptos.</p>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white rounded-lg p-3 border border-gray-200 shadow-sm">
-                <p className="text-xs text-gray-600 mb-1">Disponible</p>
-                <p className="text-xl font-bold text-green-600">{availablePoints} Ptos.</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 border border-gray-200 shadow-sm">
-                <p className="text-xs text-gray-600 mb-1">Bloqueado</p>
-                <p className="text-xl font-bold text-orange-600">{blockedPoints} Ptos.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Botones de Acciones */}
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Button
-            onClick={() => setShowAddCreditDialog(true)}
-            className="bg-green-600 hover:bg-green-700 text-white font-semibold"
-            size="lg"
-          >
-            <Plus className="mr-2 h-5 w-5" />
-            Añadir Saldo
-          </Button>
-          <Button
-            onClick={() => setShowConvertBalanceDialog(true)}
-            variant="outline"
-            className="border-2 border-purple-600 text-purple-700 hover:bg-purple-50 font-semibold"
-            size="lg"
-          >
-            <Repeat className="mr-2 h-5 w-5" />
-            Convertir Euros a Puntos
-          </Button>
-        </div>
-      </div>
-
-      {/* Transaction History */}
-      <div className="bg-white rounded-lg border border-gray-200 p-2">
-        <h2 className="font-semibold text-xs text-foreground mb-2">
-          Historial de Movimientos
+      {/* 🔴 SECCIÓN DE SALDO BLOQUEADO POR DÍAS (Horizontal Scroll) */}
+      <div className="mb-6">
+        <h2 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+          Saldo Desbloqueado <span className="text-xs font-normal text-muted-foreground">(Clases incompletas reservadas)</span>
         </h2>
-        
+
+        {blockedBreakdown.length === 0 ? (
+          <div className="bg-gray-50 border border-dashed border-gray-200 rounded-lg p-4 text-center">
+            <p className="text-xs text-muted-foreground">No tienes saldo bloqueado actualmente.</p>
+          </div>
+        ) : (
+          <ScrollArea className="w-full whitespace-nowrap pb-2">
+            <div className="flex gap-3">
+              {blockedBreakdown.map((item, index) => {
+                const dateObj = new Date(item.date);
+                const day = dateObj.getDate();
+                const month = format(dateObj, 'MMM', { locale: es }).toUpperCase().replace('.', '');
+
+                return (
+                  <div key={index} className="flex flex-col items-center mx-1">
+                    {/* Month */}
+                    <span className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase mb-1">
+                      {month}
+                    </span>
+
+                    {/* Circle Day */}
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-500 text-white flex items-center justify-center text-lg sm:text-xl font-bold shadow-sm mb-1">
+                      {day}
+                    </div>
+
+                    {/* Amount */}
+                    <span className="text-sm sm:text-base font-bold text-slate-800">
+                      €{(item.amount / 100).toFixed(2)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        )}
+      </div>
+
+      {/* Resumen de saldo */}
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-border">
+          <p className="text-xs font-medium text-muted-foreground mb-1">Saldo Disponible</p>
+          <p className="text-2xl font-bold">€{availableCredit.toFixed(2)}</p>
+          {blockedCredit > 0 && (
+            <p className="text-xs text-red-500 font-medium mt-1">
+              +€{blockedCredit.toFixed(2)} bloqueado
+            </p>
+          )}
+        </div>
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-border">
+          <p className="text-xs font-medium text-muted-foreground mb-1">Puntos Fidelidad</p>
+          <p className="text-2xl font-bold flex items-center gap-1">
+            <Trophy className="h-5 w-5 text-yellow-500" />
+            {availablePoints}
+          </p>
+          {blockedPoints > 0 && (
+            <p className="text-xs text-yellow-600 font-medium mt-1">
+              +{blockedPoints} bloqueados
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Botones de acción */}
+      <div className="grid grid-cols-2 gap-3 mb-8">
+        <Button onClick={() => setShowAddCreditDialog(true)} className="w-full gap-2" variant="default">
+          <Plus className="h-4 w-4" />
+          Recargar Saldo
+        </Button>
+        <Button onClick={() => setShowConvertBalanceDialog(true)} className="w-full gap-2" variant="outline">
+          <Repeat className="h-4 w-4" />
+          Canjear Puntos
+        </Button>
+      </div>
+
+      {/* Historial */}
+      <div>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-bold">Historial de Movimientos</h2>
+
+          {transactions.length > 0 && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 text-xs px-2"
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                  Borrar historial
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Borrar historial de movimientos?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta acción eliminará permanentemente todo tu historial de transacciones.
+                    Tu saldo actual NO se verá afectado. Esta acción no se puede deshacer.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDeleteHistory}
+                    className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+                  >
+                    {isDeleting ? 'Eliminando...' : 'Sí, eliminar historial'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
+
         {loading ? (
-          <p className="text-xs text-muted-foreground">Cargando...</p>
+          <p className="text-xs text-muted-foreground pl-1">Cargando...</p>
         ) : transactions.length === 0 ? (
-          <p className="text-[10px] text-muted-foreground italic p-2 bg-muted/50 rounded-md text-center">
+          <p className="text-[10px] text-muted-foreground italic pl-1">
             No tienes movimientos registrados.
           </p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {transactions.map((txn: any) => {
               const isCredit = txn.transactionType === 'credit';
               const isPositive = txn.amount > 0;
-              
-              // Todos los movimientos con amount !== 0 afectan el saldo disponible
-              // (block reduce disponible, unblock aumenta disponible, add/subtract/refund también)
-              
-              // Formatear el movimiento con signo
-              const movementText = isCredit 
-                ? `${isPositive ? '+' : ''}${txn.amount.toFixed(0)}€`
-                : `${isPositive ? '+' : ''}${txn.amount.toFixed(0)} Pts.`;
-              
-              // Usar los saldos calculados para ambas columnas
-              const previousCreditBalance = txn.creditBalanceBefore || 0;
-              const previousPointsBalance = txn.pointsBalanceBefore || 0;
-              
-              const currentCreditBalance = txn.creditBalanceAfter || 0;
-              const currentPointsBalance = txn.pointsBalanceAfter || 0;
-              
-              // Determinar el color de fondo según el concepto
-              const isCancellation = txn.description?.toLowerCase().includes('cancelación') || 
-                                     txn.description?.toLowerCase().includes('cancelacion');
-              const isConfirmedClass = txn.description?.toLowerCase().includes('clase confirmada');
-              
-              // Color del recuadro según tipo de transacción
-              let cardBgColor = 'bg-gray-50'; // Por defecto
-              let cardBorderColor = 'border-gray-200';
-              if (isCancellation) {
-                cardBgColor = 'bg-yellow-50';
-                cardBorderColor = 'border-yellow-300';
-              } else if (isConfirmedClass) {
-                cardBgColor = 'bg-blue-50';
-                cardBorderColor = 'border-blue-300';
+
+              const description = txn.description || '';
+              const lowerDesc = description.toLowerCase();
+
+              const isReservaPista = lowerDesc.includes('reserva de pista');
+              const isConfirmada = lowerDesc.includes('confirmada');
+
+              // 🔍 DEFINICIÓN DE TIPO DE MOVIMIENTO
+              // Inscripción: Solo si es pendiente y NO es pista ni confirmada
+              const isInscripcion = (lowerDesc.includes('inscripción') || lowerDesc.includes('reserva pendiente')) && !isReservaPista && !isConfirmada;
+              const isCancellation = lowerDesc.includes('cancel') || lowerDesc.includes('expirada');
+              const isCleanup = txn.action === 'unblock' || txn.action === 'refund';
+              // Reserva: Si es pista explícita o una clase/partida confirmada (cobrada)
+              const isReserva = isReservaPista || isConfirmada;
+
+              // 🕵️ EXTRAER METADATOS DEL TEXTO (Tipo, Fecha, Hora)
+              let type: 'clase' | 'partida' | 'pista' | 'otro' = 'otro';
+              if (lowerDesc.includes('clase')) type = 'clase';
+              else if (lowerDesc.includes('partida')) type = 'partida';
+              else if (lowerDesc.includes('pista')) type = 'pista';
+
+              // Regex para extraer fecha y hora (ej: 13/01/2026, 10:00)
+              const dateMatch = description.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+              const timeMatch = description.match(/(\d{1,2}):(\d{2})/);
+
+              let eventDateObj: Date | null = null;
+              let dateStr = '';
+              let timeStr = '';
+              let isPast = false;
+
+              if (dateMatch) {
+                const day = parseInt(dateMatch[1]);
+                const month = parseInt(dateMatch[2]) - 1; // Meses en JS son 0-11
+                const year = parseInt(dateMatch[3]);
+
+                // Intentar obtener hora
+                let hour = 0;
+                let minute = 0;
+
+                if (timeMatch) {
+                  hour = parseInt(timeMatch[1]);
+                  minute = parseInt(timeMatch[2]);
+                  timeStr = `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
+                }
+
+                eventDateObj = new Date(year, month, day, hour, minute);
+
+                // Formato legible: "Martes 13 Enero"
+                dateStr = format(eventDateObj, "EEEE d MMMM", { locale: es });
+                // Capitalizar primera letra
+                dateStr = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
+
+                // Verificar si ya pasó
+                isPast = eventDateObj < new Date();
               }
-              
+
+              // 🎨 ESTILOS SEGÚN ESTADO (Pasado vs Futuro)
+              const isActive = !isPast && !isCancellation && !isCleanup;
+
+              // Contenedor principal
+              let containerClass = "bg-gray-50 border-gray-100 opacity-80 grayscale-[0.5]"; // Apagado por defecto
+
+              if (isActive) {
+                if (type === 'partida') containerClass = "bg-white border-green-200 shadow-md";
+                else if (type === 'pista') containerClass = "bg-white border-orange-200 shadow-md";
+                else containerClass = "bg-white border-blue-200 shadow-md"; // Clase o default
+              }
+
+              // Badges
+              const badgeBase = "px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 border";
+
+              // Textos de reemplazo para descripción
+              const shortDescription = txn.description
+                .replace(/Reserva pendiente/gi, 'Inscripción')
+                .replace(/Reserva/g, 'Inscripción')
+                .replace(/Clase/g, 'Clase')
+                .replace(/Partida/g, 'Partida');
+
               return (
-                <div key={txn.id} className="space-y-1">
-                  {/* Fecha sin color de fondo */}
-                  <p className="text-[10px] font-medium text-gray-600">
-                    {format(new Date(txn.date), "EEEE d 'de' MMMM 'a las' HH:mm'h'", { locale: es })}
-                  </p>
-                  
-                  {/* Concepto + Saldos integrados en un mismo recuadro */}
-                  <div className={`border ${cardBorderColor} rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow ${cardBgColor}`}>
-                    {/* Concepto principal */}
-                    <div className="px-2 py-1.5 text-center border-b border-gray-200">
-                      <p className="text-xs font-bold text-gray-900">
-                        {txn.description}
+                <div key={txn.id} className={`border rounded-xl p-3 transition-all ${containerClass}`}>
+                  <div className="flex flex-col gap-2">
+
+                    {/* Header: Fecha Transacción */}
+                    <div className="flex justify-between items-center">
+                      <p className="text-[9px] text-gray-400 capitalize">
+                        Reg: {format(new Date(txn.date), "dd/MM/yy HH:mm", { locale: es })}
                       </p>
                     </div>
-                  
-                    {/* Saldos */}
-                    <div className="px-2 py-1.5">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
-                      {/* Columna izquierda: Saldo en Euros */}
-                      <div className={`border rounded-lg p-1.5 ${
-                        isCredit ? 'bg-white border-blue-300' : 'bg-white border-gray-200'
-                      }`}>
-                        <div className="flex justify-between items-center mb-0.5">
-                          <p className="text-[8px] text-gray-600">Después</p>
-                          <p className="text-xs font-bold text-gray-900">
-                            {currentCreditBalance.toFixed(0)}€
-                          </p>
-                        </div>
-                        {isCredit && (
-                          <div className="flex justify-center my-0.5">
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                              isPositive ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
-                            }`}>
-                              {movementText}
-                            </span>
-                          </div>
-                        )}
-                        <div className="flex justify-between items-center">
-                          <p className="text-[8px] text-gray-600">Anterior</p>
-                          <p className="text-[10px] font-semibold text-gray-700">
-                            {previousCreditBalance.toFixed(0)}€
-                          </p>
-                        </div>
+
+                    {/* 🏷️ FILA DE ETIQUETAS (Badges) */}
+                    <div className="flex flex-wrap gap-2 items-center">
+
+                      {/* 1. Etiqueta INSCRIPCIÓN / RESERVA */}
+                      {isInscripcion && (
+                        <span className={`${badgeBase} bg-blue-600 text-white border-blue-700 shadow-sm`}>
+                          Inscripción
+                        </span>
+                      )}
+
+                      {isReserva && (
+                        <span className={`${badgeBase} bg-emerald-600 text-white border-emerald-700 shadow-sm`}>
+                          Reserva
+                        </span>
+                      )}
+
+                      {/* 2. Etiqueta TIPO (Clase/Partida) */}
+                      {type !== 'otro' && (
+                        <span className={`${badgeBase} ${isActive
+                          ? type === 'clase' ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
+                            : type === 'partida' ? 'bg-green-100 text-green-700 border-green-200'
+                              : 'bg-orange-100 text-orange-700 border-orange-200' // Pista
+                          : 'bg-gray-200 text-gray-600 border-gray-300'}`}>
+                          {type === 'clase' && <Award className="w-3 h-3" />}
+                          {type === 'partida' && <Trophy className="w-3 h-3" />}
+                          {type === 'pista' && <LayoutGrid className="w-3 h-3" />}
+                          <span className="capitalize">{type}</span>
+                        </span>
+                      )}
+
+                      {/* 3. Etiqueta FECHA EVENTO */}
+                      {dateStr && (
+                        <span className={`${badgeBase} ${isActive ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-white text-gray-500 border-gray-200'}`}>
+                          <Calendar className="w-3 h-3" />
+                          {dateStr}
+                        </span>
+                      )}
+
+                      {/* 4. Etiqueta HORA */}
+                      {timeStr && (
+                        <span className={`${badgeBase} ${isActive ? 'bg-orange-100 text-orange-800 border-orange-300' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
+                          <Clock className="w-3 h-3" />
+                          {timeStr} h
+                        </span>
+                      )}
+                    </div>
+
+                    {/* 💰 SALDOS */}
+                    <div className="mt-1 pt-2 border-t border-dashed border-gray-200 flex justify-between items-end">
+
+                      {/* Descripción Corta */}
+                      <div className="text-xs text-gray-800 font-semibold line-clamp-1 max-w-[60%]">
+                        {shortDescription}
                       </div>
-                      
-                      {/* Columna derecha: Saldo en Puntos */}
-                      <div className={`border rounded-lg p-1 ${
-                        !isCredit ? 'bg-white border-amber-300' : 'bg-white border-gray-200'
-                      }`}>
-                        <div className="flex justify-between items-center mb-0.5">
-                          <p className="text-[8px] text-gray-600">Después</p>
-                          <p className="text-xs font-bold text-gray-900">
-                            {currentPointsBalance.toFixed(0)} Ptos.
-                          </p>
+
+                      {/* Bloque de precios */}
+                      <div className="text-right">
+                        {/* Monto del movimiento */}
+                        <div className={`text-sm font-black ${isPositive ? 'text-green-600' : 'text-gray-900'}`}>
+                          {isPositive ? '+' : ''}{txn.amount.toFixed(isCredit ? 2 : 0)}{isCredit ? '€' : 'pts'}
                         </div>
-                        {!isCredit && (
-                          <div className="flex justify-center my-0.5">
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                              isPositive ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
-                            }`}>
-                              {movementText}
-                            </span>
-                          </div>
-                        )}
-                        <div className="flex justify-between items-center">
-                          <p className="text-[8px] text-gray-600">Anterior</p>
-                          <p className="text-[10px] font-semibold text-gray-700">
-                            {previousPointsBalance.toFixed(0)} Pts.
-                          </p>
+                        {/* Saldo resultante */}
+                        <div className="text-[9px] text-gray-400">
+                          Saldo: {txn.balanceAfter.toFixed(isCredit ? 2 : 0)}{isCredit ? '€' : 'pts'}
                         </div>
                       </div>
                     </div>
-                    </div>
+
                   </div>
                 </div>
               );
@@ -400,8 +513,7 @@ const MovimientosPage: React.FC = () => {
           </div>
         )}
       </div>
-      
-      {/* Diálogos */}
+
       {currentUser && (
         <>
           <AddCreditDialog
@@ -409,21 +521,17 @@ const MovimientosPage: React.FC = () => {
             onOpenChange={setShowAddCreditDialog}
             userId={currentUser.id}
             onCreditAdded={(newBalance) => {
-              // Actualizar el saldo del usuario
               setCurrentUser(prev => prev ? { ...prev, credit: newBalance } : null);
-              // Recargar transacciones
               window.location.reload();
             }}
           />
-          
+
           <ConvertBalanceDialog
             isOpen={showConvertBalanceDialog}
             onOpenChange={setShowConvertBalanceDialog}
             currentUser={currentUser}
             onConversionSuccess={(newCredit, newPoints) => {
-              // Actualizar el usuario
               setCurrentUser(prev => prev ? { ...prev, credit: newCredit, points: newPoints } : null);
-              // Recargar transacciones
               window.location.reload();
             }}
           />

@@ -41,8 +41,29 @@ export async function POST(request: NextRequest) {
 
     // Generar un ID único
     const userId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
+
     console.log('🆔 Creando usuario con ID:', userId);
+
+    // 🔍 Buscar un Club válido (para evitar error de Foreign Key)
+    // Intentamos buscar "Padel Estrella" o el que coincida con el seed, si no, el primero que haya.
+    let club = await prisma.club.findFirst({
+      where: { name: { contains: 'Padel Estrella' } }
+    });
+
+    if (!club) {
+      // Fallback: Cualquier club
+      club = await prisma.club.findFirst();
+    }
+
+    if (!club) {
+      console.error('❌ No se encontró ningún club en la base de datos para asignar al usuario.');
+      return NextResponse.json(
+        { error: 'Configuration error: No club found' },
+        { status: 500 }
+      );
+    }
+
+    console.log('✅ Asignando usuario al club:', club.name, `(${club.id})`);
 
     // Crear el nuevo usuario usando Prisma ORM (más seguro)
     const newUser = await prisma.user.create({
@@ -51,7 +72,7 @@ export async function POST(request: NextRequest) {
         name,
         email,
         password: hashedPassword,
-        clubId: 'padel-estrella-madrid', // Club por defecto
+        clubId: club.id, // ✅ ID dinámico obtenido de la BD
         role: 'PLAYER',
         level: level || 'principiante',
         genderCategory: genderCategory || null,
@@ -87,7 +108,7 @@ export async function POST(request: NextRequest) {
     console.error('💥 Error creating user:', error);
     console.error('💥 Error stack:', error instanceof Error ? error.stack : 'No stack');
     console.error('💥 Error message:', error instanceof Error ? error.message : String(error));
-    
+
     // Manejo específico de errores de SQLite
     if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) {
       return NextResponse.json(
@@ -99,5 +120,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
-    );  }
+    );
+  }
 }

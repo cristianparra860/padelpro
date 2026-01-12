@@ -63,8 +63,8 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
   // Parse bookings activos (solo CONFIRMED/PENDING)
   const activeBookings: Booking[] = useMemo(() => {
     if (!matchGame.bookings || !Array.isArray(matchGame.bookings)) return [];
-    return matchGame.bookings.filter((b: any) => 
-      b.status === 'CONFIRMED' || 
+    return matchGame.bookings.filter((b: any) =>
+      b.status === 'CONFIRMED' ||
       b.status === 'PENDING'
     );
   }, [matchGame.bookings]);
@@ -72,8 +72,8 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
   // Parse ALL bookings incluyendo reciclados (para mostrar círculos amarillos)
   const displayBookings: Booking[] = useMemo(() => {
     if (!matchGame.bookings || !Array.isArray(matchGame.bookings)) return [];
-    return matchGame.bookings.filter((b: any) => 
-      b.status === 'CONFIRMED' || 
+    return matchGame.bookings.filter((b: any) =>
+      b.status === 'CONFIRMED' ||
       b.status === 'PENDING' ||
       (b.status === 'CANCELLED' && b.isRecycled === true)
     );
@@ -107,8 +107,8 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
       return [privateUser, privateUser, privateUser, privateUser];
     }
     // Incluir bookings reciclados para mostrar círculos amarillos
-    return matchGame.bookings?.filter((b: any) => 
-      b.status === 'CONFIRMED' || 
+    return matchGame.bookings?.filter((b: any) =>
+      b.status === 'CONFIRMED' ||
       b.status === 'PENDING' ||
       (b.status === 'CANCELLED' && b.isRecycled === true)
     ) || [];
@@ -123,7 +123,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
         isAssigned: true
       };
     }
-    
+
     // 🔹 PRIORIDAD 2: Si no hay jugadores inscritos, mostrar "ABIERTO"
     if (activeBookings.length === 0) {
       return {
@@ -131,18 +131,18 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
         isAssigned: false
       };
     }
-    
+
     // 🔹 PRIORIDAD 3: Si hay jugadores, obtener el nivel del primer jugador
     const firstPlayer = activeBookings[0];
     const playerLevel = firstPlayer.userLevel;
-    
+
     if (!playerLevel) {
       return {
         level: 'Abierto',
         isAssigned: false
       };
     }
-    
+
     // Convertir el nivel del jugador a un rango
     // Por ejemplo: si es "2.5", el rango podría ser "2.0 - 3.0"
     const numLevel = parseFloat(playerLevel);
@@ -152,7 +152,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
         isAssigned: false
       };
     }
-    
+
     // Determinar el rango basado en el nivel
     let rangeLabel = '';
     if (numLevel < 1.5) {
@@ -168,7 +168,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
     } else {
       rangeLabel = '5.5 - 7.0';
     }
-    
+
     return {
       level: rangeLabel,
       isAssigned: true
@@ -183,7 +183,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
         isAssigned: true
       };
     }
-    
+
     // 🔹 PRIORIDAD 2: Si no hay jugadores inscritos, mostrar "Abierta"
     if (activeBookings.length === 0) {
       return {
@@ -191,23 +191,23 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
         isAssigned: false
       };
     }
-    
+
     // 🔹 PRIORIDAD 3: Analizar géneros de TODOS los jugadores inscritos
     const genders = activeBookings
       .map(b => b.userGender)
       .filter(g => g && g !== 'undefined' && g !== 'null');
-    
+
     if (genders.length === 0) {
       return {
         category: 'abierta',
         isAssigned: false
       };
     }
-    
+
     // Determinar la categoría basándose en los géneros
     const uniqueGenders = [...new Set(genders)];
     let categoryLabel = 'abierta';
-    
+
     if (uniqueGenders.length === 1) {
       // Todos del mismo género
       if (uniqueGenders[0] === 'masculino') {
@@ -219,7 +219,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
       // Hay mezcla de géneros
       categoryLabel = 'mixto';
     }
-    
+
     return {
       category: categoryLabel,
       isAssigned: true
@@ -284,7 +284,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
 
       if (response.ok) {
         const result = await response.json();
-        
+
         toast({
           title: "¡Reserva realizada!",
           description: result.message || "Has reservado tu plaza en la partida.",
@@ -325,7 +325,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
     }
 
     const pointsRequired = Math.floor((matchGame.courtRentalPrice || 0) / 4);
-    
+
     if ((currentUser.points || 0) < pointsRequired) {
       toast({
         title: "Puntos insuficientes",
@@ -350,7 +350,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
 
       if (response.ok) {
         const result = await response.json();
-        
+
         toast({
           title: "♻️ ¡Plaza reservada con puntos!",
           description: result.message || `Has reservado la plaza usando ${pointsRequired} puntos.`,
@@ -405,7 +405,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
 
       if (response.ok) {
         const result = await response.json();
-        
+
         toast({
           title: "¡Pista reservada!",
           description: result.message || "Has reservado la pista completa.",
@@ -491,7 +491,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
 
       if (response.ok) {
         const result = await response.json();
-        
+
         toast({
           title: "Reserva cancelada",
           description: result.message || "Has abandonado la partida.",
@@ -527,7 +527,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
       {/* Header con título PARTIDA */}
       <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-3 py-2 flex items-center justify-between">
         <div className="text-white text-sm font-black uppercase">PARTIDA (90 MIN)</div>
-        
+
         {/* Botón Eliminar (solo para admins) */}
         {showAdminCancelButton && !isPastMatch && (
           <Button
@@ -547,39 +547,36 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
         <div className="grid grid-cols-3 gap-1.5 text-center text-sm text-gray-600 border-b border-gray-100 pb-2 mb-2">
           <div>
             <div className="font-medium text-gray-900 text-[10px]">Nivel</div>
-            <div 
-              className={`capitalize px-1.5 py-1 rounded-full text-[10px] font-medium shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${
-                levelInfo.isAssigned 
-                  ? 'bg-blue-100 text-blue-700' 
+            <div
+              className={`capitalize px-1.5 py-1 rounded-full text-[10px] font-medium shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${levelInfo.isAssigned
+                  ? 'bg-blue-100 text-blue-700'
                   : 'bg-gray-100 text-gray-600'
-              }`}
+                }`}
             >
               {levelInfo.level}
             </div>
           </div>
           <div>
             <div className="font-medium text-gray-900 text-[10px]">Cat.</div>
-            <div 
-              className={`capitalize px-1.5 py-1 rounded-full text-[10px] font-medium shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${
-                categoryInfo.isAssigned 
-                  ? 'bg-purple-100 text-purple-700' 
+            <div
+              className={`capitalize px-1.5 py-1 rounded-full text-[10px] font-medium shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${categoryInfo.isAssigned
+                  ? 'bg-purple-100 text-purple-700'
                   : 'bg-gray-100 text-gray-600'
-              }`}
+                }`}
             >
               {categoryInfo.category}
             </div>
           </div>
           <div>
             <div className="font-medium text-gray-900 text-[10px]">Pista</div>
-            <div 
-              className={`px-1.5 py-1 rounded-full text-[10px] font-medium shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${
-                courtAssignment.isAssigned 
-                  ? 'bg-blue-100 text-blue-700' 
+            <div
+              className={`px-1.5 py-1 rounded-full text-[10px] font-medium shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${courtAssignment.isAssigned
+                  ? 'bg-blue-100 text-blue-700'
                   : 'bg-gray-100 text-gray-600'
-              }`}
+                }`}
             >
-              {courtAssignment.isAssigned 
-                ? `Pista ${courtAssignment.courtNumber}` 
+              {courtAssignment.isAssigned
+                ? `Pista ${courtAssignment.courtNumber}`
                 : 'Pista'
               }
             </div>
@@ -605,7 +602,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
                 </div>
               </div>
             </div>
-            
+
             {/* Hora y duración - Derecha */}
             <div className="flex items-center gap-3">
               <div className="text-right">
@@ -632,7 +629,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             </div>
             <div className="text-right flex-shrink-0">
               <div className="text-base font-bold text-gray-900">
-                € {isPrivateBooking 
+                € {isPrivateBooking
                   ? (matchGame.courtRentalPrice || 0).toFixed(2)
                   : ((matchGame.courtRentalPrice || 0) / 4).toFixed(2)
                 }
@@ -652,25 +649,25 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
 
               return (
                 <div key={index} className="flex flex-col items-center gap-1">
-                  <div 
+                  <div
                     className={cn(
                       "w-12 h-12 rounded-full flex items-center justify-center text-xl font-semibold transition-all border-2",
-                      isOccupied 
-                        ? "bg-white border-gray-200 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-default" 
+                      isOccupied
+                        ? "bg-white border-gray-200 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-default"
                         : isRecycled
-                        ? "bg-yellow-100 border-yellow-400 text-yellow-600 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-pointer hover:bg-yellow-200 hover:border-yellow-500"
-                        : isPrivateBooking
-                        ? "bg-gray-100 border-gray-300 text-gray-400 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-not-allowed opacity-50"
-                        : "bg-gray-100 border-gray-300 text-gray-400 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-pointer hover:bg-gray-200 hover:border-gray-400"
+                          ? "bg-yellow-100 border-yellow-400 text-yellow-600 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-pointer hover:bg-yellow-200 hover:border-yellow-500"
+                          : isPrivateBooking
+                            ? "bg-gray-100 border-gray-300 text-gray-400 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-not-allowed opacity-50"
+                            : "bg-gray-100 border-gray-300 text-gray-400 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-pointer hover:bg-gray-200 hover:border-gray-400"
                     )}
                     title={
-                      isOccupied 
-                        ? booking.user?.name 
+                      isOccupied
+                        ? booking.user?.name
                         : isRecycled
-                        ? 'Plaza reciclada - Solo con puntos'
-                        : isPrivateBooking 
-                        ? 'Reserva privada completa' 
-                        : 'Clic para unirte'
+                          ? 'Plaza reciclada - Solo con puntos'
+                          : isPrivateBooking
+                            ? 'Reserva privada completa'
+                            : 'Clic para unirte'
                     }
                     onClick={() => {
                       if (isRecycled && !isUserBooked) {
@@ -682,8 +679,8 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
                   >
                     {isOccupied ? (
                       booking.user?.profilePictureUrl ? (
-                        <img 
-                          src={booking.user.profilePictureUrl} 
+                        <img
+                          src={booking.user.profilePictureUrl}
                           alt={booking.user?.name || 'Usuario'}
                           className="w-full h-full object-cover rounded-full shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]"
                         />
@@ -728,26 +725,26 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
                 <div className="text-[10px] text-gray-500 text-center mb-1">Pista asignada:</div>
                 <div className="flex items-center justify-center gap-1">
                   <div className="flex flex-col items-center">
-                    <svg 
-                      className="shadow-inner-custom" 
-                      width="19" 
-                      height="32" 
-                      viewBox="0 0 40 60" 
-                      fill="none" 
+                    <svg
+                      className="shadow-inner-custom"
+                      width="19"
+                      height="32"
+                      viewBox="0 0 40 60"
+                      fill="none"
                       xmlns="http://www.w3.org/2000/svg"
                     >
                       <defs>
                         <filter id="innerShadow-assigned" x="-50%" y="-50%" width="200%" height="200%">
-                          <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur"/>
-                          <feOffset in="blur" dx="0" dy="1" result="offsetBlur"/>
-                          <feFlood floodColor="#000000" floodOpacity="0.25" result="offsetColor"/>
-                          <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur"/>
-                          <feComposite in="SourceGraphic" in2="offsetBlur" operator="over"/>
+                          <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
+                          <feOffset in="blur" dx="0" dy="1" result="offsetBlur" />
+                          <feFlood floodColor="#000000" floodOpacity="0.25" result="offsetColor" />
+                          <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur" />
+                          <feComposite in="SourceGraphic" in2="offsetBlur" operator="over" />
                         </filter>
                       </defs>
-                      <rect x="2" y="2" width="36" height="56" rx="4" fill="#10B981" stroke="#059669" strokeWidth="2" filter="url(#innerShadow-assigned)"/>
-                      <line x1="20" y1="2" x2="20" y2="58" stroke="#FFFFFF" strokeWidth="1.5" strokeDasharray="3 3"/>
-                      <line x1="2" y1="30" x2="38" y2="30" stroke="#FFFFFF" strokeWidth="1" opacity="0.5"/>
+                      <rect x="2" y="2" width="36" height="56" rx="4" fill="#10B981" stroke="#059669" strokeWidth="2" filter="url(#innerShadow-assigned)" />
+                      <line x1="20" y1="2" x2="20" y2="58" stroke="#FFFFFF" strokeWidth="1.5" strokeDasharray="3 3" />
+                      <line x1="2" y1="30" x2="38" y2="30" stroke="#FFFFFF" strokeWidth="1" opacity="0.5" />
                     </svg>
                     <div className="text-green-600 font-semibold text-[9px] leading-none mt-0.5">
                       PISTA {courtAssignment.courtNumber}
@@ -763,58 +760,58 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
                 <div className="flex items-center justify-center gap-2">
                   {matchGame.courtsAvailability && Array.isArray(matchGame.courtsAvailability) && matchGame.courtsAvailability.length > 0 ? (
                     matchGame.courtsAvailability.map((court: any) => {
-                      const fillColor = court.status === 'available' 
+                      const fillColor = court.status === 'available'
                         ? '#10B981'  // Verde - disponible
                         : court.status === 'occupied'
-                        ? '#EF4444'  // Rojo - ocupada
-                        : '#9CA3AF'; // Gris - no disponible
-                      
+                          ? '#EF4444'  // Rojo - ocupada
+                          : '#9CA3AF'; // Gris - no disponible
+
                       const strokeColor = court.status === 'available'
                         ? '#059669'
                         : court.status === 'occupied'
-                        ? '#DC2626'
-                        : '#6B7280';
-                      
+                          ? '#DC2626'
+                          : '#6B7280';
+
                       const statusText = court.status === 'available'
                         ? 'Disponible'
                         : court.status === 'occupied'
-                        ? 'Ocupada'
-                        : 'No disponible';
-                      
+                          ? 'Ocupada'
+                          : 'No disponible';
+
                       return (
                         <div key={court.courtId} className="relative group flex flex-col items-center" title={`Pista ${court.courtNumber}: ${statusText}`}>
-                          <svg 
-                            className="transition-transform hover:scale-110 shadow-inner-custom" 
-                            width="19" 
-                            height="32" 
-                            viewBox="0 0 40 60" 
-                            fill="none" 
+                          <svg
+                            className="transition-transform hover:scale-110 shadow-inner-custom"
+                            width="19"
+                            height="32"
+                            viewBox="0 0 40 60"
+                            fill="none"
                             xmlns="http://www.w3.org/2000/svg"
                           >
                             <defs>
                               <filter id={`innerShadow-${court.courtId}`} x="-50%" y="-50%" width="200%" height="200%">
-                                <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur"/>
-                                <feOffset in="blur" dx="0" dy="1" result="offsetBlur"/>
-                                <feFlood floodColor="#000000" floodOpacity="0.25" result="offsetColor"/>
-                                <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur"/>
-                                <feComposite in="SourceGraphic" in2="offsetBlur" operator="over"/>
+                                <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
+                                <feOffset in="blur" dx="0" dy="1" result="offsetBlur" />
+                                <feFlood floodColor="#000000" floodOpacity="0.25" result="offsetColor" />
+                                <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur" />
+                                <feComposite in="SourceGraphic" in2="offsetBlur" operator="over" />
                               </filter>
                             </defs>
-                            <rect x="2" y="2" width="36" height="56" rx="4" fill={fillColor} stroke={strokeColor} strokeWidth="2" filter={`url(#innerShadow-${court.courtId})`}/>
-                            <line x1="20" y1="2" x2="20" y2="58" stroke="#FFFFFF" strokeWidth="1.5" strokeDasharray="3 3"/>
-                            <line x1="2" y1="30" x2="38" y2="30" stroke="#FFFFFF" strokeWidth="1" opacity="0.5"/>
+                            <rect x="2" y="2" width="36" height="56" rx="4" fill={fillColor} stroke={strokeColor} strokeWidth="2" filter={`url(#innerShadow-${court.courtId})`} />
+                            <line x1="20" y1="2" x2="20" y2="58" stroke="#FFFFFF" strokeWidth="1.5" strokeDasharray="3 3" />
+                            <line x1="2" y1="30" x2="38" y2="30" stroke="#FFFFFF" strokeWidth="1" opacity="0.5" />
                           </svg>
-                          
+
                           {/* 🔴 X ROJA para pistas ocupadas */}
                           {court.status === 'occupied' && (
                             <div className="text-red-600 font-bold text-xs leading-none mt-0.5">✕</div>
                           )}
-                          
+
                           {/* 🟢 LIBRE para pistas disponibles */}
                           {court.status === 'available' && (
                             <div className="text-green-600 font-semibold text-[9px] leading-none mt-0.5">LIBRE</div>
                           )}
-                          
+
                           {/* Tooltip */}
                           <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
                             Pista {court.courtNumber}: {statusText}
@@ -831,6 +828,22 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Botón Cancelar Inscripción */}
+      {showLeaveButton && isUserBooked && !isPastMatch && (
+        <div className="px-2.5 pb-2.5 pt-0">
+          <Button
+            variant="outline"
+            className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 h-8 text-xs font-semibold"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowLeaveDialog(true);
+            }}
+          >
+            Cancelar inscripción
+          </Button>
+        </div>
+      )}
 
       {/* Confirm Dialog */}
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
@@ -894,8 +907,8 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleBookWithPoints} 
+            <AlertDialogAction
+              onClick={handleBookWithPoints}
               className="bg-yellow-500 hover:bg-yellow-600 text-white"
               disabled={(currentUser?.points || 0) < Math.floor((matchGame.courtRentalPrice || 0) / 4) || booking}
             >
@@ -917,7 +930,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
                 const now = new Date();
                 const matchStart = new Date(matchGame.start);
                 const hoursUntilMatch = (matchStart.getTime() - now.getTime()) / (1000 * 60 * 60);
-                
+
                 if (hoursUntilMatch < 2) {
                   return (
                     <>
@@ -927,7 +940,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
                     </>
                   );
                 }
-                
+
                 return (
                   <>
                     Se te reembolsarán tanto los créditos como los puntos utilizados.
