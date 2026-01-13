@@ -463,6 +463,8 @@ model Transaction {
   metadata    String?  // JSON con información adicional
   createdAt   DateTime @default(now())
 
+  @@index([userId])
+  @@index([createdAt])
   @@map("Transaction")
 }
 

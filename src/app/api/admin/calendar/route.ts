@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const clubId = searchParams.get('clubId');
-    
+
     // Si no se pasa startDate, usar hoy a las 00:00 en formato que SQLite entienda
     let startDate = searchParams.get('startDate');
     if (!startDate) {
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       const localMidnight = new Date(year, now.getMonth(), now.getDate(), 0, 0, 0, 0);
       startDate = localMidnight.toISOString();
     }
-    
+
     // Si no se pasa endDate, usar 30 días después  
     let endDate = searchParams.get('endDate');
     if (!endDate) {
@@ -91,10 +91,10 @@ export async function GET(request: NextRequest) {
     const adjustedEndDate = new Date(endDate);
     adjustedEndDate.setDate(adjustedEndDate.getDate() + 1);
     adjustedEndDate.setHours(23, 59, 59, 999);
-    
+
     const startTime = adjustedStartDate.getTime();
     const endTime = adjustedEndDate.getTime();
-    
+
     // ⚡ Query optimizada con filtros en SQL
     const classesRaw = await prisma.$queryRawUnsafe(
       `SELECT id, start, end, maxPlayers, totalPrice, level, category, levelRange, 
@@ -172,7 +172,7 @@ export async function GET(request: NextRequest) {
     const matchGames = await prisma.matchGame.findMany({
       where: {
         ...(clubId && { clubId }),
-        start: { 
+        start: {
           gte: new Date(startTime),
           lte: new Date(endTime)
         }
@@ -215,7 +215,7 @@ export async function GET(request: NextRequest) {
     // Separar partidas propuestas de confirmadas
     const proposedMatches = matchGames.filter((m: any) => m.courtNumber === null);
     const confirmedMatches = matchGames.filter((m: any) => m.courtNumber !== null);
-    
+
     // 🎯 Contar tarjetas de PARTIDAS por horario (sin instructor, las partidas no tienen instructor)
     const matchCardCountByTime = new Map<string, number>();
     proposedMatches.forEach((match: any) => {
@@ -258,7 +258,7 @@ export async function GET(request: NextRequest) {
 
     // Obtener nombres de usuarios para las reservas
     const reservationUserIds = new Set<string>();
-    
+
     courtReservations.forEach((reservation: any) => {
       if (reservation.reason) {
         const parts = reservation.reason.split(':');
@@ -276,6 +276,21 @@ export async function GET(request: NextRequest) {
 
     const reservationUserMap = new Map(reservationUsers.map(u => [u.id, u.name]));
 
+    // ⚡ FIX: Merge active instructors with inactive ones found in TimeSlots (classInstructors)
+    const allInstructorsMap = new Map();
+    // First add active instructors
+    instructors.forEach((i: any) => allInstructorsMap.set(i.id, i));
+
+    // Then add any missing instructors from classInstructors (ghosts/inactive)
+    classInstructors.forEach((i: any) => {
+      if (!allInstructorsMap.has(i.id)) {
+        console.log('👻 Including inactive/ghost instructor:', i.user?.name, i.id);
+        allInstructorsMap.set(i.id, i);
+      }
+    });
+
+    const relevantInstructors = Array.from(allInstructorsMap.values());
+
     // Construir respuesta simplificada
     const calendarData = {
       courts: courts.map(court => ({
@@ -285,7 +300,7 @@ export async function GET(request: NextRequest) {
         clubName: court.club?.name,
         clubLogo: court.club?.logo
       })),
-      instructors: instructors.map(instructor => ({
+      instructors: relevantInstructors.map((instructor: any) => ({
         id: instructor.id,
         name: instructor.user.name,
         email: instructor.user.email,
@@ -299,11 +314,11 @@ export async function GET(request: NextRequest) {
         // En clases propuestas (sin pista asignada), solo contamos PENDING
         const pendingBookings = cls.bookings?.filter((b: any) => b.status === 'PENDING') || [];
         const totalPlayers = pendingBookings.reduce((sum: number, b: any) => sum + (b.groupSize || 1), 0);
-        
+
         // 🎯 Obtener número de tarjetas para este instructor y horario
         const key = `${cls.instructor?.id}_${cls.start.getTime()}`;
         const totalCards = cardCountByInstructorAndTime.get(key) || 1;
-        
+
         return {
           id: `class-${cls.id}`,
           type: 'class-proposal',
@@ -330,7 +345,7 @@ export async function GET(request: NextRequest) {
         // Calcular el groupSize real de la clase confirmada (suma de groupSize de bookings CONFIRMED)
         const confirmedBookings = cls.bookings?.filter((b: any) => b.status === 'CONFIRMED') || [];
         const actualGroupSize = confirmedBookings.reduce((sum: number, b: any) => sum + (b.groupSize || 1), 0);
-        
+
         return {
           id: `class-${cls.id}`,
           type: 'class-confirmed',
@@ -357,11 +372,11 @@ export async function GET(request: NextRequest) {
         const confirmedBookings = match.bookings?.filter((b: any) => b.status === 'CONFIRMED') || [];
         const pendingBookings = match.bookings?.filter((b: any) => b.status === 'PENDING') || [];
         const totalPlayers = countPlayerSlots(confirmedBookings) + countPlayerSlots(pendingBookings);
-        
+
         // 🎯 Obtener número de tarjetas para este horario (las partidas no tienen instructor)
         const key = `${new Date(match.start).getTime()}`;
         const totalCards = matchCardCountByTime.get(key) || 1;
-        
+
         return {
           id: `match-${match.id}`,
           matchId: match.id, // ID original del MatchGame
@@ -384,7 +399,7 @@ export async function GET(request: NextRequest) {
       confirmedMatches: confirmedMatches.map((match: any) => {
         const confirmedBookings = match.bookings?.filter((b: any) => b.status === 'CONFIRMED') || [];
         const totalPlayers = countPlayerSlots(confirmedBookings);
-        
+
         return {
           id: `match-${match.id}`,
           matchId: match.id, // ID original del MatchGame
@@ -406,14 +421,14 @@ export async function GET(request: NextRequest) {
       }),
       courtReservations: courtReservations.map((reservation: any) => {
         let userName = null;
-        
+
         if (reservation.reason) {
           const parts = reservation.reason.split(':');
           if (parts[0] === 'user_court_reservation' && parts[1]) {
             userName = reservationUserMap.get(parts[1]) || null;
           }
         }
-        
+
         return {
           id: `reservation-${reservation.id}`,
           type: 'court-reservation',
@@ -433,11 +448,11 @@ export async function GET(request: NextRequest) {
           const hasCourtAssigned = cls.courtNumber !== null;
           const bookingsCount = cls.bookings?.length || 0;
           const availableSpots = cls.maxPlayers - bookingsCount;
-          
+
           return {
             id: `class-${cls.id}`,
             type: hasCourtAssigned ? 'class-confirmed' : 'class-proposal',
-            title: hasCourtAssigned 
+            title: hasCourtAssigned
               ? `${cls.level} - Pista ${cls.courtNumber} (${bookingsCount}/${cls.maxPlayers})`
               : `${cls.level} - Sin pista (${bookingsCount}/${cls.maxPlayers})`,
             start: cls.start.toISOString(),
@@ -458,13 +473,13 @@ export async function GET(request: NextRequest) {
             status: bookingsCount === 0 ? 'empty' : bookingsCount >= cls.maxPlayers ? 'full' : 'available'
           };
         }),
-        
+
         // Partidas (MatchGames)
         ...matchGames.map((match: any) => {
           const confirmedBookings = match.bookings?.filter((b: any) => b.status === 'CONFIRMED') || [];
           const pendingBookings = match.bookings?.filter((b: any) => b.status === 'PENDING') || [];
           const totalPlayers = countPlayerSlots(confirmedBookings) + countPlayerSlots(pendingBookings);
-          
+
           return {
             id: `match-${match.id}`,
             type: 'match',
@@ -519,7 +534,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('❌ Error fetching calendar data:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to fetch calendar data',
         details: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined

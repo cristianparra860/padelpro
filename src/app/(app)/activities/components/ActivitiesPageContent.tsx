@@ -32,9 +32,9 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
     const router = useRouter();
     const { toast } = useToast();
     const [userBookings, setUserBookings] = useState<any[]>([]);
-    
+
     const activityFilters = useActivityFilters(currentUser, onCurrentUserUpdate);
-    
+
     // Cargar bookings del usuario para los indicadores
     useEffect(() => {
         const loadUserBookings = async () => {
@@ -70,7 +70,7 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
             }
         }
     }, [activityFilters]);
-    
+
     const {
         activeView,
         selectedDate,
@@ -84,14 +84,14 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
         handleInstructorChange,
         ...restOfFilters
     } = activityFilters;
-    
+
     const [currentClub, setCurrentClub] = useState<Club | null>(null);
     const [allTimeSlots, setAllTimeSlots] = useState<TimeSlot[]>([]);
-    const [allMatches, setAllMatches] = useState<Match[]>([]);
+    // AllMatches removed as it was unused
     const [matchDayEvents, setMatchDayEvents] = useState<MatchDayEvent[]>([]);
     const [isInitialLoading, setIsInitialLoading] = useState(true);
     const [useNewClassesSystem, setUseNewClassesSystem] = useState(true);
-    
+
     // 🎁 Estado para modo puntos (solo instructores)
     const [creditsEditMode, setCreditsEditMode] = useState(false);
     const isInstructor = currentUser?.role === 'instructor';
@@ -121,12 +121,7 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
         if (currentClub) {
             setIsInitialLoading(true);
             try {
-                const matches = await fetchMatches(currentClub.id);
-                // SOLO usar matches reales de la API - NO GENERAR MOCK
-                console.log('📋 Usando SOLO matches reales:', matches.length);
-                setAllMatches(matches);
-            } catch (error) {
-                console.error("Error refreshing matches after booking", error);
+                // Matches logic removed as it was unused and slowing down
             } finally {
                 setIsInitialLoading(false);
                 // Force refresh of date strip indicators and other derived data
@@ -136,25 +131,26 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
             triggerRefresh();
         }
     }, [currentClub, triggerRefresh]);
-    
+
     useEffect(() => {
         const loadInitialData = async () => {
             setIsInitialLoading(true);
             try {
                 // Usar clubes reales de la API
-                let clubs = [];
-                let club = null;
-                
+                let clubs: Club[] = [];
+                let club: Club | null = null;
+
                 try {
                     const clubsResponse = await fetch('/api/clubs');
                     if (clubsResponse.ok) {
-                        clubs = await clubsResponse.json();
+                        const data = await clubsResponse.json();
+                        clubs = data as Club[];
                         // Priorizar "Padel Estrella" por ID o nombre
-                        club = clubs.find(c => 
-                            c.id === 'cmftnbe2o0001tgkobtrxipip' || 
+                        club = clubs.find((c: Club) =>
+                            c.id === 'cmftnbe2o0001tgkobtrxipip' ||
                             c.name.toLowerCase().includes('estrella')
                         ) || clubs[0];
-                        console.log('🏢 Clubes disponibles:', clubs.map(c => `${c.name} (${c.id})`));
+                        console.log('🏢 Clubes disponibles:', clubs.map((c: Club) => `${c.name} (${c.id})`));
                         console.log('✅ Club seleccionado:', club?.name, 'ID:', club?.id);
                     }
                 } catch (error) {
@@ -162,58 +158,21 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
                     clubs = await getMockClubs();
                     club = clubs[0];
                 }
-                
+
                 console.log('🏢 Club seleccionado:', club?.name, 'ID:', club?.id);
                 setCurrentClub(club);
-                
-                let slots: TimeSlot[] = [];
-                let existingMatches: Match[] = [];
 
+                let slots: TimeSlot[] = [];
                 if (club) {
-                    // Solo cargar timeslots (clases) desde la API
-                    try {
-                        const allSlots = await fetch(`/api/timeslots?clubId=${club.id}&limit=1000`)
-                            .then(async res => {
-                                if (!res.ok) {
-                                    const errorText = await res.text();
-                                    console.error('❌ Error fetching timeslots:', res.status, res.statusText);
-                                    console.error('❌ Detalle del error:', errorText);
-                                    throw new Error(`API Error ${res.status}: ${errorText}`);
-                                }
-                                const data = await res.json();
-                                console.log('✅ Timeslots cargados desde API:', data.length);
-                                return data.slots || data;
-                            });
-                        
-                        slots = Array.isArray(allSlots) ? allSlots.filter(s => s.clubId === club.id) : allSlots.filter(s => s.clubId === club.id);
-                    } catch (timeslotError) {
-                        console.error('Error loading timeslots:', timeslotError);
-                        // No mostrar toast si es solo error de timeslots, continuar con array vacío
-                        slots = [];
-                    }
-                    
-                    // Solo cargar matches si están habilitados en el club
-                    if (club.matchesEnabled !== false) {
-                        try {
-                            existingMatches = await fetchMatches(club.id);
-                            console.log('🎾 Matches cargados:', existingMatches.length);
-                        } catch (matchError) {
-                            console.error('Error loading matches:', matchError);
-                            // No mostrar toast si es solo error de matches
-                            existingMatches = [];
-                        }
-                    } else {
-                        console.log('🚫 Matches deshabilitados para este club');
-                    }
-                    
+                    // ⚡ OPTIMIZACIÓN: No cargar 1000 timeslots al inicio.
+                    // ClassesDisplay se encarga de cargar los timeslots por fecha.
+                    console.log('⚡ Optimización: Saltando carga masiva de timeslots (se cargarán por fecha en ClassesDisplay)');
+                    slots = [];
+
                     console.log('📊 Total slots filtrados para club:', slots.length);
                 }
 
                 setAllTimeSlots(slots);
-                
-                // SOLO usar matches reales de la API - NO GENERAR MOCK DATA
-                console.log('📋 Usando SOLO matches reales de fetchMatches:', existingMatches.length);
-                setAllMatches(existingMatches);
 
             } catch (error) {
                 console.error("Error fetching initial data", error);
@@ -238,7 +197,7 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
         };
         fetchEventsForDate();
     }, [selectedDate, currentClub]);
-    
+
 
     // Helper to map dialog types to ActivityViewType used in URL/state
     const toActivityViewType = (t: 'class' | 'match' | 'clases'): ActivityViewType => {
@@ -256,7 +215,7 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
     ) => {
         const arr = Array.isArray(types) ? types : [types];
         // Normalize any 'clases' inputs into 'class' for internal branching
-        const normalized = arr.map((t) => (t === 'clases' ? 'class' : t)) as ('class'|'match'|'event')[];
+        const normalized = arr.map((t) => (t === 'clases' ? 'class' : t)) as ('class' | 'match' | 'event')[];
         const relevantTypes = normalized.filter(t => t !== 'event') as ('class' | 'match')[];
 
         if (relevantTypes.length > 1) {
@@ -285,7 +244,7 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
         const mapped: ActivityViewType = type === 'class' ? 'clases' : 'matchpro';
         handleViewPrefChange(pref, mapped, date);
     };
-    
+
     const handleActivityTypeSelect = (type: 'class' | 'match') => {
         if (activitySelection.date && activitySelection.preference) {
             // Map to ActivityViewType and call with correct parameter order
@@ -305,13 +264,13 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
 
     const renderContent = () => {
         if (isInitialLoading) return <PageSkeleton />;
-        
-        switch(activeView) {
+
+        switch (activeView) {
             case 'clases':
                 return (
                     <div className="space-y-4">
-                        <ClassesDisplay 
-                            selectedDate={selectedDate}
+                        <ClassesDisplay
+                            selectedDate={selectedDate || new Date()}
                             clubId={currentClub?.id || "club-1"}
                             currentUser={currentUser}
                             onBookingSuccess={triggerRefresh}
@@ -338,9 +297,9 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
                                 </p>
                             </div>
                         </div>
-                        <OpenGroupClasses 
+                        <OpenGroupClasses
                             clubId="club-1"
-                            selectedDate={selectedDate}
+                            selectedDate={selectedDate || new Date()}
                             currentUserId={currentUser?.id || 'user-1'}
                         />
                     </div>
@@ -377,7 +336,7 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
         window.addEventListener('focus', handleFocus);
         window.addEventListener('storage', handleStorageChange);
         document.addEventListener('visibilitychange', handleVisibilityChange);
-        
+
         return () => {
             window.removeEventListener('focus', handleFocus);
             window.removeEventListener('storage', handleStorageChange);
@@ -398,7 +357,7 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
                         userBookings={userBookings}
                     />
                 </div>
-                
+
                 <main className="flex-1 overflow-y-auto overflow-x-hidden px-2 md:px-6 pb-6 space-y-2 md:space-y-4 md:pt-4">
                     {/* Calendario móvil - arriba de la página solo en móvil */}
                     <div className="block md:hidden bg-white border-b border-gray-100 -mx-2 sticky top-0 z-30">
@@ -419,8 +378,8 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
                                 size="sm"
                                 className={cn(
                                     "gap-2 transition-all",
-                                    creditsEditMode 
-                                        ? "bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white shadow-md" 
+                                    creditsEditMode
+                                        ? "bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white shadow-md"
                                         : "border-amber-400 text-amber-700 hover:bg-amber-50"
                                 )}
                             >

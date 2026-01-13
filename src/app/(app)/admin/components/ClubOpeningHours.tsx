@@ -22,20 +22,27 @@ const ClubOpeningHours: React.FC<ClubOpeningHoursProps> = ({ club, onHoursUpdate
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
     const [activeDay, setActiveDay] = useState<DayOfWeek>('monday');
-    
+
     // Estado para las horas de apertura por día de la semana
     // Cada día tiene 19 booleanos (6:00 AM a 12:00 AM)
     const [openingHours, setOpeningHours] = useState<WeeklyHours>(() => {
+        console.log('🏗️ Inicializando estado openingHours...');
+        console.log('📦 Club prop:', club);
+        console.log('📦 club.openingHours type:', typeof club.openingHours);
+        console.log('📦 club.openingHours value:', club.openingHours);
+
         const defaultHours = Array.from({ length: 19 }, (_, i) => i >= 2 && i <= 17);
-        
+
         // Si el club tiene horarios guardados, verificar formato
         if (club.openingHours) {
             // Nuevo formato: objeto con días de la semana
             if (typeof club.openingHours === 'object' && !Array.isArray(club.openingHours)) {
+                console.log('✅ Formato objeto detectado');
                 return club.openingHours as WeeklyHours;
             }
             // Formato legacy: array de booleanos (aplicar a todos los días)
             if (Array.isArray(club.openingHours)) {
+                console.log('⚠️ Formato legacy (array) detectado');
                 return {
                     monday: club.openingHours,
                     tuesday: club.openingHours,
@@ -46,8 +53,19 @@ const ClubOpeningHours: React.FC<ClubOpeningHoursProps> = ({ club, onHoursUpdate
                     sunday: club.openingHours
                 };
             }
+            // Intento de parseo si es string (por si acaso el padre no lo parseó)
+            if (typeof club.openingHours === 'string') {
+                try {
+                    const parsed = JSON.parse(club.openingHours);
+                    console.log('🔄 Parseado desde string:', parsed);
+                    if (!Array.isArray(parsed)) return parsed;
+                } catch (e) {
+                    console.error('❌ Error parseando string openingHours:', e);
+                }
+            }
         }
-        
+
+        console.log('ℹ️ Usando horarios por defecto');
         // Por defecto: 8:00 AM a 11:00 PM todos los días
         return {
             monday: defaultHours,
@@ -129,7 +147,7 @@ const ClubOpeningHours: React.FC<ClubOpeningHoursProps> = ({ club, onHoursUpdate
             }
 
             const updatedClub = await response.json();
-            
+
             toast({
                 title: "✅ Horarios actualizados",
                 description: "Los horarios de apertura se han guardado correctamente.",
@@ -137,15 +155,15 @@ const ClubOpeningHours: React.FC<ClubOpeningHoursProps> = ({ club, onHoursUpdate
             });
 
             onHoursUpdated(updatedClub);
-            
+
             // Disparar evento para recargar calendario
-            window.dispatchEvent(new CustomEvent('club-hours-updated', { 
-                detail: { clubId: club.id, openingHours: updatedClub.openingHours } 
+            window.dispatchEvent(new CustomEvent('club-hours-updated', {
+                detail: { clubId: club.id, openingHours: updatedClub.openingHours }
             }));
-            
+
             // Disparar evento personalizado para notificar al calendario
-            window.dispatchEvent(new CustomEvent('club-hours-updated', { 
-                detail: { clubId: club.id, openingHours: updatedClub.openingHours } 
+            window.dispatchEvent(new CustomEvent('club-hours-updated', {
+                detail: { clubId: club.id, openingHours: updatedClub.openingHours }
             }));
         } catch (error) {
             console.error('Error guardando horarios:', error);
@@ -183,7 +201,7 @@ const ClubOpeningHours: React.FC<ClubOpeningHoursProps> = ({ club, onHoursUpdate
                             </TabsTrigger>
                         ))}
                     </TabsList>
-                    
+
                     {days.map(day => (
                         <TabsContent key={day.key} value={day.key} className="space-y-4">
                             {/* Calendario Horizontal de Horas */}
@@ -193,9 +211,9 @@ const ClubOpeningHours: React.FC<ClubOpeningHoursProps> = ({ club, onHoursUpdate
                                         {day.label}
                                     </span>
                                     <div className="flex gap-2 flex-wrap">
-                                        <Button 
-                                            type="button" 
-                                            variant="outline" 
+                                        <Button
+                                            type="button"
+                                            variant="outline"
                                             size="sm"
                                             onClick={() => copyToAllDays(day.key)}
                                             className="h-7 text-xs"
@@ -203,18 +221,18 @@ const ClubOpeningHours: React.FC<ClubOpeningHoursProps> = ({ club, onHoursUpdate
                                             <Copy className="mr-1 h-3 w-3" />
                                             Copiar a todos
                                         </Button>
-                                        <Button 
-                                            type="button" 
-                                            variant="outline" 
+                                        <Button
+                                            type="button"
+                                            variant="outline"
                                             size="sm"
                                             onClick={() => toggleAll(day.key, true)}
                                             className="h-7 text-xs"
                                         >
                                             Todo Abierto
                                         </Button>
-                                        <Button 
-                                            type="button" 
-                                            variant="outline" 
+                                        <Button
+                                            type="button"
+                                            variant="outline"
                                             size="sm"
                                             onClick={() => toggleAll(day.key, false)}
                                             className="h-7 text-xs"
@@ -246,7 +264,7 @@ const ClubOpeningHours: React.FC<ClubOpeningHoursProps> = ({ club, onHoursUpdate
                                             )}>
                                                 {hour.value}:00
                                             </span>
-                                            
+
                                             {/* Indicador de estado */}
                                             <div className={cn(
                                                 "mt-0.5 h-1 w-1 rounded-full",
@@ -279,12 +297,12 @@ const ClubOpeningHours: React.FC<ClubOpeningHoursProps> = ({ club, onHoursUpdate
                                                 const openHours = openingHours[day.key]
                                                     .map((isOpen, i) => isOpen ? i + 6 : null)
                                                     .filter(h => h !== null) as number[];
-                                                
+
                                                 if (openHours.length === 0) return 'Cerrado';
-                                                
+
                                                 const firstOpen = Math.min(...openHours);
                                                 const lastOpen = Math.max(...openHours);
-                                                
+
                                                 return `${firstOpen}:00 - ${lastOpen + 1}:00 (${openHours.length}h)`;
                                             })()}
                                         </>
@@ -298,7 +316,7 @@ const ClubOpeningHours: React.FC<ClubOpeningHoursProps> = ({ club, onHoursUpdate
                 </Tabs>
 
                 {/* Botón de guardar */}
-                <Button 
+                <Button
                     type="button"
                     onClick={handleSave}
                     disabled={isSaving || !hasChanges}

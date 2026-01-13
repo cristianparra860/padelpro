@@ -1290,15 +1290,17 @@ export async function POST(request: Request) {
     // Agrupar las reservas por groupSize
     const bookingsByGroupSize = new Map<number, number>();
     allBookingsForSlot.forEach(booking => {
-      const currentCount = bookingsByGroupSize.get(booking.groupSize) || 0;
-      bookingsByGroupSize.set(booking.groupSize, currentCount + 1);
+      // 🚨 FIX: Asegurar que groupSize sea tratado como número (SQLite puede devolver BigInt o String)
+      const size = Number(booking.groupSize);
+      const currentCount = bookingsByGroupSize.get(size) || 0;
+      bookingsByGroupSize.set(size, currentCount + 1);
     });
 
     console.log('📈 Bookings by groupSize:', Object.fromEntries(bookingsByGroupSize));
 
     // 🎁 CONTAR PLAZAS INDIVIDUALES: Para cada modalidad (1,2,3,4), contar cuántas plazas hay
     // Una plaza individual cuenta como 1/N de esa modalidad
-    const totalSlotsBooked = allBookingsForSlot.reduce((sum, b) => sum + b.groupSize, 0);
+    const totalSlotsBooked = allBookingsForSlot.reduce((sum, b) => sum + Number(b.groupSize), 0);
     console.log(`🎁 Total slots booked: ${totalSlotsBooked} / ${slotDetails[0].maxPlayers}`);
 
     // Verificar cada opción de grupo para ver si alguna está completa
@@ -1462,11 +1464,12 @@ export async function POST(request: Request) {
 
       if (raceWinner === 1) {
         // Modalidad de 1 jugador: solo confirmar bookings con groupSize=1
-        winningBookings = allBookingsForSlot.filter(b => b.groupSize === 1);
+        // 🚨 FIX: Convertir a Number explícitamente para evitar fallos de comparación estricta
+        winningBookings = allBookingsForSlot.filter(b => Number(b.groupSize) === 1);
       } else {
         // Modalidad de 2, 3 o 4: confirmar bookings normales de esa modalidad + individuales si los hay
-        const bookingsNormales = allBookingsForSlot.filter(b => b.groupSize === raceWinner);
-        const bookingsIndividuales = allBookingsForSlot.filter(b => b.groupSize === 1);
+        const bookingsNormales = allBookingsForSlot.filter(b => Number(b.groupSize) === raceWinner);
+        const bookingsIndividuales = allBookingsForSlot.filter(b => Number(b.groupSize) === 1);
 
         // Si hay bookings individuales, confirmar todos (normales + individuales)
         if (bookingsIndividuales.length > 0) {

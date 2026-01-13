@@ -51,6 +51,9 @@ interface CalendarData {
   events: CalendarEvent[];
   confirmedClasses: CalendarEvent[];
   confirmedMatches: CalendarEvent[];
+  proposedClasses?: CalendarEvent[];
+  proposedMatches?: CalendarEvent[];
+  courtReservations?: CalendarEvent[];
   summary: {
     totalCourts: number;
     totalInstructors: number;
@@ -82,11 +85,23 @@ export default function ClubCalendarImproved({
   const searchParams = useSearchParams();
   const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
   const [loading, setLoading] = useState(true);
-  
+
+  // Cargar fecha guardada en sessionStorage o usar initialDate o fecha actual
   // Cargar fecha guardada en sessionStorage o usar initialDate o fecha actual
   const getInitialDate = () => {
+    // 1. Prioridad: Fecha en URL
+    if (typeof window !== 'undefined') { // Solo en cliente
+      const params = new URLSearchParams(window.location.search);
+      const urlDate = params.get('date');
+      if (urlDate) {
+        const parsed = new Date(urlDate);
+        if (!isNaN(parsed.getTime())) return parsed;
+      }
+    }
+
+    // 2. Props
     if (initialDate) return initialDate;
-    
+
     try {
       const savedDate = sessionStorage.getItem('calendar_selected_date');
       if (savedDate) {
@@ -99,10 +114,10 @@ export default function ClubCalendarImproved({
     } catch (error) {
       console.error('Error al cargar fecha guardada:', error);
     }
-    
+
     return new Date();
   };
-  
+
   const [currentDate, setCurrentDate] = useState(getInitialDate());
   const [selectedInstructor, setSelectedInstructor] = useState<string | null>(null);
   const [classProposals, setClassProposals] = useState<any[]>([]);
@@ -119,30 +134,36 @@ export default function ClubCalendarImproved({
   const [durationConfirmed, setDurationConfirmed] = useState(false); // Control de confirmación de duración
   const [viewType, setViewType] = useState<'clases' | 'partidas' | 'reservar-pistas'>('partidas'); // Selector principal
   const [currentTime, setCurrentTime] = useState(new Date()); // Hora actual para overlay
-  
+
   // Sincronizar cambios de fecha con el padre y guardar en sessionStorage
   const handleDateChange = (newDate: Date) => {
     setCurrentDate(newDate);
-    
+
     // Guardar fecha seleccionada en sessionStorage
     try {
       sessionStorage.setItem('calendar_selected_date', newDate.toISOString());
     } catch (error) {
       console.error('Error al guardar fecha:', error);
     }
-    
+
+    // Actualizar URL sin recargar
+    // Mantener otros params como 'instructor' o 'viewType'
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('date', getLocalDateString(newDate));
+    router.replace(`${window.location.pathname}?${params.toString()}`, { scroll: false });
+
     if (onDateChange) {
       onDateChange(newDate);
     }
   };
-  
+
   // Sincronizar currentDate cuando cambia initialDate (al volver a la pestaña)
   useEffect(() => {
     if (initialDate && initialDate.getTime() !== currentDate.getTime()) {
       setCurrentDate(initialDate);
     }
   }, [initialDate]);
-  
+
   // Estados para reservas de instructor y reservas de pistas
   const [instructorReservations, setInstructorReservations] = useState<any[]>([]);
   const [courtReservations, setCourtReservations] = useState<any[]>([]); // Reservas de usuarios normales
@@ -179,18 +200,18 @@ export default function ClubCalendarImproved({
     const now = currentTime;
     const today = getLocalDateString(currentDate);
     const nowDateStr = getLocalDateString(now);
-    
+
     // Si estamos viendo un día diferente al actual, no marcar nada como pasado
     if (today !== nowDateStr) {
       return false; // No aplicar overlay a días futuros o pasados completos
     }
-    
+
     // Solo si estamos en el día actual, verificar hora por hora
     // Parsear el slot (ej: "09:00" o "09:30")
     const [hours, minutes] = timeSlot.split(':').map(Number);
     const slotTime = new Date(now);
     slotTime.setHours(hours, minutes, 0, 0);
-    
+
     // Considerar pasado si el slot terminó (slot + 30 min)
     const slotEndTime = new Date(slotTime.getTime() + 30 * 60 * 1000);
     return slotEndTime < now;
@@ -224,7 +245,7 @@ export default function ClubCalendarImproved({
         setViewType('clases'); // Cambiar automáticamente a clases
       }
     }
-    
+
     // Leer viewType de la URL
     const viewTypeParam = searchParams.get('viewType') as 'clases' | 'partidas' | 'reservar-pistas' | null;
     if (viewTypeParam && ['clases', 'partidas', 'reservar-pistas'].includes(viewTypeParam)) {
@@ -232,38 +253,63 @@ export default function ClubCalendarImproved({
     }
   }, [searchParams, calendarData]);
 
+  // Auto-seleccionar instructor si solo hay uno con clases disponibles
+  useEffect(() => {
+    // Solo ejecutar si estamos en modo clases, no hay instructor seleccionado, y hay datos
+    if (viewType === 'clases' && !selectedInstructor && calendarData) {
+      const activeInstructorIds = new Set<string>();
+
+      // Buscar en clases propuestas
+      calendarData.proposedClasses?.forEach((cls: any) => {
+        if (cls.instructorId) activeInstructorIds.add(cls.instructorId);
+      });
+
+      // Buscar en clases confirmadas
+      calendarData.confirmedClasses?.forEach((cls: any) => {
+        if (cls.instructorId) activeInstructorIds.add(cls.instructorId);
+      });
+
+      // Si solo hay un instructor activo, seleccionarlo automáticamente
+      if (activeInstructorIds.size === 1) {
+        const singleInstructorId = Array.from(activeInstructorIds)[0];
+        console.log('🤖 Auto-seleccionando instructor único:', singleInstructorId);
+        setSelectedInstructor(singleInstructorId);
+      }
+    }
+  }, [viewType, calendarData, selectedInstructor]);
+
   // Cargar reservas del instructor
   useEffect(() => {
     console.log('%c🎯 useEffect INSTRUCTOR RESERVATIONS - INICIANDO', 'background: #222; color: #bada55; font-size: 16px;');
     console.log('📋 clubId:', clubId);
     console.log('📋 currentDate:', currentDate);
     console.log('📋 clubId existe?:', !!clubId);
-    
+
     if (!clubId) {
       console.log('%c⚠️ NO HAY clubId - SALTANDO', 'background: #ff0000; color: #ffffff; font-size: 14px;');
       return;
     }
-    
+
     console.log('%c✅ CLUB ID DISPONIBLE - EJECUTANDO FETCH', 'background: #00ff00; color: #000000; font-size: 14px;');
-    
+
     const loadInstructorReservations = async () => {
       console.log('%c📅 FETCH - Iniciando carga de reservas', 'background: #0000ff; color: #ffffff; font-size: 14px;');
       console.log('📅 Club:', clubId);
       console.log('📅 Fecha:', getLocalDateString(currentDate));
-      
+
       try {
         const token = localStorage.getItem('auth_token');
         const dateParam = getLocalDateString(currentDate);
-        
+
         // Cargar TODAS las reservas de instructores del club (no solo del instructor actual)
         const url = `/api/instructor/court-reservations?clubId=${clubId}&date=${dateParam}`;
-        
+
         const response = await fetch(url, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           setInstructorReservations(data.reservations || []);
@@ -272,7 +318,7 @@ export default function ClubCalendarImproved({
         // Error silencioso
       }
     };
-    
+
     loadInstructorReservations();
   }, [clubId, currentDate]);
 
@@ -285,7 +331,7 @@ export default function ClubCalendarImproved({
         handleDateChange(new Date(currentDate.getTime()));
       }
     };
-    
+
     window.addEventListener('club-hours-updated', handleHoursUpdate as EventListener);
     return () => window.removeEventListener('club-hours-updated', handleHoursUpdate as EventListener);
   }, [clubId, currentDate]);
@@ -296,17 +342,17 @@ export default function ClubCalendarImproved({
       try {
         setLoading(true);
         const dateParam = getLocalDateString(currentDate);
-        
+
         console.log('🔄 Iniciando carga del calendario:', { clubId, dateParam });
-        
+
         // ⚡ CACHÉ: Evitar recargar si ya tenemos datos del mismo día
         const cacheKey = `calendar-${clubId}-${dateParam}`;
         const lastFetch = sessionStorage.getItem(`${cacheKey}-timestamp`);
         const cachedData = sessionStorage.getItem(cacheKey);
-        
+
         const cacheAge = lastFetch ? Date.now() - parseInt(lastFetch) : Infinity;
         const CACHE_TTL = 60000; // 1 minuto de cache
-        
+
         if (cachedData && cacheAge < CACHE_TTL) {
           console.log('⚡ Usando datos en caché del calendario');
           const data = JSON.parse(cachedData);
@@ -318,23 +364,23 @@ export default function ClubCalendarImproved({
           setLoading(false);
           return;
         }
-        
+
         // Crear startDate (00:00) y endDate (23:59:59) del mismo día
         const startDate = `${dateParam}T00:00:00.000Z`;
         const endDate = `${dateParam}T23:59:59.999Z`;
-        
+
         const url = `/api/admin/calendar?clubId=${clubId}&startDate=${startDate}&endDate=${endDate}`;
         console.log('🌐 Fetching:', url);
-        
+
         // ⚡ OPTIMIZACIÓN: Solo cargar desde /api/admin/calendar (que ya incluye las clases)
         const calRes = await fetch(url, {
           headers: {
             'Cache-Control': 'no-cache',
           }
         });
-        
+
         console.log('📡 Respuesta recibida:', { status: calRes.status, ok: calRes.ok });
-        
+
         // Procesar respuesta del calendario
         if (calRes.ok) {
           const data = await calRes.json();
@@ -351,7 +397,7 @@ export default function ClubCalendarImproved({
           console.log('🕐 Horarios del club:', data.club?.openingHours);
           console.log('🏆 Propuestas de partidas:', data.proposedMatches);
           console.log('✅ Partidas confirmadas:', data.confirmedMatches);
-          
+
           // ✅ PRIMERO: Actualizar el estado (crítico)
           setCalendarData(data);
           setClassProposals(data.proposedClasses || []);
@@ -359,7 +405,7 @@ export default function ClubCalendarImproved({
           setMatchProposals(data.proposedMatches || []);
           setConfirmedMatches(data.confirmedMatches || []);
           setCourtReservations(data.courtReservations || []); // Reservas de pista de usuarios
-          
+
           // LUEGO: Intentar guardar en caché (opcional, puede fallar)
           try {
             sessionStorage.setItem(cacheKey, JSON.stringify(data));
@@ -369,7 +415,7 @@ export default function ClubCalendarImproved({
             console.warn('⚠️ No se pudo guardar en caché (datos muy grandes):', cacheError);
             // Ignorar el error de caché - no es crítico
           }
-          
+
           // Extraer clases del API (ahora incluidas en la respuesta del calendario)
           if (data.proposedClasses) {
             console.log('🔵 Asignando propuestas de clases:', data.proposedClasses.length);
@@ -379,7 +425,7 @@ export default function ClubCalendarImproved({
             console.log('🟢 Asignando clases confirmadas:', data.confirmedClasses.length);
             setConfirmedClasses(data.confirmedClasses);
           }
-          
+
           // Extraer partidas del API
           if (data.proposedMatches) {
             console.log('🔵 Asignando propuestas de partidas:', data.proposedMatches.length);
@@ -410,30 +456,30 @@ export default function ClubCalendarImproved({
     // console.log('📊 openingHours:', calendarData?.club?.openingHours);
     console.log('📅 currentDate:', currentDate);
     // console.log('🏢 Club completo:', calendarData?.club);
-    
+
     // Valores por defecto si no hay configuración del club
-    let startHour = 6;
+    let startHour = 8;
     let endHour = 23;
-    
+
     // Obtener horarios del club si están disponibles
-    // if (calendarData?.club?.openingHours) {
-    //   const openingHours = calendarData.club.openingHours;
-    if (false) {  // Temporalmente deshabilitado hasta que se agregue club al tipo
-      const openingHours = null as any;
+    if (calendarData?.club?.openingHours) {
+      const openingHours = calendarData.club.openingHours;
+      // if (false) {  // Temporalmente deshabilitado hasta que se agregue club al tipo
+      //   const openingHours = null as any;
       console.log('📋 Tipo de openingHours:', typeof openingHours);
-      
+
       // Nuevo formato: objeto con días de la semana (monday, tuesday, etc.) con arrays de booleanos
       if (typeof openingHours === 'object' && !Array.isArray(openingHours)) {
         const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][currentDate.getDay()];
         console.log('📆 Día de la semana:', dayOfWeek);
         const todayHours = openingHours[dayOfWeek as keyof typeof openingHours];
         console.log('⏰ Horarios de hoy:', todayHours);
-        
+
         if (Array.isArray(todayHours) && todayHours.length === 19) {
           // Encontrar primera hora abierta (índice 0 = 6:00, índice 1 = 7:00, etc.)
-          const firstOpen = todayHours.findIndex(h => h);
+          const firstOpen = todayHours.findIndex((h: boolean) => h);
           const lastOpen = todayHours.lastIndexOf(true);
-          
+
           if (firstOpen !== -1 && lastOpen !== -1) {
             startHour = firstOpen + 6;  // índice 0 = 6:00 AM
             endHour = lastOpen + 6;      // índice 18 = 24:00 (medianoche)
@@ -443,9 +489,9 @@ export default function ClubCalendarImproved({
       }
       // Formato legacy: array de booleanos (todos los días iguales)
       else if (Array.isArray(openingHours) && openingHours.length === 19) {
-        const firstOpen = openingHours.findIndex(h => h);
+        const firstOpen = openingHours.findIndex((h: boolean) => h);
         const lastOpen = openingHours.lastIndexOf(true);
-        
+
         if (firstOpen !== -1 && lastOpen !== -1) {
           startHour = firstOpen + 6;
           endHour = lastOpen + 6;
@@ -462,7 +508,7 @@ export default function ClubCalendarImproved({
         }
       }
     }
-    
+
     const slots = [];
     for (let hour = startHour; hour <= endHour; hour++) {
       slots.push(`${hour.toString().padStart(2, '0')}:00`);
@@ -486,9 +532,9 @@ export default function ClubCalendarImproved({
       const clsEnd = new Date(cls.end);
       return cls.courtId === courtId && clsStart <= slotTime && clsEnd > slotTime;
     });
-    
+
     if (classReservation) return classReservation;
-    
+
     // Buscar en partidas confirmadas
     const matchReservation = confirmedMatches.find(match => {
       const matchStart = new Date(match.start);
@@ -497,7 +543,7 @@ export default function ClubCalendarImproved({
       const court = calendarData.courts.find(c => c.id === courtId);
       return court && match.courtNumber === court.number && matchStart <= slotTime && matchEnd > slotTime;
     });
-    
+
     if (matchReservation) {
       // Transformar partida confirmada a formato de evento
       return {
@@ -530,11 +576,11 @@ export default function ClubCalendarImproved({
   const calculateRowSpan = (event: CalendarEvent) => {
     return (event.duration || 60) / 30;
   };
-  
+
   // Handler para abrir tarjeta de clase (con filtrado inteligente por nivel)
   const handleProposalClick = (timeSlot: string, instructorId: string) => {
     const classes = getClassProposalsInSlot(timeSlot, instructorId);
-    
+
     console.log('🔍 handleProposalClick - Classes found:', classes.length);
     if (classes.length > 0) {
       console.log('📊 First class data:', {
@@ -545,9 +591,9 @@ export default function ClubCalendarImproved({
         level: classes[0].level
       });
     }
-    
+
     if (classes.length === 0) return;
-    
+
     if (classes.length === 1) {
       // Solo una opción, abrirla directamente
       setSelectedClassId(classes[0].id);
@@ -562,9 +608,9 @@ export default function ClubCalendarImproved({
   // Handler para abrir opciones de partidas (cuando hay múltiples)
   const handleMatchProposalClick = (timeSlot: string) => {
     const matches = getMatchProposalsInSlot(timeSlot);
-    
+
     if (matches.length === 0) return;
-    
+
     if (matches.length === 1) {
       // Solo una opción, abrirla directamente
       setSelectedClassId(matches[0].id);
@@ -581,34 +627,34 @@ export default function ClubCalendarImproved({
     const [hour, minute] = timeSlot.split(':');
     const slotTime = new Date(currentDate);
     slotTime.setHours(parseInt(hour), parseInt(minute), 0, 0);
-    
+
     // Filtrar todas las partidas que coincidan con el horario
     const allMatches = matchProposals.filter(match => {
       const matchStart = new Date(match.start);
       return matchStart.getTime() === slotTime.getTime();
     });
-    
+
     if (!currentUser || !currentUser.level) {
       // Sin usuario o nivel, mostrar todas
       return allMatches;
     }
-    
+
     const userLevel = parseFloat(currentUser.level);
-    
+
     // Filtrar partidas relevantes para el usuario
     const relevantMatches = allMatches.filter(match => {
       // Siempre incluir partidas abiertas
       if (match.isOpen) return true;
-      
+
       // Incluir partidas del rango del usuario
       if (match.level) {
         const [minLevel, maxLevel] = match.level.split('-').map(parseFloat);
         return userLevel >= minLevel && userLevel <= maxLevel;
       }
-      
+
       return false;
     });
-    
+
     return relevantMatches;
   };
 
@@ -621,9 +667,9 @@ export default function ClubCalendarImproved({
   // Obtener bookings del usuario en formato para DateSelector
   const getUserBookingsForDateSelector = () => {
     if (!currentUser) return [];
-    
+
     const userBookings: any[] = [];
-    
+
     // Agregar bookings de clases confirmadas
     confirmedClasses.forEach((classItem: any) => {
       if (classItem.bookings && Array.isArray(classItem.bookings)) {
@@ -639,7 +685,7 @@ export default function ClubCalendarImproved({
         });
       }
     });
-    
+
     // Agregar bookings de propuestas de clases
     classProposals.forEach((classItem: any) => {
       if (classItem.bookings && Array.isArray(classItem.bookings)) {
@@ -655,7 +701,7 @@ export default function ClubCalendarImproved({
         });
       }
     });
-    
+
     // Agregar bookings de partidas confirmadas
     confirmedMatches.forEach((match: any) => {
       if (match.bookings && Array.isArray(match.bookings)) {
@@ -671,7 +717,7 @@ export default function ClubCalendarImproved({
         });
       }
     });
-    
+
     // Agregar bookings de propuestas de partidas
     matchProposals.forEach((match: any) => {
       if (match.bookings && Array.isArray(match.bookings)) {
@@ -687,7 +733,7 @@ export default function ClubCalendarImproved({
         });
       }
     });
-    
+
     console.log('📅 UserBookings para DateSelector:', userBookings.length, userBookings);
     return userBookings;
   };
@@ -695,45 +741,45 @@ export default function ClubCalendarImproved({
   // Encontrar TODAS las propuestas de clases en un slot (abiertas + nivel del usuario)
   const getClassProposalsInSlot = (timeSlot: string, instructorId: string | null) => {
     if (!instructorId) return [];
-    
+
     const [hour, minute] = timeSlot.split(':');
     const slotTime = new Date(currentDate);
     slotTime.setHours(parseInt(hour), parseInt(minute), 0, 0);
-    
+
     // Filtrar todas las clases que coincidan con el horario e instructor
     const allClasses = classProposals.filter(proposal => {
       if (proposal.instructorId !== instructorId) return false;
-      
+
       const propStart = new Date(proposal.start);
       return propStart.getTime() === slotTime.getTime();
     });
-    
+
     // Si es vista de club/admin (viewMode === 'club'), mostrar TODAS las clases sin filtrar por nivel
     if (viewMode === 'club') {
       return allClasses;
     }
-    
+
     if (!currentUser || !currentUser.level) {
       // Sin usuario o nivel, mostrar todas
       return allClasses;
     }
-    
+
     const userLevel = parseFloat(currentUser.level);
-    
+
     // Filtrar clases relevantes para el usuario
     const relevantClasses = allClasses.filter(classItem => {
       // Siempre incluir clases abiertas (sin levelRange o isOpen)
       if (!classItem.levelRange || classItem.levelRange === 'abierto') return true;
-      
+
       // Incluir clases del rango del usuario
       if (classItem.levelRange) {
         const [minLevel, maxLevel] = classItem.levelRange.split('-').map(parseFloat);
         return userLevel >= minLevel && userLevel <= maxLevel;
       }
-      
+
       return false;
     });
-    
+
     return relevantClasses;
   };
 
@@ -748,21 +794,21 @@ export default function ClubCalendarImproved({
     const [hour, minute] = timeSlot.split(':');
     const slotTime = new Date(currentDate);
     slotTime.setHours(parseInt(hour), parseInt(minute), 0, 0);
-    
+
     const confirmedClass = confirmedClasses.find(cls => {
       // Buscar por courtNumber o por courtId que coincida con el court number
-      const matchesCourt = cls.courtNumber === courtNumber || 
-                          (cls.courtId && calendarData?.courts.find(c => c.id === cls.courtId)?.number === courtNumber);
-      
+      const matchesCourt = cls.courtNumber === courtNumber ||
+        (cls.courtId && calendarData?.courts.find(c => c.id === cls.courtId)?.number === courtNumber);
+
       if (!matchesCourt) return false;
-      
+
       const clsStart = new Date(cls.start);
       const clsEnd = new Date(cls.end);
-      
+
       // Verificar si el slot está dentro del rango de la clase
       return clsStart.getTime() <= slotTime.getTime() && clsEnd.getTime() > slotTime.getTime();
     });
-    
+
     if (confirmedClass) {
       console.log('✅ Clase confirmada encontrada:', {
         timeSlot,
@@ -772,7 +818,7 @@ export default function ClubCalendarImproved({
         start: confirmedClass.start
       });
     }
-    
+
     return confirmedClass;
   };
 
@@ -781,21 +827,21 @@ export default function ClubCalendarImproved({
     const [hour, minute] = timeSlot.split(':');
     const slotTime = new Date(currentDate);
     slotTime.setHours(parseInt(hour), parseInt(minute), 0, 0);
-    
+
     const confirmedMatch = confirmedMatches.find(match => {
       // Buscar por courtNumber o por courtId que coincida con el court number
-      const matchesCourt = match.courtNumber === courtNumber || 
-                          (match.courtId && calendarData?.courts.find(c => c.id === match.courtId)?.number === courtNumber);
-      
+      const matchesCourt = match.courtNumber === courtNumber ||
+        (match.courtId && calendarData?.courts.find(c => c.id === match.courtId)?.number === courtNumber);
+
       if (!matchesCourt) return false;
-      
+
       const matchStart = new Date(match.start);
       const matchEnd = new Date(match.end);
-      
+
       // Verificar si el slot está dentro del rango de la partida
       return matchStart.getTime() <= slotTime.getTime() && matchEnd.getTime() > slotTime.getTime();
     });
-    
+
     if (confirmedMatch) {
       console.log('✅ Partida confirmada encontrada:', {
         timeSlot,
@@ -805,27 +851,27 @@ export default function ClubCalendarImproved({
         start: confirmedMatch.start
       });
     }
-    
+
     return confirmedMatch;
   };
 
   // Verificar si es el inicio de una clase confirmada
   const isConfirmedClassStart = (confirmedClass: any, timeSlot: string) => {
     if (!confirmedClass) return false;
-    
+
     const [hour, minute] = timeSlot.split(':');
     const clsStart = new Date(confirmedClass.start);
-    
+
     return clsStart.getHours() === parseInt(hour) && clsStart.getMinutes() === parseInt(minute);
   };
 
   // Verificar si es el inicio de una partida confirmada
   const isConfirmedMatchStart = (confirmedMatch: any, timeSlot: string) => {
     if (!confirmedMatch) return false;
-    
+
     const [hour, minute] = timeSlot.split(':');
     const matchStart = new Date(confirmedMatch.start);
-    
+
     return matchStart.getHours() === parseInt(hour) && matchStart.getMinutes() === parseInt(minute);
   };
 
@@ -848,11 +894,11 @@ export default function ClubCalendarImproved({
   // Funciones helper para reservas de instructor
   const getInstructorReservationInSlot = (courtId: string, timeSlot: string) => {
     if (instructorReservations.length === 0) return null;
-    
+
     const [hour, minute] = timeSlot.split(':');
     const slotTime = new Date(currentDate);
     slotTime.setHours(parseInt(hour), parseInt(minute), 0, 0);
-    
+
     // Buscar cualquier reserva de instructor en este slot (no solo del instructor actual)
     return instructorReservations.find(res => {
       const resStart = new Date(res.startTime);
@@ -901,9 +947,9 @@ export default function ClubCalendarImproved({
             },
           }
         );
-        
+
         console.log('📡 Response status:', response.status);
-        
+
         if (response.ok) {
           const data = await response.json();
           console.log('✅ Reservas recargadas:', data.reservations?.length || 0, data.reservations);
@@ -916,19 +962,19 @@ export default function ClubCalendarImproved({
         console.error('❌ Error recargando reservas:', error);
       }
     };
-    
+
     loadReservations();
   };
 
   // Funciones para reservas de usuarios normales
   const getUserReservationInSlot = (courtId: string, timeSlot: string) => {
     if (courtReservations.length === 0) return null;
-    
+
     const [hour, minute] = timeSlot.split(':');
     const slotDate = new Date(currentDate);
     slotDate.setHours(parseInt(hour, 10), parseInt(minute, 10), 0, 0);
     const slotTime = slotDate.getTime();
-    
+
     return courtReservations.find(res => {
       const start = new Date(res.start || res.startTime).getTime();
       const end = new Date(res.end || res.endTime).getTime();
@@ -988,11 +1034,11 @@ export default function ClubCalendarImproved({
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 px-4 py-6 md:px-6 lg:px-8 relative">
       {/* Overlay oscuro cuando modo clases sin instructor - Deja visible solo botones de instructores */}
       {viewType === 'clases' && !selectedInstructor && calendarData.instructors.length > 0 && (
-        <div 
-          className="fixed inset-0 bg-gradient-to-b from-black/40 via-black/50 to-black/60 backdrop-blur-[2px] z-[120] transition-all duration-700 ease-out" 
+        <div
+          className="fixed inset-0 bg-gradient-to-b from-black/40 via-black/50 to-black/60 backdrop-blur-[2px] z-[120] transition-all duration-700 ease-out"
         />
       )}
-      
+
       <div className="max-w-[100%] lg:max-w-[1600px] mx-auto space-y-3">
         {/* Selector de Fecha */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3">
@@ -1017,11 +1063,10 @@ export default function ClubCalendarImproved({
                 currentParams.set('viewType', 'clases');
                 router.push(`${window.location.pathname}?${currentParams.toString()}`);
               }}
-              className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all ${
-                viewType === 'clases'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
-              }`}
+              className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all ${viewType === 'clases'
+                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
+                }`}
             >
               📚 Clases
             </button>
@@ -1036,11 +1081,10 @@ export default function ClubCalendarImproved({
                 currentParams.delete('instructor'); // Remover instructor de la URL
                 router.push(`${window.location.pathname}?${currentParams.toString()}`);
               }}
-              className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all ${
-                viewType === 'partidas'
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
-              }`}
+              className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all ${viewType === 'partidas'
+                ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
+                }`}
             >
               🏆 Partidas
             </button>
@@ -1055,11 +1099,10 @@ export default function ClubCalendarImproved({
                 currentParams.delete('instructor'); // Remover instructor de la URL
                 router.push(`${window.location.pathname}?${currentParams.toString()}`);
               }}
-              className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all ${
-                viewType === 'reservar-pistas'
-                  ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
-              }`}
+              className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all ${viewType === 'reservar-pistas'
+                ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
+                }`}
             >
               🎾 Reservar Pistas
             </button>
@@ -1100,7 +1143,7 @@ export default function ClubCalendarImproved({
                   <div className="text-xs text-indigo-700 leading-tight">Instructor: {calendarData.instructors.find(i => i.id === selectedInstructor)?.name}</div>
                 </div>
               </div>
-              
+
               {/* Derecha: Selector de precio por plaza */}
               <div className="flex items-center gap-2">
                 <div className="text-center">
@@ -1113,11 +1156,10 @@ export default function ClubCalendarImproved({
                       <button
                         key={size}
                         onClick={() => setSelectedGroupSize(size as 1 | 2 | 3 | 4)}
-                        className={`w-9 h-9 rounded-lg text-sm font-bold transition-all ${
-                          selectedGroupSize === size
-                            ? 'bg-white text-indigo-600 scale-105'
-                            : 'bg-white/20 text-white hover:bg-white/30'
-                        }`}
+                        className={`w-9 h-9 rounded-lg text-sm font-bold transition-all ${selectedGroupSize === size
+                          ? 'bg-white text-indigo-600 scale-105'
+                          : 'bg-white/20 text-white hover:bg-white/30'
+                          }`}
                         style={selectedGroupSize === size ? { boxShadow: 'inset 0 3px 6px rgba(0, 0, 0, 0.5)' } : {}}
                         title={`${size} ${size === 1 ? 'Alumno' : 'Alumnos'}`}
                       >
@@ -1156,7 +1198,7 @@ export default function ClubCalendarImproved({
                   </div>
                 </div>
               )}
-              
+
               {/* Derecha: Selector de precio por 1 jugador o 4 jugadores */}
               <div className="flex items-center gap-2">
                 <div className="text-center">
@@ -1168,11 +1210,10 @@ export default function ClubCalendarImproved({
                       <button
                         key={players}
                         onClick={() => setPricePerPlayers(players as 1 | 4)}
-                        className={`w-10 h-10 rounded-lg text-lg font-bold transition-all ${
-                          pricePerPlayers === players
-                            ? 'bg-white text-green-600 scale-105'
-                            : 'bg-white/20 text-white hover:bg-white/30'
-                        }`}
+                        className={`w-10 h-10 rounded-lg text-lg font-bold transition-all ${pricePerPlayers === players
+                          ? 'bg-white text-green-600 scale-105'
+                          : 'bg-white/20 text-white hover:bg-white/30'
+                          }`}
                         style={pricePerPlayers === players ? { boxShadow: 'inset 0 3px 6px rgba(0, 0, 0, 0.5)' } : {}}
                         title={`Precio para ${players} ${players === 1 ? 'jugador' : 'jugadores'}`}
                       >
@@ -1211,7 +1252,7 @@ export default function ClubCalendarImproved({
                   </div>
                 </div>
               )}
-              
+
               {/* Derecha: Selector de duración */}
               <div className="flex items-center gap-2">
                 <div className="text-center">
@@ -1223,11 +1264,10 @@ export default function ClubCalendarImproved({
                       <button
                         key={duration}
                         onClick={() => setSelectedDuration(duration as 30 | 60 | 90 | 120)}
-                        className={`w-10 h-10 rounded-lg text-sm font-bold transition-all ${
-                          selectedDuration === duration
-                            ? 'bg-white text-orange-600 scale-105'
-                            : 'bg-white/20 text-white hover:bg-white/30'
-                        }`}
+                        className={`w-10 h-10 rounded-lg text-sm font-bold transition-all ${selectedDuration === duration
+                          ? 'bg-white text-orange-600 scale-105'
+                          : 'bg-white/20 text-white hover:bg-white/30'
+                          }`}
                         style={selectedDuration === duration ? { boxShadow: 'inset 0 3px 6px rgba(0, 0, 0, 0.5)' } : {}}
                         title={`${duration} minutos`}
                       >
@@ -1264,12 +1304,10 @@ export default function ClubCalendarImproved({
                 {timeSlots.map((timeSlot, slotIndex) => {
                   const isHalfHour = timeSlot.endsWith(':30');
                   return (
-                    <tr key={timeSlot} className={`transition-colors hover:bg-gray-50/50 ${
-                      isHalfHour ? 'bg-gray-100' : 'bg-white'
-                    }`}>
-                      <td className={`p-0.5 text-center font-bold border-r border-gray-100 text-xs sticky left-0 bg-white z-10 ${
-                        isHalfHour ? 'text-gray-600 bg-gray-50' : 'text-gray-800'
+                    <tr key={timeSlot} className={`transition-colors hover:bg-gray-50/50 ${isHalfHour ? 'bg-gray-100' : 'bg-white'
                       }`}>
+                      <td className={`p-0.5 text-center font-bold border-r border-gray-100 text-xs sticky left-0 bg-white z-10 ${isHalfHour ? 'text-gray-600 bg-gray-50' : 'text-gray-800'
+                        }`}>
                         {timeSlot}
                       </td>
                       {calendarData.courts.map(court => {
@@ -1286,18 +1324,17 @@ export default function ClubCalendarImproved({
                               className={`border border-gray-200 p-0.5 h-10 bg-white relative overflow-hidden ${isHalfHour ? 'border-b-[3px] border-b-gray-400 rounded-b-lg' : ''}`}
                               style={{ maxHeight: `${rowSpan * 40}px` }}
                             >
-                              <div 
+                              <div
                                 onClick={() => {
                                   if (reservation.type === 'match-confirmed' && reservation.id) {
                                     setSelectedClassId(reservation.id);
                                     setShowClassCard(true);
                                   }
                                 }}
-                                className={`rounded-xl h-full flex flex-col justify-between border-2 border-gray-400 ${
-                                reservation.type === 'class-confirmed'
+                                className={`rounded-xl h-full flex flex-col justify-between border-2 border-gray-400 ${reservation.type === 'class-confirmed'
                                   ? 'bg-blue-500 shadow-[0_4px_12px_rgba(59,130,246,0.4),inset_0_1px_0_rgba(255,255,255,0.2)]'
                                   : 'bg-green-500 shadow-[0_4px_12px_rgba(34,197,94,0.4),inset_0_1px_0_rgba(255,255,255,0.2)] cursor-pointer hover:shadow-[0_6px_16px_rgba(34,197,94,0.5)] transition-shadow'
-                              }`}>
+                                  }`}>
                                 <div className="p-2 flex flex-col justify-center items-center h-full pointer-events-none">
                                   {reservation.type === 'match-confirmed' && (
                                     <>
@@ -1305,34 +1342,34 @@ export default function ClubCalendarImproved({
                                       <div className="text-center mb-2">
                                         <div className="text-[14px] font-bold text-white">PARTIDA</div>
                                       </div>
-                                      
+
                                       {/* Hora grande y destacada */}
                                       <div className="text-center mb-2">
                                         <div className="text-[20px] font-bold text-white">{timeSlot}</div>
                                       </div>
-                                      
+
                                       {/* Nivel */}
                                       <div className="text-center mb-2">
                                         <div className="text-[12px] font-bold text-white">{reservation.level || 'Abierto'}</div>
                                       </div>
-                                      
+
                                       {/* Jugadores en fila única con fotos grandes */}
                                       <div className="flex justify-center gap-1.5">
                                         {(() => {
                                           const activeBookings = reservation.bookings?.filter((b: any) => b.status !== 'CANCELLED' || (b.status === 'CANCELLED' && b.isRecycled === true)) || [];
                                           const slots = [];
-                                          
+
                                           // Renderizar slots según groupSize
                                           activeBookings.forEach((booking: any, bookingIdx: number) => {
-                                            const playerName = booking.user?.name || booking.userName || `Jugador ${bookingIdx+1}`;
+                                            const playerName = booking.user?.name || booking.userName || `Jugador ${bookingIdx + 1}`;
                                             const isRecycled = booking.status === 'CANCELLED' && booking.isRecycled === true;
                                             const groupSize = booking.groupSize || 1;
-                                            
+
                                             // Crear tantos avatares como plazas ocupe este booking
                                             for (let i = 0; i < groupSize; i++) {
                                               if (isRecycled) {
                                                 slots.push(
-                                                  <div 
+                                                  <div
                                                     key={`${booking.id}-${i}`}
                                                     className="w-8 h-8 rounded-full flex items-center justify-center shadow-md ring-2 ring-yellow-600 bg-yellow-400"
                                                     title="Plaza reciclada (solo puntos)"
@@ -1342,7 +1379,7 @@ export default function ClubCalendarImproved({
                                                 );
                                               } else {
                                                 slots.push(
-                                                  <div 
+                                                  <div
                                                     key={`${booking.id}-${i}`}
                                                     className="w-8 h-8 rounded-full overflow-hidden shadow-md ring-2 ring-white bg-white"
                                                     title={playerName}
@@ -1357,15 +1394,15 @@ export default function ClubCalendarImproved({
                                               }
                                             }
                                           });
-                                          
+
                                           // Calcular plazas vacías
                                           const totalOccupiedSlots = slots.length;
                                           const emptySlots = (reservation.maxPlayers || 4) - totalOccupiedSlots;
-                                          
+
                                           // Añadir slots vacíos
                                           for (let i = 0; i < emptySlots; i++) {
                                             slots.push(
-                                              <div 
+                                              <div
                                                 key={`empty-${i}`}
                                                 className="w-8 h-8 rounded-full border-2 border-white/80 flex items-center justify-center bg-white/20"
                                               >
@@ -1373,7 +1410,7 @@ export default function ClubCalendarImproved({
                                               </div>
                                             );
                                           }
-                                          
+
                                           return slots;
                                         })()}
                                       </div>
@@ -1424,7 +1461,7 @@ export default function ClubCalendarImproved({
 
                         // Si no hay reserva, verificar si hay clase confirmada de TimeSlots
                         const confirmedClass = getConfirmedClassInSlot(timeSlot, court.number);
-                        
+
                         if (confirmedClass) {
                           // Si es el inicio de la clase, renderizar con rowspan
                           if (isConfirmedClassStart(confirmedClass, timeSlot)) {
@@ -1433,21 +1470,21 @@ export default function ClubCalendarImproved({
                             const bookingsCount = bookings.reduce((sum: number, b: any) => sum + (b.groupSize || 1), 0);
                             const maxPlayers = confirmedClass.maxPlayers || 4;
                             const rowSpan = calculateConfirmedClassRowSpan(confirmedClass);
-                            const duration = confirmedClass.end && confirmedClass.start 
+                            const duration = confirmedClass.end && confirmedClass.start
                               ? Math.round((new Date(confirmedClass.end).getTime() - new Date(confirmedClass.start).getTime()) / (1000 * 60))
                               : 60;
-                            const pricePerPlayer = confirmedClass.totalPrice && confirmedClass.maxPlayers 
-                              ? confirmedClass.totalPrice / confirmedClass.maxPlayers 
+                            const pricePerPlayer = confirmedClass.totalPrice && confirmedClass.maxPlayers
+                              ? confirmedClass.totalPrice / confirmedClass.maxPlayers
                               : 12;
-                            
+
                             return (
-                              <td 
-                                key={court.id} 
+                              <td
+                                key={court.id}
                                 rowSpan={rowSpan}
                                 className={`border border-gray-200 p-0.5 bg-white relative overflow-hidden`}
                                 style={{ maxHeight: `${rowSpan * 40}px`, verticalAlign: 'top' }}
                               >
-                                <div 
+                                <div
                                   onClick={() => {
                                     setSelectedClassId(confirmedClass.id);
                                     setShowClassCard(true);
@@ -1480,17 +1517,16 @@ export default function ClubCalendarImproved({
                                         const booking = bookings[i];
                                         const hasBooking = i < bookingsCount;
                                         const isRecycled = booking?.status === 'CANCELLED' && booking?.isRecycled === true;
-                                        
+
                                         return (
-                                          <div 
-                                            key={i} 
-                                            className={`w-6 h-6 rounded-full flex items-center justify-center shadow-sm overflow-hidden relative ${
-                                              isRecycled
-                                                ? 'bg-yellow-400 ring-2 ring-yellow-600'
-                                                : hasBooking 
-                                                ? 'bg-white ring-1 ring-blue-300' 
+                                          <div
+                                            key={i}
+                                            className={`w-6 h-6 rounded-full flex items-center justify-center shadow-sm overflow-hidden relative ${isRecycled
+                                              ? 'bg-yellow-400 ring-2 ring-yellow-600'
+                                              : hasBooking
+                                                ? 'bg-white ring-1 ring-blue-300'
                                                 : 'border-2 border-white/50 bg-blue-400/30'
-                                            }`}
+                                              }`}
                                           >
                                             {isRecycled ? (
                                               <span className="text-[12px]" title="Plaza reciclada (solo puntos)">♻️</span>
@@ -1538,7 +1574,7 @@ export default function ClubCalendarImproved({
 
                         // Verificar si hay partida confirmada de MatchGames (se muestra en ambos modos)
                         const confirmedMatch = getConfirmedMatchInSlot(timeSlot, court.number);
-                        
+
                         if (confirmedMatch) {
                           // Si es el inicio de la partida, renderizar con rowspan
                           if (isConfirmedMatchStart(confirmedMatch, timeSlot)) {
@@ -1546,20 +1582,20 @@ export default function ClubCalendarImproved({
                             const bookingsCount = bookings.length;
                             const maxPlayers = 4;
                             const rowSpan = calculateConfirmedMatchRowSpan(confirmedMatch);
-                            const duration = confirmedMatch.end && confirmedMatch.start 
+                            const duration = confirmedMatch.end && confirmedMatch.start
                               ? Math.round((new Date(confirmedMatch.end).getTime() - new Date(confirmedMatch.start).getTime()) / (1000 * 60))
                               : 90;
                             const pricePerPlayer = confirmedMatch.courtRentalPrice && bookingsCount > 0
                               ? confirmedMatch.courtRentalPrice / bookingsCount
                               : 20;
-                            
+
                             return (
-                              <td 
-                                key={court.id} 
+                              <td
+                                key={court.id}
                                 rowSpan={rowSpan}
                                 className={`border border-gray-200 p-0.5 bg-white`}
                               >
-                                <div 
+                                <div
                                   onClick={() => {
                                     setSelectedClassId(confirmedMatch.id);
                                     setShowClassCard(true);
@@ -1584,15 +1620,14 @@ export default function ClubCalendarImproved({
                                       {Array.from({ length: maxPlayers }).map((_, i) => {
                                         const booking = bookings[i];
                                         const hasBooking = i < bookingsCount;
-                                        
+
                                         return (
-                                          <div 
-                                            key={i} 
-                                            className={`w-6 h-6 rounded-full flex items-center justify-center shadow-sm overflow-hidden ${
-                                              hasBooking 
-                                                ? 'bg-white ring-1 ring-purple-300' 
-                                                : 'border-2 border-white/50 bg-purple-400/30'
-                                            }`}
+                                          <div
+                                            key={i}
+                                            className={`w-6 h-6 rounded-full flex items-center justify-center shadow-sm overflow-hidden ${hasBooking
+                                              ? 'bg-white ring-1 ring-purple-300'
+                                              : 'border-2 border-white/50 bg-purple-400/30'
+                                              }`}
                                           >
                                             {hasBooking && booking?.user ? (
                                               <img
@@ -1624,10 +1659,10 @@ export default function ClubCalendarImproved({
                             return null;
                           }
                         }
-                        
+
                         // 1. PRIMERO verificar reservas de usuarios normales
                         const userReservation = getUserReservationInSlot(court.id, timeSlot);
-                        
+
                         if (userReservation && isUserReservationStart(userReservation, timeSlot)) {
                           const rowSpan = calculateUserReservationRowSpan(userReservation);
                           const start = new Date(userReservation.start || userReservation.startTime);
@@ -1638,7 +1673,7 @@ export default function ClubCalendarImproved({
                           const userId = userReservation.reason?.split(':')[1] || '';
                           const isMyReservation = currentUser && currentUser.id === userId;
                           const userName = userReservation.userName || 'Usuario';
-                          
+
                           return (
                             <td
                               key={court.id}
@@ -1646,11 +1681,10 @@ export default function ClubCalendarImproved({
                               className="border border-gray-200 p-0.5 bg-white"
                             >
                               <div
-                                className={`rounded-xl h-full flex flex-col justify-center items-center border-2 ${
-                                  isMyReservation 
-                                    ? 'border-green-400 bg-gradient-to-br from-green-500 to-emerald-500' 
-                                    : 'border-purple-400 bg-gradient-to-br from-purple-500 to-pink-500'
-                                } shadow-lg`}
+                                className={`rounded-xl h-full flex flex-col justify-center items-center border-2 ${isMyReservation
+                                  ? 'border-green-400 bg-gradient-to-br from-green-500 to-emerald-500'
+                                  : 'border-purple-400 bg-gradient-to-br from-purple-500 to-pink-500'
+                                  } shadow-lg`}
                               >
                                 <div className="p-2 text-center">
                                   <div className="text-white text-xs font-bold mb-1">Pista reservada</div>
@@ -1666,17 +1700,17 @@ export default function ClubCalendarImproved({
                             </td>
                           );
                         }
-                        
+
                         // Si no es inicio pero está dentro de una reserva de usuario, skip
                         if (userReservation) {
                           return null;
                         }
-                        
+
                         // 2. Verificar reservas de instructores (mostrar en TODOS los calendarios)
                         const instructorReservation = getInstructorReservationInSlot(court.id, timeSlot);
-                        
+
                         console.log(`🔍 Slot ${timeSlot} Court ${court.number}: instructorReservation=`, instructorReservation ? 'FOUND' : 'null');
-                        
+
                         if (instructorReservation && isInstructorReservationStart(instructorReservation, timeSlot)) {
                           const rowSpan = calculateInstructorReservationRowSpan(instructorReservation);
                           const [hour, minute] = timeSlot.split(':');
@@ -1686,7 +1720,7 @@ export default function ClubCalendarImproved({
                           const startTimeStr = `${String(startTime.getHours()).padStart(2, '0')}:${String(startTime.getMinutes()).padStart(2, '0')}`;
                           const endTimeStr = `${String(endTime.getHours()).padStart(2, '0')}:${String(endTime.getMinutes()).padStart(2, '0')}`;
                           const isOwner = instructorId && instructorReservation.instructorId === instructorId;
-                          
+
                           return (
                             <td
                               key={court.id}
@@ -1705,9 +1739,8 @@ export default function ClubCalendarImproved({
                                     );
                                   }
                                 }}
-                                className={`rounded-xl h-full flex flex-col justify-center items-center border-2 border-orange-400 bg-gradient-to-br from-orange-500 to-amber-500 shadow-lg ${
-                                  isOwner && !isPast ? 'cursor-pointer hover:from-orange-600 hover:to-amber-600 hover:scale-[1.02] transition-all' : ''
-                                }`}
+                                className={`rounded-xl h-full flex flex-col justify-center items-center border-2 border-orange-400 bg-gradient-to-br from-orange-500 to-amber-500 shadow-lg ${isOwner && !isPast ? 'cursor-pointer hover:from-orange-600 hover:to-amber-600 hover:scale-[1.02] transition-all' : ''
+                                  }`}
                               >
                                 <div className="p-2 text-center">
                                   <div className="text-white text-xs font-bold mb-1">Pista reservada</div>
@@ -1724,41 +1757,41 @@ export default function ClubCalendarImproved({
                             </td>
                           );
                         }
-                        
+
                         // Si no es inicio pero está dentro de una reserva, skip (rowspan lo cubre)
                         if (instructorReservation) {
                           return null;
                         }
-                        
+
                         // Si no hay reserva ni clase confirmada, mostrar propuestas o celdas vacías
                         return (
                           <td key={court.id} className={`border border-gray-200 p-0.5 h-10 bg-white relative ${isHalfHour ? 'border-b-[3px] border-b-gray-400 rounded-b-lg' : ''}`}>
                             {(viewType === 'clases' && selectedInstructor) ? (() => {
                               const proposals = getClassProposalsInSlot(timeSlot, selectedInstructor);
                               const hasClass = instructorHasClassInSlot(timeSlot);
-                              
+
                               if (proposals.length > 0 && !hasClass) {
                                 const firstProposal = proposals[0];
                                 const bookings = firstProposal.bookings || [];
                                 const playersCount = bookings.length;
-                                
+
                                 // Calcular precio por plaza según el selector
                                 const totalPrice = firstProposal.totalPrice || firstProposal.price || 48;
                                 const pricePerSlot = totalPrice / selectedGroupSize;
-                                
+
                                 // Determinar nivel
                                 let levelDisplay = 'Abierto';
                                 if (firstProposal.levelRange) {
                                   levelDisplay = firstProposal.levelRange;
                                 }
-                                
+
                                 // Si hay múltiples opciones, mostrar indicador
                                 const hasMultipleOptions = proposals.length > 1;
-                                
+
                                 const instructor = calendarData.instructors.find(i => i.id === selectedInstructor);
-                                
+
                                 return (
-                                  <div 
+                                  <div
                                     onClick={() => handleProposalClick(timeSlot, selectedInstructor)}
                                     className="bg-white rounded-lg p-1 cursor-pointer hover:shadow-xl hover:scale-105 transition-all h-full border border-gray-300 shadow-lg flex items-center relative overflow-visible"
                                     style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1), inset 0 2px 4px 0 rgba(255, 255, 255, 0.6)' }}
@@ -1800,13 +1833,13 @@ export default function ClubCalendarImproved({
                                   </div>
                                 );
                               }
-                              
+
                               // No hay propuesta de clase
                               // Si es modo instructor (instructorId definido), siempre mostrar opción de reservar
                               if (instructorId && !isPast) {
                                 // Celda clickeable para instructor
                                 return (
-                                  <div 
+                                  <div
                                     onClick={() => handleReservationClick(court.id, court.number, timeSlot)}
                                     className="bg-white rounded-lg p-0.5 h-full border-2 border-dashed border-orange-300 hover:border-orange-500 hover:bg-orange-50 shadow-[0_2px_4px_rgba(0,0,0,0.08)] flex items-center justify-center cursor-pointer transition-all group"
                                   >
@@ -1816,7 +1849,7 @@ export default function ClubCalendarImproved({
                                   </div>
                                 );
                               }
-                              
+
                               return (
                                 <div className="h-full flex items-center justify-center bg-gray-100 rounded">
                                   <span className="text-[8px] text-gray-400">—</span>
@@ -1832,7 +1865,7 @@ export default function ClubCalendarImproved({
                             })() : (viewType === 'partidas') ? (() => {
                               // Modo Partidas - buscar propuestas de partida en este slot
                               const matchProposals = getMatchProposalsInSlot(timeSlot);
-                              
+
                               if (matchProposals.length > 0) {
                                 // Hay propuestas de partida en este slot
                                 const firstMatch = matchProposals[0];
@@ -1840,12 +1873,12 @@ export default function ClubCalendarImproved({
                                 const playersCount = bookings.length;
                                 const maxPlayers = 4;
                                 const courtRentalPrice = firstMatch.courtRentalPrice || 20;
-                                
+
                                 // Calcular precio seg\u00fan selecci\u00f3n: 1 jugador (precio/4) o 4 jugadores (precio total)
-                                const priceToShow = pricePerPlayers === 1 
-                                  ? courtRentalPrice / 4 
+                                const priceToShow = pricePerPlayers === 1
+                                  ? courtRentalPrice / 4
                                   : courtRentalPrice;
-                                
+
                                 // Determinar nivel - usar el nivel del matchProposal
                                 let levelDisplay = 'Abierto';
                                 if (firstMatch.isOpen) {
@@ -1853,7 +1886,7 @@ export default function ClubCalendarImproved({
                                 } else if (firstMatch.level) {
                                   levelDisplay = firstMatch.level;
                                 }
-                                
+
                                 // Determinar categoría
                                 let categoryDisplay = 'Abierta';
                                 if (firstMatch.genderCategory) {
@@ -1861,15 +1894,15 @@ export default function ClubCalendarImproved({
                                   else if (firstMatch.genderCategory === 'femenino') categoryDisplay = 'Chicas';
                                   else if (firstMatch.genderCategory === 'mixto') categoryDisplay = 'Mixto';
                                 }
-                                
+
                                 // Si el nivel es Abierto y la categoría es Abierta, no mostrar la categoría
                                 const showCategory = !(levelDisplay === 'Abierto' && categoryDisplay === 'Abierta');
-                                
+
                                 // Si hay múltiples opciones, mostrar indicador
                                 const hasMultipleOptions = matchProposals.length > 1;
-                                
+
                                 return (
-                                  <div 
+                                  <div
                                     onClick={() => handleMatchProposalClick(timeSlot)}
                                     className="bg-white rounded-lg p-1 cursor-pointer hover:shadow-xl hover:scale-105 transition-all h-full border border-gray-300 shadow-lg flex items-center relative overflow-visible"
                                     style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1), inset 0 2px 4px 0 rgba(255, 255, 255, 0.6)' }}
@@ -1909,12 +1942,12 @@ export default function ClubCalendarImproved({
                                   </div>
                                 );
                               }
-                              
+
                               // No hay propuesta - mostrar celda vacía
                               if (instructorId && !isPast) {
                                 // Celda clickeable para instructor
                                 return (
-                                  <div 
+                                  <div
                                     onClick={() => handleReservationClick(court.id, court.number, timeSlot)}
                                     className="bg-white rounded-lg p-0.5 h-full border-2 border-dashed border-orange-300 hover:border-orange-500 hover:bg-orange-50 shadow-[0_2px_4px_rgba(0,0,0,0.08)] flex items-center justify-center cursor-pointer transition-all group"
                                   >
@@ -1924,7 +1957,7 @@ export default function ClubCalendarImproved({
                                   </div>
                                 );
                               }
-                              
+
                               // Celda vacía normal (no instructor o pasado)
                               return (
                                 <div className="bg-white rounded-lg p-0.5 h-full border-2 border-gray-300 shadow-[0_2px_4px_rgba(0,0,0,0.08)] flex items-center justify-center">
@@ -1939,9 +1972,9 @@ export default function ClubCalendarImproved({
                                 // Calcular precio según duración seleccionada
                                 const pricePerHour = 10; // Precio por hora base
                                 const totalPrice = (pricePerHour * selectedDuration) / 60;
-                                
+
                                 return (
-                                  <div 
+                                  <div
                                     onClick={() => {
                                       setSelectedCourtSlot({ date: currentDate, time: timeSlot, courtNumber: court.number });
                                       setShowCourtReservation(true);
@@ -1972,7 +2005,7 @@ export default function ClubCalendarImproved({
                                   </div>
                                 );
                               }
-                              
+
                               return (
                                 <div className="bg-white rounded-lg p-0.5 h-full border-2 border-gray-300 shadow-[0_2px_4px_rgba(0,0,0,0.08)] flex items-center justify-center">
                                   <div className="text-center">
@@ -2001,7 +2034,7 @@ export default function ClubCalendarImproved({
           </div>
         </div>
       </div>
-      
+
       {/* Diálogo con tarjeta de clase */}
       <Dialog open={showClassCard} onOpenChange={setShowClassCard}>
         <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto p-0">
@@ -2015,24 +2048,24 @@ export default function ClubCalendarImproved({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-          
+
           {selectedClassId && (() => {
             // Primero buscar en propuestas de clases
             let selectedClass = classProposals.find(p => p.id === selectedClassId);
-            
+
             // Si no se encuentra, buscar en clases confirmadas
             if (!selectedClass) {
               selectedClass = confirmedClasses.find(c => c.id === selectedClassId);
             }
-            
+
             // Si no se encuentra, buscar en propuestas de partidas
             if (!selectedClass) {
               const selectedMatch = matchProposals.find(m => m.id === selectedClassId);
-              
+
               // Si tampoco está en partidas propuestas, buscar en partidas confirmadas
               if (!selectedMatch) {
                 const confirmedMatch = confirmedMatches.find(m => m.id === selectedClassId);
-                
+
                 if (confirmedMatch) {
                   return (
                     <MatchGameCard
@@ -2048,11 +2081,11 @@ export default function ClubCalendarImproved({
                     />
                   );
                 }
-                
+
                 console.error('❌ No se encontró ni clase ni partida:', selectedClassId);
                 return <div className="p-4 text-center text-gray-600">No se encontró la actividad seleccionada</div>;
               }
-              
+
               return (
                 <MatchGameCard
                   matchGame={{ ...selectedMatch, id: selectedMatch.matchId || selectedMatch.id.replace('match-', '') }}
@@ -2068,7 +2101,7 @@ export default function ClubCalendarImproved({
                 />
               );
             }
-            
+
             // Si es una clase, mostrar ClassCardReal directamente
             return (
               <ClassCardReal
@@ -2116,7 +2149,7 @@ export default function ClubCalendarImproved({
             {selectedMatchIds.map(itemId => {
               // Buscar primero en partidas
               const matchGame = matchProposals.find(m => m.id === itemId);
-              
+
               if (matchGame) {
                 return (
                   <div key={itemId} className="border-2 border-purple-200 rounded-lg p-2">
@@ -2134,10 +2167,10 @@ export default function ClubCalendarImproved({
                   </div>
                 );
               }
-              
+
               // Buscar en clases
               const classProposal = classProposals.find(c => c.id === itemId);
-              
+
               if (classProposal) {
                 return (
                   <div key={itemId} className="border-2 border-blue-200 rounded-lg overflow-hidden">
@@ -2146,8 +2179,8 @@ export default function ClubCalendarImproved({
                       <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-3 border-b border-blue-200">
                         <div className="flex items-center gap-2">
                           {classProposal.instructorPhoto ? (
-                            <img 
-                              src={classProposal.instructorPhoto} 
+                            <img
+                              src={classProposal.instructorPhoto}
                               alt={classProposal.instructorName}
                               className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
                             />
@@ -2177,7 +2210,7 @@ export default function ClubCalendarImproved({
                   </div>
                 );
               }
-              
+
               return null;
             })}
           </div>
@@ -2252,10 +2285,10 @@ export default function ClubCalendarImproved({
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Fecha:</span>
                   <span className="text-sm font-bold text-gray-900">
-                    {selectedCourtSlot.date.toLocaleDateString('es-ES', { 
-                      weekday: 'long', 
-                      day: 'numeric', 
-                      month: 'long' 
+                    {selectedCourtSlot.date.toLocaleDateString('es-ES', {
+                      weekday: 'long',
+                      day: 'numeric',
+                      month: 'long'
                     })}
                   </span>
                 </div>
@@ -2275,7 +2308,7 @@ export default function ClubCalendarImproved({
                     const pricePerHour = 10;
                     const totalPrice = (pricePerHour * duration) / 60;
                     const isSelected = selectedDuration === duration;
-                    
+
                     return (
                       <button
                         key={duration}
@@ -2284,11 +2317,10 @@ export default function ClubCalendarImproved({
                           setDurationConfirmed(false);
                         }}
                         disabled={durationConfirmed}
-                        className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all ${
-                          isSelected
-                            ? 'bg-orange-500 border-orange-600 text-white shadow-lg scale-105'
-                            : 'bg-white border-gray-300 text-gray-700 hover:border-orange-400 hover:bg-orange-50'
-                        } ${durationConfirmed ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all ${isSelected
+                          ? 'bg-orange-500 border-orange-600 text-white shadow-lg scale-105'
+                          : 'bg-white border-gray-300 text-gray-700 hover:border-orange-400 hover:bg-orange-50'
+                          } ${durationConfirmed ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         <div className="text-lg font-bold">{duration}</div>
                         <div className="text-[10px]">min</div>
@@ -2339,183 +2371,183 @@ export default function ClubCalendarImproved({
 
               {/* Botones de acción */}
               {durationConfirmed && (
-              <div className="flex gap-2">
-                <button
-                  onClick={async () => {
-                    console.log('🔍 DEBUG: Iniciando reserva', {
-                      hasSlot: !!selectedCourtSlot,
-                      hasUser: !!currentUser,
-                      slot: selectedCourtSlot,
-                      user: currentUser ? { id: currentUser.id, name: currentUser.name } : null
-                    });
-                    
-                    if (!selectedCourtSlot || !currentUser) {
-                      console.error('❌ Faltan datos:', { selectedCourtSlot, currentUser });
-                      toast({
-                        title: "Error",
-                        description: "Faltan datos para completar la reserva. Por favor recarga la página e intenta de nuevo.",
-                        variant: "destructive"
+                <div className="flex gap-2">
+                  <button
+                    onClick={async () => {
+                      console.log('🔍 DEBUG: Iniciando reserva', {
+                        hasSlot: !!selectedCourtSlot,
+                        hasUser: !!currentUser,
+                        slot: selectedCourtSlot,
+                        user: currentUser ? { id: currentUser.id, name: currentUser.name } : null
                       });
-                      return;
-                    }
-                    
-                    setIsReserving(true);
-                    console.log('⏳ Estado de reserva iniciado...');
-                    
-                    try {
-                      // Calcular timestamps
-                      const [hours, minutes] = selectedCourtSlot.time.split(':').map(Number);
-                      const startDate = new Date(selectedCourtSlot.date);
-                      startDate.setHours(hours, minutes, 0, 0);
-                      
-                      const endDate = new Date(startDate);
-                      endDate.setMinutes(endDate.getMinutes() + selectedDuration);
-                      
-                      // Calcular precio total
-                      const pricePerHour = 10;
-                      const totalPrice = (pricePerHour * selectedDuration) / 60;
-                      
-                      // Buscar el courtId basado en el número de pista
-                      const courtId = calendarData?.courts.find(c => c.number === selectedCourtSlot.courtNumber)?.id;
-                      
-                      if (!courtId) {
+
+                      if (!selectedCourtSlot || !currentUser) {
+                        console.error('❌ Faltan datos:', { selectedCourtSlot, currentUser });
                         toast({
                           title: "Error",
-                          description: "No se pudo identificar la pista seleccionada",
+                          description: "Faltan datos para completar la reserva. Por favor recarga la página e intenta de nuevo.",
                           variant: "destructive"
                         });
-                        setIsReserving(false);
                         return;
                       }
-                      
-                      console.log('🎾 Creando reserva de pista:', {
-                        courtId,
-                        courtNumber: selectedCourtSlot.courtNumber,
-                        date: selectedCourtSlot.date,
-                        time: selectedCourtSlot.time,
-                        duration: selectedDuration,
-                        totalPrice,
-                        userId: currentUser.id
-                      });
-                      
-                      console.log('📡 Enviando petición a la API...', {
-                        url: '/api/bookings/court-reservation',
-                        body: {
-                          clubId,
-                          courtId,
-                          start: startDate.toISOString(),
-                          end: endDate.toISOString(),
-                          userId: currentUser.id,
-                          duration: selectedDuration,
-                          totalPrice,
+
+                      setIsReserving(true);
+                      console.log('⏳ Estado de reserva iniciado...');
+
+                      try {
+                        // Calcular timestamps
+                        const [hours, minutes] = selectedCourtSlot.time.split(':').map(Number);
+                        const startDate = new Date(selectedCourtSlot.date);
+                        startDate.setHours(hours, minutes, 0, 0);
+
+                        const endDate = new Date(startDate);
+                        endDate.setMinutes(endDate.getMinutes() + selectedDuration);
+
+                        // Calcular precio total
+                        const pricePerHour = 10;
+                        const totalPrice = (pricePerHour * selectedDuration) / 60;
+
+                        // Buscar el courtId basado en el número de pista
+                        const courtId = calendarData?.courts.find(c => c.number === selectedCourtSlot.courtNumber)?.id;
+
+                        if (!courtId) {
+                          toast({
+                            title: "Error",
+                            description: "No se pudo identificar la pista seleccionada",
+                            variant: "destructive"
+                          });
+                          setIsReserving(false);
+                          return;
                         }
-                      });
-                      
-                      // Llamar a la API de reserva
-                      const response = await fetch('/api/bookings/court-reservation', {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                          clubId,
+
+                        console.log('🎾 Creando reserva de pista:', {
                           courtId,
-                          start: startDate.toISOString(),
-                          end: endDate.toISOString(),
-                          userId: currentUser.id,
+                          courtNumber: selectedCourtSlot.courtNumber,
+                          date: selectedCourtSlot.date,
+                          time: selectedCourtSlot.time,
                           duration: selectedDuration,
                           totalPrice,
-                        }),
-                      });
-                      
-                      console.log('📨 Respuesta recibida:', {
-                        status: response.status,
-                        ok: response.ok,
-                        statusText: response.statusText
-                      });
-                      
-                      const result = await response.json();
-                      console.log('📦 Datos de la respuesta:', result);
-                      
-                      if (response.ok) {
-                        console.log('✅ Reserva creada exitosamente:', result);
-                        
-                        // Mostrar toast de confirmación
-                        toast({
-                          title: "✅ ¡Reserva confirmada!",
-                          description: `Pista ${selectedCourtSlot.courtNumber} • ${selectedCourtSlot.time} • ${selectedDuration} min • ${totalPrice.toFixed(2)}€`,
-                          duration: 6000,
-                          className: "bg-green-50 border-green-500"
+                          userId: currentUser.id
                         });
-                        
-                        console.log('🎉 Toast de confirmación mostrado');
-                        
-                        // Cerrar diálogo
-                        setShowCourtReservation(false);
-                        setSelectedCourtSlot(null);
-                        
-                        console.log('🗑️ Limpiando caché del calendario...');
-                        
-                        // Limpiar caché y recargar calendario
-                        const dateParam = getLocalDateString(currentDate);
-                        const cacheKey = `calendar-${clubId}-${dateParam}`;
-                        sessionStorage.removeItem(cacheKey);
-                        sessionStorage.removeItem(`${cacheKey}-timestamp`);
-                        
-                        console.log('🔄 Forzando recarga del calendario...');
-                        
-                        // Forzar recarga inmediata del calendario
-                        setLoading(true);
-                        setCalendarData(null); // Limpiar datos actuales
-                        
-                        // Recargar después de un breve delay para asegurar que la DB se actualizó
-                        setTimeout(() => {
-                          console.log('⏱️ Ejecutando recarga del calendario...');
-                          handleDateChange(new Date(currentDate.getTime() + 1)); // Cambiar referencia
-                        }, 100);
-                        
-                      } else {
-                        console.error('❌ Error en la reserva:', result);
-                        console.error('📄 Respuesta completa:', response);
-                        
-                        let errorMsg = result.error || 'No se pudo completar la reserva';
-                        if (result.requiredCredits && result.availableCredits) {
-                          errorMsg = `Créditos insuficientes. Necesitas ${result.requiredCredits}€ pero tienes ${result.availableCredits}€`;
+
+                        console.log('📡 Enviando petición a la API...', {
+                          url: '/api/bookings/court-reservation',
+                          body: {
+                            clubId,
+                            courtId,
+                            start: startDate.toISOString(),
+                            end: endDate.toISOString(),
+                            userId: currentUser.id,
+                            duration: selectedDuration,
+                            totalPrice,
+                          }
+                        });
+
+                        // Llamar a la API de reserva
+                        const response = await fetch('/api/bookings/court-reservation', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({
+                            clubId,
+                            courtId,
+                            start: startDate.toISOString(),
+                            end: endDate.toISOString(),
+                            userId: currentUser.id,
+                            duration: selectedDuration,
+                            totalPrice,
+                          }),
+                        });
+
+                        console.log('📨 Respuesta recibida:', {
+                          status: response.status,
+                          ok: response.ok,
+                          statusText: response.statusText
+                        });
+
+                        const result = await response.json();
+                        console.log('📦 Datos de la respuesta:', result);
+
+                        if (response.ok) {
+                          console.log('✅ Reserva creada exitosamente:', result);
+
+                          // Mostrar toast de confirmación
+                          toast({
+                            title: "✅ ¡Reserva confirmada!",
+                            description: `Pista ${selectedCourtSlot.courtNumber} • ${selectedCourtSlot.time} • ${selectedDuration} min • ${totalPrice.toFixed(2)}€`,
+                            duration: 6000,
+                            className: "bg-green-50 border-green-500"
+                          });
+
+                          console.log('🎉 Toast de confirmación mostrado');
+
+                          // Cerrar diálogo
+                          setShowCourtReservation(false);
+                          setSelectedCourtSlot(null);
+
+                          console.log('🗑️ Limpiando caché del calendario...');
+
+                          // Limpiar caché y recargar calendario
+                          const dateParam = getLocalDateString(currentDate);
+                          const cacheKey = `calendar-${clubId}-${dateParam}`;
+                          sessionStorage.removeItem(cacheKey);
+                          sessionStorage.removeItem(`${cacheKey}-timestamp`);
+
+                          console.log('🔄 Forzando recarga del calendario...');
+
+                          // Forzar recarga inmediata del calendario
+                          setLoading(true);
+                          setCalendarData(null); // Limpiar datos actuales
+
+                          // Recargar después de un breve delay para asegurar que la DB se actualizó
+                          setTimeout(() => {
+                            console.log('⏱️ Ejecutando recarga del calendario...');
+                            handleDateChange(new Date(currentDate.getTime() + 1)); // Cambiar referencia
+                          }, 100);
+
+                        } else {
+                          console.error('❌ Error en la reserva:', result);
+                          console.error('📄 Respuesta completa:', response);
+
+                          let errorMsg = result.error || 'No se pudo completar la reserva';
+                          if (result.requiredCredits && result.availableCredits) {
+                            errorMsg = `Créditos insuficientes. Necesitas ${result.requiredCredits}€ pero tienes ${result.availableCredits}€`;
+                          }
+
+                          console.error('💬 Mensaje de error:', errorMsg);
+
+                          toast({
+                            title: "Error al crear reserva",
+                            description: errorMsg,
+                            variant: "destructive",
+                            duration: 7000,
+                          });
                         }
-                        
-                        console.error('💬 Mensaje de error:', errorMsg);
-                        
+                      } catch (error) {
+                        console.error('❌ Error al crear reserva:', error);
+                        console.error('📋 Detalles del error:', {
+                          message: error instanceof Error ? error.message : 'Unknown error',
+                          stack: error instanceof Error ? error.stack : undefined
+                        });
+
                         toast({
-                          title: "Error al crear reserva",
-                          description: errorMsg,
+                          title: "Error de conexión",
+                          description: "No se pudo procesar la reserva. Verifica tu conexión e intenta de nuevo.",
                           variant: "destructive",
                           duration: 7000,
                         });
+                      } finally {
+                        console.log('🏁 Finalizando proceso de reserva...');
+                        setIsReserving(false);
                       }
-                    } catch (error) {
-                      console.error('❌ Error al crear reserva:', error);
-                      console.error('📋 Detalles del error:', {
-                        message: error instanceof Error ? error.message : 'Unknown error',
-                        stack: error instanceof Error ? error.stack : undefined
-                      });
-                      
-                      toast({
-                        title: "Error de conexión",
-                        description: "No se pudo procesar la reserva. Verifica tu conexión e intenta de nuevo.",
-                        variant: "destructive",
-                        duration: 7000,
-                      });
-                    } finally {
-                      console.log('🏁 Finalizando proceso de reserva...');
-                      setIsReserving(false);
-                    }
-                  }}
-                  disabled={isReserving}
-                  className="flex-1 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg font-bold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isReserving ? 'Procesando...' : 'Confirmar Reserva'}
-                </button>
-              </div>
+                    }}
+                    disabled={isReserving}
+                    className="flex-1 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg font-bold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isReserving ? 'Procesando...' : 'Confirmar Reserva'}
+                  </button>
+                </div>
               )}
             </div>
           )}

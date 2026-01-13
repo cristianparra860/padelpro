@@ -19,8 +19,8 @@ interface DateSelectorProps {
   layoutOrientation?: 'horizontal' | 'vertical'; // 🆕 Orientación del layout
 }
 
-export default function DateSelector({ 
-  selectedDate, 
+export default function DateSelector({
+  selectedDate,
   onDateChange,
   daysToShow = 30,
   userBookings = [], // 🆕 Recibir bookings
@@ -59,25 +59,25 @@ export default function DateSelector({
   // 🆕 Función para obtener el estado de un día (inscripción o confirmado)
   const getDayBookingStatus = (date: Date): 'pending' | 'confirmed' | null => {
     if (!userBookings || userBookings.length === 0) return null;
-    
+
     const dateStr = date.toDateString();
-    
+
     // Verificar si hay algún booking para este día
     const dayBookings = userBookings.filter(booking => {
       const bookingDate = new Date(booking.date);
       return bookingDate.toDateString() === dateStr;
     });
-    
+
     if (dayBookings.length === 0) return null;
-    
+
     // Si hay alguno CONFIRMADO, el día es rojo
     const hasConfirmed = dayBookings.some(b => b.status === 'CONFIRMED');
     if (hasConfirmed) return 'confirmed';
-    
+
     // Si solo hay PENDING, el día es azul
     const hasPending = dayBookings.some(b => b.status === 'PENDING');
     if (hasPending) return 'pending';
-    
+
     return null;
   };
 
@@ -140,6 +140,25 @@ export default function DateSelector({
     onDateChange(date);
   };
 
+  // Scroll automático al día seleccionado
+  useEffect(() => {
+    if (mounted && selectedDate) {
+      const dateId = `date-${selectedDate.getDate()}-${selectedDate.getMonth()}`;
+      const element = document.getElementById(dateId);
+
+      if (element && scrollRef.current) {
+        // Calcular posición para centrar el elemento
+        const container = scrollRef.current;
+        const scrollLeft = element.offsetLeft - (container.clientWidth / 2) + (element.clientWidth / 2);
+
+        container.scrollTo({
+          left: scrollLeft,
+          behavior: 'smooth'
+        });
+      }
+    }
+  }, [mounted, selectedDate, layoutOrientation]);
+
   return (
     <div className={`relative w-full rounded-lg py-2 md:py-3`}>
       {/* Botones de navegación rápida - Hoy y Mañana */}
@@ -166,13 +185,17 @@ export default function DateSelector({
           title="Ir a Mañana"
         >
           <span className="text-center">
-            MAÑA<br/>NA
+            MAÑA<br />NA
           </span>
         </button>
       </div>
 
       {/* Grid de fechas - horizontal o vertical según orientación */}
-      <div className={`flex ${layoutOrientation === 'vertical' ? 'flex-col space-y-2' : 'justify-between overflow-x-auto scrollbar-hide touch-pan-x'} py-2 px-4 md:px-1 pr-20`}>
+      <div
+        ref={scrollRef}
+        onScroll={updateScrollButtons}
+        className={`flex ${layoutOrientation === 'vertical' ? 'flex-col space-y-2' : 'justify-between overflow-x-auto scrollbar-hide touch-pan-x'} py-2 px-4 md:px-1 pr-20`}
+      >
         {dates.map((date, index) => {
           const selected = isSelected(date);
           const today = isToday(date);
@@ -187,7 +210,7 @@ export default function DateSelector({
           let shadowStyle = 'shadow-[inset_0_1px_3px_rgba(0,0,0,0.05)]';
           let textColor = 'text-gray-500';
           let dayTextColor = 'text-gray-800';
-          
+
           if (mounted && selected) {
             borderColor = 'border-green-500';
             shadowStyle = 'shadow-[inset_0_2px_8px_rgba(34,197,94,0.3)]';
@@ -201,16 +224,20 @@ export default function DateSelector({
           }
 
           return (
-            <div key={index} className="flex flex-col items-center space-y-0.5 flex-shrink-0">
+            <div
+              key={index}
+              id={`date-${date.getDate()}-${date.getMonth()}`}
+              className="flex flex-col items-center space-y-0.5 flex-shrink-0"
+            >
               <button
                 onClick={() => handleDateClick(date)}
                 className={`
                   flex flex-col items-center justify-center rounded-lg
                   transition-all duration-200 cursor-pointer border-2 bg-white
                   ${borderColor} ${shadowStyle}
-                  ${mounted && selected 
-                    ? layoutOrientation === 'vertical' 
-                      ? 'w-[94px] h-[75px] scale-110 ring-2 ring-green-200' 
+                  ${mounted && selected
+                    ? layoutOrientation === 'vertical'
+                      ? 'w-[94px] h-[75px] scale-110 ring-2 ring-green-200'
                       : 'w-[63px] h-[75px] scale-110 ring-2 ring-green-200'
                     : layoutOrientation === 'vertical'
                       ? 'w-[63px] h-[50px] hover:scale-105'
@@ -232,11 +259,10 @@ export default function DateSelector({
               <div className="h-4 w-full flex items-center justify-center">
                 {bookingStatus && (
                   <button
-                    className={`h-4 w-4 flex items-center justify-center text-white rounded-full font-bold text-[8px] leading-none shadow-sm transition-transform hover:scale-110 ${
-                      bookingStatus === 'confirmed' 
-                        ? 'bg-red-500' 
-                        : 'bg-blue-500'
-                    }`}
+                    className={`h-4 w-4 flex items-center justify-center text-white rounded-full font-bold text-[8px] leading-none shadow-sm transition-transform hover:scale-110 ${bookingStatus === 'confirmed'
+                      ? 'bg-red-500'
+                      : 'bg-blue-500'
+                      }`}
                   >
                     {bookingStatus === 'confirmed' ? 'R' : 'I'}
                   </button>

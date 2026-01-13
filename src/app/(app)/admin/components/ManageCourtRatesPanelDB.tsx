@@ -38,7 +38,7 @@ const ManageCourtRatesPanelDB: React.FC<ManageCourtRatesPanelDBProps> = ({ clubI
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<PriceSlot | null>(null);
   const [isUpdatingPrices, setIsUpdatingPrices] = useState(false);
-  
+
   const [formData, setFormData] = useState({
     name: '',
     startTime: '09:00',
@@ -49,11 +49,27 @@ const ManageCourtRatesPanelDB: React.FC<ManageCourtRatesPanelDBProps> = ({ clubI
   });
 
   useEffect(() => {
-    // Cargar el club
-    const clubs = getMockClubs();
-    const foundClub = clubs.find(c => c.id === clubId);
-    if (foundClub) {
-      setClub(foundClub);
+    const loadClubDate = async () => {
+      try {
+        const response = await fetch(`/api/clubs/${clubId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setClub(data);
+        } else {
+          console.error('Error loading club:', await response.text());
+          toast({
+            title: "Error",
+            description: "No se pudo cargar la información del club",
+            variant: "destructive"
+          });
+        }
+      } catch (error) {
+        console.error('Error loading club:', error);
+      }
+    };
+
+    if (clubId) {
+      loadClubDate();
     }
     loadPriceSlots();
   }, [clubId]);
@@ -63,7 +79,7 @@ const ManageCourtRatesPanelDB: React.FC<ManageCourtRatesPanelDBProps> = ({ clubI
       setLoading(true);
       const response = await fetch(`/api/admin/clubs/${clubId}/price-slots`);
       const data = await response.json();
-      
+
       setPriceSlots(data.map((slot: any) => ({
         ...slot,
         daysOfWeek: typeof slot.daysOfWeek === 'string' ? slot.daysOfWeek : JSON.stringify(slot.daysOfWeek || [])
@@ -119,7 +135,7 @@ const ManageCourtRatesPanelDB: React.FC<ManageCourtRatesPanelDBProps> = ({ clubI
       const url = editingSlot
         ? `/api/admin/clubs/${clubId}/price-slots/${editingSlot.id}`
         : `/api/admin/clubs/${clubId}/price-slots`;
-      
+
       const method = editingSlot ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
@@ -181,7 +197,7 @@ const ManageCourtRatesPanelDB: React.FC<ManageCourtRatesPanelDBProps> = ({ clubI
 
   const handleUpdateFuturePrices = async () => {
     setIsUpdatingPrices(true);
-    
+
     try {
       // Primero obtener el usuario actual
       console.log('🔍 Obteniendo usuario actual...');
@@ -191,11 +207,11 @@ const ManageCourtRatesPanelDB: React.FC<ManageCourtRatesPanelDBProps> = ({ clubI
         console.error('❌ Error auth:', authError);
         throw new Error('No se pudo obtener el usuario actual');
       }
-      
+
       const authData = await authResponse.json();
       console.log('👤 Usuario actual:', authData.user);
       const userId = authData.user?.id;
-      
+
       if (!userId) {
         throw new Error('Usuario no autenticado');
       }
@@ -228,8 +244,8 @@ const ManageCourtRatesPanelDB: React.FC<ManageCourtRatesPanelDBProps> = ({ clubI
       });
 
       // Disparar evento personalizado para notificar al calendario que debe refrescarse
-      window.dispatchEvent(new CustomEvent('pricesUpdated', { 
-        detail: { clubId, updated: result.updated } 
+      window.dispatchEvent(new CustomEvent('pricesUpdated', {
+        detail: { clubId, updated: result.updated }
       }));
 
       // Recargar la página después de 2 segundos para mostrar los nuevos precios
@@ -241,7 +257,7 @@ const ManageCourtRatesPanelDB: React.FC<ManageCourtRatesPanelDBProps> = ({ clubI
       console.error('❌ Error actualizando precios futuros:', error);
       const errorMessage = error instanceof Error ? error.message : "Ocurrió un error inesperado";
       console.error('📝 Mensaje de error:', errorMessage);
-      
+
       toast({
         title: "Error al actualizar precios",
         description: errorMessage,
@@ -277,7 +293,7 @@ const ManageCourtRatesPanelDB: React.FC<ManageCourtRatesPanelDBProps> = ({ clubI
     <div className="space-y-6">
       {/* Horario de Apertura del Club */}
       <ClubOpeningHours club={club} onHoursUpdated={handleClubUpdated} />
-      
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -343,8 +359,8 @@ const ManageCourtRatesPanelDB: React.FC<ManageCourtRatesPanelDBProps> = ({ clubI
       </Card>
 
       <div className="flex items-center gap-3">
-        <Button 
-          type="button" 
+        <Button
+          type="button"
           variant="secondary"
           onClick={handleUpdateFuturePrices}
           disabled={isUpdatingPrices}
@@ -356,7 +372,7 @@ const ManageCourtRatesPanelDB: React.FC<ManageCourtRatesPanelDBProps> = ({ clubI
       </div>
 
       <p className="text-sm text-muted-foreground">
-        💡 <strong>Tip:</strong> Después de modificar las tarifas, usa el botón "Aplicar a Clases Futuras" 
+        💡 <strong>Tip:</strong> Después de modificar las tarifas, usa el botón "Aplicar a Clases Futuras"
         para actualizar los precios de clases sin usuarios inscritos (no afecta a clases con reservas confirmadas).
       </p>
 

@@ -16,7 +16,7 @@ export default function DemoPage() {
   // Countdown timer
   useEffect(() => {
     if (!showQR || countdown <= 0) return;
-    
+
     const timer = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
@@ -26,7 +26,7 @@ export default function DemoPage() {
         return prev - 1;
       });
     }, 1000);
-    
+
     return () => clearInterval(timer);
   }, [showQR, countdown]);
 
@@ -38,7 +38,7 @@ export default function DemoPage() {
       try {
         const res = await fetch(`/api/auth/qr-status?token=${token}`);
         const data = await res.json();
-        
+
         if (data.status === 'approved' && data.authToken) {
           localStorage.setItem('auth_token', data.authToken);
           clearInterval(pollInterval);
@@ -60,20 +60,20 @@ export default function DemoPage() {
       const res = await fetch('/api/auth/qr-generate', {
         method: 'POST'
       });
-      
+
       if (!res.ok) throw new Error('Error generando QR');
-      
+
       const data = await res.json();
       const newToken = data.token;
       setToken(newToken);
       setCountdown(60);
-      
+
       // Obtener IP local del servidor para que el móvil pueda acceder
       const ipRes = await fetch('/api/system/local-ip');
       const ipData = await ipRes.json();
       const baseUrl = `http://${ipData.ip}:${ipData.port}`;
       const qrUrl = `${baseUrl}/auth-qr?token=${newToken}`;
-      
+
       const qrData = await QRCode.toDataURL(qrUrl, {
         width: 300,
         margin: 2,
@@ -82,7 +82,7 @@ export default function DemoPage() {
           light: '#ffffff'
         }
       });
-      
+
       setQrDataUrl(qrData);
     } catch (err: any) {
       console.error('Error generating QR:', err);
@@ -105,7 +105,7 @@ export default function DemoPage() {
   };
 
   return (
-    <div style={{ 
+    <div style={{
       position: 'fixed',
       top: 0,
       left: 0,
@@ -391,13 +391,13 @@ export default function DemoPage() {
       </video>
 
       <div className="content-overlay">
-        <img 
+        <img
           key={`logo-${animationKey}`}
-          src="/LOGO_OFICIAL-METODO3.webp" 
-          alt="Padel Estrella" 
+          src="/LOGO_OFICIAL-METODO3.webp"
+          alt="Padel Estrella"
           className="club-logo"
         />
-        
+
         {!showQR ? (
           <>
             <div className="mobile-container" id="container" key={`container-${animationKey}`}>
@@ -437,7 +437,20 @@ export default function DemoPage() {
                 </span>
               </div>
 
-              <div className="btn" style={{background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', animationDelay: '0.8s'}} onClick={handleShowQR}>
+              <div className="btn" onClick={() => handleNavigation('/demo-2')} style={{
+                height: '160px',
+                background: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)',
+                animationDelay: '0.7s',
+                flexDirection: 'column',
+                gap: '10px'
+              }}>
+                <span style={{ fontSize: '20px', lineHeight: '1.2', textAlign: 'center', maxWidth: '80%', whiteSpace: 'pre-line' }}>
+                  VER CÓMO<br />FUNCIONAN<br />LAS CLASES
+                </span>
+                <span style={{ fontSize: '24px' }}>👉</span>
+              </div>
+
+              <div className="btn" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', animationDelay: '0.9s' }} onClick={handleShowQR}>
                 <span>
                   <span className="letter">L</span>
                   <span className="letter">O</span>

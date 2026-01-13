@@ -25,21 +25,21 @@ export const padelCategoryForSlotOptions: { value: PadelCategoryForSlot, label: 
 export const daysOfWeek: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 export const dayOfWeekLabels: Record<DayOfWeek, string> = {
-  monday: 'Lunes',
-  tuesday: 'Martes',
-  wednesday: 'Miércoles',
-  thursday: 'Jueves',
-  friday: 'Viernes',
-  saturday: 'Sábado',
-  sunday: 'Domingo',
+    monday: 'Lunes',
+    tuesday: 'Martes',
+    wednesday: 'Miércoles',
+    thursday: 'Jueves',
+    friday: 'Viernes',
+    saturday: 'Sábado',
+    sunday: 'Domingo',
 };
 
-export type PointTransactionType = 
-    | 'cancelacion_clase' 
-    | 'cancelacion_clase_confirmada' 
-    | 'cancelacion_partida' 
-    | 'invitar_amigo' 
-    | 'primero_en_clase' 
+export type PointTransactionType =
+    | 'cancelacion_clase'
+    | 'cancelacion_clase_confirmada'
+    | 'cancelacion_partida'
+    | 'invitar_amigo'
+    | 'primero_en_clase'
     | 'primero_en_partida'
     | 'canje_plaza_gratis'
     | 'reserva_pista_puntos'
@@ -78,20 +78,20 @@ export const timeSlotFilterOptions: { value: TimeOfDayFilterType, label: string 
 
 export type ViewPreference = 'normal' | 'myInscriptions' | 'myConfirmed' | 'withPlayers' | 'completed' | 'withBookings' | 'all' | 'past';
 
-export type ActivityViewType = 'clases' | 'grupos';
+export type ActivityViewType = 'clases' | 'grupos' | 'matchpro';
 
 // --- Interfaces & Rich Types ---
 
 export interface PadelLevelRange {
-  min: NumericMatchPadelLevel;
-  max: NumericMatchPadelLevel;
+    min: NumericMatchPadelLevel;
+    max: NumericMatchPadelLevel;
 }
 
 export type ClassPadelLevel = 'abierto' | PadelLevelRange;
 
 export interface TimeRange {
-  start: string; // "HH:mm"
-  end: string;   // "HH:mm"
+    start: string; // "HH:mm"
+    end: string;   // "HH:mm"
 }
 
 export interface User {
@@ -121,19 +121,19 @@ export interface User {
 }
 
 export interface InstructorRateTier {
-  id: string;
-  days: DayOfWeek[];
-  startTime: string; // "HH:mm"
-  endTime: string;   // "HH:mm"
-  rate: number;
+    id: string;
+    days: DayOfWeek[];
+    startTime: string; // "HH:mm"
+    endTime: string;   // "HH:mm"
+    rate: number;
 }
 
 export interface InstructorAvailability {
-  id: string;
-  days: DayOfWeek[];
-  startTime: string; // "HH:mm"
-  endTime: string;   // "HH:mm"
-  isActive: boolean;
+    id: string;
+    days: DayOfWeek[];
+    startTime: string; // "HH:mm"
+    endTime: string;   // "HH:mm"
+    isActive: boolean;
 }
 
 export interface Instructor extends User {
@@ -151,9 +151,9 @@ export interface Instructor extends User {
 }
 
 export interface UserDB extends User, Partial<Omit<Instructor, 'id' | 'name' | 'email' | 'level' | 'profilePictureUrl' | 'genderCategory'>> {
-  hashedPassword?: string;
-  createdAt: Date;
-  clubId?: string; // For general club association
+    hashedPassword?: string;
+    createdAt: Date;
+    clubId?: string; // For general club association
 }
 
 export interface PenaltyTier {
@@ -181,22 +181,22 @@ export interface ClubLevelRange {
 }
 
 export interface CourtRateTier {
-  id: string;
-  name: string;
-  days: DayOfWeek[];
-  startTime: string; // "HH:mm"
-  endTime: string; // "HH:mm"
-  rate: number; // price per hour
+    id: string;
+    name: string;
+    days: DayOfWeek[];
+    startTime: string; // "HH:mm"
+    endTime: string; // "HH:mm"
+    rate: number; // price per hour
 }
 
 export interface DynamicPricingTier {
-  id: string;
-  days: DayOfWeek[];
-  startTime: string; // "HH:mm"
-  endTime: string;   // "HH:mm"
-  minPrice: number;
-  startPrice: number;
-  maxPrice: number;
+    id: string;
+    days: DayOfWeek[];
+    startTime: string; // "HH:mm"
+    endTime: string;   // "HH:mm"
+    minPrice: number;
+    startPrice: number;
+    maxPrice: number;
 }
 
 export interface CardShadowEffectSettings {
@@ -230,14 +230,14 @@ export interface Club {
 }
 
 export interface ClubFormData {
-  name: string;
-  location: string;
-  logoUrl?: string;
-  adminEmail: string;
-  adminPassword?: string;
-  showClassesTabOnFrontend: boolean;
-  showMatchesTabOnFrontend: boolean;
-  unavailableMatchHours: Partial<Record<DayOfWeek, TimeRange[]>>;
+    name: string;
+    location: string;
+    logoUrl?: string;
+    adminEmail: string;
+    adminPassword?: string;
+    showClassesTabOnFrontend: boolean;
+    showMatchesTabOnFrontend: boolean;
+    unavailableMatchHours: Partial<Record<DayOfWeek, TimeRange[]>>;
 }
 
 export interface PadelCourt {
@@ -272,13 +272,13 @@ export interface TimeSlot {
     creditsSlots?: number[]; // 🎁 Índices de plazas reservables con puntos [1,2,3,4]
     creditsCost?: number; // 🎁 Coste en puntos para reservar con créditos (default: 50)
     status: 'pre_registration' | 'forming' | 'confirmed' | 'confirmed_private' | 'cancelled';
-    bookedPlayers: { 
-        userId: string; 
-        name?: string; 
+    bookedPlayers: {
+        userId: string;
+        name?: string;
         userName?: string; // ✅ Alias para name
         userEmail?: string; // ✅ Email del usuario
-        isSimulated?: boolean; 
-        profilePictureUrl?: string; 
+        isSimulated?: boolean;
+        profilePictureUrl?: string;
         groupSize: 1 | 2 | 3 | 4;
         status: 'PENDING' | 'CONFIRMED' | 'CANCELLED'; // Requerido
         userLevel?: string;
@@ -287,13 +287,13 @@ export interface TimeSlot {
         isRecycled?: boolean; // ♻️ Indica si es una plaza reciclada
         id?: string; // ✅ ID del booking
     }[];
-    bookings?: Array<{ 
-        userId: string; 
-        name?: string; 
+    bookings?: Array<{
+        userId: string;
+        name?: string;
         userName?: string;
         userEmail?: string;
-        isSimulated?: boolean; 
-        profilePictureUrl?: string; 
+        isSimulated?: boolean;
+        profilePictureUrl?: string;
         groupSize: 1 | 2 | 3 | 4;
         status: 'PENDING' | 'CONFIRMED' | 'CANCELLED';
         userLevel?: string;
@@ -352,13 +352,13 @@ export interface Match {
     bookedPlayers: { userId: string, name?: string, isSimulated?: boolean, profilePictureUrl?: string, level?: MatchPadelLevel, category?: PadelCategoryForSlot }[];
     isPlaceholder?: boolean;
     isProMatch?: boolean;
-        // New concept: Partida fija (Fixed Match)
-        isFixedMatch?: boolean;
-        fixedSchedule?: {
-            dayOfWeek: DayOfWeek;
-            time: string; // HH:mm
-            hasReservedCourt?: boolean;
-        };
+    // New concept: Partida fija (Fixed Match)
+    isFixedMatch?: boolean;
+    fixedSchedule?: {
+        dayOfWeek: DayOfWeek;
+        time: string; // HH:mm
+        hasReservedCourt?: boolean;
+    };
     // Optional display-only range for fixed matches (guidance; matching stays open or single-level)
     fixedLevelRange?: PadelLevelRange;
     isProvisional?: boolean;
@@ -445,33 +445,33 @@ export interface MatchDayEvent {
 }
 
 export interface MatchDayInscription {
-  id: string;
-  eventId: string;
-  userId: string;
-  userName: string;
-  userLevel: MatchPadelLevel;
-  userProfilePictureUrl?: string;
-  status: 'main' | 'reserve' | 'cancelled';
-  inscriptionTime: Date;
-  preferredPartnerId?: string;
-  amountBlocked?: number;
-  cancelledAt?: Date;
-  eventDetails?: MatchDayEvent;
+    id: string;
+    eventId: string;
+    userId: string;
+    userName: string;
+    userLevel: MatchPadelLevel;
+    userProfilePictureUrl?: string;
+    status: 'main' | 'reserve' | 'cancelled';
+    inscriptionTime: Date;
+    preferredPartnerId?: string;
+    amountBlocked?: number;
+    cancelledAt?: Date;
+    eventDetails?: MatchDayEvent;
 }
 
 export interface Product {
-  id: string;
-  clubId: string;
-  name: string;
-  images: string[];
-  officialPrice: number;
-  offerPrice: number;
-  stock?: number;
-  status: 'in-stock' | 'on-order';
-  aiHint: string;
-  category: ProductCategory;
-  isDealOfTheDay?: boolean;
-  discountPercentage?: number;
+    id: string;
+    clubId: string;
+    name: string;
+    images: string[];
+    officialPrice: number;
+    offerPrice: number;
+    stock?: number;
+    status: 'in-stock' | 'on-order';
+    aiHint: string;
+    category: ProductCategory;
+    isDealOfTheDay?: boolean;
+    discountPercentage?: number;
 }
 
 export interface Review {
@@ -512,8 +512,8 @@ export interface UserActivityStatusForDay {
 export const displayClassLevel = (level: ClassPadelLevel | undefined, short = false): string => {
     if (level === 'abierto' || !level) return short ? 'Nivel' : 'Nivel Abierto';
     if (typeof level === 'object' && 'min' in level && 'max' in level) {
-      if (level.min === level.max) return `${level.min}`;
-      return `${level.min}-${level.max}`;
+        if (level.min === level.max) return `${level.min}`;
+        return `${level.min}-${level.max}`;
     }
     return String(level);
 };
@@ -533,10 +533,10 @@ export const displayClassCategory = (category: PadelCategoryForSlot, short = fal
 
 
 export const displayActivityStatusWithDetails = (
-    activity: { rawActivity: TimeSlot | Match, status?: TimeSlot['status'] | Match['status']},
+    activity: { rawActivity: TimeSlot | Match, status?: TimeSlot['status'] | Match['status'] },
     instructor?: Instructor
 ): string => {
-    switch(activity.status) {
+    switch (activity.status) {
         case 'forming': return 'Formándose';
         case 'pre_registration': return 'Pre-inscripción';
         case 'confirmed': return 'Confirmada';
