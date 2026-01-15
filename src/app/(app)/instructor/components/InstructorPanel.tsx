@@ -80,7 +80,7 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
       rateTiers: initialInstructor.rateTiers || [],
     },
   });
-  
+
   const { fields: rateTierFields, append: appendRateTier, remove: removeRateTier } = useFieldArray({
     control: preferencesForm.control,
     name: "rateTiers",
@@ -99,7 +99,7 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
             'Content-Type': 'application/json'
           }
         });
-        
+
         if (response.ok) {
           const userData = await response.json();
           setCurrentUser(userData);
@@ -108,7 +108,7 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
         console.error('Error loading current user:', error);
       }
     };
-    
+
     loadCurrentUser();
   }, []);
 
@@ -159,7 +159,7 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
           ...t,
           days: (t.days as unknown as DayOfWeek[]),
         }));
-        
+
         const updatePayload = {
           isAvailable: values.isAvailable,
           defaultRatePerHour: values.defaultRatePerHour,
@@ -213,7 +213,7 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
         const result = await response.json();
 
         if (!response.ok || !result.success) {
-          toast({ title: "Error al Guardar Disponibilidad", description: result.error || 'Error desconocido', variant: "destructive"});
+          toast({ title: "Error al Guardar Disponibilidad", description: result.error || 'Error desconocido', variant: "destructive" });
         } else {
           setInstructorData(prev => ({ ...prev, ...result.instructor }));
           toast({ title: "Disponibilidad Guardada", description: "Tu horario de disponibilidad ha sido actualizado.", className: "bg-primary text-primary-foreground" });
@@ -221,7 +221,7 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
         }
       } catch (error) {
         console.error('Error saving availability:', error);
-        toast({ title: "Error al Guardar Disponibilidad", description: "Error de conexión", variant: "destructive"});
+        toast({ title: "Error al Guardar Disponibilidad", description: "Error de conexión", variant: "destructive" });
       }
     });
   };
@@ -229,7 +229,7 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
   const clubCalendarLink = instructorData.assignedClubId ? `/club-calendar/${instructorData.assignedClubId}` : '#';
 
   return (
-    <div className="pl-16 md:pl-20 lg:pl-24 pr-4 md:pr-8 py-6 md:py-8 max-w-7xl">
+    <div className="pl-24 md:pl-32 lg:pl-40 pr-6 py-8 w-full max-w-[1150px]">
       <Tabs defaultValue="myClasses" className="space-y-4">
         <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-1 h-auto">
           <TabsTrigger value="myClasses" className="text-xs sm:text-sm py-1.5 px-2">
@@ -239,176 +239,177 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
             <CalendarPlus className="mr-1.5 h-4 w-4" /> Gestionar Clases
           </TabsTrigger>
           <TabsTrigger value="clubCalendar" className="text-xs sm:text-sm py-1.5 px-2">
-            <CalendarSearch className="mr-1 h-4 w-4"/> Calendario Club
+            <CalendarSearch className="mr-1 h-4 w-4" /> Calendario Club
           </TabsTrigger>
           <TabsTrigger value="instructorPreferences" className="text-xs sm:text-sm py-1.5 px-2">
             <Settings2 className="mr-1.5 h-4 w-4" /> Preferencias
           </TabsTrigger>
         </TabsList>
 
-      <TabsContent value="myClasses">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center text-lg">
-              <ListChecks className="mr-2 h-5 w-5 text-primary" /> Mis Clases Programadas
-            </CardTitle>
-            <CardDescription>
-              Visualiza todas tus clases con las reservas actuales. Usa el mismo formato de tarjetas que ven tus alumnos.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="all" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="all">Todas las Clases</TabsTrigger>
-                <TabsTrigger value="withStudents">Con Alumnos Inscritos</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="all">
-                <InstructorClassCards 
-                  instructor={instructorData} 
-                  selectedDate={clubCalendarDate}
-                  onDateChange={setClubCalendarDate}
-                />
-              </TabsContent>
-              
-              <TabsContent value="withStudents">
-                <InstructorClassCards 
-                  instructor={instructorData} 
-                  onlyWithBookings={true}
-                  selectedDate={clubCalendarDate}
-                  onDateChange={setClubCalendarDate}
-                />
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      </TabsContent>
+        <TabsContent value="myClasses">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center text-lg">
+                <ListChecks className="mr-2 h-5 w-5 text-primary" /> Mis Clases Programadas
+              </CardTitle>
+              <CardDescription>
+                Visualiza todas tus clases con las reservas actuales. Usa el mismo formato de tarjetas que ven tus alumnos.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Tabs defaultValue="all" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 mb-4">
+                  <TabsTrigger value="all">Todas las Clases</TabsTrigger>
+                  <TabsTrigger value="withStudents">Con Alumnos Inscritos</TabsTrigger>
+                </TabsList>
 
-      <TabsContent value="manageClasses">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center text-lg"><ListChecks className="mr-2 h-5 w-5 text-primary" /> Clases Gestionadas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ManagedSlotsList 
-              key={refreshKey} 
-              instructorId={instructorData.id}
-              selectedDate={clubCalendarDate}
-              onDateChange={setClubCalendarDate}
-            />
-          </CardContent>
-        </Card>
-      </TabsContent>
+                <TabsContent value="all">
+                  <InstructorClassCards
+                    instructor={instructorData}
+                    selectedDate={clubCalendarDate}
+                    onDateChange={setClubCalendarDate}
+                  />
+                </TabsContent>
 
-      <TabsContent value="addCredits">
-        <Card>
-           <CardHeader>
-             <CardTitle className="flex items-center text-lg"><Wallet className="mr-2 h-5 w-5 text-primary" /> Añadir Crédito a Alumnos</CardTitle>
-             <CardDescription>
-               Añade saldo a tus alumnos cuando te paguen en efectivo. El crédito se reflejará inmediatamente en su cuenta 
-               para que puedan reservar clases en la plataforma.
-             </CardDescription>
-           </CardHeader>
-           <CardContent>
-             <div className="flex justify-end mb-2">
+                <TabsContent value="withStudents">
+                  <InstructorClassCards
+                    instructor={instructorData}
+                    onlyWithBookings={true}
+                    selectedDate={clubCalendarDate}
+                    onDateChange={setClubCalendarDate}
+                  />
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="manageClasses">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center text-lg"><ListChecks className="mr-2 h-5 w-5 text-primary" /> Clases Gestionadas</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ManagedSlotsList
+                key={refreshKey}
+                instructorId={instructorData.id}
+                clubId={instructorData.assignedClubId || undefined}
+                selectedDate={clubCalendarDate}
+                onDateChange={setClubCalendarDate}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="addCredits">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center text-lg"><Wallet className="mr-2 h-5 w-5 text-primary" /> Añadir Crédito a Alumnos</CardTitle>
+              <CardDescription>
+                Añade saldo a tus alumnos cuando te paguen en efectivo. El crédito se reflejará inmediatamente en su cuenta
+                para que puedan reservar clases en la plataforma.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-end mb-2">
                 <Button asChild variant="outline" size="sm">
                   <Link href="/add-credit">
                     <Euro className="mr-2 h-4 w-4" /> Ir al panel de recargas
                   </Link>
                 </Button>
-             </div>
+              </div>
               <AddCreditForm instructor={instructorData} />
-           </CardContent>
-        </Card>
-      </TabsContent>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      <TabsContent value="clubCalendar">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center text-lg">
-              <CalendarSearch className="mr-2 h-5 w-5 text-primary" /> Calendario del Club
-            </CardTitle>
-            <CardDescription>
-              Visualiza todas las clases, propuestas y eventos del club. Gestiona tus clases desde aquí.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ClubCalendarImproved 
-              clubId={instructorData.assignedClubId || 'club-1'} 
-              currentUser={currentUser}
-              viewMode="instructor"
-              instructorId={instructorData.id}
-              initialDate={clubCalendarDate}
-              onDateChange={setClubCalendarDate}
-            />
-          </CardContent>
-        </Card>
-      </TabsContent>
-
-      <TabsContent value="instructorPreferences">
-        <div className="space-y-6">
-          {/* Rangos de Nivel de Usuarios */}
-          <InstructorLevelRanges 
-            instructorId={instructorData.id}
-            initialRanges={(() => {
-              try {
-                // levelRanges ya viene parseado del API como array
-                if (Array.isArray(instructorData.levelRanges)) {
-                  return instructorData.levelRanges;
-                }
-                // Si es string (legacy), parsearlo
-                if (typeof instructorData.levelRanges === 'string' && instructorData.levelRanges.trim() !== '') {
-                  return JSON.parse(instructorData.levelRanges);
-                }
-                return [];
-              } catch (e) {
-                console.error('Error parsing levelRanges:', e);
-                return [];
-              }
-            })()}
-          />
-
-          {/* Preferencias y Tarifas */}
+        <TabsContent value="clubCalendar">
           <Card>
             <CardHeader>
-                <CardTitle className="flex items-center"><Settings2 className="mr-2 h-5 w-5 text-primary" />Preferencias y Tarifas</CardTitle>
-                <CardDescription>Configura tu club de operación, disponibilidad general y tarifas por hora.</CardDescription>
+              <CardTitle className="flex items-center text-lg">
+                <CalendarSearch className="mr-2 h-5 w-5 text-primary" /> Calendario del Club
+              </CardTitle>
+              <CardDescription>
+                Visualiza todas las clases, propuestas y eventos del club. Gestiona tus clases desde aquí.
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <Form {...preferencesForm}>
-                <form onSubmit={preferencesForm.handleSubmit(handleSaveInstructorPreferences)} className="space-y-6">
+              <ClubCalendarImproved
+                clubId={instructorData.assignedClubId || 'club-1'}
+                currentUser={currentUser}
+                viewMode="instructor"
+                instructorId={instructorData.id}
+                initialDate={clubCalendarDate}
+                onDateChange={setClubCalendarDate}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-                  <FormField control={preferencesForm.control} name="isAvailable" render={({ field }) => (
+        <TabsContent value="instructorPreferences">
+          <div className="space-y-6">
+            {/* Rangos de Nivel de Usuarios */}
+            <InstructorLevelRanges
+              instructorId={instructorData.id}
+              initialRanges={(() => {
+                try {
+                  // levelRanges ya viene parseado del API como array
+                  if (Array.isArray(instructorData.levelRanges)) {
+                    return instructorData.levelRanges;
+                  }
+                  // Si es string (legacy), parsearlo
+                  if (typeof instructorData.levelRanges === 'string' && instructorData.levelRanges.trim() !== '') {
+                    return JSON.parse(instructorData.levelRanges);
+                  }
+                  return [];
+                } catch (e) {
+                  console.error('Error parsing levelRanges:', e);
+                  return [];
+                }
+              })()}
+            />
+
+            {/* Preferencias y Tarifas */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center"><Settings2 className="mr-2 h-5 w-5 text-primary" />Preferencias y Tarifas</CardTitle>
+                <CardDescription>Configura tu club de operación, disponibilidad general y tarifas por hora.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Form {...preferencesForm}>
+                  <form onSubmit={preferencesForm.handleSubmit(handleSaveInstructorPreferences)} className="space-y-6">
+
+                    <FormField control={preferencesForm.control} name="isAvailable" render={({ field }) => (
                       <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                          <div className="space-y-0.5">
-                              <FormLabel className="flex items-center">
-                                  {field.value ? <ToggleRight className="mr-2 h-5 w-5 text-green-600"/> : <ToggleLeft className="mr-2 h-5 w-5 text-muted-foreground"/>}
-                                  Disponibilidad General
-                              </FormLabel>
-                              <FormDescription className="text-xs">
-                                  {field.value ? "Estás disponible para dar clases." : "No estás disponible. No se generarán clases."}
-                              </FormDescription>
-                          </div>
-                          <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={isSavingSettings} /></FormControl>
+                        <div className="space-y-0.5">
+                          <FormLabel className="flex items-center">
+                            {field.value ? <ToggleRight className="mr-2 h-5 w-5 text-green-600" /> : <ToggleLeft className="mr-2 h-5 w-5 text-muted-foreground" />}
+                            Disponibilidad General
+                          </FormLabel>
+                          <FormDescription className="text-xs">
+                            {field.value ? "Estás disponible para dar clases." : "No estás disponible. No se generarán clases."}
+                          </FormDescription>
+                        </div>
+                        <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={isSavingSettings} /></FormControl>
                       </FormItem>
-                  )} />
-                  
-                  <Separator />
+                    )} />
+
+                    <Separator />
 
                     <div className="space-y-4 rounded-lg border p-3 shadow-sm">
-                       <FormField
-                          control={preferencesForm.control}
-                          name="defaultRatePerHour"
-                          render={({ field }) => (
-                              <FormItem>
-                              <FormLabel className="flex items-center"><Euro className="mr-2 h-4 w-4 text-muted-foreground"/>Tarifa por Hora Predeterminada</FormLabel>
-                              <FormControl>
-                                  <Input type="number" min="0" step="1" {...field} onChange={e => field.onChange(Number(e.target.value))} />
-                              </FormControl>
-                              <FormDescription>Esta tarifa se usará si la clase no cae en ninguna franja de tarifa especial.</FormDescription>
-                              <FormMessage />
-                              </FormItem>
-                          )}
+                      <FormField
+                        control={preferencesForm.control}
+                        name="defaultRatePerHour"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="flex items-center"><Euro className="mr-2 h-4 w-4 text-muted-foreground" />Tarifa por Hora Predeterminada</FormLabel>
+                            <FormControl>
+                              <Input type="number" min="0" step="1" {...field} onChange={e => field.onChange(Number(e.target.value))} />
+                            </FormControl>
+                            <FormDescription>Esta tarifa se usará si la clase no cae en ninguna franja de tarifa especial.</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
                       <Separator />
                       <FormLabel>Tarifas Especiales por Horario</FormLabel>
@@ -418,8 +419,8 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
                             <FormField control={preferencesForm.control} name={`rateTiers.${index}.startTime`} render={({ field }) => (<FormItem><FormLabel className="text-xs">Desde</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger></FormControl><SelectContent>{timeOptions.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select><FormMessage className="text-xs" /></FormItem>)} />
                             <FormField control={preferencesForm.control} name={`rateTiers.${index}.endTime`} render={({ field }) => (<FormItem><FormLabel className="text-xs">Hasta</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger></FormControl><SelectContent>{timeOptions.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select><FormMessage className="text-xs" /></FormItem>)} />
                           </div>
-                          <FormField control={preferencesForm.control} name={`rateTiers.${index}.rate`} render={({ field }) => (<FormItem><FormLabel className="text-xs">Tarifa Especial (€/hora)</FormLabel><FormControl><Input type="number" min="0" step="1" {...field} className="h-8" onChange={e => field.onChange(Number(e.target.value))} /></FormControl><FormMessage className="text-xs"/></FormItem>)} />
-                          <FormField control={preferencesForm.control} name={`rateTiers.${index}.days`} render={() => (<FormItem><FormLabel className="text-xs">Días</FormLabel><div className="grid grid-cols-4 gap-1.5">{Object.keys(dayOfWeekLabels).map((day) => (<FormField key={day} control={preferencesForm.control} name={`rateTiers.${index}.days`} render={({ field }) => (<FormItem className="flex flex-row items-center space-x-1.5 space-y-0"><FormControl><Switch className="h-4 w-7" checked={field.value?.includes(day)} onCheckedChange={(checked) => {return checked ? field.onChange([...(field.value || []), day]) : field.onChange((field.value || []).filter((value) => value !== day))}}/></FormControl><FormLabel className="text-xs font-normal">{dayOfWeekLabels[day as DayOfWeek].substring(0,3)}</FormLabel></FormItem>)}/>))}</div><FormMessage className="text-xs"/></FormItem>)} />
+                          <FormField control={preferencesForm.control} name={`rateTiers.${index}.rate`} render={({ field }) => (<FormItem><FormLabel className="text-xs">Tarifa Especial (€/hora)</FormLabel><FormControl><Input type="number" min="0" step="1" {...field} className="h-8" onChange={e => field.onChange(Number(e.target.value))} /></FormControl><FormMessage className="text-xs" /></FormItem>)} />
+                          <FormField control={preferencesForm.control} name={`rateTiers.${index}.days`} render={() => (<FormItem><FormLabel className="text-xs">Días</FormLabel><div className="grid grid-cols-4 gap-1.5">{Object.keys(dayOfWeekLabels).map((day) => (<FormField key={day} control={preferencesForm.control} name={`rateTiers.${index}.days`} render={({ field }) => (<FormItem className="flex flex-row items-center space-x-1.5 space-y-0"><FormControl><Switch className="h-4 w-7" checked={field.value?.includes(day)} onCheckedChange={(checked) => { return checked ? field.onChange([...(field.value || []), day]) : field.onChange((field.value || []).filter((value) => value !== day)) }} /></FormControl><FormLabel className="text-xs font-normal">{dayOfWeekLabels[day as DayOfWeek].substring(0, 3)}</FormLabel></FormItem>)} />))}</div><FormMessage className="text-xs" /></FormItem>)} />
                           <Button type="button" variant="destructive" size="icon" className="absolute top-1 right-1 h-6 w-6" onClick={() => removeRateTier(index)}><Trash2 className="h-3.5 w-3.5" /></Button>
                         </div>
                       ))}
@@ -428,17 +429,17 @@ const InstructorPanelComponent: React.FC<InstructorPanelProps> = ({ instructor: 
                       </Button>
                     </div>
 
-                  <Button type="submit" disabled={isSavingSettings || !preferencesForm.formState.isDirty} className="w-full sm:w-auto">
+                    <Button type="submit" disabled={isSavingSettings || !preferencesForm.formState.isDirty} className="w-full sm:w-auto">
                       {isSavingSettings && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Guardar Preferencias y Tarifas
-                  </Button>
-                </form>
-              </Form>
-            </CardContent>
-        </Card>
-        </div>
-      </TabsContent>
-    </Tabs>
+                    </Button>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

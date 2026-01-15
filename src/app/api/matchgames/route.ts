@@ -82,6 +82,26 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    // Obtener todas las CLASES confirmadas (con pista asignada) para calcular ocupación
+    const confirmedClasses = await prisma.timeSlot.findMany({
+      where: {
+        clubId,
+        courtNumber: { not: null },
+        ...(date && {
+          start: {
+            gte: new Date(date + 'T00:00:00.000Z'),
+            lte: new Date(date + 'T23:59:59.999Z')
+          }
+        })
+      },
+      select: {
+        id: true,
+        courtNumber: true,
+        start: true,
+        end: true
+      }
+    });
+
     // Enriquecer cada partida con información de disponibilidad de pistas
     const matchGamesWithAvailability = matchGames.map(match => {
       const matchStart = new Date(match.start).getTime();
@@ -89,17 +109,29 @@ export async function GET(request: NextRequest) {
 
       // Calcular disponibilidad de cada pista para este horario
       const courtsAvailability = allCourts.map(court => {
-        // Verificar si esta pista está ocupada durante este horario
-        const isOccupied = confirmedMatches.some(confirmedMatch => {
+        // 1. Verificar si hay PARTIDA en esta pista y horario
+        const isMatchOccupied = confirmedMatches.some(confirmedMatch => {
           const confirmedStart = new Date(confirmedMatch.start).getTime();
           const confirmedEnd = new Date(confirmedMatch.end).getTime();
-          
-          // Verificar si es la misma pista Y hay solapamiento de horario
+
           const isSameCourt = confirmedMatch.courtNumber === court.number;
           const hasOverlap = matchStart < confirmedEnd && matchEnd > confirmedStart;
-          
+
           return isSameCourt && hasOverlap;
         });
+
+        // 2. Verificar si hay CLASE en esta pista y horario
+        const isClassOccupied = confirmedClasses.some(confirmedClass => {
+          const confirmedStart = new Date(confirmedClass.start).getTime();
+          const confirmedEnd = new Date(confirmedClass.end).getTime();
+
+          const isSameCourt = confirmedClass.courtNumber === court.number;
+          const hasOverlap = matchStart < confirmedEnd && matchEnd > confirmedStart;
+
+          return isSameCourt && hasOverlap;
+        });
+
+        const isOccupied = isMatchOccupied || isClassOccupied;
 
         return {
           courtNumber: court.number,
@@ -119,7 +151,7 @@ export async function GET(request: NextRequest) {
     const classifiedMatches = matchGamesWithAvailability.filter(m => !m.isOpen);
     console.log(`   - Partidas abiertas: ${openMatches.length}`);
     console.log(`   - Partidas clasificadas: ${classifiedMatches.length}`);
-    
+
     if (openMatches.length > 0) {
       console.log(`   📋 Partidas abiertas:`, openMatches.map(m => ({
         id: m.id,

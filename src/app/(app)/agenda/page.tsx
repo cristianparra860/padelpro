@@ -50,12 +50,12 @@ export default function AgendaPage() {
   }
 
   return (
-    <div className="ml-20 pr-4 overflow-x-hidden max-w-[calc(100vw-100px)] py-6">
+    <div className="pl-24 md:pl-32 lg:pl-40 pr-6 py-8 w-full max-w-[1150px]">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Mis Reservas</h1>
         <p className="text-gray-600 mt-2">Gestiona todas tus reservas de clases</p>
       </div>
-      
+
       <UserBookings currentUser={currentUser} />
     </div>
   );

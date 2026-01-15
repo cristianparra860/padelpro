@@ -41,6 +41,14 @@ interface Booking {
   profilePictureUrl?: string;
   userLevel?: string;
   userGender?: string;
+  user?: {
+    id: string;
+    name: string;
+    email?: string;
+    level?: string;
+    position?: string;
+    profilePictureUrl?: string;
+  };
 }
 
 const MatchGameCard: React.FC<MatchGameCardProps> = ({
@@ -523,10 +531,13 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
   const spotsLeft = 4 - activeBookings.length;
 
   return (
-    <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow bg-white border-2 border-gray-200 rounded-2xl w-full scale-[0.88]">
+    <Card className="overflow-visible shadow-[0_12px_40px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.12)] transition-all duration-300 bg-white border-0 rounded-[32px] w-full mb-6 mx-auto md:mx-0">
       {/* Header con título PARTIDA */}
-      <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-3 py-2 flex items-center justify-between">
-        <div className="text-white text-sm font-black uppercase">PARTIDA (90 MIN)</div>
+      <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 px-5 py-3 flex items-center justify-between rounded-t-[32px] shadow-sm relative z-10">
+        <div className="text-white text-[13px] font-black uppercase tracking-widest flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></div>
+          PARTIDA (90 MIN)
+        </div>
 
         {/* Botón Eliminar (solo para admins) */}
         {showAdminCancelButton && !isPastMatch && (
@@ -534,10 +545,10 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             onClick={() => setShowCancelDialog(true)}
             size="icon"
             variant="ghost"
-            className="h-8 w-8 text-white hover:bg-red-600 hover:text-white transition-colors"
+            className="h-8 w-8 text-white/70 hover:bg-white/10 hover:text-white rounded-full transition-colors"
             title="Cancelar partida"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </Button>
         )}
       </div>
@@ -549,8 +560,8 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             <div className="font-medium text-gray-900 text-[10px]">Nivel</div>
             <div
               className={`capitalize px-1.5 py-1 rounded-full text-[10px] font-medium shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${levelInfo.isAssigned
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'bg-gray-100 text-gray-600'
+                ? 'bg-blue-100 text-blue-700'
+                : 'bg-gray-100 text-gray-600'
                 }`}
             >
               {levelInfo.level}
@@ -560,8 +571,8 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             <div className="font-medium text-gray-900 text-[10px]">Cat.</div>
             <div
               className={`capitalize px-1.5 py-1 rounded-full text-[10px] font-medium shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${categoryInfo.isAssigned
-                  ? 'bg-purple-100 text-purple-700'
-                  : 'bg-gray-100 text-gray-600'
+                ? 'bg-purple-100 text-purple-700'
+                : 'bg-gray-100 text-gray-600'
                 }`}
             >
               {categoryInfo.category}
@@ -571,8 +582,8 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
             <div className="font-medium text-gray-900 text-[10px]">Pista</div>
             <div
               className={`px-1.5 py-1 rounded-full text-[10px] font-medium shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${courtAssignment.isAssigned
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'bg-gray-100 text-gray-600'
+                ? 'bg-blue-100 text-blue-700'
+                : 'bg-gray-100 text-gray-600'
                 }`}
             >
               {courtAssignment.isAssigned
@@ -651,7 +662,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
                 <div key={index} className="flex flex-col items-center gap-1">
                   <div
                     className={cn(
-                      "w-12 h-12 rounded-full flex items-center justify-center text-xl font-semibold transition-all border-2",
+                      "w-12 h-12 rounded-full flex items-center justify-center text-xl font-semibold transition-all border-2 relative",
                       isOccupied
                         ? "bg-white border-gray-200 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-default"
                         : isRecycled
@@ -698,6 +709,13 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
                       </div>
                     ) : (
                       '+'
+                    )}
+
+                    {/* Level Badge - Restored */}
+                    {isOccupied && booking.user?.level && (
+                      <div className="absolute -top-2 -right-2 w-5 h-5 bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white shadow-md z-10" title={`Nivel: ${booking.user.level}`}>
+                        {booking.user.level}
+                      </div>
                     )}
                   </div>
                   <span className="text-[10px] font-medium leading-none">

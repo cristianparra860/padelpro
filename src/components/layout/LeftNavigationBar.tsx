@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ClipboardList, Calendar, CalendarDays, UserCircle, Database, Settings, Target, GraduationCap, Wallet, SlidersHorizontal, UserCog, Trophy, Power } from 'lucide-react';
+import { ClipboardList, Calendar, CalendarDays, UserCircle, Database, Settings, Target, GraduationCap, Wallet, SlidersHorizontal, UserCog, Trophy, Power, MapPin, Ticket, Hash } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { User, Club } from '@/types';
@@ -18,6 +18,10 @@ export function LeftNavigationBar() {
     const [hasInscriptions, setHasInscriptions] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [instructors, setInstructors] = useState<any[]>([]);
+
+    const isClubAdmin = currentUser?.role === 'CLUB_ADMIN' || currentUser?.role === 'SUPER_ADMIN';
+    const isInstructor = currentUser?.role === 'INSTRUCTOR';
+    const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
 
     useEffect(() => {
         const fetchUser = async () => {
@@ -39,6 +43,8 @@ export function LeftNavigationBar() {
                 setIsLoading(false);
             }
         };
+
+
 
         const fetchClub = async () => {
             try {
@@ -138,6 +144,11 @@ export function LeftNavigationBar() {
         fetchUser();
         fetchClub();
         fetchInstructors();
+
+        // Polling para mantener saldo actualizado
+        const intervalId = setInterval(fetchUser, 10000); // Actualizar cada 10 segundos
+
+        return () => clearInterval(intervalId);
     }, [searchParams]); // Recargar si cambian los params de la URL (fecha)
 
     // Recargar bookings periódicamente (separado del useEffect principal)
@@ -221,6 +232,18 @@ export function LeftNavigationBar() {
             .slice(0, 2);
     };
 
+    // Determinar el link del calendario basado en el contexto actual
+    let calendarHref = '/admin/calendar';
+    const currentView = searchParams.get('viewType') || searchParams.get('view');
+
+    if (pathname === '/matchgames' || pathname.includes('/matchgames')) {
+        calendarHref = '/admin/calendar?viewType=partidas';
+    } else if (pathname === '/activities' && currentView === 'clases') {
+        calendarHref = '/admin/calendar?viewType=clases';
+    } else if (pathname.includes('/clases')) { // Por si acaso hay rutas directas
+        calendarHref = '/admin/calendar?viewType=clases';
+    }
+
     const navItems = [
         {
             key: 'clases',
@@ -239,12 +262,20 @@ export function LeftNavigationBar() {
             allowedRoles: ['SUPER_ADMIN', 'CLUB_ADMIN', 'INSTRUCTOR', 'PLAYER'], // Todos pueden ver
         },
         {
+            key: 'reservar-pista',
+            href: '/admin/calendar?viewType=reservar-pistas',
+            icon: CalendarDays, // Reusing CalendarDays or similar. Maybe MapPin or Ticket? Let's use CalendarDays for now as it is related to calendar
+            label: 'Reservar Pista',
+            isActive: pathname === '/admin/calendar' && currentView === 'reservar-pistas',
+            allowedRoles: ['SUPER_ADMIN', 'CLUB_ADMIN', 'INSTRUCTOR', 'PLAYER'],
+        },
+        {
             key: 'calendario-club',
-            href: '/admin/calendar',
-            icon: CalendarDays,
+            href: calendarHref,
+            icon: Calendar, // Changed to Calendar distinct from CalendarDays to avoid confusion if needed, or keep consistent.
             label: 'Calendario',
-            isActive: pathname === '/admin/calendar',
-            allowedRoles: ['SUPER_ADMIN', 'CLUB_ADMIN', 'INSTRUCTOR', 'PLAYER'], // Todos pueden ver
+            isActive: pathname === '/admin/calendar' && (!currentView || (currentView !== 'reservar-pistas' && currentView !== 'clases' && currentView !== 'partidas')), // Only active if no specific view or default
+            allowedRoles: ['SUPER_ADMIN', 'CLUB_ADMIN', 'INSTRUCTOR', 'PLAYER'],
         },
         {
             key: 'super-admin',
@@ -322,7 +353,13 @@ export function LeftNavigationBar() {
     const isInCalendar = pathname === '/admin/calendar';
     const viewTypeParam = searchParams.get('viewType') || 'partidas'; // Default a partidas
     const isInClasesMode = viewTypeParam === 'clases';
-    const noInstructorSelected = !searchParams.get('instructor');
+
+    const selectedInstructorId = searchParams.get('instructor');
+    const isSelectedInstructorAvailable = instructors.some(i => i.id === selectedInstructorId);
+
+    // Considerar "no seleccionado" si no hay ID o si el ID seleccionado no está en la lista disponible para hoy
+    const noInstructorSelected = !selectedInstructorId || !isSelectedInstructorAvailable;
+
     const shouldDimOtherButtons = isInCalendar && isInClasesMode && noInstructorSelected && instructors.length > 0;
 
     // No mostrar nada mientras está cargando el usuario
@@ -333,109 +370,121 @@ export function LeftNavigationBar() {
     return (
         <>
             <div
-                className="fixed left-4 top-40 flex flex-col gap-2 items-start"
+                className="fixed left-4 top-16 md:top-40 flex flex-col gap-4 md:gap-2 items-start"
                 style={{
                     pointerEvents: 'auto',
                     zIndex: 50,
                     position: 'fixed'
                 }}
             >
-                <button
-                    onClick={async (e) => {
-                        e.preventDefault();
-                        if (currentUser) {
-                            // Si hay usuario logueado, cerrar sesión
-                            try {
-                                const response = await fetch('/api/auth/logout', { method: 'POST' });
-                                if (response.ok) {
-                                    window.location.href = '/';
-                                } else {
-                                    console.error('Error en logout:', response.statusText);
+                <div className="hidden md:contents">
+                    <button
+                        onClick={async (e) => {
+                            e.preventDefault();
+                            if (currentUser) {
+                                // Si hay usuario logueado, cerrar sesión
+                                try {
+                                    const response = await fetch('/api/auth/logout', { method: 'POST' });
+                                    if (response.ok) {
+                                        window.location.href = '/';
+                                    } else {
+                                        console.error('Error en logout:', response.statusText);
+                                        window.location.href = '/';
+                                    }
+                                } catch (error) {
+                                    console.error('Error al cerrar sesión:', error);
                                     window.location.href = '/';
                                 }
-                            } catch (error) {
-                                console.error('Error al cerrar sesión:', error);
+                            } else {
+                                // Si no hay usuario, ir a página de inicio
                                 window.location.href = '/';
                             }
-                        } else {
-                            // Si no hay usuario, ir a página de inicio
-                            window.location.href = '/';
-                        }
-                    }}
-                    className={cn(
-                        "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200 hover:border-red-400 shadow-lg",
-                        shouldDimOtherButtons && "opacity-20 pointer-events-none",
-                        isCompactMode
-                            ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-20'
-                            : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]'
-                    )}
-                >
-                    <div className={cn(
-                        "rounded-full flex items-center justify-center text-white flex-shrink-0",
-                        isCompactMode ? 'w-9 h-9' : 'w-12 h-12',
-                        "bg-gradient-to-br from-red-400 to-red-600"
-                    )}>
-                        <Power className={isCompactMode ? 'w-5 h-5' : 'w-8 h-8'} />
-                    </div>
-                    <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1 min-w-0 overflow-hidden')}>
-                        {isCompactMode ? (
-                            <div className="text-[10px] font-semibold text-gray-800">
-                                {currentUser ? 'Salir' : 'Entrar'}
-                            </div>
-                        ) : (
-                            <div className="text-sm font-semibold text-red-600 truncate">
-                                {currentUser ? 'Cerrar sesión' : 'Iniciar sesión'}
-                            </div>
-                        )}
-                    </div>
-                </button>
-
-                {clubInfo && (
-                    <a
-                        href="/club"
+                        }}
                         className={cn(
-                            "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
+                            "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200 hover:border-red-400 shadow-lg",
                             shouldDimOtherButtons && "opacity-20 pointer-events-none",
                             isCompactMode
-                                ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-20'
-                                : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
-                            pathname === '/club' ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg'
+                                ? 'flex flex-col items-center gap-1 px-1 py-2 w-[62px] md:w-14 md:py-0.5 md:px-0.5'
+                                : 'flex flex-col items-center gap-0.5 px-0.5 py-0.5 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-3.5 md:py-2.5 md:w-[198px]'
                         )}
                     >
                         <div className={cn(
-                            "rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 transition-all duration-300",
-                            isCompactMode ? 'w-9 h-9' : 'w-12 h-12',
-                            "bg-gradient-to-br from-red-400 to-red-600",
-                            pathname === '/club' && 'ring-4 ring-red-300 ring-opacity-50 shadow-[0_0_25px_rgba(239,68,68,0.5)]'
+                            "rounded-full flex items-center justify-center text-white flex-shrink-0",
+                            isCompactMode ? 'w-8 h-8' : 'w-8 h-8 md:w-12 md:h-12',
+                            "bg-gradient-to-br from-red-400 to-red-600"
                         )}>
-                            {clubInfo.logoUrl ? (
-                                <img
-                                    src={clubInfo.logoUrl}
-                                    alt={clubInfo.name}
-                                    className="w-full h-full object-contain"
-                                />
-                            ) : (
-                                <span className={cn(
-                                    "font-bold text-white",
-                                    isCompactMode ? 'text-sm' : 'text-xl'
-                                )}>
-                                    {clubInfo.name.substring(0, 2).toUpperCase()}
-                                </span>
-                            )}
+                            <Power className={isCompactMode ? 'w-5 h-5' : 'w-5 h-5 md:w-8 md:h-8'} />
                         </div>
-                        <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1 min-w-0 overflow-hidden')}>
+                        <div className={cn(isCompactMode ? 'text-center' : 'text-center md:text-left md:flex-1 md:min-w-0 md:overflow-hidden')}>
                             {isCompactMode ? (
-                                <div className="text-[10px] font-semibold text-gray-800">Club</div>
+                                <div className="text-[10px] font-semibold text-gray-800">
+                                    {currentUser ? 'Salir' : 'Entrar'}
+                                </div>
                             ) : (
                                 <>
-                                    <div className="text-sm font-semibold text-gray-800 truncate">
-                                        {clubInfo.name}
+                                    <div className="hidden md:block text-sm font-semibold text-red-600 truncate">
+                                        {currentUser ? 'Cerrar sesión' : 'Iniciar sesión'}
                                     </div>
-                                    <div className="text-xs text-gray-500 truncate">Ver club</div>
+                                    <div className="md:hidden text-[10px] font-semibold text-gray-800">
+                                        {currentUser ? 'Salir' : 'Entrar'}
+                                    </div>
                                 </>
                             )}
                         </div>
-                    </a>
+                    </button>
+                </div>
+
+                {clubInfo && (
+                    <div className="hidden md:contents">
+                        <a
+                            href="/club"
+                            className={cn(
+                                "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
+                                shouldDimOtherButtons && "opacity-20 pointer-events-none",
+                                isCompactMode
+                                    ? 'flex flex-col items-center gap-1 px-1 py-1.5 w-14'
+                                    : 'flex flex-col items-center gap-0.5 px-0.5 py-0.5 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-3.5 md:py-2.5 md:w-[198px]',
+                                pathname === '/club' ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg'
+                            )}
+                        >
+                            <div className={cn(
+                                "rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 transition-all duration-300",
+                                isCompactMode ? 'w-8 h-8' : 'w-8 h-8 md:w-12 md:h-12',
+                                "bg-gradient-to-br from-red-400 to-red-600",
+                                pathname === '/club' && 'ring-4 ring-red-300 ring-opacity-50 shadow-[0_0_25px_rgba(239,68,68,0.5)]'
+                            )}>
+                                {clubInfo.logoUrl ? (
+                                    <img
+                                        src={clubInfo.logoUrl}
+                                        alt={clubInfo.name}
+                                        className="w-full h-full object-contain"
+                                    />
+                                ) : (
+                                    <span className={cn(
+                                        "font-bold text-white",
+                                        isCompactMode ? 'text-sm' : 'text-sm md:text-xl'
+                                    )}>
+                                        {clubInfo.name.substring(0, 2).toUpperCase()}
+                                    </span>
+                                )}
+                            </div>
+                            <div className={cn(isCompactMode ? 'text-center' : 'text-center md:text-left md:flex-1 md:min-w-0 md:overflow-hidden')}>
+                                {isCompactMode ? (
+                                    <div className="text-[10px] font-semibold text-gray-800">Club</div>
+                                ) : (
+                                    <>
+                                        <div className="hidden md:block text-sm font-semibold text-gray-800 truncate">
+                                            {clubInfo.name}
+                                        </div>
+                                        <div className="md:hidden text-[10px] font-semibold text-gray-800">
+                                            Club
+                                        </div>
+                                        <div className="hidden md:block text-xs text-gray-500 truncate">Ver club</div>
+                                    </>
+                                )}
+                            </div>
+                        </a>
+                    </div>
                 )}
 
                 {/* Contenedor Mis Datos (antes Mi Agenda) */}
@@ -446,17 +495,17 @@ export function LeftNavigationBar() {
                         "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
                         shouldDimOtherButtons && "opacity-20 pointer-events-none",
                         isCompactMode
-                            ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-20'
-                            : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
+                            ? 'flex flex-col items-center gap-1 px-1 py-1.5 w-14'
+                            : 'flex flex-col items-center gap-0.5 px-0.5 py-0.5 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-3.5 md:py-2.5 md:w-[198px]',
                         pathname === '/dashboard' ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg'
                     )}
                 >
                     <div className={cn(
                         "rounded-full overflow-hidden flex items-center justify-center flex-shrink-0",
-                        isCompactMode ? 'w-11 h-11' : 'w-14 h-14'
+                        isCompactMode ? 'w-10 h-10' : 'w-10 h-10 md:w-14 md:h-14'
                     )}>
                         {currentUser?.profilePictureUrl ? (
-                            <Avatar className={cn("w-full h-full", isCompactMode ? 'h-12 w-12' : 'h-16 w-16')}>
+                            <Avatar className={cn("w-full h-full", isCompactMode ? 'h-12 w-12' : 'h-12 w-12 md:h-16 md:w-16')}>
                                 <AvatarImage
                                     src={currentUser.profilePictureUrl}
                                     alt={currentUser.name || 'avatar'}
@@ -466,27 +515,65 @@ export function LeftNavigationBar() {
                             </Avatar>
                         ) : (
                             <div className="w-full h-full rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
-                                <UserCircle className={isCompactMode ? 'w-6 h-6 text-white' : 'w-10 h-10 text-white'} />
+                                <UserCircle className={isCompactMode ? 'w-6 h-6 text-white' : 'w-6 h-6 md:w-10 md:h-10 text-white'} />
                             </div>
                         )}
                     </div>
-                    <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1')}>
+                    <div className={cn(isCompactMode ? 'text-center' : 'text-center md:text-left md:flex-1')}>
                         {isCompactMode ? (
                             <div className="text-[10px] font-semibold text-gray-800">Perfil</div>
                         ) : (
                             <>
-                                <div className="text-sm font-semibold text-gray-800">
+                                <div className="hidden md:block text-sm font-semibold text-gray-800">
                                     {currentUser?.name || 'Usuario'}
                                 </div>
-                                <div className="text-xs text-gray-500">Mis Datos</div>
+                                <div className="md:hidden text-[10px] font-semibold text-gray-800">
+                                    Perfil
+                                </div>
+                                <div className="hidden md:block text-xs text-gray-500">Mis Datos</div>
                             </>
                         )}
                     </div>
                 </a>
 
-                {/* Contenedor para Clases, Partidas y Calendario */}
-                <div className="flex flex-col gap-1.5">
-                    {visibleNavItems.filter(item => item.key === 'clases' || item.key === 'partidas' || item.key === 'calendario-club').map((item) => {
+                {/* 🛠️ Admin / Config Tools - Row of small icons below profile */}
+                {(isInstructor || isClubAdmin || isSuperAdmin) && (
+                    <div className="flex flex-wrap gap-2 justify-center w-full px-2 mt-2">
+                        {navItems.filter(item =>
+                            ['config-instructor', 'config-club', 'base-datos', 'super-admin'].includes(item.key) &&
+                            (!item.allowedRoles || (currentUser?.role && item.allowedRoles.includes(currentUser.role)))
+                        ).map(item => {
+                            const IconComponent = item.icon;
+                            return (
+                                <a
+                                    key={item.key}
+                                    href={item.href}
+                                    className={cn(
+                                        "w-8 h-8 rounded-full flex items-center justify-center transition-all bg-white border border-gray-200 shadow-sm hover:shadow-md hover:scale-105",
+                                        item.isActive ? "bg-gray-100 border-gray-300" : "text-gray-500 hover:text-gray-700"
+                                    )}
+                                    title={item.label}
+                                >
+                                    <IconComponent className="w-4 h-4" />
+                                </a>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {/* Separador solicitado */}
+                <div className="hidden md:flex w-full justify-center my-3 opacity-50">
+                    <div className="w-3/4 h-px bg-gray-300"></div>
+                </div>
+
+                {/* Contenedor para Clases, Partidas, Reservar Pista y Calendario */}
+                <div className={cn(
+                    "flex flex-col gap-3 md:gap-2 p-0 md:p-3 rounded-none md:rounded-[36px] transition-all",
+                    "md:bg-gradient-to-br md:from-gray-100/90 md:to-gray-50/80 md:backdrop-blur-md",
+                    "md:border-2 md:border-white md:shadow-[0_8px_30px_rgb(0,0,0,0.08)]",
+                    shouldDimOtherButtons && "opacity-20 pointer-events-none"
+                )}>
+                    {visibleNavItems.filter(item => item.key === 'clases' || item.key === 'partidas' || item.key === 'reservar-pista' || item.key === 'calendario-club').map((item) => {
                         const IconComponent = item.icon;
 
                         return (
@@ -498,11 +585,11 @@ export function LeftNavigationBar() {
                                     "rounded-3xl hover:shadow-xl transition-all cursor-pointer",
                                     shouldDimOtherButtons && "opacity-20 pointer-events-none",
                                     isCompactMode
-                                        ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-20'
-                                        : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
+                                        ? 'flex flex-col items-center gap-1 px-1 py-2 w-[62px] md:w-14 md:py-1.5 md:px-1'
+                                        : 'flex flex-col items-center gap-0.5 px-0.5 py-1 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-4 md:py-3 md:w-[170px]',
                                     item.isActive
-                                        ? 'bg-white shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200'
-                                        : 'bg-white shadow-lg border-2 border-gray-300'
+                                        ? 'bg-white shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200 z-10'
+                                        : 'bg-white shadow-md border-2 border-transparent hover:border-gray-200'
                                 )}
                             >
                                 <div className={cn(
@@ -513,27 +600,61 @@ export function LeftNavigationBar() {
                                             ? "bg-gradient-to-br from-blue-400 to-purple-600 text-white ring-4 ring-purple-300 ring-opacity-50 shadow-[0_0_25px_rgba(168,85,247,0.5)]"
                                             : item.key === 'partidas'
                                                 ? "bg-gradient-to-br from-green-400 to-green-600 text-white ring-4 ring-green-300 ring-opacity-50 shadow-[0_0_25px_rgba(34,197,94,0.5)]"
-                                                : "bg-gradient-to-br from-orange-400 to-red-600 text-white ring-4 ring-orange-300 ring-opacity-50 shadow-[0_0_25px_rgba(249,115,22,0.5)]"
-                                        : "bg-white text-gray-600 border-2 border-gray-300"
+                                                : item.key === 'reservar-pista'
+                                                    ? "bg-gradient-to-br from-orange-400 to-red-600 text-white ring-4 ring-orange-300 ring-opacity-50 shadow-[0_0_25px_rgba(249,115,22,0.5)]"
+                                                    : "bg-gradient-to-br from-gray-500 to-gray-700 text-white ring-4 ring-gray-300 ring-opacity-50 shadow-[0_0_25px_rgba(107,114,128,0.5)]"
+                                        : "bg-gray-50 text-gray-500 border-2 border-gray-100 group-hover:border-gray-200"
                                 )}>
-                                    <IconComponent className={isCompactMode ? 'w-4.5 h-4.5' : 'w-7 h-7'} />
+                                    {item.key === 'reservar-pista' ? (
+                                        <svg
+                                            className={isCompactMode ? 'w-5 h-5' : 'w-5 h-5 md:w-7 md:h-7'}
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                        >
+                                            {/* Court outline */}
+                                            <rect x="2" y="4" width="20" height="16" rx="1" />
+                                            {/* Net in the middle */}
+                                            <line x1="12" y1="4" x2="12" y2="20" strokeWidth="1.5" />
+                                            {/* Net pattern */}
+                                            <line x1="12" y1="7" x2="12" y2="7" strokeWidth="3" strokeLinecap="round" />
+                                            <line x1="12" y1="10" x2="12" y2="10" strokeWidth="3" strokeLinecap="round" />
+                                            <line x1="12" y1="13" x2="12" y2="13" strokeWidth="3" strokeLinecap="round" />
+                                            <line x1="12" y1="16" x2="12" y2="16" strokeWidth="3" strokeLinecap="round" />
+                                        </svg>
+                                    ) : (
+                                        <IconComponent className={isCompactMode ? 'w-5 h-5' : 'w-5 h-5 md:w-7 md:h-7'} />
+                                    )}
                                 </div>
                                 <div className={cn(
-                                    isCompactMode ? 'text-center' : 'text-left flex-1 min-w-0 overflow-hidden'
+                                    isCompactMode ? 'text-center' : 'text-center md:text-left md:flex-1 md:min-w-0'
                                 )}>
                                     {isCompactMode ? (
-                                        <div className="text-[9px] font-semibold text-gray-800 truncate">
-                                            {item.key === 'clases' ? 'Clases' : item.key === 'partidas' ? 'Partidas' : 'Calendario'}
+                                        <div className="text-[10px] font-semibold text-gray-800 leading-tight">
+                                            {item.key === 'clases' ? 'Clases' : item.key === 'partidas' ? 'Partidas' : item.key === 'reservar-pista' ? (
+                                                <div className="flex flex-col">
+                                                    <span>Reservar</span>
+                                                    <span>Pista</span>
+                                                </div>
+                                            ) : 'Calendario'}
                                         </div>
                                     ) : (
-                                        <>
-                                            <div className="text-sm font-semibold text-gray-800 truncate">
-                                                {item.label}
+                                        <div className="flex flex-col">
+                                            <div className="text-[10px] font-semibold text-gray-800 leading-tight md:text-sm md:font-bold">
+                                                {item.key === 'reservar-pista' ? (
+                                                    <div className="flex flex-col">
+                                                        <span>Reservar</span>
+                                                        <span>Pista</span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="truncate block">{item.label}</span>
+                                                )}
                                             </div>
-                                            <div className="text-xs text-gray-500 truncate">
-                                                {item.key === 'clases' ? 'Ver clases' : item.key === 'partidas' ? 'Ver partidas' : 'Ver calendario'}
+                                            <div className="hidden md:block text-xs text-gray-500 truncate mt-0.5">
+                                                {item.key === 'clases' ? 'Ver clases' : item.key === 'partidas' ? 'Ver partidas' : item.key === 'reservar-pista' ? 'Ver horarios' : 'Ver calendario'}
                                             </div>
-                                        </>
+                                        </div>
                                     )}
                                 </div>
                             </a>
@@ -541,8 +662,9 @@ export function LeftNavigationBar() {
                     })}
                 </div>
 
-                {/* Instructores Disponibles - Solo en la página del calendario del club */}
-                {pathname === '/admin/calendar' && (
+
+                {/* Instructores Disponibles - MOVIDO AQUI: Solo en la página del calendario del club Y modo clases */}
+                {pathname === '/admin/calendar' && isInClasesMode && (
                     <div className="flex flex-col gap-1.5 mt-4 pt-4 border-t-2 border-gray-200">
                         <div className={cn(
                             "text-gray-600 font-semibold uppercase tracking-wide mb-2",
@@ -576,18 +698,34 @@ export function LeftNavigationBar() {
                                 // Detectar si estamos en modo clases sin instructor seleccionado (para efecto pulsante)
                                 const viewTypeParam = searchParams.get('viewType') || 'partidas';
                                 const isInClasesMode = viewTypeParam === 'clases';
+
+                                const selectedInstructorId = searchParams.get('instructor');
+                                const isSelectedInstructorAvailable = instructors.some(i => i.id === selectedInstructorId);
+                                const noInstructorSelected = !selectedInstructorId || !isSelectedInstructorAvailable;
+
                                 const shouldPulse = isInCalendar && isInClasesMode && noInstructorSelected && instructors.length > 0;
 
                                 return (
                                     <button
                                         key={instructor.id}
-                                        onClick={() => router.push(`/admin/calendar?instructor=${instructor.id}`)}
+                                        onClick={() => {
+                                            const currentParams = new URLSearchParams(searchParams.toString());
+
+                                            // Si ya está seleccionado, deseleccionar
+                                            if (currentParams.get('instructor') === instructor.id) {
+                                                currentParams.delete('instructor');
+                                            } else {
+                                                currentParams.set('instructor', instructor.id);
+                                            }
+
+                                            router.push(`${pathname}?${currentParams.toString()}`);
+                                        }}
                                         className={cn(
                                             "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 shadow-lg",
                                             isSelected ? 'border-blue-500 scale-105 animate-bounce-subtle' : 'border-gray-200',
-                                            shouldPulse && 'animate-pulse relative z-[150]',
+                                            shouldPulse && 'animate-bounce-subtle relative z-[150]',
                                             isCompactMode
-                                                ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-20'
+                                                ? 'flex flex-col items-center gap-1 px-1 py-2 w-[62px] md:w-20 md:py-1.5 md:px-2.5'
                                                 : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]'
                                         )}
                                         style={{
@@ -596,6 +734,10 @@ export function LeftNavigationBar() {
                                             zIndex: shouldPulse ? 150 : 'auto'
                                         }}
                                     >
+                                        {/* Efecto de onda (gota de agua) */}
+                                        {shouldPulse && (
+                                            <div className="absolute inset-0 -z-10 rounded-3xl bg-gray-300 opacity-75 animate-ping"></div>
+                                        )}
                                         <div className={cn(
                                             "rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 transition-all duration-300 border-2 shadow-md border-white",
                                             isCompactMode ? 'w-9 h-9' : 'w-12 h-12'
@@ -633,7 +775,7 @@ export function LeftNavigationBar() {
                 )}
 
                 {/* Contenedor múltiple con Reservas, Inscripciones, Saldo y otros botones */}
-                <div className="flex flex-col gap-1.5 mt-4 pt-4 border-t-2 border-gray-200">
+                <div className="flex flex-col gap-0.5 md:gap-1.5 mt-0 pt-0 md:mt-4 md:pt-4 border-none md:border-t-2 md:border-gray-200">
                     {/* 🎯 Botón R - Ir a Mis Reservas */}
                     <button
                         onClick={() => window.location.href = '/agenda?tab=confirmed'}
@@ -641,28 +783,28 @@ export function LeftNavigationBar() {
                             "bg-white rounded-3xl hover:shadow-xl transition-all",
                             shouldDimOtherButtons && "opacity-20 pointer-events-none",
                             isCompactMode
-                                ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-20'
-                                : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
+                                ? 'flex flex-col items-center gap-1 px-1 py-2 w-[62px] md:w-14 md:py-1.5 md:px-1'
+                                : 'flex flex-col items-center gap-0.5 px-0.5 py-0.5 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-3.5 md:py-2.5 md:w-[198px]',
                             pathname === '/agenda' ? 'shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200' : 'shadow-lg border-2 border-gray-300'
                         )}
                         title="Reservas (R): Clases confirmadas con pista asignada"
                     >
                         <div className={cn(
                             "rounded-full flex items-center justify-center flex-shrink-0 border-2 font-bold transition-all duration-300",
-                            isCompactMode ? 'w-9 h-9 text-lg' : 'w-12 h-12 text-2xl',
+                            isCompactMode ? 'w-9 h-9 text-lg' : 'w-9 h-9 text-lg md:w-12 md:h-12 md:text-2xl',
                             pathname === '/agenda'
                                 ? 'bg-gradient-to-br from-pink-400 to-rose-600 text-white ring-4 ring-pink-300 ring-opacity-50 shadow-[0_0_25px_rgba(244,114,182,0.5)]'
                                 : 'bg-white text-gray-600 border-gray-300'
                         )}>
                             R
                         </div>
-                        <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1 min-w-0 overflow-hidden')}>
+                        <div className={cn(isCompactMode ? 'text-center' : 'text-center md:text-left md:flex-1 md:min-w-0 md:overflow-hidden')}>
                             {isCompactMode ? (
                                 <div className="text-[10px] font-semibold text-gray-800">Reservas</div>
                             ) : (
                                 <>
-                                    <div className="text-sm font-semibold text-gray-800 truncate">Reservas</div>
-                                    <div className="text-xs text-gray-500 truncate">
+                                    <div className="text-[10px] font-semibold text-gray-800 md:text-sm md:font-semibold truncate">Reservas</div>
+                                    <div className="hidden md:block text-xs text-gray-500 truncate">
                                         {hasReservations ? 'Tienes reservas' : 'Sin reservas'}
                                     </div>
                                 </>
@@ -670,41 +812,7 @@ export function LeftNavigationBar() {
                         </div>
                     </button>
 
-                    {/* ℹ️ Botón I - Inscripciones */}
-                    <button
-                        onClick={() => window.location.href = '/agenda'}
-                        className={cn(
-                            "bg-white rounded-3xl hover:shadow-xl transition-all",
-                            shouldDimOtherButtons && "opacity-20 pointer-events-none",
-                            isCompactMode
-                                ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-20'
-                                : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
-                            pathname === '/agenda' ? 'shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200' : 'shadow-lg border-2 border-gray-300'
-                        )}
-                        title="Inscripciones (I): Clases pendientes esperando completar grupo"
-                    >
-                        <div className={cn(
-                            "rounded-full flex items-center justify-center flex-shrink-0 border-2 font-bold transition-all duration-300",
-                            isCompactMode ? 'w-9 h-9 text-lg' : 'w-12 h-12 text-2xl',
-                            pathname === '/agenda'
-                                ? 'bg-gradient-to-br from-cyan-400 to-blue-600 text-white ring-4 ring-cyan-300 ring-opacity-50 shadow-[0_0_25px_rgba(34,211,238,0.5)]'
-                                : 'bg-white text-gray-600 border-gray-300'
-                        )}>
-                            I
-                        </div>
-                        <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1 min-w-0 overflow-hidden')}>
-                            {isCompactMode ? (
-                                <div className="text-[10px] font-semibold text-gray-800">Inscrip.</div>
-                            ) : (
-                                <>
-                                    <div className="text-sm font-semibold text-gray-800 truncate">Inscripciones</div>
-                                    <div className="text-xs text-gray-500 truncate">
-                                        {hasInscriptions ? 'Pendientes' : 'Sin inscripciones'}
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    </button>
+
 
                     {/* 💰 Botón Saldo - Movimientos de Saldo */}
                     <button
@@ -713,35 +821,88 @@ export function LeftNavigationBar() {
                             "bg-white rounded-3xl hover:shadow-xl transition-all",
                             shouldDimOtherButtons && "opacity-20 pointer-events-none",
                             isCompactMode
-                                ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-20'
-                                : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
-                            pathname === '/movimientos' ? 'shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200' : 'shadow-lg border-2 border-gray-300'
+                                ? 'flex flex-col items-center gap-1 px-1 py-2 w-[62px] md:w-14 md:py-1.5 md:px-1'
+                                : 'flex flex-col items-center gap-0.5 px-0.5 py-0.5 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-3.5 md:py-2.5 md:w-[198px]',
+                            pathname === '/movimientos'
+                                ? 'shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200'
+                                : 'shadow-lg border-2 border-transparent hover:border-gray-200' // Inactive: border-transparent hover:border-gray-200
                         )}
                         title="Movimientos de Saldo: Consulta tu saldo y transacciones"
                     >
                         <div className={cn(
                             "rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all duration-300",
-                            isCompactMode ? 'w-9 h-9' : 'w-12 h-12',
+                            isCompactMode ? 'w-9 h-9' : 'w-9 h-9 md:w-12 md:h-12',
                             pathname === '/movimientos'
                                 ? 'bg-gradient-to-br from-yellow-400 to-orange-600 text-white ring-4 ring-yellow-300 ring-opacity-50 shadow-[0_0_25px_rgba(251,191,36,0.5)]'
-                                : 'bg-white text-gray-600 border-gray-300'
+                                : 'bg-gray-50 text-gray-500 border-transparent group-hover:bg-white group-hover:border-gray-200' // Inactive: grisaceo
                         )}>
-                            <Wallet className={isCompactMode ? 'w-5 h-5' : 'w-8 h-8'} />
+                            <Wallet className={isCompactMode ? 'w-5 h-5' : 'w-5 h-5 md:w-8 md:h-8'} />
                         </div>
-                        <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1 min-w-0 overflow-hidden')}>
+                        <div className={cn(isCompactMode ? 'text-center' : 'text-center md:text-left md:flex-1 md:min-w-0 md:overflow-hidden')}>
                             {isCompactMode ? (
-                                <div className="text-[10px] font-semibold text-gray-800">Saldo</div>
+                                <div className="flex flex-col items-center">
+                                    <div className={cn("text-[10px] font-semibold", pathname === '/movimientos' ? "text-gray-800" : "text-gray-500")}>Saldo</div>
+                                    <div className={cn("text-[10px] font-bold", pathname === '/movimientos' ? "text-gray-600" : "text-gray-400")}>€{((currentUser?.credit || currentUser?.credits || 0) / 100).toFixed(2)}</div>
+                                </div>
                             ) : (
                                 <>
-                                    <div className="text-sm font-semibold text-gray-800 truncate">Saldo</div>
-                                    <div className="text-xs text-gray-500 truncate">Movimientos</div>
+                                    <div className={cn("text-[10px] font-semibold md:text-sm truncate", pathname === '/movimientos' ? "text-gray-800" : "text-gray-500")}>Saldo</div>
+                                    <div className={cn("text-[10px] font-bold md:text-sm truncate", pathname === '/movimientos' ? "text-gray-600" : "text-gray-400")}>€{((currentUser?.credit || currentUser?.credits || 0) / 100).toFixed(2)}</div>
                                 </>
                             )}
                         </div>
                     </button>
 
-                    {/* Resto de botones (Base Datos, Config) excepto Clases, Partidas y Calendario */}
-                    {visibleNavItems.filter(item => item.key !== 'clases' && item.key !== 'partidas' && item.key !== 'calendario-club').map((item) => {
+                    {/* 🏆 Botón Puntos (Nuevo) - Debajo de Saldo */}
+                    <div className="hidden md:contents">
+                        <button
+                            className={cn(
+                                "bg-white rounded-3xl hover:shadow-xl transition-all cursor-default", // cursor-default porque por ahora no navega
+                                shouldDimOtherButtons && "opacity-20 pointer-events-none",
+                                isCompactMode
+                                    ? 'flex flex-col items-center gap-1 px-1 py-2 w-[62px] md:w-14 md:py-0.5 md:px-0.5'
+                                    : 'flex flex-col items-center gap-0.5 px-0.5 py-0.5 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-3.5 md:py-2.5 md:w-[198px]',
+                                'shadow-lg border-2 border-transparent hover:border-gray-200' // Inactive style
+                            )}
+                            title="Puntos de Fidelidad"
+                        >
+                            <div className={cn(
+                                "rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all duration-300",
+                                isCompactMode ? 'w-9 h-9' : 'w-9 h-9 md:w-12 md:h-12',
+                                'bg-gray-50 text-gray-500 border-transparent group-hover:bg-white group-hover:border-gray-200' // Inactive: grisaceo
+                            )}>
+                                <Trophy className={isCompactMode ? 'w-5 h-5' : 'w-5 h-5 md:w-8 md:h-8'} />
+                            </div>
+                            <div className={cn(isCompactMode ? 'text-center' : 'text-center md:text-left md:flex-1 md:min-w-0 md:overflow-hidden')}>
+                                {isCompactMode ? (
+                                    <div className="flex flex-col items-center">
+                                        <div className="text-[10px] font-semibold text-gray-500">Puntos</div>
+                                        <div className="text-[10px] font-bold text-gray-400">{((currentUser?.loyaltyPoints || 0) / 100).toFixed(0)}</div>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="text-[10px] font-semibold md:text-sm text-gray-500 truncate">Puntos</div>
+                                        <div className="text-[10px] font-bold md:text-sm text-gray-400 truncate">{((currentUser?.loyaltyPoints || 0) / 100).toFixed(0)} Pts</div>
+                                    </>
+                                )}
+                            </div>
+                        </button>
+                    </div>
+
+                    {/* 🌀 PORTAL TARGET for Filters (Placed directly under Puntos) */}
+                    <div id="sidebar-filters-portal" className="w-full flex flex-col gap-1.5 mt-2 empty:hidden" />
+
+                    {/* Resto de botones (Base Datos, Config) - AHORA EXCLUYENDO ADMIN/CONFIG que se movieron arriba */}
+                    {visibleNavItems.filter(item =>
+                        item.key !== 'clases' &&
+                        item.key !== 'partidas' &&
+                        item.key !== 'reservar-pista' &&
+                        item.key !== 'calendario-club' &&
+                        item.key !== 'config-instructor' && // Excluir Config Instructor
+                        item.key !== 'config-club' && // Excluir Config Club
+                        item.key !== 'base-datos' && // Excluir Base Datos
+                        item.key !== 'super-admin' // Excluir Super Admin
+                    ).map((item) => {
                         const IconComponent = item.icon;
 
                         return (
@@ -753,39 +914,30 @@ export function LeftNavigationBar() {
                                     "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
                                     shouldDimOtherButtons && "opacity-20 pointer-events-none",
                                     isCompactMode
-                                        ? 'flex flex-col items-center gap-1 px-2.5 py-1.5 w-20'
-                                        : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]',
+                                        ? 'flex flex-col items-center gap-1 px-1 py-2 w-[62px] md:w-14 md:py-1.5 md:px-1'
+                                        : 'flex flex-col items-center gap-0.5 px-0.5 py-0.5 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-3.5 md:py-2.5 md:w-[198px]',
                                     item.isActive ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg'
                                 )}
                                 style={{ pointerEvents: 'auto', zIndex: 99999 }}
                             >
                                 <div className={cn(
                                     "rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden transition-all duration-300 border-2",
-                                    isCompactMode ? 'w-9 h-9' : 'w-12 h-12',
+                                    isCompactMode ? 'w-9 h-9' : 'w-9 h-9 md:w-12 md:h-12',
                                     item.isActive
-                                        ? item.key === 'base-datos'
-                                            ? 'bg-gradient-to-br from-indigo-400 to-purple-600 text-white ring-4 ring-indigo-300 ring-opacity-50 shadow-[0_0_25px_rgba(129,140,248,0.5)]'
-                                            : item.key === 'config-club'
-                                                ? 'bg-gradient-to-br from-slate-400 to-gray-600 text-white ring-4 ring-slate-300 ring-opacity-50 shadow-[0_0_25px_rgba(148,163,184,0.5)]'
-                                                : item.key === 'config-instructor'
-                                                    ? 'bg-gradient-to-br from-teal-400 to-emerald-600 text-white ring-4 ring-teal-300 ring-opacity-50 shadow-[0_0_25px_rgba(45,212,191,0.5)]'
-                                                    : 'bg-white text-gray-600 border-gray-300'
+                                        ? 'bg-white text-gray-600 border-gray-300' // Default fallback
                                         : 'bg-white text-gray-600 border-gray-300'
                                 )}>
-                                    <IconComponent className={isCompactMode ? 'w-5 h-5' : 'w-8 h-8'} />
+                                    <IconComponent className={isCompactMode ? 'w-5 h-5' : 'w-5 h-5 md:w-8 md:h-8'} />
                                 </div>
-                                <div className={cn(isCompactMode ? 'text-center' : 'text-left flex-1 min-w-0 overflow-hidden')}>
+                                <div className={cn(isCompactMode ? 'text-center' : 'text-center md:text-left md:flex-1 md:min-w-0 md:overflow-hidden')}>
                                     {isCompactMode ? (
                                         <div className="text-[10px] font-semibold text-gray-800">
-                                            {item.key === 'calendario-club' && 'Calend.'}
-                                            {item.key === 'base-datos' && 'Datos'}
-                                            {item.key === 'config-club' && 'Config'}
-                                            {item.key === 'config-instructor' && 'Instr.'}
+                                            {item.label}
                                         </div>
                                     ) : (
                                         <>
-                                            <div className="text-sm font-semibold text-gray-800">{item.label}</div>
-                                            <div className="text-xs text-gray-500">
+                                            <div className="text-[10px] font-semibold md:text-sm text-gray-800">{item.label}</div>
+                                            <div className="hidden md:block text-xs text-gray-500">
                                                 {item.key === 'calendario-club' && 'Ver calendario'}
                                                 {item.key === 'base-datos' && 'Administrar'}
                                                 {item.key === 'config-club' && 'Configurar'}
@@ -797,6 +949,10 @@ export function LeftNavigationBar() {
                         );
                     })}
                 </div>
+
+
+
+
             </div>
         </>
     );

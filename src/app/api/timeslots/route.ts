@@ -21,28 +21,28 @@ export async function GET(request: NextRequest) {
     const whereConditions: any = {
       courtId: null // ⚡ SOLO propuestas sin pista asignada (más rápido)
     };
-    
+
     if (clubId) {
       whereConditions.clubId = clubId;
     }
-    
+
     if (date) {
       // Use Date objects for filtering
       const startOfDay = new Date(date + 'T00:00:00.000Z');
       const endOfDay = new Date(date + 'T23:59:59.999Z');
-      
+
       whereConditions.start = {
         gte: startOfDay,
         lte: endOfDay
       };
-      
+
       console.log('📅 Date filter:', {
         date,
         startISO: startOfDay.toISOString(),
         endISO: endOfDay.toISOString()
       });
     }
-    
+
     if (instructorId) {
       whereConditions.instructorId = instructorId;
     }
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
     });
 
     console.log(`📊 Found ${timeSlots.length} time slots with Prisma query`);
-    
+
     // ♻️ AGREGAR TimeSlots con bookings recicladas (aunque tengan courtId)
     const recycledBookings = await prisma.booking.findMany({
       where: {
@@ -68,20 +68,20 @@ export async function GET(request: NextRequest) {
       },
       distinct: ['timeSlotId']
     });
-    
+
     if (recycledBookings.length > 0) {
       const recycledTimeSlotIds = recycledBookings.map(b => b.timeSlotId);
       console.log(`♻️ Found ${recycledTimeSlotIds.length} TimeSlots with recycled bookings`);
-      
+
       // Obtener esos TimeSlots adicionales con los mismos filtros usando Prisma
       const recycledWhereConditions: any = {
         id: { in: recycledTimeSlotIds }
       };
-      
+
       if (clubId) {
         recycledWhereConditions.clubId = clubId;
       }
-      
+
       if (date) {
         const startOfDay = new Date(date + 'T00:00:00.000Z');
         const endOfDay = new Date(date + 'T23:59:59.999Z');
@@ -90,25 +90,25 @@ export async function GET(request: NextRequest) {
           lte: endOfDay
         };
       }
-      
+
       if (instructorId) {
         recycledWhereConditions.instructorId = instructorId;
       }
-      
+
       const recycledTimeSlots = await prisma.timeSlot.findMany({
         where: recycledWhereConditions
       });
-      
+
       console.log(`♻️ Found ${recycledTimeSlots.length} recycled TimeSlots matching filters`);
-      
+
       // Combinar y eliminar duplicados
       const existingIds = new Set(timeSlots.map(s => s.id));
       const newRecycledSlots = recycledTimeSlots.filter(s => !existingIds.has(s.id));
       timeSlots = [...timeSlots, ...newRecycledSlots];
-      
+
       console.log(`📊 Total after adding recycled: ${timeSlots.length} slots`);
     }
-    
+
     // 🐛 DEBUG: Verificar si levelRange viene de la base de datos
     if (timeSlots.length > 0) {
       console.log('🔍 Sample slot from DB:', {
@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
 
     // Query para bookings - dividir en lotes si hay demasiados TimeSlots
     let allBookings: any[] = [];
-    
+
     if (timeSlotIds.length > 500) {
       // Dividir en lotes de 500 para evitar límite de parámetros de SQLite
       const batchSize = 500;
@@ -180,7 +180,7 @@ export async function GET(request: NextRequest) {
       });
       console.log(`📚 Total bookings cargados: ${allBookings.length}`);
     }
-    
+
     console.log(`📚 Total bookings cargados (sin CANCELLED): ${allBookings.length}`);
     if (allBookings.length > 0) {
       console.log('📋 Ejemplo de booking:', {
@@ -200,6 +200,7 @@ export async function GET(request: NextRequest) {
         profilePictureUrl: true,
         user: {
           select: {
+            id: true, // Needed to match userId with instructorId
             profilePictureUrl: true
           }
         }
@@ -208,15 +209,15 @@ export async function GET(request: NextRequest) {
 
     // 🏟️ Obtener TODAS las pistas del club para verificar disponibilidad
     const allCourts = clubId ? await prisma.court.findMany({
-      where: { 
+      where: {
         clubId: clubId,
-        isActive: true 
+        isActive: true
       },
       orderBy: { number: 'asc' }
     }) : [];
 
     // 📅 Obtener TODAS las clases confirmadas del día para verificar ocupación de pistas
-    const confirmedClasses = date ? await prisma.$queryRawUnsafe(`
+    const confirmedClasses = (date && clubId) ? await prisma.$queryRawUnsafe(`
       SELECT 
         t.id,
         t.start,
@@ -229,7 +230,7 @@ export async function GET(request: NextRequest) {
         AND ((t.start >= ? AND t.start <= ?) OR (t.start >= ? AND t.start <= ?))
         AND t.courtId IS NOT NULL
       ORDER BY t.start
-    `, 
+    `,
       clubId,
       new Date(date + 'T00:00:00.000Z').getTime(),
       new Date(date + 'T23:59:59.999Z').getTime(),
@@ -237,7 +238,25 @@ export async function GET(request: NextRequest) {
       date + 'T23:59:59.999Z'
     ) as any[] : [];
 
-    console.log(`🏟️ Found ${allCourts.length} courts and ${confirmedClasses.length} confirmed classes`);
+    // 📅 AGREGADO: Obtener también PARTIDAS confirmadas para verificar ocupación
+    const confirmedMatches = date ? await prisma.matchGame.findMany({
+      where: {
+        clubId: clubId || undefined,
+        courtNumber: { not: null },
+        start: {
+          gte: new Date(date + 'T00:00:00.000Z'),
+          lte: new Date(date + 'T23:59:59.999Z')
+        }
+      },
+      select: {
+        id: true,
+        courtNumber: true,
+        start: true,
+        end: true
+      }
+    }) : [];
+
+    console.log(`🏟️ Found ${allCourts.length} courts, ${confirmedClasses.length} confirmed classes, and ${confirmedMatches.length} confirmed matches`);
 
     // Crear mapas para acceso rápido O(1)
     const bookingsBySlot = new Map<string, typeof allBookings>();
@@ -263,11 +282,11 @@ export async function GET(request: NextRequest) {
       const slotBookings = bookingsBySlot.get(slot.id) || [];
       const recycledBookings = slotBookings.filter((b: any) => b.status === 'CANCELLED' && b.isRecycled);
       const activeBookings = slotBookings.filter((b: any) => b.status !== 'CANCELLED');
-      
+
       // ♻️ availableRecycledSlots = suma de groupSize de bookings cancelados con isRecycled
       const availableRecycledSlots = recycledBookings.reduce((sum: number, b: any) => sum + (Number(b.groupSize) || 1), 0);
       const hasRecycledSlots = availableRecycledSlots > 0;
-      
+
       const recycledInfo = {
         hasRecycledSlots: hasRecycledSlots,
         recycledCount: recycledBookings.length,
@@ -275,7 +294,7 @@ export async function GET(request: NextRequest) {
         availableRecycledSlots: availableRecycledSlots,
         recycledSlotsOnlyPoints: hasRecycledSlots // Si hay plazas recicladas, solo puntos
       };
-      
+
       // 🎯 DEBUG: Log para verificar cálculo correcto
       if (recycledBookings.length > 0) {
         console.log(`♻️ Slot ${slot.id.substring(0, 15)}...`);
@@ -283,7 +302,7 @@ export async function GET(request: NextRequest) {
         console.log(`   - Plazas disponibles: ${availableRecycledSlots} (${recycledBookings.map((b: any) => `${b.groupSize}p`).join(' + ')})`);
         console.log(`   - Bookings activos: ${activeBookings.length}`);
       }
-      
+
       recycledSlotsInfo.set(slot.id, recycledInfo);
     });
 
@@ -291,12 +310,12 @@ export async function GET(request: NextRequest) {
     const formattedSlots = timeSlots.map((slot: any) => {
       // Obtener bookings de este slot del mapa
       const slotBookings = bookingsBySlot.get(slot.id) || [];
-      
+
       if (slotBookings.length > 0) {
-        console.log(`🔍 Slot ${slot.id.substring(0, 15)} has ${slotBookings.length} bookings:`, 
+        console.log(`🔍 Slot ${slot.id.substring(0, 15)} has ${slotBookings.length} bookings:`,
           slotBookings.map(b => ({ user: b.user.name, size: b.groupSize, status: b.status })));
       }
-      
+
       // 🎁 Parsear creditsSlots (plazas reservables con puntos)
       let creditsSlots: number[] = [];
       if (slot.creditsSlots) {
@@ -313,7 +332,7 @@ export async function GET(request: NextRequest) {
           console.warn('⚠️ Error parseando creditsSlots para slot:', slot.id);
         }
       }
-      
+
       const formattedBookings = slotBookings.map(booking => ({
         id: booking.id,
         userId: booking.userId,
@@ -328,7 +347,7 @@ export async function GET(request: NextRequest) {
         profilePictureUrl: booking.user.profilePictureUrl,
         createdAt: booking.createdAt
       }));
-      
+
       // 🐛 DEBUG: Log para verificar bookings reciclados
       const recycledCount = formattedBookings.filter(b => b.isRecycled).length;
       if (recycledCount > 0) {
@@ -337,11 +356,11 @@ export async function GET(request: NextRequest) {
           console.log(`   - ${b.name}: status=${b.status}, isRecycled=${b.isRecycled}, groupSize=${b.groupSize}`);
         });
       }
-      
+
       // Obtener instructor del mapa
       let instructorName = 'Instructor Genérico';
       let instructorProfilePicture = null;
-      
+
       if (slot.instructorId) {
         const instructor = instructorMap.get(slot.instructorId);
         if (instructor) {
@@ -350,37 +369,49 @@ export async function GET(request: NextRequest) {
           instructorProfilePicture = instructor.profilePictureUrl || instructor.user?.profilePictureUrl || null;
         }
       }
-      
+
       // Convert string dates from SQLite to proper Date objects
       const startDate = typeof slot.start === 'string' ? new Date(slot.start) : slot.start;
       const endDate = typeof slot.end === 'string' ? new Date(slot.end) : slot.end;
-      
+
       // 🏟️ Calcular disponibilidad de pistas para este horario
       const slotStart = startDate.getTime();
       const slotEnd = endDate.getTime();
-      
+
       const courtsAvailability = allCourts.map(court => {
-        // Verificar si esta pista está ocupada durante este horario
-        const isOccupied = confirmedClasses.some((cls: any) => {
+        // 1. Verificar si hay CLASE en esta pista y horario
+        const isClassOccupied = confirmedClasses.some((cls: any) => {
           const clsStart = typeof cls.start === 'bigint' ? Number(cls.start) : new Date(cls.start).getTime();
           const clsEnd = typeof cls.end === 'bigint' ? Number(cls.end) : new Date(cls.end).getTime();
-          
-          // Verificar si es la misma pista Y hay solapamiento de horario
+
           const isSameCourt = cls.courtId === court.id;
           const hasOverlap = slotStart < clsEnd && slotEnd > clsStart;
-          
+
           return isSameCourt && hasOverlap;
         });
-        
+
+        // 2. Verificar si hay PARTIDA en esta pista y horario
+        const isMatchOccupied = confirmedMatches.some(match => {
+          const matchStart = new Date(match.start).getTime();
+          const matchEnd = new Date(match.end).getTime();
+
+          const isSameCourt = match.courtNumber === court.number;
+          const hasOverlap = slotStart < matchEnd && slotEnd > matchStart;
+
+          return isSameCourt && hasOverlap;
+        });
+
+        const isOccupied = isClassOccupied || isMatchOccupied;
+
         return {
           courtNumber: court.number,
           courtId: court.id,
           status: isOccupied ? 'occupied' : 'available'
         };
       });
-      
+
       const availableCourtsCount = courtsAvailability.filter(c => c.status === 'available').length;
-      
+
       // ♻️ Información de plazas recicladas
       const recycledInfo = recycledSlotsInfo.get(slot.id) || {
         hasRecycledSlots: false,
@@ -389,7 +420,7 @@ export async function GET(request: NextRequest) {
         availableRecycledSlots: 0,
         recycledSlotsOnlyPoints: false
       };
-      
+
       return {
         id: slot.id,
         clubId: slot.clubId || '',
@@ -411,7 +442,7 @@ export async function GET(request: NextRequest) {
         instructorPhoto: instructorProfilePicture, // Cambiado de instructorProfilePicture a instructorPhoto
         instructorProfilePicture: instructorProfilePicture, // Mantener también por compatibilidad
         courtNumber: slot.courtId ? courtMap.get(slot.courtId) || null : null,
-        bookedPlayers: slotBookings.length,
+        bookedPlayers: formattedBookings, // ✅ FIX: Return array not number for compatibility
         bookings: formattedBookings,
         description: '',
         courtsAvailability: courtsAvailability, // 🏟️ Array de disponibilidad de pistas
@@ -426,7 +457,7 @@ export async function GET(request: NextRequest) {
     });
 
     const rawTimeSlots = formattedSlots;
-    
+
     // 🎯 DEBUG: Log del slot de Carlos ANTES de devolverlo
     const carlosSlot = rawTimeSlots.find(s => s.instructorName === 'Carlos Rodríguez' && s.start.toISOString().includes('09:00'));
     if (carlosSlot) {
@@ -438,7 +469,7 @@ export async function GET(request: NextRequest) {
         bookings: carlosSlot.bookings.map(b => ({ name: b.name, status: b.status, isRecycled: b.isRecycled }))
       });
     }
-    
+
     // Log para debug - mostrar primeros 3 slots con sus valores
     if (rawTimeSlots.length > 0) {
       console.log('📊 Sample de slots devueltos por API:');
@@ -459,51 +490,61 @@ export async function GET(request: NextRequest) {
     // El sistema de reservas validará conflictos al intentar reservar
     const proposalsOnly = rawTimeSlots.filter(slot => !slot.courtId);
     const confirmedOnly = rawTimeSlots.filter(slot => slot.courtId);
-    
+
     // Mostrar todas las propuestas sin filtrar
     const availableProposals = proposalsOnly;
-    
+
     // Combinar propuestas disponibles + clases confirmadas
     const rawTimeSlotsFiltered = [...availableProposals, ...confirmedOnly];
-    
+
     console.log(`✅ Todas las propuestas visibles: ${proposalsOnly.length} propuestas mostradas (filtro de bloqueo desactivado)`);
 
     // Apply level-based filtering if userLevel is provided
     let filteredSlots = rawTimeSlotsFiltered;
     if (userLevel && userLevel !== 'abierto') {
       const userLevelNum = parseFloat(userLevel);
-      
+
       // Obtener el ID del usuario desde los parámetros de búsqueda si está disponible
       const userId = searchParams.get('userId');
-      
+
       filteredSlots = rawTimeSlotsFiltered.filter(slot => {
+        // 🎯 REGLA 0: Si el usuario es el INSTRUCTOR de esta clase, SIEMPRE mostrarla
+        if (userId && slot.instructorId) {
+          const instructor = instructorMap.get(slot.instructorId);
+          // Verificar si el usuario actual es el dueÃ±o de la clase (instructor)
+          if (instructor && instructor.user && instructor.user.id === userId) {
+            console.log(`👨‍🏫 Instructor viewing own class: ${slot.id}`);
+            return true;
+          }
+        }
+
         // 🎯 REGLA 1: Si el usuario tiene una reserva en esta clase, SIEMPRE mostrarla
         if (userId) {
           const userHasBooking = bookingsBySlot.get(slot.id)?.some(
             b => b.userId === userId && b.status !== 'CANCELLED'
           );
           if (userHasBooking) {
-            console.log(`✅ Mostrando clase ${slot.id.substring(0,8)} - Usuario tiene reserva`);
+            console.log(`✅ Mostrando clase ${slot.id.substring(0, 8)} - Usuario tiene reserva`);
             return true;
           }
         }
-        
+
         // 🎯 REGLA 2: Obtener bookings activos de esta clase (no cancelados)
         const activeBookings = bookingsBySlot.get(slot.id)?.filter(
           b => b.status !== 'CANCELLED'
         ) || [];
-        
+
         const hasActiveBookings = activeBookings.length > 0;
-        
+
         // 🎯 REGLA 3: Si la clase NO tiene inscripciones, solo mostrar si es ABIERTA
         if (!hasActiveBookings) {
           const isOpen = typeof slot.level === 'string' && slot.level.toLowerCase() === 'abierto';
           if (!isOpen) {
-            console.log(`⏭️  Filtrado: Clase ${slot.id.substring(0,8)} sin inscripciones y nivel ${slot.level} (no ABIERTO)`);
+            console.log(`⏭️  Filtrado: Clase ${slot.id.substring(0, 8)} sin inscripciones y nivel ${slot.level} (no ABIERTO)`);
           }
           return isOpen;
         }
-        
+
         // 🎯 REGLA 4: Si la clase SÍ tiene inscripciones, verificar si el usuario encaja en el rango
         // Usar levelRange del slot si está disponible
         if (slot.levelRange && typeof slot.levelRange === 'string' && slot.levelRange !== 'ABIERTO') {
@@ -520,7 +561,7 @@ export async function GET(request: NextRequest) {
             }
           }
         }
-        
+
         // Usar level del slot si levelRange no está disponible
         if (typeof slot.level === 'string' && slot.level !== 'ABIERTO' && slot.level.includes('-')) {
           const [minStr, maxStr] = slot.level.split('-');
@@ -534,16 +575,16 @@ export async function GET(request: NextRequest) {
             return isInRange;
           }
         }
-        
+
         // Si la clase tiene inscripciones pero nivel ABIERTO, mostrarla
         if (typeof slot.level === 'string' && slot.level.toLowerCase() === 'abierto') {
           return true;
         }
-        
+
         // Por defecto, si no podemos determinar, mostrar la clase
         return true;
       });
-      
+
       console.log(`📊 Level filtering: ${rawTimeSlotsFiltered.length} slots → ${filteredSlots.length} slots (user level: ${userLevel})`);
     }
 
@@ -557,12 +598,12 @@ export async function GET(request: NextRequest) {
     // 🕐 FILTRAR POR HORARIO (morning, midday, evening)
     if (timeSlotFilter && timeSlotFilter !== 'all') {
       const beforeTimeFilter = filteredSlots.length;
-      
+
       filteredSlots = filteredSlots.filter(slot => {
         // Convertir el timestamp a hora
         const startTime = new Date(Number(slot.start));
         const hour = startTime.getHours();
-        
+
         switch (timeSlotFilter) {
           case 'morning': // Mañanas (8-13h)
             return hour >= 8 && hour < 13;
@@ -574,7 +615,7 @@ export async function GET(request: NextRequest) {
             return true;
         }
       });
-      
+
       console.log(`🕐 Time slot filtering: ${beforeTimeFilter} slots → ${filteredSlots.length} slots (filter: ${timeSlotFilter})`);
     }
 
@@ -589,11 +630,11 @@ export async function GET(request: NextRequest) {
         if (slot.courtId) {
           return true;
         }
-        
+
         // Si es una propuesta, solo mostrar si hay al menos 1 pista disponible
         return slot.availableCourtsCount > 0;
       });
-      
+
       console.log(`🏟️ Court availability filtering: ${beforeCourtFilter} slots → ${filteredSlots.length} slots (removed ${beforeCourtFilter - filteredSlots.length} slots with no available courts)`);
     } else {
       console.log(`👨‍🏫 Instructor query: Skipping court availability filter (showing all proposals)`);
@@ -604,26 +645,26 @@ export async function GET(request: NextRequest) {
       // Prioridad 1: Clases confirmadas (con pista asignada)
       const aIsConfirmed = a.courtId !== null;
       const bIsConfirmed = b.courtId !== null;
-      
+
       // Prioridad 2: Clases con usuarios inscritos
       const aHasBookings = (a.bookings?.length || 0) > 0;
       const bHasBookings = (b.bookings?.length || 0) > 0;
-      
+
       // Calcular "peso" de prioridad
       const aWeight = (aIsConfirmed ? 2 : 0) + (aHasBookings ? 1 : 0);
       const bWeight = (bIsConfirmed ? 2 : 0) + (bHasBookings ? 1 : 0);
-      
+
       // Si tienen diferente prioridad, ordenar por prioridad (mayor primero)
       if (aWeight !== bWeight) {
         return bWeight - aWeight; // Mayor peso primero
       }
-      
+
       // Si tienen la misma prioridad, ordenar por horario (más temprano primero)
       const aTime = new Date(a.start).getTime();
       const bTime = new Date(b.start).getTime();
       return aTime - bTime;
     });
-    
+
     console.log(`📊 Ordenamiento aplicado: ${filteredSlots.filter(s => s.courtId || (s.bookings?.length || 0) > 0).length} clases con actividad primero, ${filteredSlots.filter(s => !s.courtId && !(s.bookings?.length || 0)).length} clases vacías después`);
 
     // 📄 PAGINACIÓN: Solo aplicar si se especificaron parámetros page/limit
@@ -633,7 +674,7 @@ export async function GET(request: NextRequest) {
       const startIndex = (page - 1) * limit;
       const endIndex = startIndex + limit;
       const paginatedSlots = filteredSlots.slice(startIndex, endIndex);
-      
+
       console.log(`📄 Pagination: Page ${page}/${totalPages}, showing ${paginatedSlots.length} of ${totalSlots} slots (${startIndex}-${endIndex})`);
 
       console.log('✅ Returning paginated slots:', paginatedSlots.length);
@@ -652,12 +693,12 @@ export async function GET(request: NextRequest) {
           hasMore: page < totalPages
         }
       });
-      
+
       // Sin caché para datos actualizados
       response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
       response.headers.set('Pragma', 'no-cache');
       response.headers.set('Expires', '0');
-      
+
       return response;
     }
 
@@ -680,12 +721,12 @@ export async function GET(request: NextRequest) {
     };
 
     const response = NextResponse.json(responseData);
-    
+
     // TEMPORALMENTE: Sin caché para forzar actualización con courtsAvailability
     response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     response.headers.set('Pragma', 'no-cache');
     response.headers.set('Expires', '0');
-    
+
     return response;
   } catch (error) {
     console.error('');
@@ -697,10 +738,10 @@ export async function GET(request: NextRequest) {
     console.error('Mensaje:', error instanceof Error ? error.message : 'Unknown error');
     console.error('═'.repeat(80));
     console.error('');
-    
+
     return NextResponse.json(
-      { 
-        error: 'Failed to fetch time slots', 
+      {
+        error: 'Failed to fetch time slots',
         details: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined
       },
@@ -723,44 +764,44 @@ function getInstructorPriceForTime(
 ): number {
   // Precio base por defecto
   const basePrice = instructor.hourlyRate || instructor.defaultRatePerHour || 0;
-  
+
   // Si no hay tarifas especiales, retornar precio base
   if (!instructor.rateTiers) {
     return basePrice;
   }
-  
+
   try {
     const rateTiers = JSON.parse(instructor.rateTiers);
-    
+
     // Si no es un array válido, retornar precio base
     if (!Array.isArray(rateTiers) || rateTiers.length === 0) {
       return basePrice;
     }
-    
+
     // Obtener día de la semana y hora de la clase
     const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][startDateTime.getUTCDay()];
     const timeString = startDateTime.toISOString().substring(11, 16); // "HH:MM"
-    
+
     // Buscar tarifa especial aplicable
     const matchingTier = rateTiers.find((tier: any) => {
       // Verificar que tenga los campos necesarios
       if (!tier.days || !Array.isArray(tier.days) || !tier.startTime || !tier.endTime || typeof tier.rate !== 'number') {
         return false;
       }
-      
+
       // Verificar si el día coincide
       const isDayMatch = tier.days.includes(dayOfWeek);
       if (!isDayMatch) return false;
-      
+
       // Verificar si la hora está en el rango (startTime <= timeString < endTime)
       const isTimeInRange = timeString >= tier.startTime && timeString < tier.endTime;
-      
+
       return isTimeInRange;
     });
-    
+
     // Si encontramos una tarifa especial, usarla; si no, usar precio base
     return matchingTier ? matchingTier.rate : basePrice;
-    
+
   } catch (error) {
     console.warn('⚠️  Error parseando rateTiers, usando precio base:', error);
     return basePrice;
@@ -771,7 +812,7 @@ export async function POST(request: NextRequest) {
   try {
     console.log('🚀 POST /api/timeslots - Creating new class');
     const body = await request.json();
-    
+
     const {
       clubId,
       startTime, // DateTime
@@ -851,7 +892,7 @@ export async function POST(request: NextRequest) {
     const instructorPricePerHour = getInstructorPriceForTime(instructor, startDate);
     const courtRentalPrice = await getCourtPriceForTime(clubId, startDate);
     const totalPrice = (instructorPricePerHour + courtRentalPrice) * (durationMinutes / 60);
-    
+
     console.log('💰 Precio calculado:', {
       instructor: instructorPricePerHour,
       court: courtRentalPrice,

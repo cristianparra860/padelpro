@@ -84,9 +84,8 @@ const MovimientosPage: React.FC = () => {
           const mappedTransactions: Transaction[] = allTransactions.map((tx: any) => {
             const isPositive = tx.action === 'add' || tx.action === 'refund' || tx.action === 'unblock';
 
-            const amountInDisplayUnit = tx.type === 'credit'
-              ? tx.amount / 100
-              : tx.amount;
+            // All amounts are in cents/centipoints, so divide by 100 for display
+            const amountInDisplayUnit = tx.amount / 100;
 
             return {
               id: tx.id,
@@ -195,8 +194,9 @@ const MovimientosPage: React.FC = () => {
   const blockedCredit = (userAny.blockedCredits || 0) / 100;
   const availableCredit = totalCredit - blockedCredit;
 
-  const totalPoints = userAny.points || 0;
-  const blockedPoints = userAny.blockedPoints || 0;
+  // Puntos también se guardan en céntimos (x100)
+  const totalPoints = (userAny.points || 0) / 100;
+  const blockedPoints = (userAny.blockedPoints || 0) / 100;
   const availablePoints = totalPoints - blockedPoints;
 
   return (
@@ -218,16 +218,15 @@ const MovimientosPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 🔴 SECCIÓN DE SALDO BLOQUEADO POR DÍAS (Horizontal Scroll) */}
       <div className="mb-6">
         <h2 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-          Saldo Desbloqueado <span className="text-xs font-normal text-muted-foreground">(Clases incompletas reservadas)</span>
+          Saldo Bloqueado <span className="text-xs font-normal text-muted-foreground">(Máximo valor por día)</span>
         </h2>
 
         {blockedBreakdown.length === 0 ? (
-          <div className="bg-gray-50 border border-dashed border-gray-200 rounded-lg p-4 text-center">
-            <p className="text-xs text-muted-foreground">No tienes saldo bloqueado actualmente.</p>
-          </div>
+          /* Empty state hidden or minimal to avoid clutter if empty? User wants "the same box". 
+             If empty, maybe show nothing or keep the "No tienes saldo" message but cleaner. */
+          <div className="hidden"></div>
         ) : (
           <ScrollArea className="w-full whitespace-nowrap pb-2">
             <div className="flex gap-3">
@@ -237,19 +236,19 @@ const MovimientosPage: React.FC = () => {
                 const month = format(dateObj, 'MMM', { locale: es }).toUpperCase().replace('.', '');
 
                 return (
-                  <div key={index} className="flex flex-col items-center mx-1">
+                  <div key={index} className="flex flex-col items-center bg-white border border-gray-100 shadow-sm rounded-xl p-2 min-w-[80px]">
                     {/* Month */}
-                    <span className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase mb-1">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase mb-1">
                       {month}
                     </span>
 
                     {/* Circle Day */}
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-500 text-white flex items-center justify-center text-lg sm:text-xl font-bold shadow-sm mb-1">
+                    <div className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center text-lg font-bold shadow-sm mb-1">
                       {day}
                     </div>
 
                     {/* Amount */}
-                    <span className="text-sm sm:text-base font-bold text-slate-800">
+                    <span className="text-sm font-bold text-slate-800">
                       €{(item.amount / 100).toFixed(2)}
                     </span>
                   </div>
@@ -266,21 +265,17 @@ const MovimientosPage: React.FC = () => {
         <div className="bg-white p-4 rounded-xl shadow-sm border border-border">
           <p className="text-xs font-medium text-muted-foreground mb-1">Saldo Disponible</p>
           <p className="text-2xl font-bold">€{availableCredit.toFixed(2)}</p>
-          {blockedCredit > 0 && (
-            <p className="text-xs text-red-500 font-medium mt-1">
-              +€{blockedCredit.toFixed(2)} bloqueado
-            </p>
-          )}
+          {/* Blocked credit indicator removed as per user request */}
         </div>
         <div className="bg-white p-4 rounded-xl shadow-sm border border-border">
           <p className="text-xs font-medium text-muted-foreground mb-1">Puntos Fidelidad</p>
           <p className="text-2xl font-bold flex items-center gap-1">
             <Trophy className="h-5 w-5 text-yellow-500" />
-            {availablePoints}
+            {availablePoints.toFixed(2)}
           </p>
           {blockedPoints > 0 && (
             <p className="text-xs text-yellow-600 font-medium mt-1">
-              +{blockedPoints} bloqueados
+              +{blockedPoints.toFixed(2)} bloqueados
             </p>
           )}
         </div>
@@ -357,12 +352,14 @@ const MovimientosPage: React.FC = () => {
               const isConfirmada = lowerDesc.includes('confirmada');
 
               // 🔍 DEFINICIÓN DE TIPO DE MOVIMIENTO
-              // Inscripción: Solo si es pendiente y NO es pista ni confirmada
-              const isInscripcion = (lowerDesc.includes('inscripción') || lowerDesc.includes('reserva pendiente')) && !isReservaPista && !isConfirmada;
+              // Simplificación: Si el texto dice "Inscripción", es inscripción. Si dice "Reserva", es reserva.
+              // EXCEPCIÓN: "Reserva de partida" se considera "Inscripción" para el usuario individual.
+              const isReservaPartida = lowerDesc.includes('reserva de partida');
+
+              const isInscripcion = lowerDesc.includes('inscripción') || lowerDesc.includes('reserva pendiente') || isReservaPartida;
               const isCancellation = lowerDesc.includes('cancel') || lowerDesc.includes('expirada');
               const isCleanup = txn.action === 'unblock' || txn.action === 'refund';
-              // Reserva: Si es pista explícita o una clase/partida confirmada (cobrada)
-              const isReserva = isReservaPista || isConfirmada;
+              const isReserva = lowerDesc.includes('reserva') && !lowerDesc.includes('pendiente') && !isReservaPartida;
 
               // 🕵️ EXTRAER METADATOS DEL TEXTO (Tipo, Fecha, Hora)
               let type: 'clase' | 'partida' | 'pista' | 'otro' = 'otro';
@@ -423,7 +420,7 @@ const MovimientosPage: React.FC = () => {
               // Textos de reemplazo para descripción
               const shortDescription = txn.description
                 .replace(/Reserva pendiente/gi, 'Inscripción')
-                .replace(/Reserva/g, 'Inscripción')
+                .replace(/Reserva de partida/gi, 'Inscripción - Partida')
                 .replace(/Clase/g, 'Clase')
                 .replace(/Partida/g, 'Partida');
 
@@ -497,11 +494,11 @@ const MovimientosPage: React.FC = () => {
                       <div className="text-right">
                         {/* Monto del movimiento */}
                         <div className={`text-sm font-black ${isPositive ? 'text-green-600' : 'text-gray-900'}`}>
-                          {isPositive ? '+' : ''}{txn.amount.toFixed(isCredit ? 2 : 0)}{isCredit ? '€' : 'pts'}
+                          {isPositive ? '+' : ''}{txn.amount.toFixed(2)}{isCredit ? '€' : 'pts'}
                         </div>
                         {/* Saldo resultante */}
                         <div className="text-[9px] text-gray-400">
-                          Saldo: {txn.balanceAfter.toFixed(isCredit ? 2 : 0)}{isCredit ? '€' : 'pts'}
+                          Saldo: {txn.balanceAfter.toFixed(2)}{isCredit ? '€' : 'pts'}
                         </div>
                       </div>
                     </div>

@@ -232,26 +232,25 @@ export default function DateSelector({
               <button
                 onClick={() => handleDateClick(date)}
                 className={`
-                  flex flex-col items-center justify-center rounded-lg
-                  transition-all duration-200 cursor-pointer border-2 bg-white
-                  ${borderColor} ${shadowStyle}
+                  flex flex-col items-center justify-center
+                  transition-all duration-300 cursor-pointer border
                   ${mounted && selected
-                    ? layoutOrientation === 'vertical'
-                      ? 'w-[94px] h-[75px] scale-110 ring-2 ring-green-200'
-                      : 'w-[63px] h-[75px] scale-110 ring-2 ring-green-200'
-                    : layoutOrientation === 'vertical'
-                      ? 'w-[63px] h-[50px] hover:scale-105'
-                      : 'w-[42px] h-[50px] hover:scale-105'
+                    ? 'bg-gradient-to-b from-gray-900 to-black text-white border-black shadow-[0_8px_20px_rgba(0,0,0,0.3)] ring-2 ring-gray-200 ring-offset-2'
+                    : 'bg-white text-gray-500 border-gray-100 shadow-[0_2px_10px_rgba(0,0,0,0.03)] hover:shadow-md hover:border-gray-200'
+                  }
+                  ${layoutOrientation === 'vertical'
+                    ? (mounted && selected ? 'w-full h-[70px] rounded-[20px]' : 'w-full h-[50px] rounded-[16px]')
+                    : (mounted && selected ? 'w-[60px] h-[84px] rounded-[24px] z-10 -translate-y-1' : 'w-[52px] h-[72px] rounded-[20px]')
                   }
                 `}
               >
-                <span className={`${mounted && selected ? 'text-[13px]' : 'text-[9px]'} font-bold uppercase ${textColor}`}>
+                <span className={`${mounted && selected ? 'text-[10px] text-gray-300' : 'text-[9px]'} font-bold uppercase tracking-wider mb-0.5`}>
                   {dayName}
                 </span>
-                <span className={`${mounted && selected ? 'text-2xl' : 'text-lg'} font-bold leading-none ${dayTextColor}`}>
+                <span className={`${mounted && selected ? 'text-[28px] text-white' : 'text-2xl text-gray-800'} font-black leading-none`}>
                   {dayNumber}
                 </span>
-                <span className={`${mounted && selected ? 'text-[11px]' : 'text-[8px]'} uppercase ${textColor}`}>
+                <span className={`${mounted && selected ? 'text-[9px] text-gray-400 mt-0.5' : 'text-[8px] mt-0.5'} uppercase font-medium`}>
                   {monthName}
                 </span>
               </button>

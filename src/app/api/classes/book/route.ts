@@ -1026,42 +1026,15 @@ export async function POST(request: Request) {
             });
           } else {
             // Plaza normal: BLOQUEO
-            await createTransaction({
-              userId,
-              type: 'points',
-              action: 'block',
-              amount: pointsToBlock,
-              balance: userPoints.points - (userPoints.blockedPoints || 0),
-              concept: `Reserva pendiente con puntos - Clase ${new Date(slotDetails[0].start).toLocaleString('es-ES')}`,
-              relatedId: bookingId,
-              relatedType: 'booking',
-              metadata: {
-                timeSlotId,
-                groupSize,
-                status: 'PENDING',
-                paidWithPoints: true,
-                pointsBlocked: pointsToBlock
-              }
-            });
+            // Plaza normal: BLOQUEO (SIN LOG)
+            // No registramos transacción de bloqueo para evitar confusión en historial.
+            // El saldo ya está bloqueado en blockedPoints.
           }
         }
       } else {
         // Transacción de bloqueo de créditos (en céntimos)
-        await createTransaction({
-          userId,
-          type: 'credit',
-          action: 'block',
-          amount: creditsToBlock, // Ya está en céntimos
-          balance: userBalance.credits - userBalance.blockedCredits,
-          concept: `Reserva pendiente - Clase ${new Date(slotDetails[0].start).toLocaleString('es-ES')}`,
-          relatedId: bookingId,
-          relatedType: 'booking',
-          metadata: {
-            timeSlotId,
-            groupSize,
-            status: 'PENDING'
-          }
-        });
+        // Transacción de bloqueo de créditos (en céntimos) - SIN LOG
+        // No registramos transacción de bloqueo. Solo el saldo bloqueado en User table.
       }
     }
 

@@ -142,7 +142,8 @@ export async function GET(request: NextRequest) {
         user: {
           select: {
             name: true,
-            profilePictureUrl: true
+            profilePictureUrl: true,
+            level: true
           }
         }
       }
@@ -192,7 +193,8 @@ export async function GET(request: NextRequest) {
             user: {
               select: {
                 name: true,
-                profilePictureUrl: true
+                profilePictureUrl: true,
+                level: true
               }
             }
           }

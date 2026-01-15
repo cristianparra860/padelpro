@@ -1232,9 +1232,9 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   }
 
   return (
-    <div className={`bg-white rounded-2xl shadow-[0_8px_16px_rgba(0,0,0,0.3)] border overflow-hidden w-full scale-[0.88] relative ${isInscriptionSelected
-        ? 'border-4 border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.5)]'
-        : 'border-gray-100'
+    <div className={`bg-white rounded-2xl shadow-[0_8px_16px_rgba(0,0,0,0.3)] border overflow-hidden w-full scale-100 md:scale-[0.88] relative ${isInscriptionSelected
+      ? 'border-4 border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.5)]'
+      : 'border-gray-100'
       }`}>
       {/* 🎓 Header CLASES */}
       {!isCancelled && (
@@ -1585,8 +1585,8 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
             <div className="font-medium text-gray-900 text-[10px]">Nivel</div>
             <div
               className={`capitalize px-2 py-1.5 rounded-full text-xs font-semibold shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${levelInfo.isAssigned
-                  ? 'bg-blue-100 text-blue-800'
-                  : 'bg-white text-gray-600'
+                ? 'bg-blue-100 text-blue-800'
+                : 'bg-white text-gray-600'
                 }`}
             >
               {levelInfo.level}
@@ -1596,8 +1596,8 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
             <div className="font-medium text-gray-900 text-[10px]">Cat.</div>
             <div
               className={`capitalize px-2 py-1.5 rounded-full text-xs font-semibold shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${categoryInfo.isAssigned
-                  ? 'bg-blue-100 text-blue-800'
-                  : 'bg-white text-gray-600'
+                ? 'bg-blue-100 text-blue-800'
+                : 'bg-white text-gray-600'
                 }`}
             >
               {categoryInfo.category}
@@ -1607,8 +1607,8 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
             <div className="font-medium text-gray-900 text-[10px]">Pista</div>
             <div
               className={`px-2 py-1.5 rounded-full text-xs font-semibold shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${courtAssignment.isAssigned
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'text-gray-600'
+                ? 'bg-blue-100 text-blue-700'
+                : 'text-gray-600'
                 }`}
             >
               {courtAssignment.isAssigned
@@ -2287,8 +2287,8 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                       type="button"
                       onClick={() => setPrivateAttendees(num)}
                       className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${privateAttendees === num
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                         }`}
                     >
                       {num}

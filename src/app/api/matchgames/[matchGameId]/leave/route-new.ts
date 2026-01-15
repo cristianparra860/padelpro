@@ -10,17 +10,17 @@ export async function POST(
   try {
     const { userId } = await request.json();
     const { matchGameId } = params;
-    
+
     console.log('\n🚪 === CESIÓN DE PLAZA EN PARTIDA ===');
     console.log('📝 Datos:', { matchGameId, userId });
-    
+
     if (!userId) {
       return NextResponse.json(
         { error: 'Falta userId' },
         { status: 400 }
       );
     }
-    
+
     // Buscar el booking del usuario
     const booking = await prisma.matchGameBooking.findFirst({
       where: {
@@ -53,34 +53,34 @@ export async function POST(
         }
       }
     });
-    
+
     if (!booking) {
       return NextResponse.json(
         { error: 'No se encontró tu inscripción en esta partida' },
         { status: 404 }
       );
     }
-    
+
     console.log(`📋 Booking encontrado: ${booking.id} - Status: ${booking.status}`);
-    
+
     // 🔍 DETERMINAR SI ES CESIÓN DE PLAZA (CONFIRMADA) O CANCELACIÓN SIMPLE (PENDIENTE)
     const isConfirmed = booking.status === 'CONFIRMED' && booking.matchGame.courtNumber !== null;
     const pricePerPlayer = Number(booking.matchGame.price) || 0;
-    
+
     console.log(`📊 Estado: ${isConfirmed ? 'CONFIRMADA (cesión de plaza)' : 'PENDIENTE (cancelación simple)'}`);
     console.log(`💰 Precio por jugador: €${pricePerPlayer}`);
-    
+
     let refundMessage = '';
-    
+
     if (isConfirmed) {
       // ♻️ CESIÓN DE PLAZA → Otorgar PUNTOS de compensación (1 punto por euro)
       console.log(`♻️ Partida confirmada - Cediendo plaza y otorgando PUNTOS`);
-      
+
       const pointsGranted = Math.floor(pricePerPlayer);
       const newPoints = await grantCompensationPoints(userId, pricePerPlayer, true);
-      
+
       console.log(`✅ Otorgados ${pointsGranted} puntos (de €${pricePerPlayer.toFixed(2)}). Total puntos: ${newPoints}`);
-      
+
       // Registrar transacción de puntos
       await createTransaction({
         userId: userId,
@@ -97,22 +97,22 @@ export async function POST(
           originalAmount: pricePerPlayer
         }
       });
-      
+
       // ♻️ MARCAR LA PLAZA COMO RECICLADA (disponible solo con puntos)
       await prisma.matchGameBooking.update({
         where: { id: booking.id },
-        data: { 
+        data: {
           status: 'CANCELLED',
           wasConfirmed: true, // Recordar que tenía pista asignada
           isRecycled: true // Marcar como plaza reciclada
         }
       });
-      
+
       console.log(`♻️ Plaza marcada como RECICLADA: solo reservable con puntos`);
       console.log(`🏟️ Partida mantiene pista ${booking.matchGame.courtNumber} asignada`);
-      
+
       refundMessage = `${pointsGranted} puntos otorgados. Plaza cedida disponible para otros jugadores (solo puntos)`;
-      
+
     } else {
       // 💳 CANCELACIÓN DE INSCRIPCIÓN PENDIENTE → Desbloquear fondos
       console.log(`💰 Inscripción pendiente - Desbloqueando fondos`);
@@ -123,27 +123,38 @@ export async function POST(
           where: { id: userId },
           data: { blockedPoints: { decrement: booking.pointsUsed } }
         });
-        
+
         await createTransaction({
           userId,
           type: 'points',
--+  ºº            amount: booking.pointsUsed,
+          action: 'unblock',
+          amount: booking.pointsUsed,
           concept: `Cancelación de inscripción - Partida ${matchGameId}`,
           relatedId: booking.id,
           relatedType: 'matchGameBooking'
         });
-        
+
         console.log(`🔓 Puntos desbloqueados: ${booking.pointsUsed}`);
         refundMessage = `${booking.pointsUsed} puntos desbloqueados`;
-        
+
       } else {
-        // Desbloquear créditos
-        const creditsInEuros = booking.amountBlocked / 100;
-        await prisma.user.update({
-          where: { id: userId },
-          data: { blockedCredits: { decrement: booking.amountBlocked } }
+        // Desbloquear créditos (usando recalculación)
+        // Primero marcamos la inscripción como CANCELLED (se hará más abajo)
+        // Pero para que updateUserBlockedCredits funcione, el estado en BD debe estar actualizado.
+        // Así que primero actualizamos el status del booking actual y luego recalculamos.
+
+        await prisma.matchGameBooking.update({
+          where: { id: booking.id },
+          data: {
+            status: 'CANCELLED',
+            wasConfirmed: false,
+            isRecycled: false
+          }
         });
-        
+
+        const creditsInEuros = booking.amountBlocked / 100;
+        await updateUserBlockedCredits(userId);
+
         await createTransaction({
           userId,
           type: 'credit',
@@ -153,24 +164,16 @@ export async function POST(
           relatedId: booking.id,
           relatedType: 'matchGameBooking'
         });
-        
+
         console.log(`🔓 Créditos desbloqueados: €${creditsInEuros}`);
         refundMessage = `€${creditsInEuros.toFixed(2)} desbloqueados`;
       }
-      
-      // Marcar como cancelada (sin reciclar porque no estaba confirmada)
-      await prisma.matchGameBooking.update({
-        where: { id: booking.id },
-        data: { 
-          status: 'CANCELLED',
-          wasConfirmed: false,
-          isRecycled: false
-        }
-      });
-      
+
+      console.log(`✅ Inscripción cancelada y saldo recalculado`);
+
       console.log(`✅ Inscripción cancelada (no era confirmada)`);
     }
-    
+
     // 🔍 VERIFICAR SI QUEDAN PLAZAS ACTIVAS O RECICLADAS
     const remainingActiveBookings = await prisma.matchGameBooking.count({
       where: {
@@ -186,7 +189,7 @@ export async function POST(
         isRecycled: true
       }
     });
-    
+
     const totalPlayers = 4; // Las partidas siempre son de 4 jugadores
     const occupiedSpots = remainingActiveBookings;
     const availableRecycledSpots = totalPlayers - occupiedSpots;
@@ -201,7 +204,7 @@ export async function POST(
     // Solo se libera si la partida queda completamente vacía
     if (remainingActiveBookings === 0 && recycledBookings === 0) {
       console.log('🔓 Partida completamente vacía - Liberando MatchGame...');
-      
+
       try {
         await prisma.matchGame.update({
           where: { id: matchGameId },
@@ -220,7 +223,7 @@ export async function POST(
         console.log(`   ♻️ ${recycledBookings} plaza(s) reciclada(s) disponible(s) SOLO CON PUNTOS`);
       }
     }
-    
+
     return NextResponse.json({
       success: true,
       refunded: true,
@@ -229,7 +232,7 @@ export async function POST(
       remainingPlayers: remainingActiveBookings,
       recycledSlots: recycledBookings
     });
-    
+
   } catch (error) {
     console.error('❌ Error en POST /api/matchgames/[matchGameId]/leave:', error);
     return NextResponse.json(

@@ -12,7 +12,7 @@ export async function DELETE(
   try {
     const { id } = await params;
     console.log(`🗑️ DELETE /api/admin/bookings/${id} - Starting...`);
-    
+
     const bookingId = id;
 
     // Verificar que la reserva existe
@@ -36,21 +36,21 @@ export async function DELETE(
     const isConfirmed = existingBooking.timeSlot?.courtId !== null;
     const totalPrice = Number(existingBooking.timeSlot?.totalPrice) || 55;
     const pricePerPerson = totalPrice / (Number(existingBooking.groupSize) || 1);
-    
+
     console.log(`📋 Booking status: ${isConfirmed ? 'CONFIRMED (courtId assigned)' : 'PENDING'}`);
-    
+
     let refundMessage = '';
-    
+
     // 💰 PROCESAR REEMBOLSO SEGÚN EL ESTADO
     if (isConfirmed) {
       // ♻️ CANCELACIÓN DE RESERVA CONFIRMADA → Otorgar PUNTOS
       console.log(`🎁 Booking confirmado - Otorgando PUNTOS de compensación a ${existingBooking.user.name}`);
-      
+
       const pointsGranted = Math.floor(pricePerPerson);
       const newPoints = await grantCompensationPoints(existingBooking.userId, pricePerPerson, true);
-      
+
       console.log(`✅ Otorgados ${pointsGranted} puntos (de €${pricePerPerson.toFixed(2)}). Total puntos: ${newPoints}`);
-      
+
       // Registrar transacción de puntos
       await createTransaction({
         userId: existingBooking.userId,
@@ -68,31 +68,31 @@ export async function DELETE(
           originalAmount: pricePerPerson
         }
       });
-      
-      refundMessage = `${pointsGranted} puntos otorgados`;
-      
-    } else {
-      // 💳 CANCELACIÓN DE RESERVA PENDIENTE → Devolver CRÉDITOS
-      console.log(`💰 Booking pendiente - Reembolsando €${pricePerPerson.toFixed(2)} a ${existingBooking.user.name}`);
 
-      const currentCredits = Number(existingBooking.user.credits) || 0;
-      const newCredits = currentCredits + pricePerPerson;
-      
+      refundMessage = `${pointsGranted} puntos otorgados`;
+
+    } else {
+      // 💳 CANCELACIÓN DE RESERVA PENDIENTE → Solo DESBLOQUEAR CRÉDITOS
+      console.log(`💰 Booking pendiente - Desbloqueando €${pricePerPerson.toFixed(2)} a ${existingBooking.user.name}`);
+
+      // Solo decrementamos blockedCredits. NO tocamos credits (saldo real).
       await prisma.user.update({
         where: { id: existingBooking.userId },
-        data: { credits: newCredits }
+        data: {
+          blockedCredits: { decrement: pricePerPerson }
+        }
       });
 
-      console.log(`✅ Saldo actualizado: €${currentCredits.toFixed(2)} → €${newCredits.toFixed(2)} (reembolso: +€${pricePerPerson.toFixed(2)})`);
-      
-      refundMessage = `€${pricePerPerson.toFixed(2)} reembolsados`;
+      console.log(`✅ Saldo bloqueado liberado: -€${pricePerPerson.toFixed(2)}`);
+
+      refundMessage = `€${pricePerPerson.toFixed(2)} liberados (bloqueo)`;
     }
 
     // Marcar la reserva como CANCELADA y convertirla en plaza RECICLADA
     // Si era confirmada, se convierte en plaza reciclada (solo puntos)
     await prisma.booking.update({
       where: { id: bookingId },
-      data: { 
+      data: {
         status: 'CANCELLED',
         wasConfirmed: isConfirmed, // Recordar si tenía pista asignada
         isRecycled: isConfirmed // Si era confirmada, marcar como reciclada
@@ -137,7 +137,7 @@ export async function DELETE(
     // Solo se limpia si la clase queda completamente vacía
     if (remainingActiveBookings === 0 && recycledBookings === 0) {
       console.log('🔓 Clase completamente vacía - Liberando TimeSlot...');
-      
+
       try {
         // Solo limpiar si no hay ningún booking (ni activo ni reciclado)
         await prisma.timeSlot.update({
@@ -154,11 +154,11 @@ export async function DELETE(
         await prisma.courtSchedule.deleteMany({
           where: { timeSlotId: existingBooking.timeSlotId }
         });
-        
+
         await prisma.instructorSchedule.deleteMany({
           where: { timeSlotId: existingBooking.timeSlotId }
         });
-        
+
         console.log('✅ Schedules eliminados');
       } catch (cleanupError) {
         console.error('❌ Error limpiando TimeSlot:', cleanupError);
@@ -188,5 +188,6 @@ export async function DELETE(
     return NextResponse.json(
       { error: 'Error interno del servidor al cancelar la reserva' },
       { status: 500 }
-    );  }
+    );
+  }
 }

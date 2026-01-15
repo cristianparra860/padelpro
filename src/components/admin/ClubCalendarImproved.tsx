@@ -132,7 +132,19 @@ export default function ClubCalendarImproved({
   const [pricePerPlayers, setPricePerPlayers] = useState<1 | 4>(4); // Selector precio partidas: 1 jugador o 4 jugadores
   const [selectedDuration, setSelectedDuration] = useState<30 | 60 | 90 | 120>(60); // Selector de duración para reservar pistas
   const [durationConfirmed, setDurationConfirmed] = useState(false); // Control de confirmación de duración
-  const [viewType, setViewType] = useState<'clases' | 'partidas' | 'reservar-pistas'>('partidas'); // Selector principal
+  // Inicializar viewType desde la URL
+  const getInitialViewType = (): 'clases' | 'partidas' | 'reservar-pistas' => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const viewTypeParam = params.get('viewType');
+      if (viewTypeParam === 'clases' || viewTypeParam === 'partidas' || viewTypeParam === 'reservar-pistas') {
+        return viewTypeParam;
+      }
+    }
+    return 'partidas';
+  };
+
+  const [viewType, setViewType] = useState<'clases' | 'partidas' | 'reservar-pistas'>(getInitialViewType()); // Selector principal
   const [currentTime, setCurrentTime] = useState(new Date()); // Hora actual para overlay
 
   // Sincronizar cambios de fecha con el padre y guardar en sessionStorage
@@ -163,6 +175,19 @@ export default function ClubCalendarImproved({
       setCurrentDate(initialDate);
     }
   }, [initialDate]);
+
+  // Sync URL with currentDate to ensure sidebar stays in sync (e.g. after refresh/session restore)
+  useEffect(() => {
+    const urlDate = searchParams.get('date');
+    const currentDateStr = getLocalDateString(currentDate);
+
+    if (!urlDate || urlDate !== currentDateStr) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('date', currentDateStr);
+      // Use replace to avoid history stack pollution
+      router.replace(`${window.location.pathname}?${params.toString()}`, { scroll: false });
+    }
+  }, [currentDate, searchParams]); // Run when date changes or params change
 
   // Estados para reservas de instructor y reservas de pistas
   const [instructorReservations, setInstructorReservations] = useState<any[]>([]);
@@ -740,31 +765,76 @@ export default function ClubCalendarImproved({
 
   // Encontrar TODAS las propuestas de clases en un slot (abiertas + nivel del usuario)
   const getClassProposalsInSlot = (timeSlot: string, instructorId: string | null) => {
-    if (!instructorId) return [];
+    console.log('🔍 getClassProposalsInSlot called:', { timeSlot, instructorId, totalProposals: classProposals.length });
+
+    if (!instructorId) {
+      console.log('⚠️ No instructorId provided, returning empty array');
+      return [];
+    }
 
     const [hour, minute] = timeSlot.split(':');
+    // CRITICAL FIX: Create slot time in LOCAL time, not UTC
+    // The timeSlot represents the calendar grid row in local time (e.g., "09:00" local)
+    // Proposals are stored in UTC but new Date() converts them to local time automatically
+    // So we need to compare local times, not UTC times
     const slotTime = new Date(currentDate);
     slotTime.setHours(parseInt(hour), parseInt(minute), 0, 0);
+    console.log('📅 Looking for classes at (local):', slotTime.toISOString(), 'for timeSlot:', timeSlot);
+
+    // Log all proposals for debugging
+    if (classProposals.length > 0) {
+      console.log('🎯 SEARCHING FOR instructorId:', instructorId);
+      console.log('📋 Sample proposal (first one):', {
+        id: classProposals[0].id,
+        instructorId: classProposals[0].instructorId,
+        instructorName: classProposals[0].instructorName,
+        start: classProposals[0].start
+      });
+      console.log('📋 All class proposals:', classProposals.map(p => ({
+        id: p.id,
+        instructorId: p.instructorId,
+        instructorName: p.instructorName,
+        start: p.start,
+        startTime: new Date(p.start).toISOString()
+      })));
+    }
 
     // Filtrar todas las clases que coincidan con el horario e instructor
     const allClasses = classProposals.filter(proposal => {
-      if (proposal.instructorId !== instructorId) return false;
-
+      const matchesInstructor = proposal.instructorId === instructorId;
       const propStart = new Date(proposal.start);
-      return propStart.getTime() === slotTime.getTime();
+      const matchesTime = propStart.getTime() === slotTime.getTime();
+
+      if (matchesInstructor) {
+        console.log('👨‍🏫 Found class for instructor:', {
+          id: proposal.id,
+          instructorId: proposal.instructorId,
+          start: proposal.start,
+          propStartTime: propStart.getTime(),
+          slotTime: slotTime.getTime(),
+          matchesTime
+        });
+      }
+
+      return matchesInstructor && matchesTime;
     });
+
+    console.log('✅ Classes matching instructor and time:', allClasses.length);
 
     // Si es vista de club/admin (viewMode === 'club'), mostrar TODAS las clases sin filtrar por nivel
     if (viewMode === 'club') {
+      console.log('🏢 Club view mode - returning all classes without level filter');
       return allClasses;
     }
 
     if (!currentUser || !currentUser.level) {
       // Sin usuario o nivel, mostrar todas
+      console.log('👤 No user or level - returning all classes');
       return allClasses;
     }
 
     const userLevel = parseFloat(currentUser.level);
+    console.log('👤 User level:', userLevel);
 
     // Filtrar clases relevantes para el usuario
     const relevantClasses = allClasses.filter(classItem => {
@@ -780,6 +850,7 @@ export default function ClubCalendarImproved({
       return false;
     });
 
+    console.log('🎯 Final relevant classes after level filter:', relevantClasses.length);
     return relevantClasses;
   };
 
@@ -862,6 +933,9 @@ export default function ClubCalendarImproved({
     const [hour, minute] = timeSlot.split(':');
     const clsStart = new Date(confirmedClass.start);
 
+    // CRITICAL FIX: getHours() returns LOCAL time, but we need to compare with the timeSlot
+    // which represents the calendar grid row (also in local time)
+    // The class start time from API is in UTC, getHours() converts it to local time automatically
     return clsStart.getHours() === parseInt(hour) && clsStart.getMinutes() === parseInt(minute);
   };
 
@@ -1033,9 +1107,9 @@ export default function ClubCalendarImproved({
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 px-4 py-6 md:px-6 lg:px-8 relative">
       {/* Overlay oscuro cuando modo clases sin instructor - Deja visible solo botones de instructores */}
-      {viewType === 'clases' && !selectedInstructor && calendarData.instructors.length > 0 && (
+      {viewType === 'clases' && (!selectedInstructor || !calendarData.instructors.some(i => i.id === selectedInstructor)) && calendarData.instructors.length > 0 && (
         <div
-          className="fixed inset-0 bg-gradient-to-b from-black/40 via-black/50 to-black/60 backdrop-blur-[2px] z-[120] transition-all duration-700 ease-out"
+          className="fixed inset-0 bg-gradient-to-b from-black/40 via-black/50 to-black/60 z-[120] transition-all duration-700 ease-out pointer-events-none"
         />
       )}
 
@@ -1109,9 +1183,8 @@ export default function ClubCalendarImproved({
           </div>
         )}
 
-        {/* Banner de aviso: seleccionar instructor */}
         {viewType === 'clases' && !selectedInstructor && calendarData.instructors.length > 0 && (
-          <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl shadow-lg p-4 animate-pulse">
+          <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl shadow-lg p-4 relative z-[150]">
             <div className="flex items-center gap-4">
               <div className="text-white text-4xl">⚠️</div>
               <div className="flex-1">
@@ -1127,11 +1200,16 @@ export default function ClubCalendarImproved({
 
         {/* Banner del Instructor Seleccionado */}
         {viewType === 'clases' && selectedInstructor && calendarData.instructors.find(i => i.id === selectedInstructor) && (
-          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl shadow-lg p-2">
+          <div className={`${(classProposals.some(p => p.instructorId === selectedInstructor))
+            ? 'bg-gradient-to-r from-indigo-600 to-purple-600'
+            : 'bg-gray-400'
+            } rounded-2xl shadow-lg p-2 transition-colors duration-300`}>
             <div className="flex items-center justify-between gap-4">
               {/* Izquierda: Contenedor con logo y texto */}
               <div className="flex items-center gap-3 bg-white/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-md">
-                <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-indigo-500 shadow-lg bg-white flex items-center justify-center">
+                <div className={`w-12 h-12 rounded-full overflow-hidden border-2 ${(classProposals.some(p => p.instructorId === selectedInstructor)) ? 'border-indigo-500' : 'border-gray-400'
+                  } shadow-lg bg-white flex items-center justify-center ${!(classProposals.some(p => p.instructorId === selectedInstructor)) ? 'grayscale opacity-75' : ''
+                  }`}>
                   <img
                     src={calendarData.instructors.find(i => i.id === selectedInstructor)?.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(calendarData.instructors.find(i => i.id === selectedInstructor)?.name || 'Instructor')}&background=random&color=fff&size=128`}
                     alt={calendarData.instructors.find(i => i.id === selectedInstructor)?.name}
@@ -1139,8 +1217,15 @@ export default function ClubCalendarImproved({
                   />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-indigo-900 leading-tight">Calendario de Clases</h3>
-                  <div className="text-xs text-indigo-700 leading-tight">Instructor: {calendarData.instructors.find(i => i.id === selectedInstructor)?.name}</div>
+                  <h3 className={`text-base font-bold leading-tight ${(classProposals.some(p => p.instructorId === selectedInstructor)) ? 'text-indigo-900' : 'text-gray-700'
+                    }`}>Calendario de Clases</h3>
+                  <div className={`text-xs leading-tight ${(classProposals.some(p => p.instructorId === selectedInstructor)) ? 'text-indigo-700' : 'text-gray-600 font-medium'
+                    }`}>
+                    Instructor: {calendarData.instructors.find(i => i.id === selectedInstructor)?.name}
+                    {!(classProposals.some(p => p.instructorId === selectedInstructor)) && (
+                      <span className="ml-1 text-red-500 font-bold">(Sin clases)</span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1311,153 +1396,33 @@ export default function ClubCalendarImproved({
                         {timeSlot}
                       </td>
                       {calendarData.courts.map(court => {
-                        const reservation = hasReservationInSlot(court.id, timeSlot);
-                        const isPast = isTimeSlotPast(timeSlot);
+                        // Determinar si este es el slot actual para pintar la línea roja
+                        const [slotHour, slotMinute] = timeSlot.split(':').map(Number);
+                        const isCurrentDay = getLocalDateString(currentDate) === getLocalDateString(currentTime);
+                        let isCurrentSlot = false;
+                        let minutesPassedInSlot = 0;
 
-                        // Si hay reserva y es el inicio, mostrar la reserva con rowspan
-                        if (reservation && isReservationStart(reservation, timeSlot)) {
-                          const rowSpan = calculateRowSpan(reservation);
-                          return (
-                            <td
-                              key={court.id}
-                              rowSpan={rowSpan}
-                              className={`border border-gray-200 p-0.5 h-10 bg-white relative overflow-hidden ${isHalfHour ? 'border-b-[3px] border-b-gray-400 rounded-b-lg' : ''}`}
-                              style={{ maxHeight: `${rowSpan * 40}px` }}
-                            >
-                              <div
-                                onClick={() => {
-                                  if (reservation.type === 'match-confirmed' && reservation.id) {
-                                    setSelectedClassId(reservation.id);
-                                    setShowClassCard(true);
-                                  }
-                                }}
-                                className={`rounded-xl h-full flex flex-col justify-between border-2 border-gray-400 ${reservation.type === 'class-confirmed'
-                                  ? 'bg-blue-500 shadow-[0_4px_12px_rgba(59,130,246,0.4),inset_0_1px_0_rgba(255,255,255,0.2)]'
-                                  : 'bg-green-500 shadow-[0_4px_12px_rgba(34,197,94,0.4),inset_0_1px_0_rgba(255,255,255,0.2)] cursor-pointer hover:shadow-[0_6px_16px_rgba(34,197,94,0.5)] transition-shadow'
-                                  }`}>
-                                <div className="p-2 flex flex-col justify-center items-center h-full pointer-events-none">
-                                  {reservation.type === 'match-confirmed' && (
-                                    <>
-                                      {/* Título grande y claro */}
-                                      <div className="text-center mb-2">
-                                        <div className="text-[14px] font-bold text-white">PARTIDA</div>
-                                      </div>
+                        if (isCurrentDay) {
+                          const now = currentTime;
+                          const currentH = now.getHours();
+                          const currentM = now.getMinutes();
 
-                                      {/* Hora grande y destacada */}
-                                      <div className="text-center mb-2">
-                                        <div className="text-[20px] font-bold text-white">{timeSlot}</div>
-                                      </div>
-
-                                      {/* Nivel */}
-                                      <div className="text-center mb-2">
-                                        <div className="text-[12px] font-bold text-white">{reservation.level || 'Abierto'}</div>
-                                      </div>
-
-                                      {/* Jugadores en fila única con fotos grandes */}
-                                      <div className="flex justify-center gap-1.5">
-                                        {(() => {
-                                          const activeBookings = reservation.bookings?.filter((b: any) => b.status !== 'CANCELLED' || (b.status === 'CANCELLED' && b.isRecycled === true)) || [];
-                                          const slots = [];
-
-                                          // Renderizar slots según groupSize
-                                          activeBookings.forEach((booking: any, bookingIdx: number) => {
-                                            const playerName = booking.user?.name || booking.userName || `Jugador ${bookingIdx + 1}`;
-                                            const isRecycled = booking.status === 'CANCELLED' && booking.isRecycled === true;
-                                            const groupSize = booking.groupSize || 1;
-
-                                            // Crear tantos avatares como plazas ocupe este booking
-                                            for (let i = 0; i < groupSize; i++) {
-                                              if (isRecycled) {
-                                                slots.push(
-                                                  <div
-                                                    key={`${booking.id}-${i}`}
-                                                    className="w-8 h-8 rounded-full flex items-center justify-center shadow-md ring-2 ring-yellow-600 bg-yellow-400"
-                                                    title="Plaza reciclada (solo puntos)"
-                                                  >
-                                                    <span className="text-[14px]">♻️</span>
-                                                  </div>
-                                                );
-                                              } else {
-                                                slots.push(
-                                                  <div
-                                                    key={`${booking.id}-${i}`}
-                                                    className="w-8 h-8 rounded-full overflow-hidden shadow-md ring-2 ring-white bg-white"
-                                                    title={playerName}
-                                                  >
-                                                    <img
-                                                      src={booking.user?.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(playerName)}&background=22c55e&color=fff&size=64`}
-                                                      alt={playerName}
-                                                      className="w-full h-full object-cover"
-                                                    />
-                                                  </div>
-                                                );
-                                              }
-                                            }
-                                          });
-
-                                          // Calcular plazas vacías
-                                          const totalOccupiedSlots = slots.length;
-                                          const emptySlots = (reservation.maxPlayers || 4) - totalOccupiedSlots;
-
-                                          // Añadir slots vacíos
-                                          for (let i = 0; i < emptySlots; i++) {
-                                            slots.push(
-                                              <div
-                                                key={`empty-${i}`}
-                                                className="w-8 h-8 rounded-full border-2 border-white/80 flex items-center justify-center bg-white/20"
-                                              >
-                                                <span className="text-[14px] text-white font-bold">+</span>
-                                              </div>
-                                            );
-                                          }
-
-                                          return slots;
-                                        })()}
-                                      </div>
-                                    </>
-                                  )}
-                                  {reservation.type === 'class-confirmed' && (
-                                    <>
-                                      <div className="flex items-center gap-1 mb-1">
-                                        <div className="w-5 h-5 rounded-full overflow-hidden shadow-md ring-1 ring-white bg-white">
-                                          <img
-                                            src={reservation.instructorPhoto || `https://ui-avatars.com/api/?name=${encodeURIComponent(reservation.instructorName || 'I')}&background=random&color=fff&size=64`}
-                                            alt={reservation.instructorName}
-                                            className="w-full h-full object-cover"
-                                          />
-                                        </div>
-                                        <span className="text-[8px] font-bold text-white truncate flex-1">
-                                          {reservation.instructorName}
-                                        </span>
-                                      </div>
-                                      <div className="flex gap-0.5 justify-center">
-                                        {Array.from({ length: reservation.playersCount || 0 }).map((_, i) => (
-                                          <div key={i} className="w-3 h-3 rounded-full flex items-center justify-center ring-1 bg-white ring-blue-300">
-                                            <span className="text-[7px] font-bold text-blue-700">{i + 1}</span>
-                                          </div>
-                                        ))}
-                                        {Array.from({ length: (reservation.maxPlayers || 4) - (reservation.playersCount || 0) }).map((_, i) => (
-                                          <div key={`empty-${i}`} className="w-3 h-3 rounded-full border border-white/50 bg-blue-400/30"></div>
-                                        ))}
-                                      </div>
-                                    </>
-                                  )}
-                                </div>
-
-                                {/* Footer con precio y duración */}
-                                <div className="flex items-center justify-between px-1.5 py-0.5 border-t bg-white/90 rounded-b-xl">
-                                  <div className="text-[9px] font-bold text-gray-900">€{reservation.price || 0}</div>
-                                  <div className="text-[9px] font-medium text-gray-700">{reservation.duration || 60} min</div>
-                                </div>
-                              </div>
-                            </td>
-                          );
+                          // Verificar si la hora actual cae en este slot (incluyendo rangos de 30 min)
+                          if (currentH === slotHour) {
+                            if (slotMinute === 0 && currentM < 30) {
+                              isCurrentSlot = true;
+                              minutesPassedInSlot = currentM;
+                            } else if (slotMinute === 30 && currentM >= 30) {
+                              isCurrentSlot = true;
+                              minutesPassedInSlot = currentM - 30;
+                            }
+                          }
                         }
 
-                        // Si hay reserva pero no es el inicio, skip (cubierto por rowspan)
-                        if (reservation) {
-                          return null;
-                        }
+                        // Calcular posición de la línea (cada slot mide 40px = h-10)
+                        const lineTopOffset = (minutesPassedInSlot / 30) * 40;
+
+
 
                         // Si no hay reserva, verificar si hay clase confirmada de TimeSlots
                         const confirmedClass = getConfirmedClassInSlot(timeSlot, court.number);
@@ -1477,6 +1442,8 @@ export default function ClubCalendarImproved({
                               ? confirmedClass.totalPrice / confirmedClass.maxPlayers
                               : 12;
 
+                            const isClassPast = isTimeSlotPast(timeSlot);
+
                             return (
                               <td
                                 key={court.id}
@@ -1484,12 +1451,23 @@ export default function ClubCalendarImproved({
                                 className={`border border-gray-200 p-0.5 bg-white relative overflow-hidden`}
                                 style={{ maxHeight: `${rowSpan * 40}px`, verticalAlign: 'top' }}
                               >
+                                {/* Línea de hora actual */}
+                                {isCurrentSlot && (
+                                  <div
+                                    className="absolute w-full border-t-2 border-red-500 z-50 pointer-events-none"
+                                    style={{ top: `${lineTopOffset}px` }}
+                                  >
+                                    <div className="absolute -left-1 -top-1 w-2 h-2 bg-red-500 rounded-full" />
+                                  </div>
+                                )}
+
                                 <div
                                   onClick={() => {
                                     setSelectedClassId(confirmedClass.id);
                                     setShowClassCard(true);
                                   }}
-                                  className="bg-blue-500 rounded-xl h-full cursor-pointer hover:bg-blue-600 hover:scale-[1.02] transition-all shadow-[0_4px_12px_rgba(59,130,246,0.5)] border-2 border-blue-400 flex flex-col overflow-hidden relative"
+                                  className={`bg-blue-500 rounded-xl h-full cursor-pointer hover:bg-blue-600 hover:scale-[1.02] transition-all shadow-[0_4px_12px_rgba(59,130,246,0.5)] border-2 border-blue-400 flex flex-col overflow-hidden relative ${isClassPast ? 'opacity-60 grayscale hover:opacity-100 hover:grayscale-0' : ''
+                                    }`}
                                 >
                                   {/* Header con instructor y tipo */}
                                   <div className="p-1.5 pb-0.5">
@@ -1521,7 +1499,7 @@ export default function ClubCalendarImproved({
                                         return (
                                           <div
                                             key={i}
-                                            className={`w-6 h-6 rounded-full flex items-center justify-center shadow-sm overflow-hidden relative ${isRecycled
+                                            className={`w-6 h-6 rounded-full flex items-center justify-center shadow-sm relative ${isRecycled
                                               ? 'bg-yellow-400 ring-2 ring-yellow-600'
                                               : hasBooking
                                                 ? 'bg-white ring-1 ring-blue-300'
@@ -1535,9 +1513,15 @@ export default function ClubCalendarImproved({
                                                 <img
                                                   src={booking.user.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(booking.user.name || 'U')}&background=random&color=fff&size=64`}
                                                   alt={booking.user.name || 'Usuario'}
-                                                  className="w-full h-full object-cover"
+                                                  className="w-full h-full object-cover rounded-full"
                                                   title={`${booking.user.name || 'Usuario'} - Grupo de ${booking.groupSize || 1} alumno${(booking.groupSize || 1) > 1 ? 's' : ''}`}
                                                 />
+                                                {/* Level Badge - Tiny version for class calendar */}
+                                                {booking.user.level && (
+                                                  <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-blue-600 text-white text-[7px] font-bold flex items-center justify-center rounded-full border border-white shadow-sm z-10" title={`Nivel: ${booking.user.level}`}>
+                                                    {booking.user.level}
+                                                  </div>
+                                                )}
                                                 {/* GroupSize Badge */}
                                                 {booking.groupSize && booking.groupSize > 1 && (
                                                   <div
@@ -1589,18 +1573,31 @@ export default function ClubCalendarImproved({
                               ? confirmedMatch.courtRentalPrice / bookingsCount
                               : 20;
 
+                            const isMatchPast = isTimeSlotPast(timeSlot);
+
                             return (
                               <td
                                 key={court.id}
                                 rowSpan={rowSpan}
-                                className={`border border-gray-200 p-0.5 bg-white`}
+                                className={`border border-gray-200 p-0.5 bg-white relative overflow-hidden`}
                               >
+                                {/* Línea de hora actual */}
+                                {isCurrentSlot && (
+                                  <div
+                                    className="absolute w-full border-t-2 border-red-500 z-50 pointer-events-none"
+                                    style={{ top: `${lineTopOffset}px` }}
+                                  >
+                                    <div className="absolute -left-1 -top-1 w-2 h-2 bg-red-500 rounded-full" />
+                                  </div>
+                                )}
+
                                 <div
                                   onClick={() => {
                                     setSelectedClassId(confirmedMatch.id);
                                     setShowClassCard(true);
                                   }}
-                                  className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl h-full cursor-pointer hover:from-purple-600 hover:to-pink-600 hover:scale-[1.02] transition-all shadow-[0_4px_12px_rgba(168,85,247,0.5)] border-2 border-purple-400 flex flex-col overflow-hidden"
+                                  className={`bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl h-full cursor-pointer hover:from-purple-600 hover:to-pink-600 hover:scale-[1.02] transition-all shadow-[0_4px_12px_rgba(168,85,247,0.5)] border-2 border-purple-400 flex flex-col overflow-hidden relative ${isMatchPast ? 'opacity-60 grayscale hover:opacity-100 hover:grayscale-0' : ''
+                                    }`}
                                 >
                                   {/* Header con nivel y tipo */}
                                   <div className="p-1.5 pb-0.5">
@@ -1620,21 +1617,32 @@ export default function ClubCalendarImproved({
                                       {Array.from({ length: maxPlayers }).map((_, i) => {
                                         const booking = bookings[i];
                                         const hasBooking = i < bookingsCount;
+                                        const isRecycled = booking?.status === 'CANCELLED' && booking?.isRecycled === true;
 
                                         return (
                                           <div
                                             key={i}
-                                            className={`w-6 h-6 rounded-full flex items-center justify-center shadow-sm overflow-hidden ${hasBooking
+                                            className={`w-6 h-6 rounded-full flex items-center justify-center shadow-sm relative ${hasBooking
                                               ? 'bg-white ring-1 ring-purple-300'
                                               : 'border-2 border-white/50 bg-purple-400/30'
                                               }`}
                                           >
-                                            {hasBooking && booking?.user ? (
-                                              <img
-                                                src={booking.user.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(booking.user.name || 'U')}&background=a855f7&color=fff&size=64`}
-                                                alt={booking.user.name}
-                                                className="w-full h-full object-cover"
-                                              />
+                                            {isRecycled ? (
+                                              <span className="text-[12px]" title="Plaza reciclada (solo puntos)">♻️</span>
+                                            ) : hasBooking && booking?.user ? (
+                                              <>
+                                                <img
+                                                  src={booking.user.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(booking.user.name || 'U')}&background=a855f7&color=fff&size=64`}
+                                                  alt={booking.user.name}
+                                                  className="w-full h-full object-cover rounded-full"
+                                                />
+                                                {/* Level Badge - Tiny version for calendar */}
+                                                {booking.user.level && (
+                                                  <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-blue-600 text-white text-[7px] font-bold flex items-center justify-center rounded-full border border-white shadow-sm z-10" title={`Nivel: ${booking.user.level}`}>
+                                                    {booking.user.level}
+                                                  </div>
+                                                )}
+                                              </>
                                             ) : hasBooking ? (
                                               <span className="text-[9px] font-bold text-purple-700">{i + 1}</span>
                                             ) : (
@@ -1674,17 +1682,30 @@ export default function ClubCalendarImproved({
                           const isMyReservation = currentUser && currentUser.id === userId;
                           const userName = userReservation.userName || 'Usuario';
 
+                          const isUserResPast = isTimeSlotPast(timeSlot);
+
                           return (
                             <td
                               key={court.id}
                               rowSpan={rowSpan}
-                              className="border border-gray-200 p-0.5 bg-white"
+                              className={`border border-gray-200 p-0.5 bg-white relative overflow-hidden`}
                             >
+                              {/* Línea de hora actual */}
+                              {isCurrentSlot && (
+                                <div
+                                  className="absolute w-full border-t-2 border-red-500 z-50 pointer-events-none"
+                                  style={{ top: `${lineTopOffset}px` }}
+                                >
+                                  <div className="absolute -left-1 -top-1 w-2 h-2 bg-red-500 rounded-full" />
+                                </div>
+                              )}
+
                               <div
-                                className={`rounded-xl h-full flex flex-col justify-center items-center border-2 ${isMyReservation
-                                  ? 'border-green-400 bg-gradient-to-br from-green-500 to-emerald-500'
-                                  : 'border-purple-400 bg-gradient-to-br from-purple-500 to-pink-500'
-                                  } shadow-lg`}
+                                className={`rounded-xl h-full flex flex-col justify-center items-center border-2 shadow-lg ${isUserResPast ? 'opacity-60 grayscale' : ''
+                                  } ${isMyReservation
+                                    ? 'border-green-400 bg-gradient-to-br from-green-500 to-emerald-500'
+                                    : 'border-purple-400 bg-gradient-to-br from-purple-500 to-pink-500'
+                                  }`}
                               >
                                 <div className="p-2 text-center">
                                   <div className="text-white text-xs font-bold mb-1">Pista reservada</div>
@@ -1721,16 +1742,28 @@ export default function ClubCalendarImproved({
                           const endTimeStr = `${String(endTime.getHours()).padStart(2, '0')}:${String(endTime.getMinutes()).padStart(2, '0')}`;
                           const isOwner = instructorId && instructorReservation.instructorId === instructorId;
 
+                          const isInstructorResPast = isTimeSlotPast(timeSlot);
+
                           return (
                             <td
                               key={court.id}
                               rowSpan={rowSpan}
-                              className="border border-gray-200 p-0.5 bg-white"
+                              className="border border-gray-200 p-0.5 bg-white relative overflow-hidden"
                             >
+                              {/* Línea de hora actual */}
+                              {isCurrentSlot && (
+                                <div
+                                  className="absolute w-full border-t-2 border-red-500 z-50 pointer-events-none"
+                                  style={{ top: `${lineTopOffset}px` }}
+                                >
+                                  <div className="absolute -left-1 -top-1 w-2 h-2 bg-red-500 rounded-full" />
+                                </div>
+                              )}
+
                               <div
                                 onClick={() => {
                                   // Solo permitir edición si es el dueño y no es pasado
-                                  if (isOwner && !isPast) {
+                                  if (isOwner && !isInstructorResPast) {
                                     handleReservationClick(
                                       court.id,
                                       court.number,
@@ -1739,7 +1772,8 @@ export default function ClubCalendarImproved({
                                     );
                                   }
                                 }}
-                                className={`rounded-xl h-full flex flex-col justify-center items-center border-2 border-orange-400 bg-gradient-to-br from-orange-500 to-amber-500 shadow-lg ${isOwner && !isPast ? 'cursor-pointer hover:from-orange-600 hover:to-amber-600 hover:scale-[1.02] transition-all' : ''
+                                className={`rounded-xl h-full flex flex-col justify-center items-center border-2 border-orange-400 bg-gradient-to-br from-orange-500 to-amber-500 shadow-lg ${isInstructorResPast ? 'opacity-60 grayscale' : ''
+                                  } ${isOwner && !isInstructorResPast ? 'cursor-pointer hover:from-orange-600 hover:to-amber-600 hover:scale-[1.02] transition-all' : ''
                                   }`}
                               >
                                 <div className="p-2 text-center">
@@ -1765,8 +1799,19 @@ export default function ClubCalendarImproved({
 
                         // Si no hay reserva ni clase confirmada, mostrar propuestas o celdas vacías
                         return (
-                          <td key={court.id} className={`border border-gray-200 p-0.5 h-10 bg-white relative ${isHalfHour ? 'border-b-[3px] border-b-gray-400 rounded-b-lg' : ''}`}>
+                          <td key={court.id} className={`border border-gray-200 p-0.5 h-10 bg-white relative overflow-hidden ${isHalfHour ? 'border-b-[3px] border-b-gray-400 rounded-b-lg' : ''}`}>
+                            {/* Línea de hora actual */}
+                            {isCurrentSlot && (
+                              <div
+                                className="absolute w-full border-t-2 border-red-500 z-50 pointer-events-none"
+                                style={{ top: `${lineTopOffset}px` }}
+                              >
+                                <div className="absolute -left-1 -top-1 w-2 h-2 bg-red-500 rounded-full" />
+                              </div>
+                            )}
+
                             {(viewType === 'clases' && selectedInstructor) ? (() => {
+                              const isPast = isTimeSlotPast(timeSlot);
                               const proposals = getClassProposalsInSlot(timeSlot, selectedInstructor);
                               const hasClass = instructorHasClassInSlot(timeSlot);
 
@@ -1792,20 +1837,21 @@ export default function ClubCalendarImproved({
 
                                 return (
                                   <div
-                                    onClick={() => handleProposalClick(timeSlot, selectedInstructor)}
-                                    className="bg-white rounded-lg p-1 cursor-pointer hover:shadow-xl hover:scale-105 transition-all h-full border border-gray-300 shadow-lg flex items-center relative overflow-visible"
+                                    onClick={() => !isPast && handleProposalClick(timeSlot, selectedInstructor)}
+                                    className={`bg-white rounded-lg p-1 transition-all h-full border border-gray-300 shadow-lg flex items-center relative overflow-visible ${isPast ? 'opacity-50 grayscale cursor-not-allowed' : 'cursor-pointer hover:shadow-xl hover:scale-105'
+                                      }`}
                                     style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1), inset 0 2px 4px 0 rgba(255, 255, 255, 0.6)' }}
                                   >
                                     {/* Indicador de múltiples opciones - esquina superior izquierda */}
                                     {hasMultipleOptions && (
-                                      <div className="absolute -top-2 -left-2 bg-blue-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-md border-2 border-white z-10">
+                                      <div className={`absolute -top-2 -left-2 bg-blue-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-md border-2 border-white z-10 ${isPast ? 'bg-gray-400' : ''}`}>
                                         {proposals.length}
                                       </div>
                                     )}
-                                    <div className="flex items-center gap-1.5 w-full">
-                                      {/* Foto del instructor a la izquierda */}
+                                    <div className="flex items-center gap-1 w-full">
+                                      {/* Foto del instructor a la izquierda - Reduced size */}
                                       <div className="flex-shrink-0">
-                                        <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-blue-500 shadow-md">
+                                        <div className="w-7 h-7 rounded-full overflow-hidden border-2 border-blue-500 shadow-md">
                                           <img
                                             src={instructor?.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(instructor?.name || 'I')}&background=random&color=fff&size=64`}
                                             alt={instructor?.name}
@@ -1815,19 +1861,17 @@ export default function ClubCalendarImproved({
                                       </div>
                                       {/* Texto a la derecha en dos líneas */}
                                       <div className="flex-1 min-w-0">
-                                        <div className="text-[10px] text-blue-600 font-bold leading-tight">
+                                        <div className="text-[9px] text-blue-600 font-bold leading-tight break-words">
                                           {playersCount > 0 ? `${playersCount} inscrito${playersCount > 1 ? 's' : ''}` : 'Iniciar Clase 60 Min'}
                                         </div>
-                                        <div className="text-[8px] text-gray-700 font-semibold flex flex-col leading-tight">
-                                          <span>Nivel/ {levelDisplay}</span>
-                                          <span className="text-[7px] text-gray-600">Precio por {selectedGroupSize} jugador{selectedGroupSize > 1 ? 'es' : ''}</span>
+                                        <div className="text-[8px] text-gray-700 font-semibold flex flex-col leading-tight mt-0.5">
+                                          <span className="truncate">Nivel/ {levelDisplay}</span>
                                         </div>
                                       </div>
-                                      {/* Recuadro de precio alineado a la derecha */}
-                                      <div className="flex-shrink-0 bg-white rounded-md px-2 py-1 border border-gray-200" style={{ boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.1)' }}>
-                                        <div className="text-[7px] text-gray-600 leading-tight">Precio por</div>
-                                        <div className="text-[7px] text-gray-600 leading-tight">jugador</div>
-                                        <div className="text-sm font-bold text-gray-800 leading-tight">{Math.round(pricePerSlot)}€</div>
+                                      {/* Recuadro de precio alineado a la derecha - Simplified */}
+                                      <div className="flex-shrink-0 bg-white rounded-md px-1.5 py-0.5 border border-gray-200 flex flex-col items-center justify-center min-w-[32px]" style={{ boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.1)' }}>
+                                        <div className="text-[6px] text-gray-500 leading-none">p/p</div>
+                                        <div className="text-xs font-bold text-gray-800 leading-tight">{Math.round(pricePerSlot)}€</div>
                                       </div>
                                     </div>
                                   </div>
@@ -1864,6 +1908,7 @@ export default function ClubCalendarImproved({
                               );
                             })() : (viewType === 'partidas') ? (() => {
                               // Modo Partidas - buscar propuestas de partida en este slot
+                              const isPast = isTimeSlotPast(timeSlot);
                               const matchProposals = getMatchProposalsInSlot(timeSlot);
 
                               if (matchProposals.length > 0) {
@@ -1903,23 +1948,25 @@ export default function ClubCalendarImproved({
 
                                 return (
                                   <div
-                                    onClick={() => handleMatchProposalClick(timeSlot)}
-                                    className="bg-white rounded-lg p-1 cursor-pointer hover:shadow-xl hover:scale-105 transition-all h-full border border-gray-300 shadow-lg flex items-center relative overflow-visible"
+                                    onClick={() => !isPast && handleMatchProposalClick(timeSlot)}
+                                    className={`bg-white rounded-lg p-1 transition-all h-full border border-gray-300 shadow-lg flex items-center relative overflow-visible ${isPast ? 'opacity-50 grayscale cursor-not-allowed' : 'cursor-pointer hover:shadow-xl hover:scale-105'
+                                      }`}
                                     style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1), inset 0 2px 4px 0 rgba(255, 255, 255, 0.6)' }}
                                   >
                                     {/* Indicador de múltiples opciones - esquina superior izquierda */}
                                     {hasMultipleOptions && (
-                                      <div className="absolute -top-2 -left-2 bg-green-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-md border-2 border-white z-10">
+                                      <div className={`absolute -top-2 -left-2 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-md border-2 border-white z-10 ${isPast ? 'bg-gray-400' : 'bg-green-500'
+                                        }`}>
                                         {matchProposals.length}
                                       </div>
                                     )}
-                                    <div className="flex items-center gap-1.5 w-full">
+                                    <div className="flex items-center gap-1 w-full">
                                       {/* Texto a la izquierda */}
                                       <div className="flex-1 min-w-0">
-                                        <div className="text-[10px] text-green-600 font-bold leading-tight">
+                                        <div className="text-[9px] text-green-600 font-bold leading-tight break-words">
                                           {playersCount > 0 ? `${playersCount} inscrito${playersCount > 1 ? 's' : ''}` : 'Iniciar Partida 90 Min'}
                                         </div>
-                                        <div className="text-[8px] text-gray-700 font-semibold leading-tight">
+                                        <div className="text-[8px] text-gray-700 font-semibold leading-tight mt-0.5">
                                           <span>Nivel/ {levelDisplay}</span>
                                           {showCategory && (
                                             <>
@@ -1928,15 +1975,11 @@ export default function ClubCalendarImproved({
                                             </>
                                           )}
                                         </div>
-                                        <div className="text-[7px] text-gray-600 leading-tight mt-0.5">
-                                          Partida de 4 jugadores
-                                        </div>
                                       </div>
                                       {/* Recuadro de precio alineado a la derecha */}
-                                      <div className="flex-shrink-0 bg-white rounded-md px-2 py-1 border border-gray-200" style={{ boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.1)' }}>
-                                        <div className="text-[7px] text-gray-600 leading-tight">Precio por</div>
-                                        <div className="text-[7px] text-gray-600 leading-tight">{pricePerPlayers === 1 ? 'jugador' : `${pricePerPlayers} jugadores`}</div>
-                                        <div className="text-sm font-bold text-gray-800 leading-tight">{Math.round(priceToShow)}€</div>
+                                      <div className="flex-shrink-0 bg-white rounded-md px-1.5 py-0.5 border border-gray-200 flex flex-col items-center justify-center min-w-[32px]" style={{ boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.1)' }}>
+                                        <div className="text-[6px] text-gray-500 leading-none">{pricePerPlayers === 1 ? 'p/p' : 'total'}</div>
+                                        <div className="text-xs font-bold text-gray-800 leading-tight">{Math.round(priceToShow)}€</div>
                                       </div>
                                     </div>
                                   </div>
@@ -1960,7 +2003,7 @@ export default function ClubCalendarImproved({
 
                               // Celda vacía normal (no instructor o pasado)
                               return (
-                                <div className="bg-white rounded-lg p-0.5 h-full border-2 border-gray-300 shadow-[0_2px_4px_rgba(0,0,0,0.08)] flex items-center justify-center">
+                                <div className={`h-full flex items-center justify-center rounded ${isPast ? 'bg-gray-50' : 'bg-white border-2 border-gray-300 shadow-[0_2px_4px_rgba(0,0,0,0.08)]'}`}>
                                   <div className="text-center">
                                     <div className="text-[9px] text-gray-400">—</div>
                                   </div>
@@ -1968,6 +2011,7 @@ export default function ClubCalendarImproved({
                               );
                             })() : (viewType === 'reservar-pistas') ? (() => {
                               // Modo Reservar Pistas - mostrar botón de reserva
+                              const isPast = isTimeSlotPast(timeSlot);
                               if (!isPast) {
                                 // Calcular precio según duración seleccionada
                                 const pricePerHour = 10; // Precio por hora base

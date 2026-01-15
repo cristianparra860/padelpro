@@ -16,10 +16,15 @@ export async function GET(request: NextRequest) {
 
       // Si hay fecha, mostramos SOLO los instructores que tengan clases ese día (activos o inactivos)
       if (date) {
-        console.log('📅 Fecha especificada:', date, '- Filtrando estrictamente por clases en esta fecha');
-        const searchDate = new Date(date);
-        const startOfDay = searchDate.getTime();
-        const endOfDay = startOfDay + 86400000;
+        // Fix: Use Date objects for Prisma query, not timestamps
+        // Input date is YYYY-MM-DD. new Date(date) creates UTC midnight if ISO-ish
+        const startOfDay = new Date(date);
+        startOfDay.setUTCHours(0, 0, 0, 0); // Force midnight UTC
+
+        const endOfDay = new Date(startOfDay);
+        endOfDay.setUTCDate(endOfDay.getUTCDate() + 1);
+
+        console.log(`📅 Date Range: ${startOfDay.toISOString()} -> ${endOfDay.toISOString()}`);
 
         instructors = await prisma.$queryRaw`
           SELECT DISTINCT
@@ -40,6 +45,7 @@ export async function GET(request: NextRequest) {
           JOIN TimeSlot ts ON i.id = ts.instructorId
           WHERE i.clubId = ${clubId} 
           AND ts.start >= ${startOfDay} AND ts.start < ${endOfDay}
+          AND ts.courtId IS NULL
           ORDER BY i.name ASC
         `;
       } else {

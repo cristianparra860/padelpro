@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/card';
@@ -23,7 +23,7 @@ interface MockClass {
     isVisible: boolean;
 }
 
-// --- CONFIGURACIÓN DE PASOS ---
+// --- CONFIGURACI├ôN DE PASOS ---
 const FLOW_STEPS = [
     { id: 'STEP_1_WALLET_INTRO', label: '1. Cartera' },
     { id: 'STEP_2_ADD_FUNDS', label: '2. Recarga' },
@@ -237,7 +237,7 @@ export default function DemoStoryPage() {
                 <div className="relative">
                     {!classes[0].isVisible ? (
                         <div className="h-64 flex items-center justify-center text-slate-400 italic bg-slate-100/50 rounded-2xl border-dashed border-2 border-slate-200">
-                            Las clases aparecerán aquí...
+                            Las clases aparecer├ín aqu├¡...
                         </div>
                     ) : (
                         <div className="flex gap-2 overflow-x-auto pb-8 pt-6 snap-x px-4 justify-start md:justify-center no-scrollbar">
@@ -284,7 +284,7 @@ export default function DemoStoryPage() {
                         )}
                     </Card>
 
-                    {/* Retención */}
+                    {/* Retenci├│n */}
                     <Card className={cn("p-5 border-0 shadow-[0_4px_20px_rgba(0,0,0,0.05)] relative overflow-hidden h-32 transition-all duration-500 hover:scale-[1.01]",
                         maxBlockedPrice > 0 ? "bg-amber-50 ring-1 ring-amber-200" : isPaid ? "bg-green-50 ring-1 ring-green-200" : "bg-white")}>
                         <div className="flex justify-between items-start">
@@ -323,9 +323,9 @@ export default function DemoStoryPage() {
                     </Card>
                 </div>
 
-                {/* 4. CONTROL Y NAVEGACIÓN VERTICAL */}
+                {/* 4. CONTROL Y NAVEGACI├ôN VERTICAL */}
                 <div className="flex flex-col gap-4 items-center mt-6 max-w-2xl mx-auto">
-                    {/* Botón Principal ARRIBA */}
+                    {/* Bot├│n Principal ARRIBA */}
                     <Button
                         onClick={nextStep}
                         className="w-full text-lg py-8 px-8 bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-slate-800 hover:border-slate-300 shadow-xl rounded-2xl transition-all active:scale-95 group flex flex-col gap-1 items-center justify-center"
@@ -335,7 +335,7 @@ export default function DemoStoryPage() {
                             {step === 'STEP_15_END' ? <RefreshCw className="w-6 h-6" /> : <SkipForward className="w-6 h-6 group-hover:translate-x-1 transition-transform" />}
                         </span>
                         <span className="text-xs text-slate-400 font-normal">
-                            {step === 'STEP_15_END' ? "Reinicia la demostración" : "Haz clic para continuar la historia"}
+                            {step === 'STEP_15_END' ? "Reinicia la demostraci├│n" : "Haz clic para continuar la historia"}
                         </span>
                     </Button>
 
@@ -405,11 +405,11 @@ function ClassCard({ data, isVisible, index, step }: { data: MockClass, isVisibl
         <div
             style={{ animationDelay: `${delay}ms` }}
             className={cn(
-                "bg-white rounded-[20px] shadow-[0_12px_32px_-4px_rgba(0,0,0,0.12)] border border-slate-100/50 overflow-hidden w-full relative transition-all duration-500 animate-in slide-in-from-right-4 fade-in fill-mode-forwards",
+                "bg-white rounded-2xl shadow-[0_8px_16px_rgba(0,0,0,0.1)] border border-gray-200 overflow-hidden w-full relative transition-all duration-500 animate-in slide-in-from-right-4 fade-in fill-mode-forwards",
                 isVisible ? "opacity-100" : "opacity-0",
                 !isVisible && "translate-y-4",
-                isReservedByMe && !isPaidByMe && !isCancelledByMe ? "ring-2 ring-amber-400 scale-105 z-10 shadow-[0_20px_40px_-5px_rgba(251,191,36,0.3)]" : "",
-                isPaidByMe ? "ring-4 ring-green-500 scale-110 z-20 shadow-[0_25px_50px_-12px_rgba(34,197,94,0.4)]" : "",
+                isReservedByMe && !isPaidByMe && !isCancelledByMe ? "ring-2 ring-amber-400 scale-105 z-10" : "",
+                isPaidByMe ? "ring-4 ring-green-500 scale-110 z-20" : "",
                 isCancelledByMe ? "opacity-70 grayscale-[0.5] scale-95" : ""
             )}
         >
@@ -420,60 +420,99 @@ function ClassCard({ data, isVisible, index, step }: { data: MockClass, isVisibl
                     </div>
                 </div>
             )}
-            <div className="bg-gradient-to-r from-[#3b82f6] to-[#a855f7] py-2 text-center shadow-sm relative z-10">
-                <span className="text-white text-[10px] font-black uppercase tracking-wider block">CLASES (60 MIN)</span>
+
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-3 py-2 flex items-center justify-center">
+                <div className="text-white text-sm font-black uppercase">CLASES (60 MIN)</div>
             </div>
-            <div className="px-3 pt-3 pb-3 relative flex flex-col gap-2.5">
-                <div className="flex justify-between items-start">
-                    <div className="flex gap-2 items-center">
-                        <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-slate-50 shadow-sm relative z-0">
+
+            <div className="px-3 pt-2 pb-3 relative flex flex-col gap-2">
+                {/* Instructor Info */}
+                <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className="w-12 h-12 rounded-full bg-gray-200 overflow-hidden flex items-center justify-center flex-shrink-0">
                             <img src={`https://i.pravatar.cc/150?u=${data.id}`} alt="Instructor" className="w-full h-full object-cover" />
                         </div>
-                        <div className="flex flex-col -space-y-0.5">
-                            <span className="text-[10px] font-bold text-slate-800 leading-tight">Juan Demo</span>
-                            <div className="flex items-center gap-0.5">
-                                <span className="text-[8px] text-amber-400">★★★★★</span>
-                                <span className="text-[8px] text-slate-400 font-medium">(4.8)</span>
+                        <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-gray-900 text-xs leading-tight">María</h3>
+                            <div className="flex items-center gap-1 mt-0.5">
+                                <div className="flex items-center">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                        <svg key={star} className="w-1.5 h-1.5 text-yellow-400 fill-current" viewBox="0 0 20 20">
+                                            <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+                                        </svg>
+                                    ))}
+                                </div>
+                                <span className="text-[10px] text-gray-600 ml-1">(4.5)</span>
                             </div>
                         </div>
                     </div>
-                    <button className="bg-[#a855f7] text-white rounded-[6px] flex items-center pr-2 pl-1.5 py-1 gap-0.5 shadow-md shadow-purple-200 hover:bg-[#9333ea] transition-all active:scale-95 group">
-                        <Plus className="w-3 h-3 group-hover:rotate-90 transition-transform duration-300" />
-                        <div className="flex flex-col leading-[0.8] origin-left">
-                            <span className="text-[8px] font-bold text-left">Reserva</span>
-                            <span className="text-[8px] font-bold text-left">privada</span>
+
+                    <button className="bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded-lg font-medium text-[10px] transition-colors shadow-lg flex items-center gap-1.5">
+                        <Plus className="w-3 h-3" />
+                        <div className="flex flex-col items-start leading-tight">
+                            <span>Reserva</span>
+                            <span>privada</span>
                         </div>
                     </button>
                 </div>
 
-                <div className="flex justify-between gap-1 w-full">
-                    <Pill label="Nivel" value="Abierto" />
-                    <Pill label="Cat." value="Abierta" />
-                    <Pill label="Pista" value={isFinalState ? "Pista 1" : "Pista"} isBlinking={isFinalState} />
-                </div>
-
-                <div className="border border-slate-100 rounded-xl p-2 bg-slate-50/50 shadow-inner flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                        <span className="text-xl font-black text-slate-800 leading-none tracking-tight">13</span>
-                        <div className="flex flex-col leading-none gap-0.5">
-                            <span className="text-[8px] font-black text-slate-700 uppercase">MARTES</span>
-                            <span className="text-[7px] text-slate-400 font-medium">Enero</span>
+                {/* Pills */}
+                <div className="grid grid-cols-3 gap-1 text-center text-sm text-gray-600 border-b border-gray-100 pb-0.5">
+                    <div>
+                        <div className="font-medium text-gray-900 text-[10px]">Nivel</div>
+                        <div className="capitalize px-2 py-1.5 rounded-full text-xs font-semibold shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] bg-blue-100 text-blue-800">
+                            4-5.5
                         </div>
                     </div>
-                    <div className="text-right flex flex-col items-end">
-                        <span className="text-sm font-black text-slate-800 block leading-none tracking-tight">{data.time}</span>
-                        <span className="text-[8px] text-slate-400 flex items-center justify-end gap-0.5 mt-0.5 font-medium">
-                            <Clock className="w-2.5 h-2.5" /> 60 min
-                        </span>
+                    <div>
+                        <div className="font-medium text-gray-900 text-[10px]">Cat.</div>
+                        <div className="capitalize px-2 py-1.5 rounded-full text-xs font-semibold shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] bg-blue-100 text-blue-800">
+                            Chicos
+                        </div>
+                    </div>
+                    <div>
+                        <div className="font-medium text-gray-900 text-[10px]">Pista</div>
+                        <div className={cn(
+                            "px-2 py-1.5 rounded-full text-xs font-semibold shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]",
+                            isFinalState ? "bg-blue-100 text-blue-700 animate-heartbeat ring-2 ring-amber-400" : "text-gray-600"
+                        )}>
+                            {isFinalState ? "Pista 1" : "Pista"}
+                        </div>
                     </div>
                 </div>
 
-                <div className="space-y-1.5">
-                    <PricingRow count={1} price={60} />
-                    <PricingRow count={2} price={30} />
-                    <PricingRow count={3} price={20} />
+                {/* Date & Time */}
+                <div className="py-0.5">
+                    <div className="bg-gray-50 rounded-xl p-1 border border-gray-200">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="text-[1.25rem] font-black text-gray-900 leading-none min-w-[2rem] text-center">14</div>
+                                <div className="flex flex-col justify-center gap-0.5">
+                                    <div className="text-xs font-bold text-gray-900 uppercase tracking-tight leading-none">MIÉRCOLES</div>
+                                    <div className="text-xs font-normal text-gray-500 capitalize leading-none">Enero</div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="text-right">
+                                    <div className="text-xl font-bold text-gray-900 leading-none">{data.time}</div>
+                                    <div className="text-[10px] text-gray-500 flex items-center justify-end gap-0.5 mt-0.5">
+                                        <Clock className="w-2 h-2" />
+                                        <span>60 min</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Pricing */}
+                <div className="space-y-1">
+                    <PricingRow count={1} price={30} />
+                    <PricingRow count={2} price={15} />
+                    <PricingRow count={3} price={10} />
                     <div className="flex items-center justify-between pt-0.5">
-                        <div className="flex gap-1 grayscale-0">
+                        <div className="flex gap-1">
                             {data.spots.map((spot, i) => (
                                 <PricingCircle
                                     key={i}
@@ -486,12 +525,13 @@ function ClassCard({ data, isVisible, index, step }: { data: MockClass, isVisibl
                                 />
                             ))}
                         </div>
-                        <span className="text-xs font-black text-slate-900 tracking-tight">15.00 €</span>
+                        <span className="text-base font-black text-gray-900">€ 7.50</span>
                     </div>
                 </div>
 
-                <div className="pt-2 border-t border-slate-100 text-center">
-                    <span className="text-[7px] text-slate-400 font-bold mb-1 block uppercase tracking-wide">Disponibilidad de pistas</span>
+                {/* Court Availability */}
+                <div className="pt-2 border-t border-gray-100 text-center">
+                    <span className="text-[10px] text-gray-400 font-bold mb-1 block uppercase tracking-wide">Disponibilidad de pistas</span>
                     <div className="flex justify-center gap-2">
                         {isFinalState ? (
                             <TrackIcon status="free" label="1" isBlinking={true} />
@@ -510,6 +550,7 @@ function ClassCard({ data, isVisible, index, step }: { data: MockClass, isVisibl
     );
 }
 
+
 function Pill({ label, value, isBlinking }: { label: string, value: string, isBlinking?: boolean }) {
     return (
         <div className={cn("bg-white border border-slate-200 shadow-[0_2px_6px_rgba(0,0,0,0.04)] rounded-full flex-1 py-1 flex flex-col items-center justify-center min-w-0 transition-all", isBlinking && "animate-heartbeat ring-2 ring-amber-400")}>
@@ -527,7 +568,7 @@ function PricingRow({ count, price }: { count: number, price: number }) {
                     <PricingCircle key={i} label="Libre" isPlus={true} isSmall />
                 ))}
             </div>
-            <span className="text-[10px] font-bold text-slate-800 group-hover:scale-105 transition-transform">{price.toFixed(2)} €</span>
+            <span className="text-sm font-bold text-slate-900 group-hover:scale-105 transition-transform">{price.toFixed(2)} €</span>
         </div>
     );
 }

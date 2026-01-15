@@ -14,7 +14,7 @@ export async function POST(
   try {
     const { userId } = await request.json();
     const { matchGameId } = await params;
-    
+
     if (!userId) {
       return NextResponse.json(
         { error: 'No autorizado' },
@@ -75,63 +75,87 @@ export async function POST(
       // Solo procesar devoluciones si hay bookings activos
       if (activeBookings.length > 0) {
         for (const booking of activeBookings) {
-          // Calcular el monto a devolver
           const amountBlockedCents = booking.amountBlocked || 0;
-          // Convertir céntimos a puntos (1 punto = 1€ = 100 céntimos)
-          const pointsToRefund = Math.round(amountBlockedCents / 100);
-        
-        if (pointsToRefund > 0) {
-          // Devolver puntos al usuario
-          await tx.user.update({
-            where: { id: booking.userId },
+          const pointsUsed = booking.pointsUsed || 0;
+          const isPaidWithPoints = booking.paidWithPoints;
+          const isConfirmed = booking.status === 'CONFIRMED';
+
+          if (isConfirmed) {
+            // == CONFIRMED (Pagado) -> REEMBOLSO + LOG ==
+            if (isPaidWithPoints) {
+              // Reembolsar Puntos
+              const updatedUser = await tx.user.update({
+                where: { id: booking.userId },
+                data: { points: { increment: pointsUsed } },
+                select: { points: true, blockedPoints: true }
+              });
+
+              // Registrar transacción de reembolso
+              await tx.transaction.create({
+                data: {
+                  userId: booking.userId,
+                  type: 'points',
+                  action: 'refund',
+                  amount: pointsUsed,
+                  balance: updatedUser.points - updatedUser.blockedPoints,
+                  concept: `Devolución por cancelación de partida (Admin) - ${new Date(matchGame.start).toLocaleDateString()}`,
+                  relatedId: booking.id,
+                  relatedType: 'matchGameBooking'
+                }
+              });
+
+              totalRefunded += pointsUsed; // Asumimos reportar puntos
+            } else {
+              // Reembolsar Créditos
+              const updatedUser = await tx.user.update({
+                where: { id: booking.userId },
+                data: { credits: { increment: amountBlockedCents } },
+                select: { credits: true, blockedCredits: true }
+              });
+
+              // Registrar transacción de reembolso
+              await tx.transaction.create({
+                data: {
+                  userId: booking.userId,
+                  type: 'credit',
+                  action: 'refund',
+                  amount: amountBlockedCents,
+                  balance: updatedUser.credits - updatedUser.blockedCredits,
+                  concept: `Devolución por cancelación de partida (Admin) - ${new Date(matchGame.start).toLocaleDateString()}`,
+                  relatedId: booking.id,
+                  relatedType: 'matchGameBooking'
+                }
+              });
+
+              totalRefunded += amountBlockedCents; // Cents
+            }
+          } else {
+            // == PENDING (Bloqueado) -> DESBLOQUEO SILENCIOSO (SIN LOG) ==
+            if (isPaidWithPoints) {
+              // Desbloquear Puntos
+              await tx.user.update({
+                where: { id: booking.userId },
+                data: { blockedPoints: { decrement: pointsUsed } }
+              });
+            } else {
+              // Desbloquear Créditos
+              await tx.user.update({
+                where: { id: booking.userId },
+                // Usar decrement directo del monto bloqueado. 
+                // updateUserBlockedCredits podría ser más seguro pero estamos en transacción.
+                data: { blockedCredits: { decrement: amountBlockedCents } }
+              });
+            }
+          }
+
+          // Cancelar el booking
+          await tx.matchGameBooking.update({
+            where: { id: booking.id },
             data: {
-              credits: {
-                increment: pointsToRefund
-              }
+              status: 'CANCELLED',
+              updatedAt: new Date()
             }
           });
-
-          totalRefunded += pointsToRefund;
-          refunds.push({
-            userId: booking.userId,
-            name: booking.user.name || 'Usuario',
-            amount: pointsToRefund
-          });
-        }
-
-        // Cancelar el booking
-        await tx.matchGameBooking.update({
-          where: { id: booking.id },
-          data: {
-            status: 'CANCELLED'
-          }
-        });
-
-        // Obtener saldo actual del usuario
-        const userBalance = await tx.user.findUnique({
-          where: { id: booking.userId },
-          select: { credits: true }
-        });
-
-        // Registrar la transacción de devolución
-        await tx.transaction.create({
-          data: {
-            userId: booking.userId,
-            type: 'points',
-            action: 'add',
-            amount: pointsToRefund,
-            balance: (userBalance?.credits || 0) + pointsToRefund,
-            concept: `Devolución por cancelación de partida - ${new Date(matchGame.start).toLocaleDateString('es-ES', { 
-              day: '2-digit', 
-              month: '2-digit', 
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            })}`,
-            relatedId: booking.id,
-            relatedType: 'booking'
-          }
-        });
         }
       }
 
@@ -146,7 +170,7 @@ export async function POST(
       return { totalRefunded, refunds, cancelledBookings: activeBookings.length };
     });
 
-    const message = result.cancelledBookings === 0 
+    const message = result.cancelledBookings === 0
       ? 'Partida cerrada correctamente'
       : `Partida cancelada. ${result.cancelledBookings} reserva(s) cancelada(s) y puntos devueltos.`;
 
