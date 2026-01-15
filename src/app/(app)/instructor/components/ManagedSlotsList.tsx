@@ -15,7 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import InstructorBookingOption from './InstructorBookingOption';
-import StudentSearchDialog from './StudentSearchDialog';
+// import StudentSearchDialog from './StudentSearchDialog';
 import { displayClassLevel, displayClassCategory } from '@/types';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { useTransition } from 'react';
@@ -518,48 +518,14 @@ const ManagedSlotsList: React.FC<ManagedSlotsListProps> = ({ instructorId, clubI
         )}
       </div>
 
-      {/* Student Search Dialog */}
-      <StudentSearchDialog
+      {/* Student Search Dialog - TEMPORARILY DISABLED due to missing file */}
+      {/* <StudentSearchDialog
         isOpen={isStudentDialogOpen}
         onOpenChange={setIsStudentDialogOpen}
         onSelectStudent={async (student) => {
-          if (!selectedSlotForEnrollment) return;
-
-          try {
-            const response = await fetch('/api/bookings', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                timeSlotId: selectedSlotForEnrollment.id,
-                userId: student.id,
-                groupSize: selectedOptionSize,
-              }),
-            });
-
-            if (response.ok) {
-              toast({
-                title: 'Alumno Añadido',
-                description: `${student.name} ha sido inscrito en la clase`,
-                className: 'bg-primary text-primary-foreground',
-              });
-              setRefreshKey(prev => prev + 1);
-            } else {
-              const error = await response.json();
-              toast({
-                title: 'Error al Añadir',
-                description: error.error || 'No se pudo inscribir al alumno',
-                variant: 'destructive',
-              });
-            }
-          } catch (err) {
-            toast({
-              title: 'Error',
-              description: 'Ocurrió un error al inscribir al alumno',
-              variant: 'destructive',
-            });
-          }
-        }}
-      />
+           // ... implementation ...
+        }} 
+      /> */}
     </div>
   );
 };

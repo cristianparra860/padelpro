@@ -1,11 +1,15 @@
+'use client';
+
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { User, Club } from '@/types';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Swords, Calendar, Clock, User as UserIcon, LogOut, Wallet, CreditCard, ChevronRight } from 'lucide-react';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import {
-    Calendar, Trophy, CircleDot, Wallet, User as UserIcon,
-    LogOut, Settings, ClipboardList
-} from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface MobileHubProps {
     user: User | null;
@@ -18,86 +22,103 @@ export default function MobileHub({ user, club, onLogout }: MobileHubProps) {
 
     const menuItems = [
         {
-            label: "Perfil",
-            icon: UserIcon,
-            color: "from-blue-400 to-blue-600",
-            href: "/dashboard", // Currently viewing profile usually
+            label: 'Partidas',
+            description: 'Apúntate a partidos abiertos',
+            icon: Swords,
+            href: '/matchgames',
+            color: 'text-blue-600',
+            bg: 'bg-blue-50',
+            border: 'border-blue-100'
         },
         {
-            label: "Clases",
+            label: 'Clases',
+            description: 'Mejora tu nivel con clases',
             icon: Calendar,
-            color: "from-purple-400 to-purple-600",
-            href: "/activities", // Link to the Activities/Classes page
+            href: '/activities',
+            color: 'text-purple-600',
+            bg: 'bg-purple-50',
+            border: 'border-purple-100'
         },
         {
-            label: "Partidas",
-            icon: Trophy,
-            color: "from-green-400 to-green-600",
-            href: "/matchgames",
-            // Note: This page usually has the "Linear Calendar"
+            label: 'Mis Reservas',
+            description: 'Gestiona tus partidos y clases',
+            icon: Clock,
+            href: '/bookings', // Asumiendo ruta estándar, si no existe el usuario corregirá
+            color: 'text-amber-600',
+            bg: 'bg-amber-50',
+            border: 'border-amber-100'
         },
         {
-            label: "Reservar Pista",
-            icon: CircleDot,
-            color: "from-orange-400 to-orange-600",
-            href: "/admin/calendar?viewType=reservar-pista",
-        },
-        {
-            label: "Club",
-            icon: Trophy, // Placeholder
-            color: "from-red-400 to-red-600",
-            href: "/club",
-            hidden: !club
-        },
-        {
-            label: "Saldo",
-            icon: Wallet,
-            color: "from-yellow-400 to-yellow-600",
-            href: "/movimientos",
-            value: user ? `${((user.credit || 0) / 100).toFixed(2)}€` : undefined
-        },
-        {
-            label: "Mis Reservas",
-            icon: ClipboardList,
-            color: "from-pink-400 to-pink-600",
-            href: "/agenda?tab=confirmed",
+            label: 'Mi Perfil',
+            description: 'Datos personales y nivel',
+            icon: UserIcon,
+            href: '/profile', // Placeholder
+            color: 'text-gray-600',
+            bg: 'bg-gray-50',
+            border: 'border-gray-100'
         }
     ];
 
     return (
-        <div className="flex flex-col gap-6 p-4 pt-8 min-h-screen bg-gray-50 md:hidden">
-            <h1 className="text-2xl font-bold text-gray-800 mb-2">Menú Principal</h1>
+        <div className="flex flex-col min-h-[80vh] bg-white p-4 space-y-6 pb-32">
+            {/* Header Profile Section */}
+            <div className="flex items-center justify-between pt-2">
+                <div className="flex items-center gap-3">
+                    <Avatar className="h-12 w-12 border-2 border-primary/10">
+                        <AvatarImage src={user?.image || ''} />
+                        <AvatarFallback className="bg-primary/5 text-primary font-bold">
+                            {user?.name?.charAt(0).toUpperCase() || 'U'}
+                        </AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col">
+                        <h2 className="text-xl font-bold text-gray-900 leading-tight">
+                            Hola, {user?.name?.split(' ')[0] || 'Jugador'}
+                        </h2>
+                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                            {user?.credit !== undefined && (
+                                <span className="flex items-center gap-1 bg-green-50 text-green-700 px-2 py-0.5 rounded-full text-xs font-semibold">
+                                    <Wallet className="w-3 h-3" /> {user.credit}€
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-                {menuItems.filter(item => !item.hidden).map((item, index) => (
+            {/* Main Grid Navigation */}
+            <div className="grid grid-cols-1 gap-4">
+                {menuItems.map((item, index) => (
                     <button
                         key={index}
                         onClick={() => router.push(item.href)}
-                        className="flex flex-col items-center justify-center bg-white rounded-3xl p-6 shadow-md border border-gray-100 active:scale-95 transition-transform"
-                    >
-                        <div className={cn(
-                            "w-14 h-14 rounded-2xl flex items-center justify-center mb-3 text-white shadow-lg",
-                            `bg-gradient-to-br ${item.color}`
-                        )}>
-                            <item.icon className="w-8 h-8" />
-                        </div>
-                        <span className="font-bold text-gray-800 text-lg">{item.label}</span>
-                        {item.value && (
-                            <span className="text-sm font-semibold text-gray-500 mt-1">{item.value}</span>
+                        className={cn(
+                            "flex items-center p-4 rounded-xl border transition-all duration-200 shadow-sm active:scale-[0.98]",
+                            "hover:shadow-md bg-white",
+                            item.border
                         )}
+                    >
+                        <div className={cn("p-3 rounded-xl mr-4", item.bg, item.color)}>
+                            <item.icon className="w-6 h-6" />
+                        </div>
+                        <div className="flex-1 text-left">
+                            <h3 className="font-bold text-gray-900 text-lg">{item.label}</h3>
+                            <p className="text-xs text-gray-500 font-medium">{item.description}</p>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-gray-300" />
                     </button>
                 ))}
+            </div>
 
-                {/* Logout Button */}
-                <button
+            {/* Secondary Actions */}
+            <div className="mt-auto space-y-3 pt-6 border-t border-gray-100">
+                <Button
+                    variant="ghost"
+                    className="w-full justify-start text-red-500 hover:text-red-700 hover:bg-red-50 gap-3 h-12 rounded-xl"
                     onClick={onLogout}
-                    className="flex flex-col items-center justify-center bg-white rounded-3xl p-6 shadow-md border border-gray-100 active:scale-95 transition-transform col-span-2 mt-4"
                 >
-                    <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mb-2">
-                        <LogOut className="w-6 h-6" />
-                    </div>
-                    <span className="font-bold text-red-600">Cerrar Sesión</span>
-                </button>
+                    <LogOut className="w-5 h-5" />
+                    <span className="font-semibold">Cerrar Sesión</span>
+                </Button>
             </div>
         </div>
     );

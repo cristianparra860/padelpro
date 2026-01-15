@@ -240,17 +240,19 @@ export default function DateSelector({
                   }
                   ${layoutOrientation === 'vertical'
                     ? (mounted && selected ? 'w-full h-[70px] rounded-[20px]' : 'w-full h-[50px] rounded-[16px]')
-                    : (mounted && selected ? 'w-[60px] h-[84px] rounded-[24px] z-10 -translate-y-1' : 'w-[52px] h-[72px] rounded-[20px]')
+                    : (mounted && selected
+                      ? 'w-[50px] h-[70px] md:w-[60px] md:h-[84px] rounded-[20px] md:rounded-[24px] z-10 -translate-y-1'
+                      : 'w-[42px] h-[58px] md:w-[52px] md:h-[72px] rounded-[16px] md:rounded-[20px]')
                   }
                 `}
               >
-                <span className={`${mounted && selected ? 'text-[10px] text-gray-300' : 'text-[9px]'} font-bold uppercase tracking-wider mb-0.5`}>
+                <span className={`${mounted && selected ? 'text-[9px] md:text-[10px] text-gray-300' : 'text-[8px] md:text-[9px]'} font-bold uppercase tracking-wider mb-0.5`}>
                   {dayName}
                 </span>
-                <span className={`${mounted && selected ? 'text-[28px] text-white' : 'text-2xl text-gray-800'} font-black leading-none`}>
+                <span className={`${mounted && selected ? 'text-[22px] md:text-[28px] text-white' : 'text-[18px] md:text-2xl text-gray-800'} font-black leading-none`}>
                   {dayNumber}
                 </span>
-                <span className={`${mounted && selected ? 'text-[9px] text-gray-400 mt-0.5' : 'text-[8px] mt-0.5'} uppercase font-medium`}>
+                <span className={`${mounted && selected ? 'text-[8px] md:text-[9px] text-gray-400 mt-0.5' : 'text-[7px] md:text-[8px] mt-0.5'} uppercase font-medium`}>
                   {monthName}
                 </span>
               </button>
