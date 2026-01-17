@@ -579,6 +579,16 @@ export function ClassesDisplay({
       console.log(`🔢 Filtro de jugadores ACTIVO con: [${localPlayerCounts.join(', ')}]`);
 
       filtered = filtered.filter(slot => {
+        // 🎯 SI EL USUARIO TIENE RESERVA, SIEMPRE MOSTRAR
+        const userHasBooking = currentUser?.id && (slot.bookings || []).some(
+          booking => booking.userId === currentUser.id && booking.status !== 'CANCELLED'
+        );
+
+        if (userHasBooking) {
+          console.log(`   ✅ Clase ${slot.id?.substring(0, 8)}: Usuario tiene reserva - SIEMPRE MOSTRAR`);
+          return true;
+        }
+
         // ♻️ CLASES RECICLADAS: Si tiene bookings cancelados con isRecycled=true, SIEMPRE mostrarla
         const hasCourtAssigned = slot.courtNumber != null && slot.courtNumber > 0;
         const cancelledRecycled = (slot.bookings || []).filter(b => b.status === 'CANCELLED' && b.isRecycled === true);
@@ -589,27 +599,29 @@ export function ClassesDisplay({
           return true; // ✅ Las clases con plazas canceladas SIEMPRE se muestran
         }
 
-        // Una clase se muestra si tiene al menos UNA modalidad seleccionada con disponibilidad
-        // Por ejemplo: si seleccionas [2, 3, 4] (sin 1), la clase debe tener disponible 2, 3 o 4 jugadores
+        // Una clase se muestra si tiene al menos UNA modalidad seleccionada
+        // ✅ CAMBIO: Mostrar también si está LLENA (<= count en lugar de < count)
         const hasAvailableOption = localPlayerCounts.some(count => {
           // Contar reservas ACTIVAS (no canceladas) para esta modalidad
           const bookingsForThisMode = (slot.bookings || []).filter(
             b => b.groupSize === count && b.status !== 'CANCELLED'
           );
 
-          // Disponible = hay menos reservas que el número de jugadores de la modalidad
-          // Ejemplo: para 4 jugadores, si hay 3 o menos reservas, está disponible
-          const isAvailable = bookingsForThisMode.length < count;
+          // Si está vacía, mostrarla (disponible para cualquier configuración)
+          if ((slot.bookings || []).length === 0) return true;
 
-          if (isAvailable) {
-            console.log(`   ✅ Clase ${slot.id?.substring(0, 8)}: tiene disponible ${count} jugadores (${bookingsForThisMode.length}/${count})`);
-          }
-
-          return isAvailable;
+          // Si tiene reservas de este tamaño, mostrarla INCLUSO SI ESTÁ COMPLETA
+          // (bookingsForThisMode.length <= count) cubre disponibles y completas
+          // Filtramos solo si EXCEDE la capacidad (error de datos?) o si no hay reservas de este tipo y hay de otros
+          return bookingsForThisMode.length <= count && bookingsForThisMode.length > 0;
         });
 
         if (!hasAvailableOption) {
-          console.log(`   ❌ Clase ${slot.id?.substring(0, 8)}: NO tiene ninguna opción disponible de [${localPlayerCounts.join(', ')}]`);
+          // Fallback: Si no coincide con ninguna opción explícita pero tiene reservas mixtas o raras, 
+          // ocultarla solo si estamos filtrando estrictamente.
+          // Pero el usuario quiere ver "todas". 
+          // Si el array de counts está vacío, se muestran todas (manejado arriba).
+          console.log(`   ❌ Clase ${slot.id?.substring(0, 8)}: NO coincide con filtros de jugadores [${localPlayerCounts.join(', ')}]`);
         }
 
         return hasAvailableOption;
@@ -821,7 +833,7 @@ export function ClassesDisplay({
   return (
     <div className="relative" ref={scrollContainerRef}>
 
-      <div className="hidden sm:block fixed left-4 top-[1130px] z-30 flex-col gap-1.5 items-start">
+      <div className="hidden sm:flex fixed left-4 top-[1130px] z-30 flex-col gap-1.5 items-start">
 
         {/* Título Filtros */}
         <div className="text-gray-700 font-bold text-sm uppercase tracking-wide mb-1 ml-2">
@@ -996,12 +1008,12 @@ export function ClassesDisplay({
             }
           }}
           disabled={!currentUser || (selectedInstructorIds.length === 0 && timeSlotFilter === 'all' && viewPreference === 'all' && localPlayerCounts.length === 4)}
-          className={`px-3.5 py-1.5 rounded-2xl font-medium text-xs transition-all shadow-md hover:shadow-lg w-full text-center ${(selectedInstructorIds.length > 0 || timeSlotFilter !== 'all' || viewPreference !== 'all' || localPlayerCounts.length < 4)
+          className={`px-3.5 py-1.5 rounded-2xl font-medium text-xs transition-all shadow-md hover:shadow-lg w-[198px] text-center ${(selectedInstructorIds.length > 0 || timeSlotFilter !== 'all' || viewPreference !== 'all' || localPlayerCounts.length < 4)
             ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white hover:scale-105'
             : 'bg-gray-200 text-gray-400 cursor-not-allowed'
             }`}
         >
-          💾 Guardar búsqueda
+          💾 Guardar filtros
         </button>
 
         {/* Botón Eliminar Filtros */}
@@ -1041,7 +1053,7 @@ export function ClassesDisplay({
             savedFilters.playerCounts.length !== 4 ||
             savedFilters.instructorIds.length > 0
           ))}
-          className={`px-3.5 py-1.5 rounded-2xl font-medium text-xs transition-all shadow-md hover:shadow-lg w-full text-center ${savedFilters && (
+          className={`px-3.5 py-1.5 rounded-2xl font-medium text-xs transition-all shadow-md hover:shadow-lg w-[198px] text-center ${savedFilters && (
             savedFilters.timeSlot !== 'all' ||
             savedFilters.viewType !== 'all' ||
             savedFilters.playerCounts.length !== 4 ||

@@ -31,6 +31,10 @@ interface MatchGameCardProps {
   showPrivateBookingButton?: boolean; // Control para mostrar/ocultar botón Reserva Privada
   showAdminCancelButton?: boolean; // Control para mostrar botón de cancelar partida (admin)
   onHideFromHistory?: () => void; // 🗑️ Callback para ocultar del historial (solo en partidas pasadas)
+  paidAmount?: number; // 💰 Monto pagado
+  refundedPoints?: number; // 💸 Puntos retornados
+  unlockedAmount?: number; // 🔓 Saldo desbloqueado
+  blockedAmount?: number; // 🔒 Saldo bloqueado
 }
 
 interface Booking {
@@ -59,6 +63,10 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
   showPrivateBookingButton = true, // Por defecto mostrar botón Reserva Privada
   showAdminCancelButton = false, // Por defecto no mostrar botón admin
   onHideFromHistory, // 🗑️ Callback para ocultar del historial
+  paidAmount, // 💰 Monto pagado
+  refundedPoints, // 💸 Puntos retornados
+  unlockedAmount, // 🔓 Saldo desbloqueado
+  blockedAmount, // 🔒 Saldo bloqueado
 }) => {
   const { toast } = useToast();
   const [booking, setBooking] = useState(false);
@@ -531,7 +539,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
   const spotsLeft = 4 - activeBookings.length;
 
   return (
-    <Card className="overflow-visible shadow-[0_12px_40px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.12)] transition-all duration-300 bg-white border-0 rounded-[32px] w-full mb-6 mx-auto md:mx-0">
+    <Card className="overflow-visible shadow-[0_12px_40px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.12)] transition-all duration-300 bg-white border-0 rounded-[32px] w-full mb-6 mx-auto md:mx-0 scale-100 md:scale-[0.8] md:origin-top">
       {/* Header con título PARTIDA */}
       <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 px-5 py-3 flex items-center justify-between rounded-t-[32px] shadow-sm relative z-10">
         <div className="text-white text-[13px] font-black uppercase tracking-widest flex items-center gap-2">
@@ -847,21 +855,70 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
         </div>
       </div>
 
-      {/* Botón Cancelar Inscripción */}
-      {showLeaveButton && isUserBooked && !isPastMatch && (
-        <div className="px-2.5 pb-2.5 pt-0">
-          <Button
-            variant="outline"
-            className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 h-8 text-xs font-semibold"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowLeaveDialog(true);
-            }}
-          >
-            Cancelar inscripción
-          </Button>
+      {/* 🦶 Footer Unificado (Square Buttons) */}
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+        <div className="flex items-center gap-2">
+          {/* Botón Cancelar (Rojo Cuadrado) */}
+          {showLeaveButton && isUserBooked && !isPastMatch && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowLeaveDialog(true);
+              }}
+              className="h-9 w-9 flex items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+              title="Cancelar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
+
+          {/* Botón Borrar (Gris Cuadrado) */}
+          {onHideFromHistory && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onHideFromHistory();
+              }}
+              className="h-9 w-9 flex items-center justify-center rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors"
+              title="Borrar del historial"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          )}
         </div>
-      )}
+
+        {/* Info Pago (Verde) / Reembolso (Naranja) */}
+        <div className="flex items-center gap-2">
+          {paidAmount !== undefined && isUserBooked && (
+            <div className="h-9 px-3 flex items-center justify-center bg-green-50 rounded-lg border border-green-100 text-green-700" title="Pagado">
+              <span className="text-xs font-medium mr-1">Pagado:</span>
+              <span className="text-sm font-bold">{paidAmount.toFixed(2)}€</span>
+            </div>
+          )}
+
+          {refundedPoints !== undefined && refundedPoints > 0 && (
+            <div className="h-9 px-3 flex items-center justify-center bg-orange-50 rounded-lg border border-orange-100 text-orange-700" title="Puntos Retornados">
+              <span className="text-sm font-bold">{refundedPoints.toFixed(2)} pts</span>
+            </div>
+          )}
+
+          {unlockedAmount !== undefined && unlockedAmount > 0 && (
+            <div className="h-9 px-3 flex items-center justify-center bg-blue-50 rounded-lg border border-blue-100 text-blue-700" title="Saldo Desbloqueado">
+              <span className="text-xs font-medium mr-1">Desbloqueado:</span>
+              <span className="text-sm font-bold">{unlockedAmount.toFixed(2)}€</span>
+            </div>
+          )}
+
+          {blockedAmount !== undefined && blockedAmount > 0 && (
+            <div className="h-9 px-3 flex items-center justify-center bg-purple-50 rounded-lg border border-purple-100 text-purple-700" title="Saldo Bloqueado">
+              <span className="text-xs font-medium mr-1">Bloqueado:</span>
+              <span className="text-sm font-bold">{blockedAmount.toFixed(2)}€</span>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Confirm Dialog */}
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
@@ -997,7 +1054,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </Card >
   );
 };
 

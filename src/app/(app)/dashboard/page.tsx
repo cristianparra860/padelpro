@@ -43,6 +43,7 @@ function DashboardPageContent() {
     const SHOW_EURO_BALANCE = true;
 
     const [user, setUser] = useState<User | null>(null);
+    const [club, setClub] = useState<any>(null);
     const [isLoadingUser, setIsLoadingUser] = useState(true);
 
     // Solo usar useUserProfile si tenemos un usuario real cargado
@@ -72,9 +73,9 @@ function DashboardPageContent() {
 
     // Cargar usuario desde la API (solo cuando refreshKey cambie)
     useEffect(() => {
-        const loadUser = async () => {
+        const loadUserAndClub = async () => {
             try {
-                console.log('🔄 Cargando usuario desde API...');
+                console.log('🔄 Cargando usuario y club desde API...');
 
                 // Obtener token del localStorage
                 const token = localStorage.getItem('auth_token');
@@ -100,26 +101,55 @@ function DashboardPageContent() {
 
                 if (response.ok) {
                     const data = await response.json();
-                    const userData = data.user || data; // Soportar ambos formatos
-                    console.log('✅ Usuario cargado desde API:', {
-                        id: userData.id,
-                        email: userData.email,
-                        credits: userData.credits,
-                        blockedCredits: userData.blockedCredits,
-                        points: userData.points
-                    });
+
+                    // Normalizar respuesta: puede venir como { user: ... } o directo el objeto user
+                    const userData = data.user || data;
+
+                    console.log('✅ Usuario cargado desde API:', userData);
                     setUser(userData);
+
+                    // Determinar si es instructor
                     setIsInstructor(userData.role === 'INSTRUCTOR' || userData.role === 'ADMIN');
+
+                    // --- CARGAR CLUB ---
+                    try {
+                        const clubId = userData.clubId || 'padel-estrella-madrid';
+                        const clubResponse = await fetch('/api/clubs');
+                        if (clubResponse.ok) {
+                            const clubs = await clubResponse.json();
+                            let foundClub = clubs.find((c: any) => c.id === clubId);
+
+                            // Fallback logic similar to LeftNavigationBar
+                            if (!foundClub) foundClub = clubs.find((c: any) => c.id === 'padel-estrella-madrid');
+                            if (!foundClub && clubs.length > 0) foundClub = clubs[0];
+
+                            if (foundClub) {
+                                console.log('✅ Club cargado:', foundClub.name);
+                                setClub(foundClub);
+                            }
+                        }
+                    } catch (clubError) {
+                        console.error('Error al cargar club:', clubError);
+                    }
+
+                } else {
+                    console.error('Error al cargar usuario:', response.statusText);
+                    toast({
+                        title: "Error de sesión",
+                        description: "No se pudo cargar la información del usuario.",
+                        variant: "destructive"
+                    });
                 }
             } catch (error) {
-                console.error('❌ Error al cargar usuario:', error);
+                console.error('Error de red al cargar usuario:', error);
             } finally {
                 setIsLoadingUser(false);
             }
         };
 
-        loadUser();
-    }, [refreshKey, router]);
+        setIsClient(true);
+        loadUserAndClub();
+    }, [refreshKey, router, toast]);
 
     // Escuchar cambios de usuario desde otros componentes/páginas
     useEffect(() => {
@@ -264,10 +294,12 @@ function DashboardPageContent() {
     return (
         <>
             {/* Mobile Hub View - Visible only on mobile */}
-            <MobileHub user={user} club={null} onLogout={handleMobileLogout} />
+            <div className="md:hidden">
+                <MobileHub user={user} club={club} onLogout={handleMobileLogout} />
+            </div>
 
             {/* Desktop Dashboard View - Visible only on desktop */}
-            <div className="hidden md:block w-full max-w-[1150px] space-y-2 sm:space-y-6 lg:space-y-8 pl-0 md:pl-36 lg:pl-44 pr-6 py-8 pointer-events-auto">
+            <div className="hidden md:block w-full max-w-[1150px] space-y-2 sm:space-y-6 lg:space-y-8 pl-0 md:pl-64 lg:pl-72 xl:pl-80 pr-6 py-8 pointer-events-auto">
                 <main className="space-y-2 sm:space-y-6 lg:space-y-8 pointer-events-auto">
                     {/* Panel de Datos del Usuario */}
                     <Card className="shadow-md">

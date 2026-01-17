@@ -46,9 +46,13 @@ interface ClassCardRealProps {
   cancelledGroupSize?: number; // Tamaño del grupo que fue cancelado (para marcar plaza específica)
   cancelledUserData?: { name?: string; profilePictureUrl?: string }; // Datos del usuario que canceló
   userBookedGroupSize?: number; // 🆕 Tamaño del grupo que el usuario reservó (para resaltar en Mis Reservas)
+
+  paidAmount?: number; // 💰 Monto pagado (para mostrar en Mis Reservas)
+  refundedPoints?: number; // 💸 Puntos retornados
   onHideFromHistory?: () => void; // 🗑️ Callback para ocultar del historial (solo en clases pasadas)
   // Props para modo instructor
   instructorView?: boolean; // Si es true, muestra opciones de gestión para instructor
+  unlockedAmount?: number; // 🔓 Saldo desbloqueado
 }
 
 interface Booking {
@@ -83,9 +87,14 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   cancelledGroupSize,
   cancelledUserData,
   userBookedGroupSize, // 🆕 Tamaño del grupo reservado por el usuario
+
+  paidAmount, // 💰 Monto pagado
+  refundedPoints, // 💸 Puntos retornados
   onHideFromHistory, // 🗑️ Callback para ocultar del historial
   // Props para modo instructor
-  instructorView = false
+  instructorView = false,
+  unlockedAmount, // 🔓 Saldo desbloqueado por caducidad
+  blockedAmount, // 🔒 Saldo boqueado
 }) => {
   const { toast } = useToast();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -1538,7 +1547,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
             <button
               className={cn(
                 "px-2 py-1 rounded-lg font-medium text-[10px] transition-colors shadow-lg flex items-center gap-1.5 mt-1",
-                (hasConfirmedBookingToday && !userHasBookingInThisSlot) || hasRecycledSlots || courtAssignment.isAssigned
+                hasRecycledSlots || courtAssignment.isAssigned
                   ? "bg-gray-400 cursor-not-allowed opacity-50"
                   : "bg-purple-600 hover:bg-purple-700 text-white"
               )}
@@ -1568,7 +1577,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                   setShowPrivateDialog(true);
                 }
               }}
-              disabled={(hasConfirmedBookingToday && !userHasBookingInThisSlot) || hasRecycledSlots || courtAssignment.isAssigned}
+              disabled={hasRecycledSlots || courtAssignment.isAssigned}
             >
               <span className="text-lg">+</span>
               <div className="flex flex-col items-start leading-tight">
@@ -1669,10 +1678,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
 
       {/* Pricing Options */}
       <div className="px-3 py-1.5 space-y-1">
-        {/* 🚫 Mensaje de bloqueo si tiene reserva confirmada EN OTRA TARJETA */}
-        {hasConfirmedBookingToday && !userHasBookingInThisSlot && !loadingBookingCheck && (
-          <p className="text-[10px] text-red-600 font-medium mb-1">Tienes reserva confirmada hoy</p>
-        )}
+        {/* 🚫 Mensaje de bloqueo REMOVED as per user request */}
 
         {[1, 2, 3, 4].filter(players => allowedPlayerCounts.includes(players)).map((players) => {
           // ♻️ BLOQUEO DE MODALIDADES: Si hay plazas recicladas en el slot, solo habilitar modalidades con reciclaje
@@ -2235,6 +2241,65 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                 )}
               </div>
             </>
+          )}
+        </div>
+      </div>
+
+      {/* 💰 Footer con Información de Pago (Solo en Agenda Mode y Confirmada) */}
+      {/* 🦶 Footer Unificado (Square Buttons) */}
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+        <div className="flex items-center gap-2">
+          {/* Botón Cancelar (Rojo Cuadrado) */}
+          {agendaMode && !isPastClass && !isCancelled && bookingId && onCancelBooking && (
+            <button
+              onClick={() => onCancelBooking && bookingId && onCancelBooking(bookingId)}
+              className="h-9 w-9 flex items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+              title="Cancelar"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+
+          {/* Botón Borrar (Gris Cuadrado) */}
+          {onHideFromHistory && (
+            <button
+              onClick={onHideFromHistory}
+              className="h-9 w-9 flex items-center justify-center rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors"
+              title="Borrar del historial"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {/* Info Pago (Verde) / Reembolso (Naranja) / Desbloqueado (Azul) */}
+        <div className="flex items-center gap-2">
+          {paidAmount !== undefined && (
+            <div className="h-9 px-3 flex items-center justify-center bg-green-50 rounded-lg border border-green-100 text-green-700" title="Pagado">
+              <span className="text-xs font-medium mr-1">Pagado:</span>
+              <span className="text-sm font-bold">{paidAmount.toFixed(2)}€</span>
+            </div>
+          )}
+          {refundedPoints !== undefined && refundedPoints > 0 && isCancelled && (
+            <div className="h-9 px-3 flex items-center justify-center bg-orange-50 rounded-lg border border-orange-100 text-orange-700" title="Puntos Retornados">
+              <span className="text-sm font-bold">{refundedPoints.toFixed(2)} pts</span>
+            </div>
+          )}
+          {unlockedAmount !== undefined && unlockedAmount > 0 && (
+            <div className="h-9 px-3 flex items-center justify-center bg-blue-50 rounded-lg border border-blue-100 text-blue-700" title="Saldo Desbloqueado">
+              <span className="text-xs font-medium mr-1">Desbloqueado:</span>
+              <span className="text-sm font-bold">{unlockedAmount.toFixed(2)}€</span>
+            </div>
+          )}
+          {blockedAmount !== undefined && blockedAmount > 0 && (
+            <div className="h-9 px-3 flex items-center justify-center bg-purple-50 rounded-lg border border-purple-100 text-purple-700" title="Saldo Bloqueado">
+              <span className="text-xs font-medium mr-1">Bloqueado:</span>
+              <span className="text-sm font-bold">{blockedAmount.toFixed(2)}€</span>
+            </div>
           )}
         </div>
       </div>

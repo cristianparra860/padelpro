@@ -385,3 +385,42 @@ export async function resetSlotCategoryIfEmpty(timeSlotId: string): Promise<bool
   console.log(`ℹ️ TimeSlot ${timeSlotId} tiene ${count} usuario(s) - NO se resetea`);
   return false;
 }
+
+/**
+ * Elimina una Partida (MatchGame) si no tienen usuarios inscritos (activos).
+ * Se usa cuando se cancela una reserva y la partida queda vacía.
+ * 
+ * @param matchGameId - ID del MatchGame a verificar
+ */
+export async function deleteMatchGameIfEmpty(matchGameId: string): Promise<void> {
+  // Contar bookings activos (PENDING o CONFIRMED)
+  const activeBookings = await prisma.matchGameBooking.count({
+    where: {
+      matchGameId,
+      status: { in: ['PENDING', 'CONFIRMED'] }
+    }
+  });
+
+  if (activeBookings === 0) {
+    console.log(`🗑️ MatchGame ${matchGameId} está vacío (0 reservas activas) - Eliminando...`);
+
+    // Primero eliminar los bookings cancelados asociados para evitar errores de FK (si no hay cascade)
+    // O si hay cascade, el delete del matchGame se encarga.
+    // Asumimos seguridad y borramos bookings cancelados primero.
+    try {
+      await prisma.matchGameBooking.deleteMany({
+        where: { matchGameId }
+      });
+
+      await prisma.matchGame.delete({
+        where: { id: matchGameId }
+      });
+
+      console.log(`✅ MatchGame ${matchGameId} eliminado correctamente.`);
+    } catch (error) {
+      console.error(`❌ Error eliminando MatchGame vacío ${matchGameId}:`, error);
+    }
+  } else {
+    console.log(`ℹ️ MatchGame ${matchGameId} tiene ${activeBookings} reservas activas - NO se elimina.`);
+  }
+}

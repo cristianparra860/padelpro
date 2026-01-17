@@ -102,6 +102,25 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    // Obtener TODAS las reservas de pistas (bloqueos) para verificar ocupación
+    const allBlockingSchedules = await prisma.courtSchedule.findMany({
+      where: {
+        ...(date && {
+          startTime: {
+            gte: new Date(date + 'T00:00:00.000Z'),
+            lte: new Date(date + 'T23:59:59.999Z')
+          }
+        }),
+        isOccupied: true,
+        ...(clubId && { court: { clubId } })
+      },
+      select: {
+        courtId: true,
+        startTime: true,
+        endTime: true
+      }
+    });
+
     // Enriquecer cada partida con información de disponibilidad de pistas
     const matchGamesWithAvailability = matchGames.map(match => {
       const matchStart = new Date(match.start).getTime();
@@ -131,7 +150,18 @@ export async function GET(request: NextRequest) {
           return isSameCourt && hasOverlap;
         });
 
-        const isOccupied = isMatchOccupied || isClassOccupied;
+        // 3. Verificar si hay BLOQUEO (CourtSchedule) en esta pista y horario
+        const isScheduleOccupied = allBlockingSchedules.some(schedule => {
+          const scheduleStart = new Date(schedule.startTime).getTime();
+          const scheduleEnd = new Date(schedule.endTime).getTime();
+
+          const isSameCourt = schedule.courtId === court.id;
+          const hasOverlap = matchStart < scheduleEnd && matchEnd > scheduleStart;
+
+          return isSameCourt && hasOverlap;
+        });
+
+        const isOccupied = isMatchOccupied || isClassOccupied || isScheduleOccupied;
 
         return {
           courtNumber: court.number,
@@ -160,9 +190,25 @@ export async function GET(request: NextRequest) {
       })));
     }
 
+    // FILTRO DE DISPONIBILIDAD:
+    // Eliminar propuestas de partida que no tienen ninguna pista disponible
+    const visibleMatchGames = matchGamesWithAvailability.filter(match => {
+      // 1. Si ya tiene pista asignada (confirmada), SIEMPRE mostrar
+      if (match.courtNumber) return true;
+
+      // 2. Si es una propuesta (sin pista), verificar si hay AL MENOS UNA pista disponible
+      const hasAvailableCourt = match.courtsAvailability.some(c => c.status === 'available');
+
+      if (!hasAvailableCourt) {
+        console.log(`🚫 Ocultando propuesta ${match.id.substring(0, 8)} - No hay pistas disponibles`);
+      }
+
+      return hasAvailableCourt;
+    });
+
     return NextResponse.json({
       success: true,
-      matchGames: matchGamesWithAvailability
+      matchGames: visibleMatchGames
     });
   } catch (error) {
     console.error('Error fetching match games:', error);

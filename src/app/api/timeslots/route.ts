@@ -256,7 +256,24 @@ export async function GET(request: NextRequest) {
       }
     }) : [];
 
-    console.log(`🏟️ Found ${allCourts.length} courts, ${confirmedClasses.length} confirmed classes, and ${confirmedMatches.length} confirmed matches`);
+    // 📅 Obtener TODAS las reservas de pistas (bloqueos) para verificar ocupación
+    const allBlockingSchedules = date ? await prisma.courtSchedule.findMany({
+      where: {
+        startTime: {
+          gte: new Date(date + 'T00:00:00.000Z'),
+          lte: new Date(date + 'T23:59:59.999Z')
+        },
+        isOccupied: true,
+        ...(clubId && { court: { clubId } })
+      },
+      select: {
+        courtId: true,
+        startTime: true,
+        endTime: true
+      }
+    }) : [];
+
+    console.log(`🏟️ Found ${allCourts.length} courts, ${confirmedClasses.length} confirmed classes, ${confirmedMatches.length} confirmed matches, and ${allBlockingSchedules.length} blocking schedules`);
 
     // Crear mapas para acceso rápido O(1)
     const bookingsBySlot = new Map<string, typeof allBookings>();
@@ -401,7 +418,18 @@ export async function GET(request: NextRequest) {
           return isSameCourt && hasOverlap;
         });
 
-        const isOccupied = isClassOccupied || isMatchOccupied;
+        // 3. Verificar si hay BLOQUEO (CourtSchedule) en esta pista y horario
+        const isScheduleOccupied = allBlockingSchedules.some(schedule => {
+          const scheduleStart = new Date(schedule.startTime).getTime();
+          const scheduleEnd = new Date(schedule.endTime).getTime();
+
+          const isSameCourt = schedule.courtId === court.id;
+          const hasOverlap = slotStart < scheduleEnd && slotEnd > scheduleStart;
+
+          return isSameCourt && hasOverlap;
+        });
+
+        const isOccupied = isClassOccupied || isMatchOccupied || isScheduleOccupied;
 
         return {
           courtNumber: court.number,

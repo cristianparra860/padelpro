@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// Helper function to check date overlap
+function isOverlap(start1: Date, end1: Date, start2: Date, end2: Date) {
+  return start1 < end2 && start2 < end1;
+}
+
 // Helper function to count actual player slots (handles private bookings)
 function countPlayerSlots(bookings: any[]): number {
   let totalSlots = 0;
@@ -215,6 +220,8 @@ export async function GET(request: NextRequest) {
     });
 
     // Separar partidas propuestas de confirmadas
+    // ⚡ FILTER: Solo mostrar partidas propuestas que tengan al menos 1 jugador activo (PENDING/CONFIRMED)
+    // Las partidas vacías (0 jugadores) son "zombis" que deberían haberse eliminado y no deben mostrarse.
     const proposedMatches = matchGames.filter((m: any) => m.courtNumber === null);
     const confirmedMatches = matchGames.filter((m: any) => m.courtNumber !== null);
 
@@ -258,8 +265,19 @@ export async function GET(request: NextRequest) {
       orderBy: { startTime: 'asc' }
     });
 
-    // Obtener nombres de usuarios para las reservas
+    // List of reservation user IDs
     const reservationUserIds = new Set<string>();
+
+    // 6. Get ALL blocking schedules for availability check (including those we excluded from display list for readability)
+    const allBlockingSchedules = await prisma.courtSchedule.findMany({
+      where: {
+        startTime: { gte: new Date(startTime), lte: new Date(endTime) },
+        isOccupied: true,
+        ...(clubId && { court: { clubId } })
+      },
+      select: { startTime: true, endTime: true, courtId: true }
+    });
+
 
     courtReservations.forEach((reservation: any) => {
       if (reservation.reason) {
@@ -321,6 +339,33 @@ export async function GET(request: NextRequest) {
         const key = `${cls.instructor?.id}_${cls.start.getTime()}`;
         const totalCards = cardCountByInstructorAndTime.get(key) || 1;
 
+        // ⚡ Calculate Courts Availability
+        const courtsAvailability = courts.map(court => {
+          const mStart = cls.start;
+          const mEnd = cls.end;
+
+          // Check Clases
+          const classConflict = confirmedClasses.some((c: any) =>
+            c.courtNumber === court.number && isOverlap(c.start, c.end, mStart, mEnd)
+          );
+
+          // Check Matches
+          const matchConflict = confirmedMatches.some((m: any) =>
+            m.courtNumber === court.number && isOverlap(m.start, m.end, mStart, mEnd)
+          );
+
+          // Check Schedules (Reservations/Blocks)
+          const scheduleConflict = allBlockingSchedules.some(s =>
+            s.courtId === court.id && isOverlap(s.startTime, s.endTime, mStart, mEnd)
+          );
+
+          return {
+            courtId: court.id,
+            courtNumber: court.number,
+            status: (classConflict || matchConflict || scheduleConflict) ? 'occupied' : 'available'
+          };
+        });
+
         return {
           id: `class-${cls.id}`,
           type: 'class-proposal',
@@ -340,6 +385,7 @@ export async function GET(request: NextRequest) {
           availableSpots: cls.maxPlayers - totalPlayers,
           bookings: cls.bookings,
           totalCards: totalCards, // 🆕 Número total de tarjetas para este horario/instructor
+          courtsAvailability, // ✅ ADDED FIELD
           color: '#FFA500' // Naranja para propuestas
         }
       }),
@@ -375,9 +421,36 @@ export async function GET(request: NextRequest) {
         const pendingBookings = match.bookings?.filter((b: any) => b.status === 'PENDING') || [];
         const totalPlayers = countPlayerSlots(confirmedBookings) + countPlayerSlots(pendingBookings);
 
-        // 🎯 Obtener número de tarjetas para este horario (las partidas no tienen instructor)
+        // 🎯 Obtener número de tarjetas para este horario
         const key = `${new Date(match.start).getTime()}`;
         const totalCards = matchCardCountByTime.get(key) || 1;
+
+        // ⚡ Calculate Courts Availability
+        const courtsAvailability = courts.map(court => {
+          const mStart = new Date(match.start);
+          const mEnd = new Date(match.end);
+
+          // Check Clases
+          const classConflict = confirmedClasses.some((c: any) =>
+            c.courtNumber === court.number && isOverlap(c.start, c.end, mStart, mEnd)
+          );
+
+          // Check Matches
+          const matchConflict = confirmedMatches.some((m: any) =>
+            m.courtNumber === court.number && isOverlap(m.start, m.end, mStart, mEnd)
+          );
+
+          // Check Schedules (Reservations/Blocks)
+          const scheduleConflict = allBlockingSchedules.some(s =>
+            s.courtId === court.id && isOverlap(s.startTime, s.endTime, mStart, mEnd)
+          );
+
+          return {
+            courtId: court.id,
+            courtNumber: court.number,
+            status: (classConflict || matchConflict || scheduleConflict) ? 'occupied' : 'available'
+          };
+        });
 
         return {
           id: `match-${match.id}`,
@@ -394,7 +467,8 @@ export async function GET(request: NextRequest) {
           maxPlayers: 4,
           availableSpots: 4 - totalPlayers,
           bookings: match.bookings,
-          totalCards: totalCards, // 🆕 Número total de tarjetas para este horario
+          totalCards: totalCards,
+          courtsAvailability, // ✅ Included availability
           color: '#9333EA' // Morado para partidas propuestas
         };
       }),

@@ -4,15 +4,16 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, MapPin } from 'lucide-react';
+import { Calendar, Clock, MapPin, X, Trash2 } from 'lucide-react';
 
 interface CourtReservationCardProps {
   reservation: any;
   onCancel?: (reservationId: string) => void;
   onHideFromHistory?: () => void; // 🗑️ Callback para ocultar del historial
+  unlockedAmount?: number; // 🔓 Saldo desbloqueado
 }
 
-export default function CourtReservationCard({ reservation, onCancel, onHideFromHistory }: CourtReservationCardProps) {
+export default function CourtReservationCard({ reservation, onCancel, onHideFromHistory, unlockedAmount }: CourtReservationCardProps) {
   const startDate = new Date(reservation.start);
   const endDate = new Date(reservation.end);
   const isPast = endDate < new Date();
@@ -22,7 +23,7 @@ export default function CourtReservationCard({ reservation, onCancel, onHideFrom
   };
 
   return (
-    <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow bg-white border-2 border-gray-200 rounded-2xl w-full scale-[0.88]">
+    <Card className="bg-white rounded-2xl shadow-[0_8px_16px_rgba(0,0,0,0.3)] border border-gray-100 overflow-hidden w-full scale-100 md:scale-[0.88] relative transition-all duration-300 hover:shadow-xl">
       {/* Header con Badge de estado */}
       <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-3 py-1.5">
         <div className="flex items-center justify-between">
@@ -31,13 +32,12 @@ export default function CourtReservationCard({ reservation, onCancel, onHideFrom
             <MapPin className="w-3.5 h-3.5 text-white" />
             <span className="text-white text-[10px] font-semibold">Reserva de Pista ({reservation.duration}min)</span>
           </div>
-          
+
           {/* Badge de estado */}
-          <Badge variant="outline" className={`h-6 text-[10px] px-2 border-white ${
-            isPast 
-              ? 'bg-gray-600 text-white' 
-              : 'bg-green-600 text-white'
-          }`}>
+          <Badge variant="outline" className={`h-6 text-[10px] px-2 border-white ${isPast
+            ? 'bg-gray-600 text-white'
+            : 'bg-green-600 text-white'
+            }`}>
             {isPast ? 'Completada' : 'Confirmada'}
           </Badge>
         </div>
@@ -85,7 +85,7 @@ export default function CourtReservationCard({ reservation, onCancel, onHideFrom
                 </div>
               </div>
             </div>
-            
+
             {/* Hora y duración - Derecha */}
             <div className="flex items-center gap-3">
               <div className="text-right">
@@ -134,27 +134,50 @@ export default function CourtReservationCard({ reservation, onCancel, onHideFrom
               </div>
             </div>
           </div>
+
         </div>
 
-        {/* Botón de cancelar (solo si no ha pasado) */}
-        {!isPast && onCancel && (
-          <button
-            onClick={() => onCancel(reservation.id)}
-            className="w-full mt-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium border border-red-200"
-          >
-            Cancelar Reserva
-          </button>
-        )}
+        {/* 🦶 Footer Unificado (Square Buttons) */}
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+          <div className="flex items-center gap-2">
+            {/* Cancel Button (Red Square) */}
+            {!isPast && onCancel && (
+              <button
+                onClick={() => onCancel(reservation.id)}
+                className="h-9 w-9 flex items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                title="Cancelar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
+            {/* Delete History Button (Gray Square) */}
+            {onHideFromHistory && (
+              <button
+                onClick={onHideFromHistory}
+                className="h-9 w-9 flex items-center justify-center rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors"
+                title="Borrar del historial"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            )}
+          </div>
 
-        {/* Botón de eliminar del historial (solo si ha pasado) */}
-        {isPast && onHideFromHistory && (
-          <button
-            onClick={onHideFromHistory}
-            className="w-full mt-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
-          >
-            Eliminar del Historial
-          </button>
-        )}
+          {/* Payment Info (Green Compact) */}
+          <div className="flex items-center gap-2">
+            {(reservation.price !== undefined && reservation.price > 0) && (
+              <div className="h-9 px-3 flex items-center justify-center bg-green-50 rounded-lg border border-green-100 text-green-700" title="Pagado">
+                <span className="text-xs font-medium mr-1">Pagado:</span>
+                <span className="text-sm font-bold">{reservation.price.toFixed(2)}€</span>
+              </div>
+            )}
+            {unlockedAmount !== undefined && unlockedAmount > 0 && (
+              <div className="h-9 px-3 flex items-center justify-center bg-blue-50 rounded-lg border border-blue-100 text-blue-700" title="Saldo Desbloqueado">
+                <span className="text-xs font-medium mr-1">Desbloqueado:</span>
+                <span className="text-sm font-bold">{unlockedAmount.toFixed(2)}€</span>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </Card>
   );

@@ -404,16 +404,16 @@ export function LeftNavigationBar() {
                             "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200 hover:border-red-400 shadow-lg",
                             shouldDimOtherButtons && "opacity-20 pointer-events-none",
                             isCompactMode
-                                ? 'flex flex-col items-center gap-1 px-1 py-2 w-[62px] md:w-14 md:py-0.5 md:px-0.5'
-                                : 'flex flex-col items-center gap-0.5 px-0.5 py-0.5 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-3.5 md:py-2.5 md:w-[198px]'
+                                ? 'flex flex-col items-center gap-1 px-1 py-2 w-[88px] md:w-[85px]'
+                                : 'flex flex-col items-center gap-0.5 px-0.5 py-0.5 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-3.5 md:py-2.5 md:w-[198px] lg:w-[220px] xl:w-[240px]'
                         )}
                     >
                         <div className={cn(
                             "rounded-full flex items-center justify-center text-white flex-shrink-0",
-                            isCompactMode ? 'w-8 h-8' : 'w-8 h-8 md:w-12 md:h-12',
+                            isCompactMode ? 'w-10 h-10 md:w-10 md:h-10' : 'w-8 h-8 md:w-12 md:h-12',
                             "bg-gradient-to-br from-red-400 to-red-600"
                         )}>
-                            <Power className={isCompactMode ? 'w-5 h-5' : 'w-5 h-5 md:w-8 md:h-8'} />
+                            <Power className={isCompactMode ? 'w-6 h-6' : 'w-5 h-5 md:w-8 md:h-8'} />
                         </div>
                         <div className={cn(isCompactMode ? 'text-center' : 'text-center md:text-left md:flex-1 md:min-w-0 md:overflow-hidden')}>
                             {isCompactMode ? (
@@ -442,14 +442,14 @@ export function LeftNavigationBar() {
                                 "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
                                 shouldDimOtherButtons && "opacity-20 pointer-events-none",
                                 isCompactMode
-                                    ? 'flex flex-col items-center gap-1 px-1 py-1.5 w-14'
-                                    : 'flex flex-col items-center gap-0.5 px-0.5 py-0.5 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-3.5 md:py-2.5 md:w-[198px]',
+                                    ? 'flex flex-col items-center gap-1 px-1 py-1.5 w-[75px] md:w-[85px]'
+                                    : 'flex flex-col items-center gap-0.5 px-0.5 py-0.5 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-3.5 md:py-2.5 md:w-[198px] lg:w-[220px] xl:w-[240px]',
                                 pathname === '/club' ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg'
                             )}
                         >
                             <div className={cn(
                                 "rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 transition-all duration-300",
-                                isCompactMode ? 'w-8 h-8' : 'w-8 h-8 md:w-12 md:h-12',
+                                isCompactMode ? 'w-10 h-10 md:w-10 md:h-10' : 'w-8 h-8 md:w-12 md:h-12',
                                 "bg-gradient-to-br from-red-400 to-red-600",
                                 pathname === '/club' && 'ring-4 ring-red-300 ring-opacity-50 shadow-[0_0_25px_rgba(239,68,68,0.5)]'
                             )}>
@@ -495,8 +495,8 @@ export function LeftNavigationBar() {
                         "bg-white rounded-3xl hover:shadow-xl transition-all cursor-pointer border-2 border-gray-200",
                         shouldDimOtherButtons && "opacity-20 pointer-events-none",
                         isCompactMode
-                            ? 'flex flex-col items-center gap-1 px-1 py-1.5 w-14'
-                            : 'flex flex-col items-center gap-0.5 px-0.5 py-0.5 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-3.5 md:py-2.5 md:w-[198px]',
+                            ? 'flex flex-col items-center gap-1 px-1 py-1.5 w-[75px] md:w-[85px]'
+                            : 'flex flex-col items-center gap-0.5 px-0.5 py-0.5 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-3.5 md:py-2.5 md:w-[198px] lg:w-[220px] xl:w-[240px]',
                         pathname === '/dashboard' ? 'shadow-2xl scale-105 animate-bounce-subtle' : 'shadow-lg'
                     )}
                 >
@@ -569,8 +569,15 @@ export function LeftNavigationBar() {
                 {/* Contenedor para Clases, Partidas, Reservar Pista y Calendario */}
                 <div className={cn(
                     "flex flex-col gap-3 md:gap-2 p-0 md:p-3 rounded-none md:rounded-[36px] transition-all",
-                    "md:bg-gradient-to-br md:from-gray-100/90 md:to-gray-50/80 md:backdrop-blur-md",
-                    "md:border-2 md:border-white md:shadow-[0_8px_30px_rgb(0,0,0,0.08)]",
+                    // Dynamic background based on active section
+                    (pathname === '/activities' || currentView === 'clases')
+                        ? "md:bg-gradient-to-br md:from-blue-50/90 md:to-purple-50/90 md:border-2 md:border-purple-200/50 md:shadow-[0_8px_30px_rgba(168,85,247,0.1)]"
+                        : (pathname === '/matchgames' || currentView === 'partidas')
+                            ? "md:bg-gradient-to-br md:from-green-50/90 md:to-emerald-50/90 md:border-2 md:border-green-200/50 md:shadow-[0_8px_30px_rgba(34,197,94,0.1)]"
+                            : (pathname === '/admin/calendar' && currentView === 'reservar-pistas')
+                                ? "md:bg-gradient-to-br md:from-orange-50/90 md:to-amber-50/90 md:border-2 md:border-orange-200/50 md:shadow-[0_8px_30px_rgba(249,115,22,0.1)]"
+                                : "md:bg-gradient-to-br md:from-gray-100/90 md:to-gray-50/80 md:border-2 md:border-white md:shadow-[0_8px_30px_rgb(0,0,0,0.08)]",
+                    "md:backdrop-blur-md",
                     shouldDimOtherButtons && "opacity-20 pointer-events-none"
                 )}>
                     {visibleNavItems.filter(item => item.key === 'clases' || item.key === 'partidas' || item.key === 'reservar-pista' || item.key === 'calendario-club').map((item) => {
@@ -585,8 +592,8 @@ export function LeftNavigationBar() {
                                     "rounded-3xl hover:shadow-xl transition-all cursor-pointer",
                                     shouldDimOtherButtons && "opacity-20 pointer-events-none",
                                     isCompactMode
-                                        ? 'flex flex-col items-center gap-1 px-1 py-2 w-[62px] md:w-14 md:py-1.5 md:px-1'
-                                        : 'flex flex-col items-center gap-0.5 px-0.5 py-1 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-4 md:py-3 md:w-[170px]',
+                                        ? 'flex flex-col items-center gap-1 px-1 py-1.5 w-[75px] md:w-[85px]'
+                                        : 'flex flex-col items-center gap-0.5 px-0.5 py-1 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-4 md:py-3 md:w-[170px] lg:w-[190px] xl:w-[210px]',
                                     item.isActive
                                         ? 'bg-white shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200 z-10'
                                         : 'bg-white shadow-md border-2 border-transparent hover:border-gray-200'
@@ -594,7 +601,7 @@ export function LeftNavigationBar() {
                             >
                                 <div className={cn(
                                     "rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden transition-all duration-300",
-                                    isCompactMode ? 'w-9 h-9' : 'w-12 h-12',
+                                    isCompactMode ? 'w-10 h-10 md:w-10 md:h-10' : 'w-12 h-12',
                                     item.isActive
                                         ? item.key === 'clases'
                                             ? "bg-gradient-to-br from-blue-400 to-purple-600 text-white ring-4 ring-purple-300 ring-opacity-50 shadow-[0_0_25px_rgba(168,85,247,0.5)]"
@@ -607,7 +614,7 @@ export function LeftNavigationBar() {
                                 )}>
                                     {item.key === 'reservar-pista' ? (
                                         <svg
-                                            className={isCompactMode ? 'w-5 h-5' : 'w-5 h-5 md:w-7 md:h-7'}
+                                            className={isCompactMode ? 'w-6 h-6' : 'w-5 h-5 md:w-7 md:h-7'}
                                             viewBox="0 0 24 24"
                                             fill="none"
                                             stroke="currentColor"
@@ -624,7 +631,7 @@ export function LeftNavigationBar() {
                                             <line x1="12" y1="16" x2="12" y2="16" strokeWidth="3" strokeLinecap="round" />
                                         </svg>
                                     ) : (
-                                        <IconComponent className={isCompactMode ? 'w-5 h-5' : 'w-5 h-5 md:w-7 md:h-7'} />
+                                        <IconComponent className={isCompactMode ? 'w-6 h-6' : 'w-5 h-5 md:w-7 md:h-7'} />
                                     )}
                                 </div>
                                 <div className={cn(
@@ -725,8 +732,8 @@ export function LeftNavigationBar() {
                                             isSelected ? 'border-blue-500 scale-105 animate-bounce-subtle' : 'border-gray-200',
                                             shouldPulse && 'animate-bounce-subtle relative z-[150]',
                                             isCompactMode
-                                                ? 'flex flex-col items-center gap-1 px-1 py-2 w-[62px] md:w-20 md:py-1.5 md:px-2.5'
-                                                : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px]'
+                                                ? 'flex flex-col items-center gap-1 px-1 py-2 w-[75px] md:w-[90px] md:py-1.5 md:px-2.5'
+                                                : 'flex items-center gap-3 px-3.5 py-2.5 w-[198px] lg:w-[220px] xl:w-[240px]'
                                         )}
                                         style={{
                                             pointerEvents: 'auto',
@@ -740,7 +747,7 @@ export function LeftNavigationBar() {
                                         )}
                                         <div className={cn(
                                             "rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 transition-all duration-300 border-2 shadow-md border-white",
-                                            isCompactMode ? 'w-9 h-9' : 'w-12 h-12'
+                                            isCompactMode ? 'w-10 h-10 md:w-10 md:h-10' : 'w-12 h-12'
                                         )}>
                                             <img
                                                 src={photoUrl}
@@ -783,7 +790,7 @@ export function LeftNavigationBar() {
                             "bg-white rounded-3xl hover:shadow-xl transition-all",
                             shouldDimOtherButtons && "opacity-20 pointer-events-none",
                             isCompactMode
-                                ? 'flex flex-col items-center gap-1 px-1 py-2 w-[62px] md:w-14 md:py-1.5 md:px-1'
+                                ? 'flex flex-col items-center gap-1 px-1 py-2 w-[85px]'
                                 : 'flex flex-col items-center gap-0.5 px-0.5 py-0.5 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-3.5 md:py-2.5 md:w-[198px]',
                             pathname === '/agenda' ? 'shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200' : 'shadow-lg border-2 border-gray-300'
                         )}
@@ -791,7 +798,7 @@ export function LeftNavigationBar() {
                     >
                         <div className={cn(
                             "rounded-full flex items-center justify-center flex-shrink-0 border-2 font-bold transition-all duration-300",
-                            isCompactMode ? 'w-9 h-9 text-lg' : 'w-9 h-9 text-lg md:w-12 md:h-12 md:text-2xl',
+                            isCompactMode ? 'w-10 h-10 text-xl md:w-10 md:h-10 md:text-xl' : 'w-9 h-9 text-lg md:w-12 md:h-12 md:text-2xl',
                             pathname === '/agenda'
                                 ? 'bg-gradient-to-br from-pink-400 to-rose-600 text-white ring-4 ring-pink-300 ring-opacity-50 shadow-[0_0_25px_rgba(244,114,182,0.5)]'
                                 : 'bg-white text-gray-600 border-gray-300'
@@ -800,7 +807,7 @@ export function LeftNavigationBar() {
                         </div>
                         <div className={cn(isCompactMode ? 'text-center' : 'text-center md:text-left md:flex-1 md:min-w-0 md:overflow-hidden')}>
                             {isCompactMode ? (
-                                <div className="text-[10px] font-semibold text-gray-800">Reservas</div>
+                                <div className="text-xs font-semibold text-gray-800">Reservas</div>
                             ) : (
                                 <>
                                     <div className="text-[10px] font-semibold text-gray-800 md:text-sm md:font-semibold truncate">Reservas</div>
@@ -821,8 +828,8 @@ export function LeftNavigationBar() {
                             "bg-white rounded-3xl hover:shadow-xl transition-all",
                             shouldDimOtherButtons && "opacity-20 pointer-events-none",
                             isCompactMode
-                                ? 'flex flex-col items-center gap-1 px-1 py-2 w-[62px] md:w-14 md:py-1.5 md:px-1'
-                                : 'flex flex-col items-center gap-0.5 px-0.5 py-0.5 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-3.5 md:py-2.5 md:w-[198px]',
+                                ? 'flex flex-col items-center gap-1 px-1 py-1.5 w-[75px] md:w-[85px]'
+                                : 'flex flex-col items-center gap-0.5 px-0.5 py-1 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-4 md:py-3 md:w-[170px] lg:w-[190px] xl:w-[210px]',
                             pathname === '/movimientos'
                                 ? 'shadow-2xl scale-105 animate-bounce-subtle border-2 border-gray-200'
                                 : 'shadow-lg border-2 border-transparent hover:border-gray-200' // Inactive: border-transparent hover:border-gray-200
@@ -831,7 +838,7 @@ export function LeftNavigationBar() {
                     >
                         <div className={cn(
                             "rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all duration-300",
-                            isCompactMode ? 'w-9 h-9' : 'w-9 h-9 md:w-12 md:h-12',
+                            isCompactMode ? 'w-10 h-10 md:w-10 md:h-10' : 'w-12 h-12',
                             pathname === '/movimientos'
                                 ? 'bg-gradient-to-br from-yellow-400 to-orange-600 text-white ring-4 ring-yellow-300 ring-opacity-50 shadow-[0_0_25px_rgba(251,191,36,0.5)]'
                                 : 'bg-gray-50 text-gray-500 border-transparent group-hover:bg-white group-hover:border-gray-200' // Inactive: grisaceo
@@ -860,15 +867,15 @@ export function LeftNavigationBar() {
                                 "bg-white rounded-3xl hover:shadow-xl transition-all cursor-default", // cursor-default porque por ahora no navega
                                 shouldDimOtherButtons && "opacity-20 pointer-events-none",
                                 isCompactMode
-                                    ? 'flex flex-col items-center gap-1 px-1 py-2 w-[62px] md:w-14 md:py-0.5 md:px-0.5'
-                                    : 'flex flex-col items-center gap-0.5 px-0.5 py-0.5 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-3.5 md:py-2.5 md:w-[198px]',
+                                    ? 'flex flex-col items-center gap-1 px-1 py-1.5 w-[75px] md:w-[85px]'
+                                    : 'flex flex-col items-center gap-0.5 px-0.5 py-1 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-4 md:py-3 md:w-[170px] lg:w-[190px] xl:w-[210px]',
                                 'shadow-lg border-2 border-transparent hover:border-gray-200' // Inactive style
                             )}
                             title="Puntos de Fidelidad"
                         >
                             <div className={cn(
                                 "rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all duration-300",
-                                isCompactMode ? 'w-9 h-9' : 'w-9 h-9 md:w-12 md:h-12',
+                                isCompactMode ? 'w-10 h-10 md:w-10 md:h-10' : 'w-12 h-12',
                                 'bg-gray-50 text-gray-500 border-transparent group-hover:bg-white group-hover:border-gray-200' // Inactive: grisaceo
                             )}>
                                 <Trophy className={isCompactMode ? 'w-5 h-5' : 'w-5 h-5 md:w-8 md:h-8'} />

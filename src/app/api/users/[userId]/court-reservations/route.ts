@@ -40,11 +40,32 @@ export async function GET(
       }
     });
 
+    // Obtener transacciones relacionadas para saber el precio
+    const reservationIds = allReservations.map((r: any) => r.id);
+    const transactions = await prisma.transaction.findMany({
+      where: {
+        relatedId: { in: reservationIds },
+        relatedType: 'court_reservation',
+        type: 'credit',
+        action: 'subtract'
+      }
+    });
+
+    // Crear mapa de precios
+    const priceMap = new Map();
+    transactions.forEach(t => {
+      if (t.relatedId) {
+        priceMap.set(t.relatedId, t.amount / 100);
+      }
+    });
+
     // Transformar las reservas al formato esperado
     const courtReservations = allReservations.map((reservation: any) => {
       // Extraer duración del reason
       const durationMatch = reservation.reason?.match(/:(\d+)min$/);
       const duration = durationMatch ? parseInt(durationMatch[1]) : 60;
+
+      const price = priceMap.get(reservation.id) || 0;
 
       return {
         id: reservation.id,
@@ -54,6 +75,7 @@ export async function GET(
         startTime: reservation.startTime,
         endTime: reservation.endTime,
         duration,
+        price,
         status: new Date(reservation.endTime) < new Date() ? 'COMPLETED' : 'CONFIRMED',
         courtId: reservation.courtId,
         courtNumber: reservation.court.number,
@@ -71,7 +93,7 @@ export async function GET(
   } catch (error) {
     console.error('❌ Error al obtener reservas de pistas:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Error al obtener reservas de pistas',
         details: error instanceof Error ? error.message : 'Unknown error'
       },

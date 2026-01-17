@@ -144,14 +144,15 @@ export async function POST(
 
     } else {
       // 🔓 CANCELACIÓN DE RESERVA PENDIENTE (solo estaba bloqueado, no cobrado)
-      // Penalización de €1 + devolución del resto
-      console.log('🔓 Cancelación de partida PENDIENTE - Aplicando penalización...');
+      // Penalización de 1 punto (en lugar de dinero)
+      // NOTA: Los puntos se guardan multiplicados por 100 (como céntimos). 100 = 1 punto.
+      console.log('🔓 Cancelación de partida PENDIENTE - Aplicando penalización de puntos...');
 
-      const PENALTY_AMOUNT = 1; // €1
-      const refundAmount = Math.max(0, amountBlocked - PENALTY_AMOUNT);
+      const PENALTY_POINTS = 100;
+      const refundAmount = amountBlocked; // Se devuelve todo el dinero bloqueado
 
-      console.log(`💸 Penalización: €${PENALTY_AMOUNT.toFixed(2)}`);
-      console.log(`💵 Devolución: €${refundAmount.toFixed(2)}`);
+      console.log(`💸 Penalización: ${PENALTY_POINTS / 100} punto(s)`);
+      console.log(`💵 Devolución: €${(refundAmount / 100).toFixed(2)}`);
 
       let finalBalance = 0;
 
@@ -166,54 +167,68 @@ export async function POST(
         });
 
         // 1. DESBLOQUEAR TODO EL SALDO RETENIDO
-        // (Asumimos que al reservar solo se incrementó blockedCredits, sin tocar credits)
         await tx.user.update({
           where: { id: userId },
           data: {
-            blockedCredits: { decrement: amountBlocked }
+            blockedCredits: { decrement: amountBlocked },
+            points: { decrement: PENALTY_POINTS } // Cobrar puntos
           }
         });
 
-        // 2. COBRAR PENALIZACIÓN (Deducir del saldo real)
-        const updatedUser = await tx.user.update({
+        // 2. (Ya no cobramos creditos)
+        const updatedUser = await tx.user.findUnique({
           where: { id: userId },
-          data: {
-            credits: { decrement: PENALTY_AMOUNT }
-          },
-          select: { credits: true, blockedCredits: true }
+          select: { credits: true, points: true }
         });
 
-        finalBalance = updatedUser.credits;
-
-        // 3. REGISTRAR SOLO LA PENALIZACIÓN
+        // 3. REGISTRAR PENALIZACIÓN DE PUNTOS
         await tx.transaction.create({
           data: {
             userId,
-            type: 'credit',
-            action: 'deduct', // Penalización
-            amount: PENALTY_AMOUNT,
-            balance: updatedUser.credits - updatedUser.blockedCredits,
+            type: 'points', // Cambiado a puntos
+            action: 'deduct',
+            amount: PENALTY_POINTS,
+            balance: updatedUser?.points || 0,
             concept: `Penalización por cancelación - Partida ${new Date(matchStart).toLocaleString('es-ES')}`,
             relatedId: booking.id,
             relatedType: 'matchgame_booking',
             metadata: JSON.stringify({
               matchGameId,
               status: 'CANCELLED',
-              reason: 'Penalización por cancelación de partida pendiente',
+              reason: 'Penalización por cancelación de partida pendiente (Puntos)',
               originalBlocked: amountBlocked,
-              penaltyAmount: PENALTY_AMOUNT
+              penaltyPoints: PENALTY_POINTS
             })
           }
         });
+
+        // 4. VERIFICAR SI LA PARTIDA QUEDÓ VACÍA Y ELIMINARLA
+        const remainingBookings = await tx.matchGameBooking.count({
+          where: {
+            matchGameId: matchGameId,
+            status: { in: ['CONFIRMED', 'PENDING'] }
+          }
+        });
+
+        if (remainingBookings === 0) {
+          console.log('🗑️ La partida ha quedado vacía. Eliminando...');
+          await tx.matchGameBooking.deleteMany({
+            where: { matchGameId: matchGameId }
+          });
+          await tx.matchGame.delete({
+            where: { id: matchGameId }
+          });
+        }
       });
 
       return NextResponse.json({
         success: true,
-        message: `Reserva cancelada. Penalización de €1 aplicada. Se han devuelto €${refundAmount.toFixed(2)} a tu saldo.`,
-        penaltyAmount: PENALTY_AMOUNT,
+        message: `Reserva cancelada. Penalización de ${PENALTY_POINTS / 100} punto aplicada. Se ha desbloqueado tu saldo.`,
+        penaltyPoints: PENALTY_POINTS,
         refundAmount: refundAmount,
         pointsGranted: 0,
-        slotMarkedAsRecycled: false
+        slotMarkedAsRecycled: false,
+        matchDeleted: true
       });
     }
 

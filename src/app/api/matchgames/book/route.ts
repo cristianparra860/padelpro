@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import {
   hasAvailableCredits,
-  updateUserBlockedCredits
+  updateUserBlockedCredits,
+  deleteMatchGameIfEmpty
 } from '@/lib/blockedCredits';
 import { createTransaction } from '@/lib/transactionLogger';
 
@@ -258,6 +259,11 @@ async function cancelOtherActivitiesOnSameDay(userId: string, confirmedMatchGame
         });
       }
     }
+
+    // 🗑️ LIMPIEZA: Si la partida quedó vacía (era una copia dinámica), eliminarla
+    if (booking.matchGameId) {
+      await deleteMatchGameIfEmpty(booking.matchGameId);
+    }
   }
 }
 
@@ -405,6 +411,9 @@ async function cancelCompetingMatches(confirmedMatchGameId: string, prisma: any)
     }
 
     console.log(`   ✅ Partida ${match.id} cancelada con ${match.bookings.length} reembolsos`);
+
+    // 🗑️ LIMPIEZA: Eliminar la partida perdedora si quedó vacía
+    await deleteMatchGameIfEmpty(match.id);
   }
 
   console.log(`\n🏆 Carrera completada - ${competingMatches.length} partidas perdedoras canceladas`);
@@ -467,6 +476,96 @@ export async function POST(request: Request) {
 
     if (!matchGame) {
       return NextResponse.json({ error: 'Partida no encontrada' }, { status: 404 });
+    }
+
+    // ⛔ GUARD: Verificar MISMA HORA DE INICIO (PENDING o CONFIRMED)
+    // El usuario pide permitir solapamientos (ej. 10:00 y 10:30) pero bloquear duplicados exactos (ej. 10:00 y 10:00)
+    const exactStart = new Date(matchGame.start);
+
+    // 0.1 Verificar MISMA HORA con OTRAS PARTIDAS (Pending/Confirmed)
+    const duplicateStartTimeMatch = await prisma.matchGameBooking.findFirst({
+      where: {
+        userId,
+        status: { in: ['PENDING', 'CONFIRMED'] },
+        matchGameId: { not: matchGameId },
+        matchGame: {
+          start: exactStart
+        }
+      },
+      include: { matchGame: true }
+    });
+
+    if (duplicateStartTimeMatch) {
+      const timeStr = new Date(duplicateStartTimeMatch.matchGame.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      return NextResponse.json({
+        error: `⚠️ Ya tienes una inscripción a las ${timeStr}.\n\n🚫 No puedes inscribirte en múltiples eventos que comienzan a la misma hora.`
+      }, { status: 400 });
+    }
+
+    // 0.2 Verificar MISMA HORA con CLASES (Pending/Confirmed)
+    const duplicateStartTimeClass = await prisma.booking.findFirst({
+      where: {
+        userId,
+        status: { in: ['PENDING', 'CONFIRMED'] },
+        timeSlot: {
+          start: exactStart
+        }
+      },
+      include: { timeSlot: true }
+    });
+
+    if (duplicateStartTimeClass) {
+      const timeStr = new Date(duplicateStartTimeClass.timeSlot.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      return NextResponse.json({
+        error: `⚠️ Ya tienes una clase a las ${timeStr}.\n\n🚫 No puedes inscribirte en múltiples eventos que comienzan a la misma hora.`
+      }, { status: 400 });
+    }
+
+    // ⛔ GUARD: Verificar si ya tiene ACTIVIDADES CONFIRMADAS hoy (Clase o Partida)
+    const matchDateVal = new Date(matchGame.start);
+    const startOfDay = new Date(Date.UTC(matchDateVal.getUTCFullYear(), matchDateVal.getUTCMonth(), matchDateVal.getUTCDate(), 0, 0, 0));
+    const endOfDay = new Date(Date.UTC(matchDateVal.getUTCFullYear(), matchDateVal.getUTCMonth(), matchDateVal.getUTCDate(), 23, 59, 59));
+
+    // 1. Verificar CLASES confirmadas
+    const confirmedClass = await prisma.booking.findFirst({
+      where: {
+        userId,
+        status: 'CONFIRMED',
+        timeSlot: {
+          start: { gte: startOfDay, lte: endOfDay },
+          courtId: { not: null }
+        }
+      },
+      include: { timeSlot: true }
+    });
+
+    if (confirmedClass) {
+      const timeStr = new Date(confirmedClass.timeSlot.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      return NextResponse.json({
+        error: `⚠️ Ya tienes una Clase confirmada hoy a las ${timeStr}.\n\n📋 Solo puedes tener UNA actividad confirmada por día.`
+      }, { status: 400 });
+    }
+
+    // 2. Verificar OTRAS PARTIDAS confirmadas
+    // Excluimos la actual si por alguna razón ya estuviera confirmada (aunque aquí estamos reservando)
+    const confirmedOtherMatch = await prisma.matchGameBooking.findFirst({
+      where: {
+        userId,
+        status: 'CONFIRMED',
+        matchGameId: { not: matchGameId },
+        matchGame: {
+          start: { gte: startOfDay, lte: endOfDay },
+          courtId: { not: null }
+        }
+      },
+      include: { matchGame: true }
+    });
+
+    if (confirmedOtherMatch) {
+      const timeStr = new Date(confirmedOtherMatch.matchGame.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      return NextResponse.json({
+        error: `⚠️ Ya tienes una Partida confirmada hoy a las ${timeStr}.\n\n📋 Solo puedes tener UNA actividad confirmada por día.`
+      }, { status: 400 });
     }
 
     // 🔄 RESERVA CON PUNTOS (Plaza Reciclada)

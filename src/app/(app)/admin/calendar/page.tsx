@@ -20,16 +20,16 @@ export default function CalendarPage() {
     const loadUser = async () => {
       try {
         const response = await fetch('/api/auth/me');
-        
+
         if (!response.ok) {
           setHasAccess(false);
           setLoading(false);
           return;
         }
-        
+
         const data = await response.json();
         const userRole = data.user?.role;
-        
+
         // Todos los usuarios autenticados pueden acceder al calendario
         if (userRole) {
           setHasAccess(true);
@@ -49,7 +49,7 @@ export default function CalendarPage() {
         setLoading(false);
       }
     };
-    
+
     loadUser();
   }, [toast]);
 
@@ -84,8 +84,8 @@ export default function CalendarPage() {
               <p className="text-sm text-muted-foreground mb-4">
                 Debes iniciar sesión para acceder a esta sección.
               </p>
-              <Button 
-                onClick={() => router.push('/dashboard')} 
+              <Button
+                onClick={() => router.push('/dashboard')}
                 className="w-full"
               >
                 Volver al inicio
@@ -98,7 +98,7 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="w-full py-2 md:py-6 px-2 md:px-6 pb-20 md:pb-6 md:pl-24">
+    <div className="w-full py-2 md:py-6 px-0 md:px-6 pb-20 md:pb-6 md:pl-24">
       <ClubCalendarImproved clubId={clubId} currentUser={currentUser} viewMode="club" />
     </div>
   );

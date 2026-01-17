@@ -475,6 +475,104 @@ export default function ClubCalendarImproved({
     fetchData();
   }, [clubId, currentDate]);
 
+  // ⚡ OPTIMIZACIÓN: Pre-calcular mapas de eventos para renderizado O(1)
+  const eventLookups = useMemo(() => {
+    // console.log('🔄 Recalculando Lookups de Eventos (Optimización)');
+    const confirmedClassesMap = new Map<string, any>();
+    const confirmedMatchesMap = new Map<string, any>();
+    const classProposalsBySlot = new Map<string, any[]>();
+    const matchProposalsBySlot = new Map<string, any[]>();
+    const instructorReservationsMap = new Map<string, any>();
+    const courtReservationsMap = new Map<string, any>();
+
+    const getSlotKey = (date: Date) => {
+      const hours = date.getHours().toString().padStart(2, '0');
+      const minutes = date.getMinutes().toString().padStart(2, '0');
+      return `${hours}:${minutes}`;
+    };
+
+    const fillMapForDuration = (event: any, map: Map<string, any>, keyPrefix: string = '', useArray: boolean = false) => {
+      if (!event.start && !event.startTime) return;
+      const start = new Date(event.start || event.startTime);
+      const end = new Date(event.end || event.endTime); // Assuming end exists or calculate from duration
+
+      let curr = new Date(start);
+      // Loop slots every 30 mins
+      while (curr < end) {
+        const slot = getSlotKey(curr);
+        const key = keyPrefix ? `${keyPrefix}-${slot}` : slot;
+
+        if (useArray) {
+          const list = map.get(key) || [];
+          list.push(event);
+          map.set(key, list);
+        } else {
+          // Only set if not exists or override strategy?
+          if (!map.has(key)) map.set(key, event);
+        }
+
+        curr.setMinutes(curr.getMinutes() + 30);
+      }
+    };
+
+    const fillMapForStartOnly = (event: any, map: Map<string, any>, useArray: boolean = false) => {
+      if (!event.start && !event.startTime) return;
+      const start = new Date(event.start || event.startTime);
+      const slot = getSlotKey(start);
+
+      if (useArray) {
+        const list = map.get(slot) || [];
+        list.push(event);
+        map.set(slot, list);
+      } else {
+        if (!map.has(slot)) map.set(slot, event);
+      }
+    };
+
+    // 1. Confirmed Classes (Key: "C{courtNumber}-{slot}")
+    (confirmedClasses || []).forEach(cls => {
+      if (cls.courtNumber) {
+        fillMapForDuration(cls, confirmedClassesMap, `C${cls.courtNumber}`);
+      }
+    });
+
+    // 2. Confirmed Matches (Key: "M{courtNumber}-{slot}")
+    (confirmedMatches || []).forEach(match => {
+      if (match.courtNumber) {
+        fillMapForDuration(match, confirmedMatchesMap, `M${match.courtNumber}`);
+      }
+    });
+
+    // 3. Class Proposals (Key: "{slot}" -> Array) - ONLY START TIME
+    (classProposals || []).forEach(prop => {
+      fillMapForStartOnly(prop, classProposalsBySlot, true);
+    });
+
+    // 4. Match Proposals (Key: "{slot}" -> Array) - ONLY START TIME
+    (matchProposals || []).forEach(prop => {
+      fillMapForStartOnly(prop, matchProposalsBySlot, true);
+    });
+
+    // 5. Instructor Reservations (Key: "RES-I-{courtId}-{slot}")
+    (instructorReservations || []).forEach(res => {
+      fillMapForDuration(res, instructorReservationsMap, `RES-I-${res.courtId}`);
+    });
+
+    // 6. Court Reservations (Key: "RES-U-{courtId}-{slot}")
+    (courtReservations || []).forEach(res => {
+      fillMapForDuration(res, courtReservationsMap, `RES-U-${res.courtId}`);
+    });
+
+    return {
+      confirmedClassesMap,
+      confirmedMatchesMap,
+      classProposalsBySlot,
+      matchProposalsBySlot,
+      instructorReservationsMap,
+      courtReservationsMap
+    };
+  }, [confirmedClasses, confirmedMatches, classProposals, matchProposals, instructorReservations, courtReservations]);
+
   // Generar slots de tiempo según horario del club (reactivo)
   const timeSlots = useMemo(() => {
     console.log('🔄 Recalculando timeSlots');
@@ -649,15 +747,8 @@ export default function ClubCalendarImproved({
 
   // Encontrar TODAS las propuestas de partida en un slot (abiertas + nivel del usuario)
   const getMatchProposalsInSlot = (timeSlot: string) => {
-    const [hour, minute] = timeSlot.split(':');
-    const slotTime = new Date(currentDate);
-    slotTime.setHours(parseInt(hour), parseInt(minute), 0, 0);
-
-    // Filtrar todas las partidas que coincidan con el horario
-    const allMatches = matchProposals.filter(match => {
-      const matchStart = new Date(match.start);
-      return matchStart.getTime() === slotTime.getTime();
-    });
+    // OPTIMIZED: Lookup directly
+    const allMatches = eventLookups.matchProposalsBySlot.get(timeSlot) || [];
 
     if (!currentUser || !currentUser.level) {
       // Sin usuario o nivel, mostrar todas
@@ -668,6 +759,17 @@ export default function ClubCalendarImproved({
 
     // Filtrar partidas relevantes para el usuario
     const relevantMatches = allMatches.filter(match => {
+      // ⚡ CRITICAL FIX: Ensure match belongs to the currently selected date
+      // The API might return matches for adjacent days (current + next day)
+      // We must only show matches for the current view date
+      const matchDate = new Date(match.start);
+      const isSameDate =
+        matchDate.getDate() === currentDate.getDate() &&
+        matchDate.getMonth() === currentDate.getMonth() &&
+        matchDate.getFullYear() === currentDate.getFullYear();
+
+      if (!isSameDate) return false;
+
       // Siempre incluir partidas abiertas
       if (match.isOpen) return true;
 
@@ -799,42 +901,36 @@ export default function ClubCalendarImproved({
       })));
     }
 
-    // Filtrar todas las clases que coincidan con el horario e instructor
-    const allClasses = classProposals.filter(proposal => {
-      const matchesInstructor = proposal.instructorId === instructorId;
-      const propStart = new Date(proposal.start);
-      const matchesTime = propStart.getTime() === slotTime.getTime();
+    // Filtrar todas las clases que coincidan con el horario e instructor (OPTIMIZADO)
+    const slotProposals = eventLookups.classProposalsBySlot.get(timeSlot) || [];
 
-      if (matchesInstructor) {
-        console.log('👨‍🏫 Found class for instructor:', {
-          id: proposal.id,
-          instructorId: proposal.instructorId,
-          start: proposal.start,
-          propStartTime: propStart.getTime(),
-          slotTime: slotTime.getTime(),
-          matchesTime
-        });
-      }
+    // Filtrar por instructor
+    const allClasses = slotProposals.filter(proposal => {
+      // ⚡ CRITICAL FIX: Ensure class belongs to the currently selected date
+      const clsDate = new Date(proposal.start);
+      const isSameDate =
+        clsDate.getDate() === currentDate.getDate() &&
+        clsDate.getMonth() === currentDate.getMonth() &&
+        clsDate.getFullYear() === currentDate.getFullYear();
 
-      return matchesInstructor && matchesTime;
+      if (!isSameDate) return false;
+
+      return proposal.instructorId === instructorId;
     });
 
-    console.log('✅ Classes matching instructor and time:', allClasses.length);
+    // console.log('✅ Classes matching instructor and time:', allClasses.length);
 
     // Si es vista de club/admin (viewMode === 'club'), mostrar TODAS las clases sin filtrar por nivel
     if (viewMode === 'club') {
-      console.log('🏢 Club view mode - returning all classes without level filter');
       return allClasses;
     }
 
     if (!currentUser || !currentUser.level) {
       // Sin usuario o nivel, mostrar todas
-      console.log('👤 No user or level - returning all classes');
       return allClasses;
     }
 
     const userLevel = parseFloat(currentUser.level);
-    console.log('👤 User level:', userLevel);
 
     // Filtrar clases relevantes para el usuario
     const relevantClasses = allClasses.filter(classItem => {
@@ -850,7 +946,6 @@ export default function ClubCalendarImproved({
       return false;
     });
 
-    console.log('🎯 Final relevant classes after level filter:', relevantClasses.length);
     return relevantClasses;
   };
 
@@ -862,68 +957,16 @@ export default function ClubCalendarImproved({
 
   // Encontrar clase confirmada en un slot específico (inicio o durante)
   const getConfirmedClassInSlot = (timeSlot: string, courtNumber: number) => {
-    const [hour, minute] = timeSlot.split(':');
-    const slotTime = new Date(currentDate);
-    slotTime.setHours(parseInt(hour), parseInt(minute), 0, 0);
-
-    const confirmedClass = confirmedClasses.find(cls => {
-      // Buscar por courtNumber o por courtId que coincida con el court number
-      const matchesCourt = cls.courtNumber === courtNumber ||
-        (cls.courtId && calendarData?.courts.find(c => c.id === cls.courtId)?.number === courtNumber);
-
-      if (!matchesCourt) return false;
-
-      const clsStart = new Date(cls.start);
-      const clsEnd = new Date(cls.end);
-
-      // Verificar si el slot está dentro del rango de la clase
-      return clsStart.getTime() <= slotTime.getTime() && clsEnd.getTime() > slotTime.getTime();
-    });
-
-    if (confirmedClass) {
-      console.log('✅ Clase confirmada encontrada:', {
-        timeSlot,
-        courtNumber,
-        classId: confirmedClass.id,
-        courtId: confirmedClass.courtId,
-        start: confirmedClass.start
-      });
-    }
-
-    return confirmedClass;
+    // OPTIMIZED: Direct lookup
+    const key = `C${courtNumber}-${timeSlot}`;
+    return eventLookups.confirmedClassesMap.get(key) || undefined;
   };
 
   // Encontrar partida confirmada en un slot específico (inicio o durante)
   const getConfirmedMatchInSlot = (timeSlot: string, courtNumber: number) => {
-    const [hour, minute] = timeSlot.split(':');
-    const slotTime = new Date(currentDate);
-    slotTime.setHours(parseInt(hour), parseInt(minute), 0, 0);
-
-    const confirmedMatch = confirmedMatches.find(match => {
-      // Buscar por courtNumber o por courtId que coincida con el court number
-      const matchesCourt = match.courtNumber === courtNumber ||
-        (match.courtId && calendarData?.courts.find(c => c.id === match.courtId)?.number === courtNumber);
-
-      if (!matchesCourt) return false;
-
-      const matchStart = new Date(match.start);
-      const matchEnd = new Date(match.end);
-
-      // Verificar si el slot está dentro del rango de la partida
-      return matchStart.getTime() <= slotTime.getTime() && matchEnd.getTime() > slotTime.getTime();
-    });
-
-    if (confirmedMatch) {
-      console.log('✅ Partida confirmada encontrada:', {
-        timeSlot,
-        courtNumber,
-        matchId: confirmedMatch.id,
-        courtId: confirmedMatch.courtId,
-        start: confirmedMatch.start
-      });
-    }
-
-    return confirmedMatch;
+    // OPTIMIZED: Direct lookup
+    const key = `M${courtNumber}-${timeSlot}`;
+    return eventLookups.confirmedMatchesMap.get(key) || undefined;
   };
 
   // Verificar si es el inicio de una clase confirmada
@@ -967,18 +1010,9 @@ export default function ClubCalendarImproved({
 
   // Funciones helper para reservas de instructor
   const getInstructorReservationInSlot = (courtId: string, timeSlot: string) => {
-    if (instructorReservations.length === 0) return null;
-
-    const [hour, minute] = timeSlot.split(':');
-    const slotTime = new Date(currentDate);
-    slotTime.setHours(parseInt(hour), parseInt(minute), 0, 0);
-
-    // Buscar cualquier reserva de instructor en este slot (no solo del instructor actual)
-    return instructorReservations.find(res => {
-      const resStart = new Date(res.startTime);
-      const resEnd = new Date(res.endTime);
-      return res.courtId === courtId && slotTime >= resStart && slotTime < resEnd;
-    });
+    // OPTIMIZED
+    const key = `RES-I-${courtId}-${timeSlot}`;
+    return eventLookups.instructorReservationsMap.get(key) || null;
   };
 
   const isInstructorReservationStart = (reservation: any, timeSlot: string) => {
@@ -1042,18 +1076,9 @@ export default function ClubCalendarImproved({
 
   // Funciones para reservas de usuarios normales
   const getUserReservationInSlot = (courtId: string, timeSlot: string) => {
-    if (courtReservations.length === 0) return null;
-
-    const [hour, minute] = timeSlot.split(':');
-    const slotDate = new Date(currentDate);
-    slotDate.setHours(parseInt(hour, 10), parseInt(minute, 10), 0, 0);
-    const slotTime = slotDate.getTime();
-
-    return courtReservations.find(res => {
-      const start = new Date(res.start || res.startTime).getTime();
-      const end = new Date(res.end || res.endTime).getTime();
-      return res.courtId === courtId && slotTime >= start && slotTime < end;
-    });
+    // OPTIMIZED
+    const key = `RES-U-${courtId}-${timeSlot}`;
+    return eventLookups.courtReservationsMap.get(key) || null;
   };
 
   const isUserReservationStart = (reservation: any, timeSlot: string) => {
@@ -1105,7 +1130,7 @@ export default function ClubCalendarImproved({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 px-4 py-6 md:px-6 lg:px-8 relative">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 px-0 py-6 md:px-6 lg:px-8 relative">
       {/* Overlay oscuro cuando modo clases sin instructor - Deja visible solo botones de instructores */}
       {viewType === 'clases' && (!selectedInstructor || !calendarData.instructors.some(i => i.id === selectedInstructor)) && calendarData.instructors.length > 0 && (
         <div
@@ -1115,7 +1140,7 @@ export default function ClubCalendarImproved({
 
       <div className="max-w-[100%] lg:max-w-[1600px] mx-auto space-y-3">
         {/* Selector de Fecha */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-0.5 md:p-3">
           <DateSelector
             selectedDate={currentDate}
             onDateChange={handleDateChange}
@@ -1137,7 +1162,7 @@ export default function ClubCalendarImproved({
                 currentParams.set('viewType', 'clases');
                 router.push(`${window.location.pathname}?${currentParams.toString()}`);
               }}
-              className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all ${viewType === 'clases'
+              className={`flex-1 py-1.5 px-2 md:py-2.5 md:px-4 rounded-lg font-semibold text-xs md:text-sm transition-all ${viewType === 'clases'
                 ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
                 }`}
@@ -1155,7 +1180,7 @@ export default function ClubCalendarImproved({
                 currentParams.delete('instructor'); // Remover instructor de la URL
                 router.push(`${window.location.pathname}?${currentParams.toString()}`);
               }}
-              className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all ${viewType === 'partidas'
+              className={`flex-1 py-1.5 px-2 md:py-2.5 md:px-4 rounded-lg font-semibold text-xs md:text-sm transition-all ${viewType === 'partidas'
                 ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-md'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
                 }`}
@@ -1173,7 +1198,7 @@ export default function ClubCalendarImproved({
                 currentParams.delete('instructor'); // Remover instructor de la URL
                 router.push(`${window.location.pathname}?${currentParams.toString()}`);
               }}
-              className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all ${viewType === 'reservar-pistas'
+              className={`flex-1 py-1.5 px-2 md:py-2.5 md:px-4 rounded-lg font-semibold text-xs md:text-sm transition-all ${viewType === 'reservar-pistas'
                 ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-md'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
                 }`}
@@ -1261,12 +1286,12 @@ export default function ClubCalendarImproved({
 
         {/* Banner del Calendario de Partidas */}
         {viewType === 'partidas' && (
-          <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-2xl shadow-lg p-2">
-            <div className="flex items-center justify-between gap-4">
+          <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-2xl shadow-lg p-1 md:p-2">
+            <div className="flex items-center justify-between gap-2 md:gap-4">
               {/* Izquierda: Contenedor con logo y texto */}
               {currentUser && (
-                <div className="flex items-center gap-3 bg-white/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-md">
-                  <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-green-500 shadow-lg bg-white flex items-center justify-center">
+                <div className="flex items-center gap-2 md:gap-3 bg-white/90 backdrop-blur-sm rounded-xl px-3 py-1 md:px-4 md:py-2 shadow-md">
+                  <div className="w-8 h-8 md:w-12 md:h-12 rounded-full overflow-hidden border-2 border-green-500 shadow-lg bg-white flex items-center justify-center">
                     <img
                       src={currentUser.profilePicture || currentUser.photo || currentUser.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name || 'Usuario')}&background=10b981&color=fff&size=128`}
                       alt={currentUser.name}
@@ -1278,35 +1303,36 @@ export default function ClubCalendarImproved({
                     />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-green-900 leading-tight">Calendario de Partidas</h3>
-                    <div className="text-xs text-green-700 leading-tight">Nivel: {currentUser.level || 'N/A'}</div>
+                    <h3 className="text-sm md:text-base font-bold text-green-900 leading-tight">
+                      <span className="md:hidden">Partidas</span>
+                      <span className="hidden md:inline">Calendario de Partidas</span>
+                    </h3>
+                    <div className="text-xs text-green-700 leading-tight hidden md:block">Nivel: {currentUser.level || 'N/A'}</div>
                   </div>
                 </div>
               )}
 
               {/* Derecha: Selector de precio por 1 jugador o 4 jugadores */}
               <div className="flex items-center gap-2">
-                <div className="text-center">
-                  <div className="text-xs font-semibold text-white">Ver precio por</div>
+                <div className="text-right flex flex-col justify-center">
+                  <div className="text-[9px] md:text-xs font-semibold text-white leading-tight">Ver precio</div>
+                  <div className="text-[9px] md:text-xs font-semibold text-white leading-tight">por jugadores</div>
                 </div>
-                <div className="flex flex-col items-center">
-                  <div className="flex gap-2">
-                    {[1, 4].map((players) => (
-                      <button
-                        key={players}
-                        onClick={() => setPricePerPlayers(players as 1 | 4)}
-                        className={`w-10 h-10 rounded-lg text-lg font-bold transition-all ${pricePerPlayers === players
-                          ? 'bg-white text-green-600 scale-105'
-                          : 'bg-white/20 text-white hover:bg-white/30'
-                          }`}
-                        style={pricePerPlayers === players ? { boxShadow: 'inset 0 3px 6px rgba(0, 0, 0, 0.5)' } : {}}
-                        title={`Precio para ${players} ${players === 1 ? 'jugador' : 'jugadores'}`}
-                      >
-                        {players}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="text-xs font-medium text-white mt-0.5">Jugadores</div>
+                <div className="flex gap-1 md:gap-2">
+                  {[1, 4].map((players) => (
+                    <button
+                      key={players}
+                      onClick={() => setPricePerPlayers(players as 1 | 4)}
+                      className={`w-7 h-7 md:w-10 md:h-10 rounded-lg text-xs md:text-lg font-bold transition-all ${pricePerPlayers === players
+                        ? 'bg-white text-green-600 scale-105'
+                        : 'bg-white/20 text-white hover:bg-white/30'
+                        }`}
+                      style={pricePerPlayers === players ? { boxShadow: 'inset 0 3px 6px rgba(0, 0, 0, 0.5)' } : {}}
+                      title={`Precio para ${players} ${players === 1 ? 'jugador' : 'jugadores'}`}
+                    >
+                      {players}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -1315,12 +1341,12 @@ export default function ClubCalendarImproved({
 
         {/* Banner de Reservar Pistas */}
         {viewType === 'reservar-pistas' && (
-          <div className="bg-gradient-to-r from-orange-500 to-red-600 rounded-2xl shadow-lg p-2">
-            <div className="flex items-center justify-between gap-4">
+          <div className="bg-gradient-to-r from-orange-500 to-red-600 rounded-2xl shadow-lg p-1 md:p-2">
+            <div className="flex items-center justify-between gap-2 md:gap-4">
               {/* Izquierda: Contenedor con logo y texto */}
               {currentUser && (
-                <div className="flex items-center gap-3 bg-white/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-md">
-                  <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-orange-500 shadow-lg bg-white flex items-center justify-center">
+                <div className="flex items-center gap-2 md:gap-3 bg-white/90 backdrop-blur-sm rounded-xl px-3 py-1 md:px-4 md:py-2 shadow-md">
+                  <div className="w-8 h-8 md:w-12 md:h-12 rounded-full overflow-hidden border-2 border-orange-500 shadow-lg bg-white flex items-center justify-center">
                     <img
                       src={currentUser.profilePicture || currentUser.photo || currentUser.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name || 'Usuario')}&background=f97316&color=fff&size=128`}
                       alt={currentUser.name}
@@ -1332,24 +1358,28 @@ export default function ClubCalendarImproved({
                     />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-orange-900 leading-tight">Reservar Pista</h3>
-                    <div className="text-xs text-orange-700 leading-tight">{currentUser.name}</div>
+                    <h3 className="text-sm md:text-base font-bold text-orange-900 leading-tight">
+                      <span className="md:hidden">Reservar Pistas</span>
+                      <span className="hidden md:inline">Reservar Pista</span>
+                    </h3>
+                    <div className="text-xs text-orange-700 leading-tight hidden md:block">{currentUser.name}</div>
                   </div>
                 </div>
               )}
 
               {/* Derecha: Selector de duración */}
               <div className="flex items-center gap-2">
-                <div className="text-center">
-                  <div className="text-xs font-semibold text-white">Duración</div>
+                <div className="text-right flex flex-col justify-center">
+                  <div className="text-[9px] md:text-xs font-semibold text-white leading-tight">Duración</div>
+                  <div className="text-[9px] md:text-xs font-semibold text-white leading-tight">minutos</div>
                 </div>
                 <div className="flex flex-col items-center">
-                  <div className="flex gap-2">
+                  <div className="flex gap-1 md:gap-2">
                     {[30, 60, 90, 120].map((duration) => (
                       <button
                         key={duration}
                         onClick={() => setSelectedDuration(duration as 30 | 60 | 90 | 120)}
-                        className={`w-10 h-10 rounded-lg text-sm font-bold transition-all ${selectedDuration === duration
+                        className={`w-7 h-7 md:w-10 md:h-10 rounded-lg text-[10px] md:text-sm font-bold transition-all ${selectedDuration === duration
                           ? 'bg-white text-orange-600 scale-105'
                           : 'bg-white/20 text-white hover:bg-white/30'
                           }`}
@@ -1360,7 +1390,6 @@ export default function ClubCalendarImproved({
                       </button>
                     ))}
                   </div>
-                  <div className="text-xs font-medium text-white mt-0.5">Minutos</div>
                 </div>
               </div>
             </div>
@@ -1680,7 +1709,12 @@ export default function ClubCalendarImproved({
                           const endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
                           const userId = userReservation.reason?.split(':')[1] || '';
                           const isMyReservation = currentUser && currentUser.id === userId;
-                          const userName = userReservation.userName || 'Usuario';
+                          // Formatear nombre: Maria Garcia -> Maria G.
+                          const rawName = userReservation.userName || 'Usuario';
+                          const nameParts = rawName.trim().split(/\s+/);
+                          const userName = nameParts.length >= 2
+                            ? `${nameParts[0]} ${nameParts[1].charAt(0)}.`
+                            : rawName;
 
                           const isUserResPast = isTimeSlotPast(timeSlot);
 
@@ -1844,7 +1878,7 @@ export default function ClubCalendarImproved({
                                   >
                                     {/* Indicador de múltiples opciones - esquina superior izquierda */}
                                     {hasMultipleOptions && (
-                                      <div className={`absolute -top-2 -left-2 bg-blue-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-md border-2 border-white z-10 ${isPast ? 'bg-gray-400' : ''}`}>
+                                      <div className={`absolute -top-2 -right-2 bg-blue-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-md border-2 border-white z-10 ${isPast ? 'bg-gray-400' : ''}`}>
                                         {proposals.length}
                                       </div>
                                     )}
@@ -1949,39 +1983,57 @@ export default function ClubCalendarImproved({
                                 return (
                                   <div
                                     onClick={() => !isPast && handleMatchProposalClick(timeSlot)}
-                                    className={`bg-white rounded-lg p-1 transition-all h-full border border-gray-300 shadow-lg flex items-center relative overflow-visible ${isPast ? 'opacity-50 grayscale cursor-not-allowed' : 'cursor-pointer hover:shadow-xl hover:scale-105'
+                                    className={`bg-white rounded-lg p-1 transition-all h-full border border-gray-300 shadow-lg relative overflow-visible ${isPast ? 'opacity-50 grayscale cursor-not-allowed' : 'cursor-pointer hover:shadow-xl hover:scale-105 group'
                                       }`}
                                     style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1), inset 0 2px 4px 0 rgba(255, 255, 255, 0.6)' }}
                                   >
                                     {/* Indicador de múltiples opciones - esquina superior izquierda */}
                                     {hasMultipleOptions && (
-                                      <div className={`absolute -top-2 -left-2 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-md border-2 border-white z-10 ${isPast ? 'bg-gray-400' : 'bg-green-500'
+                                      <div className={`absolute -top-4 -right-4 text-white text-2xl font-bold rounded-full w-16 h-16 flex items-center justify-center shadow-md border-4 border-white z-10 ${isPast ? 'bg-gray-400' : 'bg-green-500'
                                         }`}>
                                         {matchProposals.length}
                                       </div>
                                     )}
-                                    <div className="flex items-center gap-1 w-full">
-                                      {/* Texto a la izquierda */}
-                                      <div className="flex-1 min-w-0">
-                                        <div className="text-[9px] text-green-600 font-bold leading-tight break-words">
-                                          {playersCount > 0 ? `${playersCount} inscrito${playersCount > 1 ? 's' : ''}` : 'Iniciar Partida 90 Min'}
+
+                                    {playersCount === 0 ? (
+                                      // Modo "+" para iniciar partida (sin inscritos)
+                                      <div className="flex items-center justify-between h-full">
+                                        <div className="flex-1 flex justify-center items-center">
+                                          <div className="w-9 h-9 rounded-full bg-green-50 border-2 border-green-100 flex items-center justify-center shadow-sm group-hover:border-green-300 group-hover:bg-green-100 transition-colors">
+                                            <span className="text-green-500 text-2xl font-bold leading-none mb-1">+</span>
+                                          </div>
                                         </div>
-                                        <div className="text-[8px] text-gray-700 font-semibold leading-tight mt-0.5">
-                                          <span>Nivel/ {levelDisplay}</span>
-                                          {showCategory && (
-                                            <>
-                                              <span> • </span>
-                                              <span>{categoryDisplay}</span>
-                                            </>
-                                          )}
+                                        <div className="flex-shrink-0 bg-white rounded-md px-2 py-1 border border-gray-200 ml-1" style={{ boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.1)' }}>
+                                          <div className="text-[7px] text-gray-600 leading-tight">Precio por</div>
+                                          <div className="text-[7px] text-gray-600 leading-tight">{pricePerPlayers === 1 ? 'p/p' : 'total'}</div>
+                                          <div className="text-sm font-bold text-gray-800 leading-tight">{Math.round(priceToShow)}€</div>
                                         </div>
                                       </div>
-                                      {/* Recuadro de precio alineado a la derecha */}
-                                      <div className="flex-shrink-0 bg-white rounded-md px-1.5 py-0.5 border border-gray-200 flex flex-col items-center justify-center min-w-[32px]" style={{ boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.1)' }}>
-                                        <div className="text-[6px] text-gray-500 leading-none">{pricePerPlayers === 1 ? 'p/p' : 'total'}</div>
-                                        <div className="text-xs font-bold text-gray-800 leading-tight">{Math.round(priceToShow)}€</div>
+                                    ) : (
+                                      // Modo info normal (con inscritos)
+                                      <div className="flex items-center gap-1 w-full h-full">
+                                        {/* Texto a la izquierda */}
+                                        <div className="flex-1 min-w-0">
+                                          <div className="text-[9px] text-green-600 font-bold leading-tight break-words">
+                                            {`${playersCount} inscrito${playersCount > 1 ? 's' : ''}`}
+                                          </div>
+                                          <div className="text-[8px] text-gray-700 font-semibold leading-tight mt-0.5">
+                                            <span>Nivel/ {levelDisplay}</span>
+                                            {showCategory && (
+                                              <>
+                                                <span> • </span>
+                                                <span>{categoryDisplay}</span>
+                                              </>
+                                            )}
+                                          </div>
+                                        </div>
+                                        {/* Recuadro de precio alineado a la derecha */}
+                                        <div className="flex-shrink-0 bg-white rounded-md px-1.5 py-0.5 border border-gray-200 flex flex-col items-center justify-center min-w-[32px]" style={{ boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.1)' }}>
+                                          <div className="text-[6px] text-gray-500 leading-none">{pricePerPlayers === 1 ? 'p/p' : 'total'}</div>
+                                          <div className="text-xs font-bold text-gray-800 leading-tight">{Math.round(priceToShow)}€</div>
+                                        </div>
                                       </div>
-                                    </div>
+                                    )}
                                   </div>
                                 );
                               }
@@ -2023,28 +2075,21 @@ export default function ClubCalendarImproved({
                                       setSelectedCourtSlot({ date: currentDate, time: timeSlot, courtNumber: court.number });
                                       setShowCourtReservation(true);
                                     }}
-                                    className="bg-white rounded-lg p-1 cursor-pointer hover:shadow-xl hover:scale-105 transition-all h-full border border-gray-300 shadow-lg flex items-center relative overflow-visible"
+                                    className="bg-white rounded-lg p-1 cursor-pointer hover:shadow-xl hover:scale-105 transition-all h-full border border-gray-300 shadow-lg flex items-center justify-between relative overflow-visible group"
                                     style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1), inset 0 2px 4px 0 rgba(255, 255, 255, 0.6)' }}
                                   >
-                                    <div className="flex items-center gap-1.5 w-full">
-                                      {/* Texto a la izquierda */}
-                                      <div className="flex-1 min-w-0">
-                                        <div className="text-[10px] text-orange-600 font-bold leading-tight">
-                                          Reservar Pista
-                                        </div>
-                                        <div className="text-[8px] text-gray-700 font-semibold leading-tight">
-                                          Disponible
-                                        </div>
-                                        <div className="text-[7px] text-gray-600 leading-tight mt-0.5">
-                                          Duración: {selectedDuration} min
-                                        </div>
+                                    {/* Contenedor flexible para el icono + (ocupa el espacio restante) */}
+                                    <div className="flex-1 flex justify-center items-center">
+                                      <div className="w-9 h-9 rounded-full bg-orange-50 border-2 border-orange-100 flex items-center justify-center shadow-sm group-hover:border-orange-300 group-hover:bg-orange-100 transition-colors">
+                                        <span className="text-orange-500 text-2xl font-bold leading-none mb-1">+</span>
                                       </div>
-                                      {/* Recuadro de precio alineado a la derecha */}
-                                      <div className="flex-shrink-0 bg-white rounded-md px-2 py-1 border border-gray-200" style={{ boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.1)' }}>
-                                        <div className="text-[7px] text-gray-600 leading-tight">Precio por</div>
-                                        <div className="text-[7px] text-gray-600 leading-tight">{selectedDuration} min</div>
-                                        <div className="text-sm font-bold text-gray-800 leading-tight">{totalPrice.toFixed(0)}€</div>
-                                      </div>
+                                    </div>
+
+                                    {/* Recuadro de precio (static position, flex-shrink-0) */}
+                                    <div className="flex-shrink-0 bg-white rounded-md px-2 py-1 border border-gray-200 ml-1" style={{ boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.1)' }}>
+                                      <div className="text-[7px] text-gray-600 leading-tight">Precio por</div>
+                                      <div className="text-[7px] text-gray-600 leading-tight">{selectedDuration} min</div>
+                                      <div className="text-sm font-bold text-gray-800 leading-tight">{totalPrice.toFixed(0)}€</div>
                                     </div>
                                   </div>
                                 );

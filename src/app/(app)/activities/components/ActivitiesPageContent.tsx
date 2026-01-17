@@ -40,16 +40,39 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
         const loadUserBookings = async () => {
             if (!currentUser?.id) return;
             try {
-                const response = await fetch(`/api/users/${currentUser.id}/bookings`);
-                if (response.ok) {
-                    const bookings = await response.json();
-                    const formattedBookings = bookings.map((b: any) => ({
-                        timeSlotId: b.timeSlotId,
-                        status: b.status,
-                        date: b.timeSlot?.start || b.start || new Date()
-                    }));
-                    setUserBookings(formattedBookings);
+                // 1. Fetch Class Bookings
+                const classBookingsRes = await fetch(`/api/users/${currentUser.id}/bookings`);
+                let classBookings = [];
+                if (classBookingsRes.ok) {
+                    classBookings = await classBookingsRes.json();
                 }
+
+                // 2. Fetch Match Bookings
+                const matchBookingsRes = await fetch(`/api/users/${currentUser.id}/match-bookings`);
+                let matchBookings = [];
+                if (matchBookingsRes.ok) {
+                    matchBookings = await matchBookingsRes.json();
+                }
+
+                // 3. Format Class Bookings
+                const formattedClassBookings = classBookings.map((b: any) => ({
+                    timeSlotId: b.timeSlotId,
+                    status: b.status,
+                    date: b.timeSlot?.start || b.start || new Date()
+                }));
+
+                // 4. Format Match Bookings
+                // Los bookings de match vienen con structure { matchGame: { start: ... }, status: ... }
+                // Debemos mapear el status real.
+                const formattedMatchBookings = matchBookings.map((mb: any) => ({
+                    timeSlotId: mb.matchGameId,
+                    status: mb.status, // Usar el status real (CONFIRMED/PENDING)
+                    date: mb.matchGame?.start || new Date()
+                }));
+
+                // 5. Combine and Set
+                setUserBookings([...formattedClassBookings, ...formattedMatchBookings]);
+
             } catch (error) {
                 console.error('❌ Error cargando bookings:', error);
             }

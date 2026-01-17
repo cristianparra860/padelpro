@@ -13,6 +13,9 @@ interface BookingCardProps {
   isPastClass?: boolean;
   isCancelled?: boolean;
   onHideFromHistory?: () => void;
+  refundedPoints?: number;
+  unlockedAmount?: number;
+  blockedAmount?: number;
 }
 
 // Wrapper component que memoriza la conversión de Booking → TimeSlot
@@ -23,7 +26,10 @@ const BookingCard = ({
   onCancelBooking,
   isPastClass = false,
   isCancelled = false,
-  onHideFromHistory
+  onHideFromHistory,
+  refundedPoints,
+  unlockedAmount,
+  blockedAmount,
 }: BookingCardProps) => {
   // Verificar si es clase o partida
   const isClassBooking = !!booking.timeSlot;
@@ -96,6 +102,13 @@ const BookingCard = ({
 
   const allowedPlayerCounts = useMemo(() => [1, 2, 3, 4], []);
 
+  const paidAmount = React.useMemo(() => {
+    if (booking.status === 'CONFIRMED' && booking.timeSlot && booking.groupSize) {
+      return booking.timeSlot.totalPrice / booking.groupSize;
+    }
+    return undefined;
+  }, [booking.status, booking.timeSlot, booking.groupSize]);
+
   return (
     <ClassCardReal
       classData={timeSlotData}
@@ -113,7 +126,12 @@ const BookingCard = ({
         name: booking.user?.name || currentUser?.name,
         profilePictureUrl: booking.user?.profilePictureUrl || currentUser?.profilePictureUrl
       } : undefined}
+      userBookedGroupSize={booking.groupSize}
+      paidAmount={paidAmount}
       onHideFromHistory={onHideFromHistory}
+      refundedPoints={refundedPoints}
+      unlockedAmount={unlockedAmount}
+      blockedAmount={blockedAmount}
     />
   );
 };

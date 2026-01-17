@@ -223,11 +223,14 @@ export default function MatchGamesPage() {
         // Filtrar solo los bookings del usuario en partidas
         const matchBookings = matchGames
           .filter((mg: MatchGame) => mg.bookings.some(b => b.userId === currentUser.id))
-          .map((mg: MatchGame) => ({
-            timeSlotId: mg.id,
-            status: 'PENDING', // Las partidas son inscripciones (I azul), no reservas (R rojo)
-            date: mg.start
-          }));
+          .map((mg: MatchGame) => {
+            const userBooking = mg.bookings.find(b => b.userId === currentUser.id);
+            return {
+              timeSlotId: mg.id,
+              status: userBooking?.status || 'PENDING', // Usar estado real (CONFIRMED/PENDING)
+              date: mg.start
+            };
+          });
 
         // Combinar bookings para el calendario
         const allBookings = [
@@ -543,7 +546,7 @@ export default function MatchGamesPage() {
 
       {/* Contenedor principal para tarjetas */}
       {/* Contenedor principal para tarjetas */}
-      <div className="ml-0 md:ml-52 lg:ml-56 mr-0 md:mr-4 px-6 md:px-0 py-1 matchgames-scrollbar overflow-y-auto" style={{ maxHeight: 'calc(100vh - 120px)' }}>
+      <div className="ml-0 md:ml-64 lg:ml-72 xl:ml-80 mr-0 md:mr-4 px-6 md:px-0 py-1 matchgames-scrollbar overflow-y-auto" style={{ maxHeight: 'calc(100vh - 120px)' }}>
 
         <div className="mb-2">
           {/* Selector de fecha */}
