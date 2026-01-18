@@ -45,8 +45,8 @@ export async function POST(request: NextRequest) {
     }>;
 
     if (timeSlotQuery.length === 0) {
-      return NextResponse.json({ 
-        error: 'Clase no encontrada' 
+      return NextResponse.json({
+        error: 'Clase no encontrada'
       }, { status: 404 });
     }
 
@@ -54,8 +54,8 @@ export async function POST(request: NextRequest) {
 
     // ⚠️ VALIDACIÓN CRÍTICA: Debe tener plazas recicladas
     if (!timeSlot.hasRecycledSlots || timeSlot.hasRecycledSlots === 0) {
-      return NextResponse.json({ 
-        error: 'Esta clase no tiene plazas recicladas disponibles. Solo se pueden reservar con puntos las plazas liberadas por cancelaciones.' 
+      return NextResponse.json({
+        error: 'Esta clase no tiene plazas recicladas disponibles. Solo se pueden reservar con puntos las plazas liberadas por cancelaciones.'
       }, { status: 400 });
     }
 
@@ -75,8 +75,8 @@ export async function POST(request: NextRequest) {
     console.log(`📊 Plazas: ${activeBookingsCount}/${timeSlot.maxPlayers} ocupadas, ${availableSlots} disponibles`);
 
     if (availableSlots <= 0) {
-      return NextResponse.json({ 
-        error: 'No hay plazas disponibles en esta clase' 
+      return NextResponse.json({
+        error: 'No hay plazas disponibles en esta clase'
       }, { status: 400 });
     }
 
@@ -90,14 +90,14 @@ export async function POST(request: NextRequest) {
     ` as Array<{ id: string; status: string; groupSize: number }>;
 
     if (existingBookingQuery.length > 0) {
-      return NextResponse.json({ 
-        error: 'Ya tienes una reserva activa en esta clase' 
+      return NextResponse.json({
+        error: 'Ya tienes una reserva activa en esta clase'
       }, { status: 400 });
     }
 
     // 4️⃣ VERIFICAR QUE EL USUARIO TIENE SUFICIENTES PUNTOS
     const userQuery = await prisma.$queryRaw`
-      SELECT id, name, email, points, blockedLoyaltyPoints, level
+      SELECT id, name, email, points, blockedPoints as blockedLoyaltyPoints, level
       FROM User
       WHERE id = ${userId}
     ` as Array<{
@@ -110,8 +110,8 @@ export async function POST(request: NextRequest) {
     }>;
 
     if (userQuery.length === 0) {
-      return NextResponse.json({ 
-        error: 'Usuario no encontrado' 
+      return NextResponse.json({
+        error: 'Usuario no encontrado'
       }, { status: 404 });
     }
 
@@ -122,8 +122,8 @@ export async function POST(request: NextRequest) {
     console.log(`💎 Coste en puntos: ${pointsCost}, Usuario tiene: ${availablePoints} puntos disponibles`);
 
     if (availablePoints < pointsCost) {
-      return NextResponse.json({ 
-        error: `No tienes suficientes puntos. Necesitas ${pointsCost} puntos y tienes ${availablePoints} disponibles.` 
+      return NextResponse.json({
+        error: `No tienes suficientes puntos. Necesitas ${pointsCost} puntos y tienes ${availablePoints} disponibles.`
       }, { status: 400 });
     }
 
@@ -149,9 +149,9 @@ export async function POST(request: NextRequest) {
       const confirmedDate = new Date(Number(confirmedBookingsTodayQuery[0].start));
       const confirmedTime = confirmedDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
       const courtNumber = confirmedBookingsTodayQuery[0].courtNumber;
-      
-      return NextResponse.json({ 
-        error: `Ya tienes una reserva confirmada este día a las ${confirmedTime} (Pista ${courtNumber}). Solo puedes tener una reserva confirmada por día.` 
+
+      return NextResponse.json({
+        error: `Ya tienes una reserva confirmada este día a las ${confirmedTime} (Pista ${courtNumber}). Solo puedes tener una reserva confirmada por día.`
       }, { status: 400 });
     }
 
@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
       await createTransaction({
         userId,
         type: 'points',
-        action: 'deduct',
+        action: 'subtract',
         amount: pointsCost,
         balance: userAfterCharge?.points || 0,
         concept: `Reserva de plaza reciclada - Clase ${new Date(slotTimestamp).toLocaleString('es-ES')}`,
@@ -252,7 +252,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ Error en book-with-points:', error);
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Error al procesar la reserva con puntos',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });

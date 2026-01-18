@@ -4,6 +4,43 @@
 import { prisma } from '@/lib/prisma';
 
 /**
+ * Recalcula y actualiza los puntos de fidelidad bloqueados de un usuario
+ * basado en sus reservas pendientes pagadas con puntos.
+ */
+export async function updateUserBlockedLoyaltyPoints(userId: string): Promise<number> {
+  try {
+    // Obtener todas las reservas pendientes pagadas con puntos
+    const pendingPointBookings = await prisma.booking.findMany({
+      where: {
+        userId,
+        status: 'PENDING',
+        paidWithPoints: true
+      },
+      select: {
+        pointsUsed: true
+      }
+    });
+
+    // Calcular el total de puntos bloqueados
+    const totalBlockedPoints = pendingPointBookings.reduce((sum, booking) => sum + booking.pointsUsed, 0);
+
+    // Actualizar el usuario
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        blockedPoints: totalBlockedPoints
+      }
+    });
+
+    return totalBlockedPoints;
+  } catch (error) {
+    console.error('Error updating blocked loyalty points:', error);
+    return 0;
+  }
+}
+
+
+/**
  * Calcula el saldo que debe estar bloqueado para un usuario.
  * 
  * NUEVA REGLA: Se bloquea solo el precio de la clase MÁS CARA entre todas las inscripciones
