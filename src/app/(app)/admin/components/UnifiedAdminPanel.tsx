@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -246,7 +246,7 @@ const ClubAdminView: React.FC<{
           </TabsTrigger>
           <TabsTrigger value="schedule" className="flex items-center space-x-2">
             <Calendar className="h-4 w-4" />
-            <span>Horarios</span>
+            <span>Calendario</span>
           </TabsTrigger>
           <TabsTrigger value="settings" className="flex items-center space-x-2">
             <Settings className="h-4 w-4" />
@@ -306,7 +306,7 @@ const ClubAdminView: React.FC<{
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Gestiona los precios y horarios de las pistas del club.
+                  Gestiona los precios y Calendario de las pistas del club.
                 </p>
               </CardContent>
             </Card>

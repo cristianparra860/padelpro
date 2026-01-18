@@ -98,7 +98,7 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="w-full py-2 md:py-6 px-0 md:px-6 pb-20 md:pb-6 md:pl-24">
+    <div className="w-full py-2 md:py-6 px-0 md:px-2 pb-20 md:pb-6 md:pl-28">
       <ClubCalendarImproved clubId={clubId} currentUser={currentUser} viewMode="club" />
     </div>
   );

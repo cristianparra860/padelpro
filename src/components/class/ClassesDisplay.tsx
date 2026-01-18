@@ -833,239 +833,242 @@ export function ClassesDisplay({
   return (
     <div className="relative" ref={scrollContainerRef}>
 
-      <div className="hidden sm:flex fixed left-4 top-[1130px] z-30 flex-col gap-1.5 items-start">
+      {typeof document !== 'undefined' && document.getElementById('sidebar-filters-portal') && createPortal(
+        <div className="w-full flex flex-col gap-1.5">
 
-        {/* Título Filtros */}
-        <div className="text-gray-700 font-bold text-sm uppercase tracking-wide mb-1 ml-2">
-          Filtros
-        </div>
+          {/* Título Filtros */}
+          <div className="text-gray-700 font-bold text-sm uppercase tracking-wide mb-1 ml-2">
+            Filtros
+          </div>
 
-        {/* 👨‍🏫 FILTRO DE INSTRUCTORES */}
-        {availableInstructors.length > 0 && (
+          {/* 👨‍🏫 FILTRO DE INSTRUCTORES */}
+          {availableInstructors.length > 0 && (
+            <button
+              type="button"
+              onClick={openInstructorPanel}
+              className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-3.5 py-2.5 w-full min-w-0"
+            >
+              <div className={`w-9 h-9 md:w-12 md:h-12 rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all ${selectedInstructorIds.length > 0
+                ? 'bg-gradient-to-br from-green-400 to-green-600 border-green-500 text-white'
+                : 'bg-white border-gray-300 text-gray-600'
+                }`}>
+                <svg className="w-5 h-5 md:w-7 md:h-7" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
+                </svg>
+              </div>
+              <div className="text-left flex-1 min-w-0">
+                <div className="text-[10px] md:text-sm font-semibold text-gray-800 truncate">
+                  {selectedInstructorIds.length === 0
+                    ? 'Instr.'
+                    : selectedInstructorIds.length === 1
+                      ? availableInstructors.find(i => i.id === selectedInstructorIds[0])?.name.substring(0, 8) + '...' || 'Instr.'
+                      : `${selectedInstructorIds.length} Instr.`
+                  }
+                </div>
+                <div className="text-[9px] md:text-xs text-gray-500 truncate">Filtro</div>
+              </div>
+            </button>
+          )}
+
+          {/* 🕐 FILTRO DE HORARIO */}
           <button
             type="button"
-            onClick={openInstructorPanel}
-            className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-3.5 py-2.5 w-[198px]"
+            onClick={() => setShowTimeFilterPanel(true)}
+            className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-3.5 py-2.5 w-full min-w-0"
           >
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all ${selectedInstructorIds.length > 0
-              ? 'bg-gradient-to-br from-green-400 to-green-600 border-green-500 text-white'
+            <div className={`w-9 h-9 md:w-12 md:h-12 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 border-2 ${timeSlotFilter !== 'all'
+              ? 'bg-gradient-to-br from-blue-400 to-blue-600 border-blue-500 text-white'
               : 'bg-white border-gray-300 text-gray-600'
               }`}>
-              <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
-              </svg>
+              <Clock className="w-5 h-5 md:w-7 md:h-7" />
             </div>
-            <div className="text-left flex-1">
-              <div className="text-sm font-semibold text-gray-800">
-                {selectedInstructorIds.length === 0
-                  ? 'Instructores'
-                  : selectedInstructorIds.length === 1
-                    ? availableInstructors.find(i => i.id === selectedInstructorIds[0])?.name || 'Instructor'
-                    : `${selectedInstructorIds.length} Instructores`
-                }
+            <div className="text-left flex-1 min-w-0">
+              <div className="text-[10px] md:text-sm font-semibold text-gray-800 truncate">
+                {timeSlotFilter === 'all' ? 'Todo' :
+                  timeSlotFilter === 'morning' ? 'Mañ.' :
+                    timeSlotFilter === 'midday' ? 'Mediodía' : 'Tarde'}
               </div>
-              <div className="text-xs text-gray-500">Filtrar por profesor</div>
+              <div className="text-[9px] md:text-xs text-gray-500 truncate">Horario</div>
             </div>
           </button>
-        )}
 
-        {/* 🕐 FILTRO DE HORARIO */}
-        <button
-          type="button"
-          onClick={() => setShowTimeFilterPanel(true)}
-          className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-3.5 py-2.5 w-[198px]"
-        >
-          <div className={`w-12 h-12 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 border-2 ${timeSlotFilter !== 'all'
-            ? 'bg-gradient-to-br from-blue-400 to-blue-600 border-blue-500 text-white'
-            : 'bg-white border-gray-300 text-gray-600'
-            }`}>
-            <Clock className="w-7 h-7" />
-          </div>
-          <div className="text-left flex-1">
-            <div className="text-sm font-semibold text-gray-800">
-              {timeSlotFilter === 'all' ? 'Todo el día' :
-                timeSlotFilter === 'morning' ? 'Mañana' :
-                  timeSlotFilter === 'midday' ? 'Mediodía' : 'Tarde'}
-            </div>
-            <div className="text-xs text-gray-500">Filtrar por horario</div>
-          </div>
-        </button>
-
-        {/* 🎯 FILTRO DE VISTA - Botón rectangular */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            openViewFilterPanel();
-          }}
-          className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-3.5 py-2.5 w-[198px]"
-          title="Filtrar por estado de clase"
-        >
-          <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${viewPreference !== 'all' || hideEmpty || hideWithStudents || hideFull
-            ? viewPreference === 'myConfirmed'
-              ? 'bg-gradient-to-br from-green-400 to-green-600 border-green-500 text-white'
-              : viewPreference === 'withBookings'
-                ? 'bg-gradient-to-br from-blue-400 to-blue-600 border-blue-500 text-white'
-                : viewPreference === 'past'
-                  ? 'bg-gradient-to-br from-gray-400 to-gray-600 border-gray-500 text-white'
-                  : 'bg-gradient-to-br from-purple-400 to-purple-600 border-purple-500 text-white'
-            : 'bg-white border-gray-300 text-gray-600'
-            }`}>
-            <svg
-              className="w-7 h-7"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" fill="none" />
-              <circle cx="9" cy="9" r="3.5" stroke="currentColor" strokeWidth="1.2" fill="none" />
-              <circle cx="15" cy="9" r="3.5" stroke="currentColor" strokeWidth="1.2" fill="none" />
-              <path
-                d="M3.5 19c0-3 2.5-5.5 5.5-5.5s5.5 2.5 5.5 5.5M9.5 19c0-3 2.5-5.5 5.5-5.5s5.5 2.5 5.5 5.5"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-              />
-            </svg>
-          </div>
-          <div className="text-left flex-1">
-            <div className="text-sm font-semibold text-gray-800">
-              {viewPreference === 'myConfirmed'
-                ? 'Confirmadas'
+          {/* 🎯 FILTRO DE VISTA - Botón rectangular */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              openViewFilterPanel();
+            }}
+            className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-3.5 py-2.5 w-full min-w-0"
+            title="Filtrar por estado de clase"
+          >
+            <div className={`w-9 h-9 md:w-12 md:h-12 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${viewPreference !== 'all' || hideEmpty || hideWithStudents || hideFull
+              ? viewPreference === 'myConfirmed'
+                ? 'bg-gradient-to-br from-green-400 to-green-600 border-green-500 text-white'
                 : viewPreference === 'withBookings'
-                  ? 'Con Usuarios'
+                  ? 'bg-gradient-to-br from-blue-400 to-blue-600 border-blue-500 text-white'
                   : viewPreference === 'past'
-                    ? 'Pasadas'
-                    : 'Todas'}
+                    ? 'bg-gradient-to-br from-gray-400 to-gray-600 border-gray-500 text-white'
+                    : 'bg-gradient-to-br from-purple-400 to-purple-600 border-purple-500 text-white'
+              : 'bg-white border-gray-300 text-gray-600'
+              }`}>
+              <svg
+                className="w-5 h-5 md:w-7 md:h-7"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                <circle cx="9" cy="9" r="3.5" stroke="currentColor" strokeWidth="1.2" fill="none" />
+                <circle cx="15" cy="9" r="3.5" stroke="currentColor" strokeWidth="1.2" fill="none" />
+                <path
+                  d="M3.5 19c0-3 2.5-5.5 5.5-5.5s5.5 2.5 5.5 5.5M9.5 19c0-3 2.5-5.5 5.5-5.5s5.5 2.5 5.5 5.5"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeLinecap="round"
+                />
+              </svg>
             </div>
-            <div className="text-xs text-gray-500">Estado de clase</div>
-          </div>
-        </button>
-
-        {/* 🎯 FILTRO DE JUGADORES - Botón rectangular */}
-        <button
-          type="button"
-          onClick={openPlayerCountPanel}
-          className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-3.5 py-2.5 w-[198px]"
-          title="Filtrar por número de jugadores"
-        >
-          <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${localPlayerCounts.length < 4 && localPlayerCounts.length > 0
-            ? 'bg-gradient-to-br from-orange-400 to-orange-600 border-orange-500 text-white'
-            : 'bg-white border-gray-300 text-gray-600'
-            }`}>
-            <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
-            </svg>
-          </div>
-          <div className="text-left flex-1">
-            <div className="text-sm font-semibold text-gray-800">
-              {localPlayerCounts.length === 0
-                ? 'Todos'
-                : localPlayerCounts.length === 1
-                  ? `${localPlayerCounts[0]} Jugador${localPlayerCounts[0] > 1 ? 'es' : ''}`
-                  : `${localPlayerCounts.join(', ')} Jugadores`}
+            <div className="text-left flex-1 min-w-0">
+              <div className="text-[10px] md:text-sm font-semibold text-gray-800 truncate">
+                {viewPreference === 'myConfirmed'
+                  ? 'Confirm.'
+                  : viewPreference === 'withBookings'
+                    ? 'Ocupadas'
+                    : viewPreference === 'past'
+                      ? 'Pasadas'
+                      : 'Todas'}
+              </div>
+              <div className="text-[9px] md:text-xs text-gray-500 truncate">Estado</div>
             </div>
-            <div className="text-xs text-gray-500">
-              {localPlayerCounts.length === 0 ? '1-4 jugadores' : `${localPlayerCounts.length} opción${localPlayerCounts.length > 1 ? 'es' : ''}`}
+          </button>
+
+          {/* 🎯 FILTRO DE JUGADORES - Botón rectangular */}
+          <button
+            type="button"
+            onClick={openPlayerCountPanel}
+            className="bg-white rounded-3xl shadow-lg border-2 border-gray-200 hover:shadow-xl transition-all flex items-center gap-3 px-3.5 py-2.5 w-full min-w-0"
+            title="Filtrar por número de jugadores"
+          >
+            <div className={`w-9 h-9 md:w-12 md:h-12 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${localPlayerCounts.length < 4 && localPlayerCounts.length > 0
+              ? 'bg-gradient-to-br from-orange-400 to-orange-600 border-orange-500 text-white'
+              : 'bg-white border-gray-300 text-gray-600'
+              }`}>
+              <svg className="w-5 h-5 md:w-7 md:h-7" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+              </svg>
             </div>
-          </div>
-        </button>
+            <div className="text-left flex-1 min-w-0">
+              <div className="text-[10px] md:text-sm font-semibold text-gray-800 truncate">
+                {localPlayerCounts.length === 0
+                  ? 'Todos'
+                  : localPlayerCounts.length === 1
+                    ? `${localPlayerCounts[0]} Jug.`
+                    : `${localPlayerCounts.join(',')} Jug.`}
+              </div>
+              <div className="text-[9px] md:text-xs text-gray-500 truncate">
+                {localPlayerCounts.length === 0 ? '1-4 Jug.' : `${localPlayerCounts.length} Opc.`}
+              </div>
+            </div>
+          </button>
 
-        {/* Botón Guardar Filtros */}
-        <button
-          onClick={async () => {
-            if (!currentUser) return;
+          {/* Botón Guardar Filtros */}
+          <button
+            onClick={async () => {
+              if (!currentUser) return;
 
-            // GUARDAR filtros actuales
-            try {
-              const response = await fetch('/api/users/filter-preferences', {
-                method: 'POST',
-                headers: {
-                  'x-user-id': currentUser.id,
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                  timeSlot: timeSlotFilter,
-                  viewType: viewPreference,
-                  playerCounts: localPlayerCounts,
-                  instructorIds: selectedInstructorIds,
-                  type: 'classes'
-                })
-              });
-
-              if (response.ok) {
-                setSavedFilters({
-                  timeSlot: timeSlotFilter,
-                  viewType: viewPreference,
-                  playerCounts: localPlayerCounts,
-                  instructorIds: selectedInstructorIds
+              // GUARDAR filtros actuales
+              try {
+                const response = await fetch('/api/users/filter-preferences', {
+                  method: 'POST',
+                  headers: {
+                    'x-user-id': currentUser.id,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    timeSlot: timeSlotFilter,
+                    viewType: viewPreference,
+                    playerCounts: localPlayerCounts,
+                    instructorIds: selectedInstructorIds,
+                    type: 'classes'
+                  })
                 });
-                console.log('✅ Filtros guardados correctamente');
-              }
-            } catch (error) {
-              console.error('❌ Error al guardar filtros:', error);
-            }
-          }}
-          disabled={!currentUser || (selectedInstructorIds.length === 0 && timeSlotFilter === 'all' && viewPreference === 'all' && localPlayerCounts.length === 4)}
-          className={`px-3.5 py-1.5 rounded-2xl font-medium text-xs transition-all shadow-md hover:shadow-lg w-[198px] text-center ${(selectedInstructorIds.length > 0 || timeSlotFilter !== 'all' || viewPreference !== 'all' || localPlayerCounts.length < 4)
-            ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white hover:scale-105'
-            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-            }`}
-        >
-          💾 Guardar filtros
-        </button>
 
-        {/* Botón Eliminar Filtros */}
-        <button
-          onClick={async () => {
-            if (!currentUser) return;
-
-            // BORRAR filtros guardados
-            try {
-              const response = await fetch('/api/users/filter-preferences', {
-                method: 'DELETE',
-                headers: {
-                  'x-user-id': currentUser.id
+                if (response.ok) {
+                  setSavedFilters({
+                    timeSlot: timeSlotFilter,
+                    viewType: viewPreference,
+                    playerCounts: localPlayerCounts,
+                    instructorIds: selectedInstructorIds
+                  });
+                  console.log('✅ Filtros guardados correctamente');
                 }
-              });
-
-              if (response.ok) {
-                // Resetear a valores por defecto
-                if (onInstructorIdsChange) onInstructorIdsChange([]);
-                if (onTimeSlotFilterChange) onTimeSlotFilterChange('all');
-                if (onViewPreferenceChange) onViewPreferenceChange('all');
-                if (onPlayerCountsChange) onPlayerCountsChange([1, 2, 3, 4]);
-                setLocalPlayerCounts([1, 2, 3, 4]);
-                setTempSelectedInstructorIds([]);
-                setTempPlayerCounts([1, 2, 3, 4]);
-                setTempViewFilters([]);
-                setSavedFilters(null);
-                console.log('✅ Filtros eliminados correctamente');
+              } catch (error) {
+                console.error('❌ Error al guardar filtros:', error);
               }
-            } catch (error) {
-              console.error('❌ Error al eliminar filtros:', error);
-            }
-          }}
-          disabled={!currentUser || !(savedFilters && (
-            savedFilters.timeSlot !== 'all' ||
-            savedFilters.viewType !== 'all' ||
-            savedFilters.playerCounts.length !== 4 ||
-            savedFilters.instructorIds.length > 0
-          ))}
-          className={`px-3.5 py-1.5 rounded-2xl font-medium text-xs transition-all shadow-md hover:shadow-lg w-[198px] text-center ${savedFilters && (
-            savedFilters.timeSlot !== 'all' ||
-            savedFilters.viewType !== 'all' ||
-            savedFilters.playerCounts.length !== 4 ||
-            savedFilters.instructorIds.length > 0
-          )
-            ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white hover:scale-105'
-            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-            }`}
-        >
-          🗑️ Eliminar filtros
-        </button>
-      </div>
+            }}
+            disabled={!currentUser || (selectedInstructorIds.length === 0 && timeSlotFilter === 'all' && viewPreference === 'all' && localPlayerCounts.length === 4)}
+            className={`px-3.5 py-1.5 rounded-2xl font-medium text-xs transition-all shadow-md hover:shadow-lg w-full text-center ${(selectedInstructorIds.length > 0 || timeSlotFilter !== 'all' || viewPreference !== 'all' || localPlayerCounts.length < 4)
+              ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white hover:scale-105'
+              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              }`}
+          >
+            💾 Guardar filtros
+          </button>
+
+          {/* Botón Eliminar Filtros */}
+          <button
+            onClick={async () => {
+              if (!currentUser) return;
+
+              // BORRAR filtros guardados
+              try {
+                const response = await fetch('/api/users/filter-preferences', {
+                  method: 'DELETE',
+                  headers: {
+                    'x-user-id': currentUser.id
+                  }
+                });
+
+                if (response.ok) {
+                  // Resetear a valores por defecto
+                  if (onInstructorIdsChange) onInstructorIdsChange([]);
+                  if (onTimeSlotFilterChange) onTimeSlotFilterChange('all');
+                  if (onViewPreferenceChange) onViewPreferenceChange('all');
+                  if (onPlayerCountsChange) onPlayerCountsChange([1, 2, 3, 4]);
+                  setLocalPlayerCounts([1, 2, 3, 4]);
+                  setTempSelectedInstructorIds([]);
+                  setTempPlayerCounts([1, 2, 3, 4]);
+                  setTempViewFilters([]);
+                  setSavedFilters(null);
+                  console.log('✅ Filtros eliminados correctamente');
+                }
+              } catch (error) {
+                console.error('❌ Error al eliminar filtros:', error);
+              }
+            }}
+            disabled={!currentUser || !(savedFilters && (
+              savedFilters.timeSlot !== 'all' ||
+              savedFilters.viewType !== 'all' ||
+              savedFilters.playerCounts.length !== 4 ||
+              savedFilters.instructorIds.length > 0
+            ))}
+            className={`px-3.5 py-1.5 rounded-2xl font-medium text-xs transition-all shadow-md hover:shadow-lg w-full text-center ${savedFilters && (
+              savedFilters.timeSlot !== 'all' ||
+              savedFilters.viewType !== 'all' ||
+              savedFilters.playerCounts.length !== 4 ||
+              savedFilters.instructorIds.length > 0
+            )
+              ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white hover:scale-105'
+              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              }`}
+          >
+            🗑️ Eliminar filtros
+          </button>
+        </div>,
+        document.getElementById('sidebar-filters-portal')!
+      )}
 
       {/* 🎯 PANEL CENTRAL EXPANDIDO - Modal con animación de crecimiento */}
       {showFilterPanel && (
@@ -1628,9 +1631,9 @@ export function ClassesDisplay({
 
         {/* Grid de tarjetas de clases */}
         {processedSlots.length > 0 && (
-          <div className="ml-0 md:ml-52 lg:ml-52 pr-0 md:pr-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-0 gap-y-4 md:gap-x-1 w-full justify-items-center md:justify-items-start">
-              {processedSlots.map((slot) => {
+          <div className="ml-0 md:ml-64 lg:ml-72 xl:ml-80 pr-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full justify-items-center">
+              {processedSlots.map((slot, index) => {
                 console.log(`🎴 Renderizando tarjeta ${slot.id.substring(0, 8)} con allowedPlayerCounts:`, localPlayerCounts);
 
                 // � DEBUG CREDITS SLOTS: Ver qué propiedades tiene el slot
@@ -1668,6 +1671,7 @@ export function ClassesDisplay({
                     isInscriptionSelected={selectedInscriptionSlotIds.includes(slot.id)}
                     creditsSlots={slot.creditsSlots || []}
                     similarProposalsCount={similarProposalsCount}
+                    index={index}
                   />
                 );
               })}

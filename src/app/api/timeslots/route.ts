@@ -19,7 +19,8 @@ export async function GET(request: NextRequest) {
 
     // Build filter conditions for Prisma
     const whereConditions: any = {
-      courtId: null // ⚡ SOLO propuestas sin pista asignada (más rápido)
+      // ⚡ ELIMINADO: courtId: null - Queremos TODAS las tarjetas (propuestas y confirmadas)
+      // courtId: null 
     };
 
     if (clubId) {
@@ -544,6 +545,13 @@ export async function GET(request: NextRequest) {
             console.log(`👨‍🏫 Instructor viewing own class: ${slot.id}`);
             return true;
           }
+        }
+
+        // 🎯 REGLA 0.5: Si la clase está CONFIRMADA (tiene pista), SIEMPRE mostrarla
+        // Esto permite ver el horario ocupado aunque no se tenga el nivel
+        if (slot.courtId) {
+          // console.log(`✅ Mostrando clase confirmada ${slot.id.substring(0, 8)} - Pista asignada`);
+          return true;
         }
 
         // 🎯 REGLA 1: Si el usuario tiene una reserva en esta clase, SIEMPRE mostrarla

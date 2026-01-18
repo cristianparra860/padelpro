@@ -35,6 +35,7 @@ interface MatchGameCardProps {
   refundedPoints?: number; // 💸 Puntos retornados
   unlockedAmount?: number; // 🔓 Saldo desbloqueado
   blockedAmount?: number; // 🔒 Saldo bloqueado
+  index?: number; // 🔢 Índice para animación escalonada
 }
 
 interface Booking {
@@ -67,6 +68,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
   refundedPoints, // 💸 Puntos retornados
   unlockedAmount, // 🔓 Saldo desbloqueado
   blockedAmount, // 🔒 Saldo bloqueado
+  index = 0, // Por defecto 0
 }) => {
   const { toast } = useToast();
   const [booking, setBooking] = useState(false);
@@ -539,522 +541,532 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
   const spotsLeft = 4 - activeBookings.length;
 
   return (
-    <Card className="overflow-visible shadow-[0_12px_40px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.12)] transition-all duration-300 bg-white border-0 rounded-[32px] w-full mb-6 mx-auto md:mx-0 scale-100 md:scale-[0.8] md:origin-top">
-      {/* Header con título PARTIDA */}
-      <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 px-5 py-3 flex items-center justify-between rounded-t-[32px] shadow-sm relative z-10">
-        <div className="text-white text-[13px] font-black uppercase tracking-widest flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></div>
-          PARTIDA (90 MIN)
+    <div
+      className={cn(
+        "w-full mb-6 mx-auto md:mx-0",
+        "bubble-appear"
+      )}
+      style={{
+        animationDelay: `${index * 100}ms`
+      }}
+    >
+      <Card className="overflow-visible shadow-[0_12px_40px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.12)] transition-all duration-300 bg-white border-0 rounded-[32px] scale-100 md:scale-[0.8] md:origin-top">
+        {/* Header con título PARTIDA */}
+        <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 px-5 py-3 flex items-center justify-between rounded-t-[32px] shadow-sm relative z-10">
+          <div className="text-white text-[13px] font-black uppercase tracking-widest flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></div>
+            PARTIDA (90 MIN)
+          </div>
+
+          {/* Botón Eliminar (solo para admins) */}
+          {showAdminCancelButton && !isPastMatch && (
+            <Button
+              onClick={() => setShowCancelDialog(true)}
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 text-white/70 hover:bg-white/10 hover:text-white rounded-full transition-colors"
+              title="Cancelar partida"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
         </div>
 
-        {/* Botón Eliminar (solo para admins) */}
-        {showAdminCancelButton && !isPastMatch && (
-          <Button
-            onClick={() => setShowCancelDialog(true)}
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8 text-white/70 hover:bg-white/10 hover:text-white rounded-full transition-colors"
-            title="Cancelar partida"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        )}
-      </div>
-
-      <div className="p-2.5">
-        {/* Class Info */}
-        <div className="grid grid-cols-3 gap-1.5 text-center text-sm text-gray-600 border-b border-gray-100 pb-2 mb-2">
-          <div>
-            <div className="font-medium text-gray-900 text-[10px]">Nivel</div>
-            <div
-              className={`capitalize px-1.5 py-1 rounded-full text-[10px] font-medium shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${levelInfo.isAssigned
-                ? 'bg-blue-100 text-blue-700'
-                : 'bg-gray-100 text-gray-600'
-                }`}
-            >
-              {levelInfo.level}
-            </div>
-          </div>
-          <div>
-            <div className="font-medium text-gray-900 text-[10px]">Cat.</div>
-            <div
-              className={`capitalize px-1.5 py-1 rounded-full text-[10px] font-medium shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${categoryInfo.isAssigned
-                ? 'bg-purple-100 text-purple-700'
-                : 'bg-gray-100 text-gray-600'
-                }`}
-            >
-              {categoryInfo.category}
-            </div>
-          </div>
-          <div>
-            <div className="font-medium text-gray-900 text-[10px]">Pista</div>
-            <div
-              className={`px-1.5 py-1 rounded-full text-[10px] font-medium shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${courtAssignment.isAssigned
-                ? 'bg-blue-100 text-blue-700'
-                : 'bg-gray-100 text-gray-600'
-                }`}
-            >
-              {courtAssignment.isAssigned
-                ? `Pista ${courtAssignment.courtNumber}`
-                : 'Pista'
-              }
-            </div>
-          </div>
-        </div>
-
-        {/* Time and Duration */}
-        <div className="bg-gray-50 rounded-xl p-2 border border-gray-200 mb-2">
-          <div className="flex items-center justify-between">
-            {/* Fecha - Izquierda */}
-            <div className="flex items-center gap-2">
-              {/* Número del día */}
-              <div className="text-[1.5rem] font-black text-gray-900 leading-none min-w-[2.5rem] text-center">
-                {format(toDateObject(matchGame.start), 'dd', { locale: es })}
-              </div>
-              {/* Día y mes en texto */}
-              <div className="flex flex-col justify-center gap-0.5">
-                <div className="text-xs font-bold text-gray-900 uppercase tracking-tight leading-none">
-                  {format(toDateObject(matchGame.start), 'EEEE', { locale: es })}
-                </div>
-                <div className="text-[10px] font-normal text-gray-500 capitalize leading-none">
-                  {format(toDateObject(matchGame.start), 'MMMM', { locale: es })}
-                </div>
+        <div className="p-2.5">
+          {/* Class Info */}
+          <div className="grid grid-cols-3 gap-1.5 text-center text-sm text-gray-600 border-b border-gray-100 pb-2 mb-2">
+            <div>
+              <div className="font-medium text-gray-900 text-[10px]">Nivel</div>
+              <div
+                className={`capitalize px-1.5 py-1 rounded-full text-[10px] font-medium shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${levelInfo.isAssigned
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-gray-100 text-gray-600'
+                  }`}
+              >
+                {levelInfo.level}
               </div>
             </div>
-
-            {/* Hora y duración - Derecha */}
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <div className="text-xl font-bold text-gray-900 leading-none">
-                  {formatTime(matchGame.start)}
-                </div>
-                <div className="text-[10px] text-gray-500 flex items-center justify-end gap-1 mt-0.5">
-                  <Clock className="w-2.5 h-2.5" />
-                  <span>{matchGame.duration} min</span>
-                </div>
+            <div>
+              <div className="font-medium text-gray-900 text-[10px]">Cat.</div>
+              <div
+                className={`capitalize px-1.5 py-1 rounded-full text-[10px] font-medium shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${categoryInfo.isAssigned
+                  ? 'bg-purple-100 text-purple-700'
+                  : 'bg-gray-100 text-gray-600'
+                  }`}
+              >
+                {categoryInfo.category}
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Players Grid - 4 jugadores fijo */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-1.5">
-              <Users2 className="w-3.5 h-3.5 text-gray-600" />
-              <span className="text-xs font-semibold text-gray-900">
-                Jugadores
-              </span>
-            </div>
-            <div className="text-right flex-shrink-0">
-              <div className="text-base font-bold text-gray-900">
-                € {isPrivateBooking
-                  ? (matchGame.courtRentalPrice || 0).toFixed(2)
-                  : ((matchGame.courtRentalPrice || 0) / 4).toFixed(2)
+            <div>
+              <div className="font-medium text-gray-900 text-[10px]">Pista</div>
+              <div
+                className={`px-1.5 py-1 rounded-full text-[10px] font-medium shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] ${courtAssignment.isAssigned
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-gray-100 text-gray-600'
+                  }`}
+              >
+                {courtAssignment.isAssigned
+                  ? `Pista ${courtAssignment.courtNumber}`
+                  : 'Pista'
                 }
               </div>
-              <div className="text-[9px] text-gray-500">
-                {isPrivateBooking ? 'pista completa' : 'por plaza'}
+            </div>
+          </div>
+
+          {/* Time and Duration */}
+          <div className="bg-gray-50 rounded-xl p-2 border border-gray-200 mb-2">
+            <div className="flex items-center justify-between">
+              {/* Fecha - Izquierda */}
+              <div className="flex items-center gap-2">
+                {/* Número del día */}
+                <div className="text-[1.5rem] font-black text-gray-900 leading-none min-w-[2.5rem] text-center">
+                  {format(toDateObject(matchGame.start), 'dd', { locale: es })}
+                </div>
+                {/* Día y mes en texto */}
+                <div className="flex flex-col justify-center gap-0.5">
+                  <div className="text-xs font-bold text-gray-900 uppercase tracking-tight leading-none">
+                    {format(toDateObject(matchGame.start), 'EEEE', { locale: es })}
+                  </div>
+                  <div className="text-[10px] font-normal text-gray-500 capitalize leading-none">
+                    {format(toDateObject(matchGame.start), 'MMMM', { locale: es })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Hora y duración - Derecha */}
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <div className="text-xl font-bold text-gray-900 leading-none">
+                    {formatTime(matchGame.start)}
+                  </div>
+                  <div className="text-[10px] text-gray-500 flex items-center justify-end gap-1 mt-0.5">
+                    <Clock className="w-2.5 h-2.5" />
+                    <span>{matchGame.duration} min</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="flex justify-center items-center gap-3 py-1.5">
-            {[0, 1, 2, 3].map((index) => {
-              const booking = displayBookings[index];
-              const isOccupied = !!booking && booking.status !== 'CANCELLED';
-              const isRecycled = booking?.status === 'CANCELLED' && booking?.isRecycled === true;
-              const displayName = booking?.user?.name || 'Disponible';
+          {/* Players Grid - 4 jugadores fijo */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-1.5">
+                <Users2 className="w-3.5 h-3.5 text-gray-600" />
+                <span className="text-xs font-semibold text-gray-900">
+                  Jugadores
+                </span>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <div className="text-base font-bold text-gray-900">
+                  € {isPrivateBooking
+                    ? (matchGame.courtRentalPrice || 0).toFixed(2)
+                    : ((matchGame.courtRentalPrice || 0) / 4).toFixed(2)
+                  }
+                </div>
+                <div className="text-[9px] text-gray-500">
+                  {isPrivateBooking ? 'pista completa' : 'por plaza'}
+                </div>
+              </div>
+            </div>
 
-              return (
-                <div key={index} className="flex flex-col items-center gap-1">
-                  <div
-                    className={cn(
-                      "w-12 h-12 rounded-full flex items-center justify-center text-xl font-semibold transition-all border-2 relative",
-                      isOccupied
-                        ? "bg-white border-gray-200 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-default"
-                        : isRecycled
-                          ? "bg-yellow-100 border-yellow-400 text-yellow-600 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-pointer hover:bg-yellow-200 hover:border-yellow-500"
-                          : isPrivateBooking
-                            ? "bg-gray-100 border-gray-300 text-gray-400 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-not-allowed opacity-50"
-                            : "bg-gray-100 border-gray-300 text-gray-400 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-pointer hover:bg-gray-200 hover:border-gray-400"
-                    )}
-                    title={
-                      isOccupied
-                        ? booking.user?.name
-                        : isRecycled
-                          ? 'Plaza reciclada - Solo con puntos'
-                          : isPrivateBooking
-                            ? 'Reserva privada completa'
-                            : 'Clic para unirte'
-                    }
-                    onClick={() => {
-                      if (isRecycled && !isUserBooked) {
-                        setShowPointsDialog(true);
-                      } else if (!isOccupied && !booking && !isUserBooked && !isPrivateBooking) {
-                        setShowConfirmDialog(true);
+            <div className="flex justify-center items-center gap-3 py-1.5">
+              {[0, 1, 2, 3].map((index) => {
+                const booking = displayBookings[index];
+                const isOccupied = !!booking && booking.status !== 'CANCELLED';
+                const isRecycled = booking?.status === 'CANCELLED' && booking?.isRecycled === true;
+                const displayName = booking?.user?.name || 'Disponible';
+
+                return (
+                  <div key={index} className="flex flex-col items-center gap-1">
+                    <div
+                      className={cn(
+                        "w-12 h-12 rounded-full flex items-center justify-center text-xl font-semibold transition-all border-2 relative",
+                        isOccupied
+                          ? "bg-white border-gray-200 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-default"
+                          : isRecycled
+                            ? "bg-yellow-100 border-yellow-400 text-yellow-600 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-pointer hover:bg-yellow-200 hover:border-yellow-500"
+                            : isPrivateBooking
+                              ? "bg-gray-100 border-gray-300 text-gray-400 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-not-allowed opacity-50"
+                              : "bg-gray-100 border-gray-300 text-gray-400 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] cursor-pointer hover:bg-gray-200 hover:border-gray-400"
+                      )}
+                      title={
+                        isOccupied
+                          ? booking.user?.name
+                          : isRecycled
+                            ? 'Plaza reciclada - Solo con puntos'
+                            : isPrivateBooking
+                              ? 'Reserva privada completa'
+                              : 'Clic para unirte'
                       }
-                    }}
-                  >
-                    {isOccupied ? (
-                      booking.user?.profilePictureUrl ? (
-                        <img
-                          src={booking.user.profilePictureUrl}
-                          alt={booking.user?.name || 'Usuario'}
-                          className="w-full h-full object-cover rounded-full shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]"
-                        />
-                      ) : (
-                        <div className="w-full h-full rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]">
-                          <span className="text-white text-xs font-bold">
-                            {getInitials(booking.user?.name || booking.userId)}
-                          </span>
+                      onClick={() => {
+                        if (isRecycled && !isUserBooked) {
+                          setShowPointsDialog(true);
+                        } else if (!isOccupied && !booking && !isUserBooked && !isPrivateBooking) {
+                          setShowConfirmDialog(true);
+                        }
+                      }}
+                    >
+                      {isOccupied ? (
+                        booking.user?.profilePictureUrl ? (
+                          <img
+                            src={booking.user.profilePictureUrl}
+                            alt={booking.user?.name || 'Usuario'}
+                            className="w-full h-full object-cover rounded-full shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]"
+                          />
+                        ) : (
+                          <div className="w-full h-full rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)]">
+                            <span className="text-white text-xs font-bold">
+                              {getInitials(booking.user?.name || booking.userId)}
+                            </span>
+                          </div>
+                        )
+                      ) : isRecycled ? (
+                        <div className="flex flex-col items-center">
+                          <span className="text-yellow-600 text-xs font-bold">♻️</span>
+                          <span className="text-yellow-600 text-[8px] font-bold">PTS</span>
                         </div>
-                      )
-                    ) : isRecycled ? (
-                      <div className="flex flex-col items-center">
-                        <span className="text-yellow-600 text-xs font-bold">♻️</span>
-                        <span className="text-yellow-600 text-[8px] font-bold">PTS</span>
-                      </div>
-                    ) : (
-                      '+'
-                    )}
+                      ) : (
+                        '+'
+                      )}
 
-                    {/* Level Badge - Restored */}
-                    {isOccupied && booking.user?.level && (
-                      <div className="absolute -top-2 -right-2 w-5 h-5 bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white shadow-md z-10" title={`Nivel: ${booking.user.level}`}>
-                        {booking.user.level}
+                      {/* Level Badge - Restored */}
+                      {isOccupied && booking.user?.level && (
+                        <div className="absolute -top-2 -right-2 w-5 h-5 bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white shadow-md z-10" title={`Nivel: ${booking.user.level}`}>
+                          {booking.user.level}
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-[10px] font-medium leading-none">
+                      {isOccupied ? (
+                        <span className="text-gray-700">{displayName.split(' ')[0]}</span>
+                      ) : isRecycled ? (
+                        <span className="text-yellow-600">Puntos</span>
+                      ) : isPrivateBooking ? (
+                        <span className="text-gray-400">Ocupado</span>
+                      ) : (
+                        <span className="text-green-400">Libre</span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Available Courts - Indicadores de disponibilidad de pistas */}
+          <div className="px-2 py-1.5 bg-gray-50 border-t border-gray-100">
+            <div className="text-center">
+              {courtAssignment.isAssigned ? (
+                <>
+                  <div className="text-[10px] text-gray-500 text-center mb-1">Pista asignada:</div>
+                  <div className="flex items-center justify-center gap-1">
+                    <div className="flex flex-col items-center">
+                      <svg
+                        className="shadow-inner-custom"
+                        width="19"
+                        height="32"
+                        viewBox="0 0 40 60"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <defs>
+                          <filter id="innerShadow-assigned" x="-50%" y="-50%" width="200%" height="200%">
+                            <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
+                            <feOffset in="blur" dx="0" dy="1" result="offsetBlur" />
+                            <feFlood floodColor="#000000" floodOpacity="0.25" result="offsetColor" />
+                            <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur" />
+                            <feComposite in="SourceGraphic" in2="offsetBlur" operator="over" />
+                          </filter>
+                        </defs>
+                        <rect x="2" y="2" width="36" height="56" rx="4" fill="#10B981" stroke="#059669" strokeWidth="2" filter="url(#innerShadow-assigned)" />
+                        <line x1="20" y1="2" x2="20" y2="58" stroke="#FFFFFF" strokeWidth="1.5" strokeDasharray="3 3" />
+                        <line x1="2" y1="30" x2="38" y2="30" stroke="#FFFFFF" strokeWidth="1" opacity="0.5" />
+                      </svg>
+                      <div className="text-green-600 font-semibold text-[9px] leading-none mt-0.5">
+                        PISTA {courtAssignment.courtNumber}
                       </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-[10px] text-gray-500 text-center mb-1">
+                    Disponibilidad de pistas
+                  </div>
+                  <div className="flex items-center justify-center gap-2">
+                    {matchGame.courtsAvailability && Array.isArray(matchGame.courtsAvailability) && matchGame.courtsAvailability.length > 0 ? (
+                      matchGame.courtsAvailability.map((court: any) => {
+                        const fillColor = court.status === 'available'
+                          ? '#10B981'  // Verde - disponible
+                          : court.status === 'occupied'
+                            ? '#EF4444'  // Rojo - ocupada
+                            : '#9CA3AF'; // Gris - no disponible
+
+                        const strokeColor = court.status === 'available'
+                          ? '#059669'
+                          : court.status === 'occupied'
+                            ? '#DC2626'
+                            : '#6B7280';
+
+                        const statusText = court.status === 'available'
+                          ? 'Disponible'
+                          : court.status === 'occupied'
+                            ? 'Ocupada'
+                            : 'No disponible';
+
+                        return (
+                          <div key={court.courtId} className="relative group flex flex-col items-center" title={`Pista ${court.courtNumber}: ${statusText}`}>
+                            <svg
+                              className="transition-transform hover:scale-110 shadow-inner-custom"
+                              width="19"
+                              height="32"
+                              viewBox="0 0 40 60"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <defs>
+                                <filter id={`innerShadow-${court.courtId}`} x="-50%" y="-50%" width="200%" height="200%">
+                                  <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
+                                  <feOffset in="blur" dx="0" dy="1" result="offsetBlur" />
+                                  <feFlood floodColor="#000000" floodOpacity="0.25" result="offsetColor" />
+                                  <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur" />
+                                  <feComposite in="SourceGraphic" in2="offsetBlur" operator="over" />
+                                </filter>
+                              </defs>
+                              <rect x="2" y="2" width="36" height="56" rx="4" fill={fillColor} stroke={strokeColor} strokeWidth="2" filter={`url(#innerShadow-${court.courtId})`} />
+                              <line x1="20" y1="2" x2="20" y2="58" stroke="#FFFFFF" strokeWidth="1.5" strokeDasharray="3 3" />
+                              <line x1="2" y1="30" x2="38" y2="30" stroke="#FFFFFF" strokeWidth="1" opacity="0.5" />
+                            </svg>
+
+                            {/* 🔴 X ROJA para pistas ocupadas */}
+                            {court.status === 'occupied' && (
+                              <div className="text-red-600 font-bold text-xs leading-none mt-0.5">✕</div>
+                            )}
+
+                            {/* 🟢 LIBRE para pistas disponibles */}
+                            {court.status === 'available' && (
+                              <div className="text-green-600 font-semibold text-[9px] leading-none mt-0.5">LIBRE</div>
+                            )}
+
+                            {/* Tooltip */}
+                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                              Pista {court.courtNumber}: {statusText}
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <span className="text-xs text-gray-500">Cargando disponibilidad...</span>
                     )}
                   </div>
-                  <span className="text-[10px] font-medium leading-none">
-                    {isOccupied ? (
-                      <span className="text-gray-700">{displayName.split(' ')[0]}</span>
-                    ) : isRecycled ? (
-                      <span className="text-yellow-600">Puntos</span>
-                    ) : isPrivateBooking ? (
-                      <span className="text-gray-400">Ocupado</span>
-                    ) : (
-                      <span className="text-green-400">Libre</span>
-                    )}
-                  </span>
-                </div>
-              );
-            })}
+                </>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Available Courts - Indicadores de disponibilidad de pistas */}
-        <div className="px-2 py-1.5 bg-gray-50 border-t border-gray-100">
-          <div className="text-center">
-            {courtAssignment.isAssigned ? (
-              <>
-                <div className="text-[10px] text-gray-500 text-center mb-1">Pista asignada:</div>
-                <div className="flex items-center justify-center gap-1">
-                  <div className="flex flex-col items-center">
-                    <svg
-                      className="shadow-inner-custom"
-                      width="19"
-                      height="32"
-                      viewBox="0 0 40 60"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <defs>
-                        <filter id="innerShadow-assigned" x="-50%" y="-50%" width="200%" height="200%">
-                          <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
-                          <feOffset in="blur" dx="0" dy="1" result="offsetBlur" />
-                          <feFlood floodColor="#000000" floodOpacity="0.25" result="offsetColor" />
-                          <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur" />
-                          <feComposite in="SourceGraphic" in2="offsetBlur" operator="over" />
-                        </filter>
-                      </defs>
-                      <rect x="2" y="2" width="36" height="56" rx="4" fill="#10B981" stroke="#059669" strokeWidth="2" filter="url(#innerShadow-assigned)" />
-                      <line x1="20" y1="2" x2="20" y2="58" stroke="#FFFFFF" strokeWidth="1.5" strokeDasharray="3 3" />
-                      <line x1="2" y1="30" x2="38" y2="30" stroke="#FFFFFF" strokeWidth="1" opacity="0.5" />
-                    </svg>
-                    <div className="text-green-600 font-semibold text-[9px] leading-none mt-0.5">
-                      PISTA {courtAssignment.courtNumber}
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="text-[10px] text-gray-500 text-center mb-1">
-                  Disponibilidad de pistas
-                </div>
-                <div className="flex items-center justify-center gap-2">
-                  {matchGame.courtsAvailability && Array.isArray(matchGame.courtsAvailability) && matchGame.courtsAvailability.length > 0 ? (
-                    matchGame.courtsAvailability.map((court: any) => {
-                      const fillColor = court.status === 'available'
-                        ? '#10B981'  // Verde - disponible
-                        : court.status === 'occupied'
-                          ? '#EF4444'  // Rojo - ocupada
-                          : '#9CA3AF'; // Gris - no disponible
+        {/* 🦶 Footer Unificado (Square Buttons) */}
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+          <div className="flex items-center gap-2">
+            {/* Botón Cancelar (Rojo Cuadrado) */}
+            {showLeaveButton && isUserBooked && !isPastMatch && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowLeaveDialog(true);
+                }}
+                className="h-9 w-9 flex items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                title="Cancelar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
 
-                      const strokeColor = court.status === 'available'
-                        ? '#059669'
-                        : court.status === 'occupied'
-                          ? '#DC2626'
-                          : '#6B7280';
+            {/* Botón Borrar (Gris Cuadrado) */}
+            {onHideFromHistory && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onHideFromHistory();
+                }}
+                className="h-9 w-9 flex items-center justify-center rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors"
+                title="Borrar del historial"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            )}
+          </div>
 
-                      const statusText = court.status === 'available'
-                        ? 'Disponible'
-                        : court.status === 'occupied'
-                          ? 'Ocupada'
-                          : 'No disponible';
+          {/* Info Pago (Verde) / Reembolso (Naranja) */}
+          <div className="flex items-center gap-2">
+            {paidAmount !== undefined && isUserBooked && (
+              <div className="h-9 px-3 flex items-center justify-center bg-green-50 rounded-lg border border-green-100 text-green-700" title="Pagado">
+                <span className="text-xs font-medium mr-1">Pagado:</span>
+                <span className="text-sm font-bold">{paidAmount.toFixed(2)}€</span>
+              </div>
+            )}
 
-                      return (
-                        <div key={court.courtId} className="relative group flex flex-col items-center" title={`Pista ${court.courtNumber}: ${statusText}`}>
-                          <svg
-                            className="transition-transform hover:scale-110 shadow-inner-custom"
-                            width="19"
-                            height="32"
-                            viewBox="0 0 40 60"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <defs>
-                              <filter id={`innerShadow-${court.courtId}`} x="-50%" y="-50%" width="200%" height="200%">
-                                <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
-                                <feOffset in="blur" dx="0" dy="1" result="offsetBlur" />
-                                <feFlood floodColor="#000000" floodOpacity="0.25" result="offsetColor" />
-                                <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur" />
-                                <feComposite in="SourceGraphic" in2="offsetBlur" operator="over" />
-                              </filter>
-                            </defs>
-                            <rect x="2" y="2" width="36" height="56" rx="4" fill={fillColor} stroke={strokeColor} strokeWidth="2" filter={`url(#innerShadow-${court.courtId})`} />
-                            <line x1="20" y1="2" x2="20" y2="58" stroke="#FFFFFF" strokeWidth="1.5" strokeDasharray="3 3" />
-                            <line x1="2" y1="30" x2="38" y2="30" stroke="#FFFFFF" strokeWidth="1" opacity="0.5" />
-                          </svg>
+            {refundedPoints !== undefined && refundedPoints > 0 && (
+              <div className="h-9 px-3 flex items-center justify-center bg-orange-50 rounded-lg border border-orange-100 text-orange-700" title="Puntos Retornados">
+                <span className="text-sm font-bold">{refundedPoints.toFixed(2)} pts</span>
+              </div>
+            )}
 
-                          {/* 🔴 X ROJA para pistas ocupadas */}
-                          {court.status === 'occupied' && (
-                            <div className="text-red-600 font-bold text-xs leading-none mt-0.5">✕</div>
-                          )}
+            {unlockedAmount !== undefined && unlockedAmount > 0 && (
+              <div className="h-9 px-3 flex items-center justify-center bg-blue-50 rounded-lg border border-blue-100 text-blue-700" title="Saldo Desbloqueado">
+                <span className="text-xs font-medium mr-1">Desbloqueado:</span>
+                <span className="text-sm font-bold">{unlockedAmount.toFixed(2)}€</span>
+              </div>
+            )}
 
-                          {/* 🟢 LIBRE para pistas disponibles */}
-                          {court.status === 'available' && (
-                            <div className="text-green-600 font-semibold text-[9px] leading-none mt-0.5">LIBRE</div>
-                          )}
-
-                          {/* Tooltip */}
-                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
-                            Pista {court.courtNumber}: {statusText}
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <span className="text-xs text-gray-500">Cargando disponibilidad...</span>
-                  )}
-                </div>
-              </>
+            {blockedAmount !== undefined && blockedAmount > 0 && (
+              <div className="h-9 px-3 flex items-center justify-center bg-purple-50 rounded-lg border border-purple-100 text-purple-700" title="Saldo Bloqueado">
+                <span className="text-xs font-medium mr-1">Bloqueado:</span>
+                <span className="text-sm font-bold">{blockedAmount.toFixed(2)}€</span>
+              </div>
             )}
           </div>
         </div>
-      </div>
 
-      {/* 🦶 Footer Unificado (Square Buttons) */}
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-        <div className="flex items-center gap-2">
-          {/* Botón Cancelar (Rojo Cuadrado) */}
-          {showLeaveButton && isUserBooked && !isPastMatch && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowLeaveDialog(true);
-              }}
-              className="h-9 w-9 flex items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-              title="Cancelar"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
+        {/* Confirm Dialog */}
+        <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmar Reserva</AlertDialogTitle>
+              <AlertDialogDescription>
+                ¿Estás seguro de que deseas unirte a esta partida?
+                <br /><br />
+                <strong>Tipo:</strong> {matchGame.isOpen ? 'Abierta' : `${matchGame.level} - ${matchGame.genderCategory}`}
+                <br />
+                <strong>Fecha:</strong> {format(new Date(matchGame.start), "d 'de' MMMM 'a las' HH:mm", { locale: es })}
+                <br />
+                <strong>Duración:</strong> {matchGame.duration} minutos
+                <br />
+                <strong>Precio:</strong> €{(matchGame.pricePerPlayer || 0).toFixed(2)}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleBook} className="bg-purple-600 hover:bg-purple-700">
+                {booking ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirmar Reserva'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
-          {/* Botón Borrar (Gris Cuadrado) */}
-          {onHideFromHistory && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onHideFromHistory();
-              }}
-              className="h-9 w-9 flex items-center justify-center rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors"
-              title="Borrar del historial"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
-          )}
-        </div>
-
-        {/* Info Pago (Verde) / Reembolso (Naranja) */}
-        <div className="flex items-center gap-2">
-          {paidAmount !== undefined && isUserBooked && (
-            <div className="h-9 px-3 flex items-center justify-center bg-green-50 rounded-lg border border-green-100 text-green-700" title="Pagado">
-              <span className="text-xs font-medium mr-1">Pagado:</span>
-              <span className="text-sm font-bold">{paidAmount.toFixed(2)}€</span>
-            </div>
-          )}
-
-          {refundedPoints !== undefined && refundedPoints > 0 && (
-            <div className="h-9 px-3 flex items-center justify-center bg-orange-50 rounded-lg border border-orange-100 text-orange-700" title="Puntos Retornados">
-              <span className="text-sm font-bold">{refundedPoints.toFixed(2)} pts</span>
-            </div>
-          )}
-
-          {unlockedAmount !== undefined && unlockedAmount > 0 && (
-            <div className="h-9 px-3 flex items-center justify-center bg-blue-50 rounded-lg border border-blue-100 text-blue-700" title="Saldo Desbloqueado">
-              <span className="text-xs font-medium mr-1">Desbloqueado:</span>
-              <span className="text-sm font-bold">{unlockedAmount.toFixed(2)}€</span>
-            </div>
-          )}
-
-          {blockedAmount !== undefined && blockedAmount > 0 && (
-            <div className="h-9 px-3 flex items-center justify-center bg-purple-50 rounded-lg border border-purple-100 text-purple-700" title="Saldo Bloqueado">
-              <span className="text-xs font-medium mr-1">Bloqueado:</span>
-              <span className="text-sm font-bold">{blockedAmount.toFixed(2)}€</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Confirm Dialog */}
-      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Reserva</AlertDialogTitle>
-            <AlertDialogDescription>
-              ¿Estás seguro de que deseas unirte a esta partida?
-              <br /><br />
-              <strong>Tipo:</strong> {matchGame.isOpen ? 'Abierta' : `${matchGame.level} - ${matchGame.genderCategory}`}
-              <br />
-              <strong>Fecha:</strong> {format(new Date(matchGame.start), "d 'de' MMMM 'a las' HH:mm", { locale: es })}
-              <br />
-              <strong>Duración:</strong> {matchGame.duration} minutos
-              <br />
-              <strong>Precio:</strong> €{(matchGame.pricePerPlayer || 0).toFixed(2)}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleBook} className="bg-purple-600 hover:bg-purple-700">
-              {booking ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirmar Reserva'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Points Dialog - Reserva con puntos (plaza reciclada) */}
-      <AlertDialog open={showPointsDialog} onOpenChange={setShowPointsDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <span className="text-yellow-600">♻️</span>
-              Reservar Plaza Reciclada
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta plaza fue liberada por otro jugador y solo se puede reservar con puntos de compensación.
-              <br /><br />
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <strong>Costo:</strong>
-                  <span className="text-yellow-700 font-bold">{Math.floor((matchGame.courtRentalPrice || 0) / 4)} puntos</span>
+        {/* Points Dialog - Reserva con puntos (plaza reciclada) */}
+        <AlertDialog open={showPointsDialog} onOpenChange={setShowPointsDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <span className="text-yellow-600">♻️</span>
+                Reservar Plaza Reciclada
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta plaza fue liberada por otro jugador y solo se puede reservar con puntos de compensación.
+                <br /><br />
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <strong>Costo:</strong>
+                    <span className="text-yellow-700 font-bold">{Math.floor((matchGame.courtRentalPrice || 0) / 4)} puntos</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <strong>Tus puntos:</strong>
+                    <span className={cn(
+                      "font-bold",
+                      (currentUser?.points || 0) >= Math.floor((matchGame.courtRentalPrice || 0) / 4)
+                        ? "text-green-600"
+                        : "text-red-600"
+                    )}>
+                      {currentUser?.points || 0} puntos
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <strong>Tus puntos:</strong>
-                  <span className={cn(
-                    "font-bold",
-                    (currentUser?.points || 0) >= Math.floor((matchGame.courtRentalPrice || 0) / 4)
-                      ? "text-green-600"
-                      : "text-red-600"
-                  )}>
-                    {currentUser?.points || 0} puntos
-                  </span>
-                </div>
-              </div>
-              <br />
-              <strong>Fecha:</strong> {format(new Date(matchGame.start), "d 'de' MMMM 'a las' HH:mm", { locale: es })}
-              <br />
-              <strong>Duración:</strong> {matchGame.duration} minutos
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleBookWithPoints}
-              className="bg-yellow-500 hover:bg-yellow-600 text-white"
-              disabled={(currentUser?.points || 0) < Math.floor((matchGame.courtRentalPrice || 0) / 4) || booking}
-            >
-              {booking ? <Loader2 className="w-4 h-4 animate-spin" /> : '♻️ Reservar con Puntos'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+                <br />
+                <strong>Fecha:</strong> {format(new Date(matchGame.start), "d 'de' MMMM 'a las' HH:mm", { locale: es })}
+                <br />
+                <strong>Duración:</strong> {matchGame.duration} minutos
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleBookWithPoints}
+                className="bg-yellow-500 hover:bg-yellow-600 text-white"
+                disabled={(currentUser?.points || 0) < Math.floor((matchGame.courtRentalPrice || 0) / 4) || booking}
+              >
+                {booking ? <Loader2 className="w-4 h-4 animate-spin" /> : '♻️ Reservar con Puntos'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
-      {/* Leave Dialog */}
-      <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancelar Partida</AlertDialogTitle>
-            <AlertDialogDescription>
-              ¿Estás seguro de que deseas cancelar tu inscripción a esta partida?
-              <br /><br />
-              {(() => {
-                const now = new Date();
-                const matchStart = new Date(matchGame.start);
-                const hoursUntilMatch = (matchStart.getTime() - now.getTime()) / (1000 * 60 * 60);
+        {/* Leave Dialog */}
+        <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Cancelar Partida</AlertDialogTitle>
+              <AlertDialogDescription>
+                ¿Estás seguro de que deseas cancelar tu inscripción a esta partida?
+                <br /><br />
+                {(() => {
+                  const now = new Date();
+                  const matchStart = new Date(matchGame.start);
+                  const hoursUntilMatch = (matchStart.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-                if (hoursUntilMatch < 2) {
+                  if (hoursUntilMatch < 2) {
+                    return (
+                      <>
+                        <strong className="text-red-600">⚠️ Faltan menos de 2 horas para la partida.</strong>
+                        <br />
+                        Se te reembolsarán los créditos pero <strong>NO</strong> los puntos.
+                      </>
+                    );
+                  }
+
                   return (
                     <>
-                      <strong className="text-red-600">⚠️ Faltan menos de 2 horas para la partida.</strong>
-                      <br />
-                      Se te reembolsarán los créditos pero <strong>NO</strong> los puntos.
+                      Se te reembolsarán tanto los créditos como los puntos utilizados.
                     </>
                   );
-                }
+                })()}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Volver</AlertDialogCancel>
+              <AlertDialogAction onClick={handleLeave} className="bg-red-600 hover:bg-red-700">
+                {booking ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sí, Cancelar'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
-                return (
-                  <>
-                    Se te reembolsarán tanto los créditos como los puntos utilizados.
-                  </>
-                );
-              })()}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Volver</AlertDialogCancel>
-            <AlertDialogAction onClick={handleLeave} className="bg-red-600 hover:bg-red-700">
-              {booking ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sí, Cancelar'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Cancel Match Dialog (Admin) */}
-      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancelar Partida Completa</AlertDialogTitle>
-            <AlertDialogDescription>
-              ¿Estás seguro de que deseas cancelar esta partida?
-              <br /><br />
-              <strong className="text-red-600">⚠️ Esta acción no se puede deshacer.</strong>
-              <br />
-              Se notificará a todos los jugadores inscritos y se les reembolsarán sus créditos y puntos.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Volver</AlertDialogCancel>
-            <AlertDialogAction onClick={handleCancelMatch} className="bg-red-600 hover:bg-red-700">
-              {cancelling ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sí, Cancelar Partida'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </Card >
+        {/* Cancel Match Dialog (Admin) */}
+        <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Cancelar Partida Completa</AlertDialogTitle>
+              <AlertDialogDescription>
+                ¿Estás seguro de que deseas cancelar esta partida?
+                <br /><br />
+                <strong className="text-red-600">⚠️ Esta acción no se puede deshacer.</strong>
+                <br />
+                Se notificará a todos los jugadores inscritos y se les reembolsarán sus créditos y puntos.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Volver</AlertDialogCancel>
+              <AlertDialogAction onClick={handleCancelMatch} className="bg-red-600 hover:bg-red-700">
+                {cancelling ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sí, Cancelar Partida'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </Card>
+    </div>
   );
 };
 

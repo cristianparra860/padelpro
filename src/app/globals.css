@@ -139,4 +139,25 @@ body {
     position: relative !important;
     z-index: 1 !important;
   }
+
+  /* Animación de aparición tipo burbuja (agua) */
+  @keyframes bubble-up {
+    0% {
+      opacity: 0;
+      transform: translateY(40px) scale(0.8);
+    }
+    60% {
+      opacity: 0.8;
+      transform: translateY(-10px) scale(1.02);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .bubble-appear {
+    opacity: 0; /* Inicialmente invisible */
+    animation: bubble-up 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  }
 }

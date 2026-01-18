@@ -713,120 +713,81 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
         <Tabs value={activeFilter} onValueChange={(value) => setActiveFilter(value as any)} className="w-full max-w-full">
           <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 mb-8 h-auto p-1.5 sm:p-2 bg-gradient-to-r from-slate-100 to-slate-200 rounded-xl gap-2 shadow-inner">
             {/* Inscripciones - Azul como botón I */}
+            {/* Inscripciones */}
             <TabsTrigger
               value="pending"
-              style={{
-                backgroundColor: activeFilter === 'pending' ? '#3b82f6' : undefined,
-                color: activeFilter === 'pending' ? 'white' : undefined
-              }}
-              className={`text-xs sm:text-sm lg:text-base font-bold py-3 px-2 sm:py-4 sm:px-4 shadow-lg transition-all flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg ${activeFilter === 'pending'
-                ? 'scale-105'
-                : 'bg-white/50 hover:bg-white/80'
+              className={`text-xs sm:text-sm lg:text-base font-bold py-3 px-2 sm:py-4 sm:px-4 shadow-sm hover:shadow-md transition-all flex flex-row items-center justify-center gap-2 rounded-lg border border-gray-100 ${activeFilter === 'pending'
+                ? 'bg-red-500 text-white scale-105 ring-2 ring-red-200'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
                 }`}
             >
-              <span className="flex items-center gap-1">
-                <span className="text-lg">⏳</span>
-                <span className="whitespace-nowrap">Inscr.</span>
-              </span>
-              <span className="hidden sm:inline">ipciones</span>
+              <span className="whitespace-nowrap">Inscripciones</span>
               <span
-                style={{
-                  backgroundColor: activeFilter === 'pending' ? 'white' : undefined,
-                  color: activeFilter === 'pending' ? '#3b82f6' : undefined
-                }}
-                className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs sm:text-sm font-black shadow-md ${activeFilter === 'pending'
-                  ? ''
-                  : 'bg-gradient-to-r from-yellow-400 to-orange-400 text-white'
-                  }`}>
+                className={`flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full text-[10px] sm:text-xs font-bold leading-none shadow-sm transition-colors ${activeFilter === 'pending'
+                  ? 'bg-white text-red-500'
+                  : 'bg-red-500 text-white'
+                  }`}
+              >
                 {counts.pending}
               </span>
             </TabsTrigger>
 
             {/* Reservas - Rojo como botón R */}
+            {/* Reservas */}
             <TabsTrigger
               value="confirmed"
-              style={{
-                backgroundColor: activeFilter === 'confirmed' ? '#ef4444' : undefined,
-                color: activeFilter === 'confirmed' ? 'white' : undefined
-              }}
-              className={`text-xs sm:text-sm lg:text-base font-bold py-3 px-2 sm:py-4 sm:px-4 shadow-lg transition-all flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg ${activeFilter === 'confirmed'
-                ? 'scale-105'
-                : 'bg-white/50 hover:bg-white/80'
+              className={`text-xs sm:text-sm lg:text-base font-bold py-3 px-2 sm:py-4 sm:px-4 shadow-sm hover:shadow-md transition-all flex flex-row items-center justify-center gap-2 rounded-lg border border-gray-100 ${activeFilter === 'confirmed'
+                ? 'bg-red-500 text-white scale-105 ring-2 ring-red-200'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
                 }`}
             >
-              <span className="flex items-center gap-1">
-                <span className="text-lg">✅</span>
-                <span className="whitespace-nowrap">Reservas</span>
-              </span>
+              <span className="whitespace-nowrap">Reservas</span>
               <span
-                style={{
-                  backgroundColor: activeFilter === 'confirmed' ? 'white' : undefined,
-                  color: activeFilter === 'confirmed' ? '#ef4444' : undefined
-                }}
-                className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs sm:text-sm font-black shadow-md ${activeFilter === 'confirmed'
-                  ? ''
-                  : 'bg-gradient-to-r from-green-400 to-emerald-500 text-white'
-                  }`}>
+                className={`flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full text-[10px] sm:text-xs font-bold leading-none shadow-sm transition-colors ${activeFilter === 'confirmed'
+                  ? 'bg-white text-red-500'
+                  : 'bg-red-500 text-white'
+                  }`}
+              >
                 {counts.confirmed}
               </span>
             </TabsTrigger>
 
             {/* Pasadas - Gris y Blanca */}
+            {/* Pasadas */}
             <TabsTrigger
               value="past"
-              style={{
-                backgroundColor: activeFilter === 'past' ? '#6b7280' : undefined,
-                color: activeFilter === 'past' ? 'white' : undefined
-              }}
-              className={`text-xs sm:text-sm lg:text-base font-bold py-3 px-2 sm:py-4 sm:px-4 shadow-lg transition-all flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg ${activeFilter === 'past'
-                ? 'scale-105'
-                : 'bg-white/50 hover:bg-white/80'
+              className={`text-xs sm:text-sm lg:text-base font-bold py-3 px-2 sm:py-4 sm:px-4 shadow-sm hover:shadow-md transition-all flex flex-row items-center justify-center gap-2 rounded-lg border border-gray-100 ${activeFilter === 'past'
+                ? 'bg-red-500 text-white scale-105 ring-2 ring-red-200'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
                 }`}
             >
-              <span className="flex items-center gap-1">
-                <span className="text-lg">📜</span>
-                <span className="whitespace-nowrap">Pas.</span>
-              </span>
-              <span className="hidden sm:inline">adas</span>
+              <span className="whitespace-nowrap">Pasadas</span>
               <span
-                style={{
-                  backgroundColor: activeFilter === 'past' ? 'white' : undefined,
-                  color: activeFilter === 'past' ? '#6b7280' : undefined
-                }}
-                className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs sm:text-sm font-black shadow-md ${activeFilter === 'past'
-                  ? ''
-                  : 'bg-gradient-to-r from-gray-400 to-gray-500 text-white'
-                  }`}>
+                className={`flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full text-[10px] sm:text-xs font-bold leading-none shadow-sm transition-colors ${activeFilter === 'past'
+                  ? 'bg-white text-red-500'
+                  : 'bg-red-500 text-white'
+                  }`}
+              >
                 {counts.past}
               </span>
             </TabsTrigger>
 
             {/* Canceladas - Naranja y Blanca */}
+            {/* Canceladas */}
             <TabsTrigger
               value="cancelled"
-              style={{
-                backgroundColor: activeFilter === 'cancelled' ? '#f97316' : undefined,
-                color: activeFilter === 'cancelled' ? 'white' : undefined
-              }}
-              className={`text-xs sm:text-sm lg:text-base font-bold py-3 px-2 sm:py-4 sm:px-4 shadow-lg transition-all flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg ${activeFilter === 'cancelled'
-                ? 'scale-105'
-                : 'bg-white/50 hover:bg-white/80'
+              className={`text-xs sm:text-sm lg:text-base font-bold py-3 px-2 sm:py-4 sm:px-4 shadow-sm hover:shadow-md transition-all flex flex-row items-center justify-center gap-2 rounded-lg border border-gray-100 ${activeFilter === 'cancelled'
+                ? 'bg-red-500 text-white scale-105 ring-2 ring-red-200'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
                 }`}
             >
-              <span className="flex items-center gap-1">
-                <span className="text-lg">❌</span>
-                <span className="whitespace-nowrap">Canc.</span>
-              </span>
-              <span className="hidden sm:inline">eladas</span>
+              <span className="whitespace-nowrap">Canceladas</span>
               <span
-                style={{
-                  backgroundColor: activeFilter === 'cancelled' ? 'white' : undefined,
-                  color: activeFilter === 'cancelled' ? '#f97316' : undefined
-                }}
-                className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs sm:text-sm font-black shadow-md ${activeFilter === 'cancelled'
-                  ? ''
-                  : 'bg-gradient-to-r from-red-500 to-red-600 text-white'
-                  }`}>
+                className={`flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full text-[10px] sm:text-xs font-bold leading-none shadow-sm transition-colors ${activeFilter === 'cancelled'
+                  ? 'bg-white text-red-500'
+                  : 'bg-red-500 text-white'
+                  }`}
+              >
                 {counts.cancelled}
               </span>
             </TabsTrigger>
@@ -899,7 +860,7 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
                     if (isClassBooking) {
                       blockedAmount = booking.timeSlot.totalPrice / booking.groupSize;
                     } else if (isMatchBooking) {
-                      blockedAmount = booking.matchGame.pricePerPlayer || (booking.matchGame.courtRentalPrice / 4);
+                      blockedAmount = (booking.matchGame.courtRentalPrice / 4);
                     }
                   }
 
@@ -929,9 +890,10 @@ const UserBookings: React.FC<UserBookingsProps> = ({ currentUser, onBookingActio
                         showLeaveButton={true}
                         showPrivateBookingButton={false}
                         onHideFromHistory={() => handleHideFromHistory(booking.id, 'match')}
-                        paidAmount={booking.status === 'CONFIRMED' ? (booking.matchGame.pricePerPlayer || (booking.matchGame.courtRentalPrice / 4)) : undefined}
-                        refundedPoints={(booking.status === 'CANCELLED' && (booking as any).wasConfirmed) ? (booking.matchGame.pricePerPlayer || (booking.matchGame.courtRentalPrice / 4)) : undefined}
+                        paidAmount={booking.status === 'CONFIRMED' ? (booking.matchGame.courtRentalPrice / 4) : undefined}
+                        refundedPoints={(booking.status === 'CANCELLED' && (booking as any).wasConfirmed) ? (booking.matchGame.courtRentalPrice / 4) : undefined}
                         unlockedAmount={unlockedAmount}
+                        blockedAmount={blockedAmount}
                       />
                     );
                   } else if (isCourtReservation) {

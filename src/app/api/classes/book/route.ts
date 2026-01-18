@@ -1195,6 +1195,19 @@ export async function POST(request: Request) {
 
     console.log(`📊 Total active bookings for this slot: ${allBookingsForSlot.length}`);
 
+    // 🚨 FIX: Asegurar que el booking actual esté en la lista (por si el queryRaw no lo retornó por latencia)
+    const currentBookingInList = allBookingsForSlot.find(b => b.id === bookingId);
+    if (!currentBookingInList) {
+      console.log('⚠️ Current booking missed by query - adding manually to list');
+      allBookingsForSlot.push({
+        id: bookingId,
+        userId: userId,
+        groupSize: Number(groupSize) || 1,
+        status: bookingStatus,
+        createdAt: new Date().toISOString()
+      } as any);
+    }
+
     // Agrupar las reservas por groupSize
     const bookingsByGroupSize = new Map<number, number>();
     allBookingsForSlot.forEach(booking => {

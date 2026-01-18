@@ -90,11 +90,11 @@ export async function POST(request: NextRequest) {
 
     const bookedPlayers = Number(bookingCount[0].count);
 
-    console.log(' Slot details:', { 
-      id: slot.id, 
-      maxPlayers: slot.maxPlayers, 
+    console.log(' Slot details:', {
+      id: slot.id,
+      maxPlayers: slot.maxPlayers,
       bookedPlayers: bookedPlayers,
-      availableSpots: slot.maxPlayers - bookedPlayers 
+      availableSpots: slot.maxPlayers - bookedPlayers
     });
 
     if (bookedPlayers + groupSize > slot.maxPlayers) {
@@ -117,6 +117,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 🆕 VALIDACIÓN: Un usuario solo puede tener 1 clase por día
+    // Obtener fecha del time slot actual
+    const slotDateStart = new Date(slot.start);
+    slotDateStart.setHours(0, 0, 0, 0);
+    const slotDateEnd = new Date(slot.start);
+    slotDateEnd.setHours(23, 59, 59, 999);
+
+    // Buscar otras reservas CONFIRMADAS del usuario para este MISMO DÍA
+    // Excluyendo canceladas
+    const existingDayBookings = await prisma.$queryRaw`
+      SELECT b.id 
+      FROM Booking b
+      JOIN TimeSlot ts ON b.timeSlotId = ts.id
+      WHERE b.userId = ${userId}
+      AND b.status = 'CONFIRMED'
+      AND ts.start >= ${slotDateStart.toISOString()}
+      AND ts.start <= ${slotDateEnd.toISOString()}
+    ` as any[];
+
+    if (existingDayBookings.length > 0) {
+      console.log(`❌ User ${userId} already has ${existingDayBookings.length} bookings on ${slotDateStart.toISOString()}`);
+      return NextResponse.json(
+        { error: 'User already has a confirmed class for this day' },
+        { status: 400 }
+      );
+    }
+
     // Crear la reserva
     const bookingId = `booking-${Date.now()}-${userId}`;
     await prisma.$executeRaw`
@@ -129,7 +156,7 @@ export async function POST(request: NextRequest) {
     // ==========================================
     // Cada opción de grupo (1, 2, 3, o 4 jugadores) compite independientemente
     // La primera opción que se completa gana y se le asigna pista
-    
+
     console.log('🏁 RACE SYSTEM: Checking if any group option is complete...');
     console.log('   New booking:', { userId, groupSize, timeSlotId });
 
@@ -137,8 +164,8 @@ export async function POST(request: NextRequest) {
     if (slot.courtNumber) {
       console.log('   ⚠️ Class already has court assigned:', slot.courtNumber);
       console.log('   This slot already completed, but allowing booking anyway');
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         bookingId,
         message: 'Booking created (class already completed with another option)',
         classComplete: true,
@@ -159,13 +186,13 @@ export async function POST(request: NextRequest) {
 
     // Verificar cada opción de grupo para ver si se completó
     let completedOption = null;
-    
+
     for (const group of allBookingsRaw) {
       const size = group.groupSize;
       const count = Number(group.count);
-      
+
       console.log(`   Checking option ${size} players: ${count} booking(s)`);
-      
+
       // Una opción se completa cuando hay al menos 1 reserva de ese groupSize
       // Porque cada reserva ya representa el número completo de jugadores
       // Ejemplo: 1 reserva de groupSize=1 → clase de 1 jugador completa
@@ -181,7 +208,7 @@ export async function POST(request: NextRequest) {
     if (completedOption) {
       console.log('🎾 Assigning court to completed class...');
       console.log('   Winning option:', completedOption);
-      
+
       // Buscar todas las pistas del club
       const allCourts = await prisma.$queryRaw`
         SELECT c.id, c.number
@@ -211,7 +238,7 @@ export async function POST(request: NextRequest) {
 
         if (availableCourt) {
           console.log('   ✅ Assigning court:', availableCourt.number);
-          
+
           // Asignar la pista al TimeSlot
           await prisma.$executeRaw`
             UPDATE TimeSlot 
@@ -223,9 +250,9 @@ export async function POST(request: NextRequest) {
 
           console.log('   🎉 Court assigned successfully! Court number:', availableCourt.number);
           console.log('   📝 Note: Other group options should now be cancelled/hidden in frontend');
-          
-          return NextResponse.json({ 
-            success: true, 
+
+          return NextResponse.json({
+            success: true,
             bookingId,
             message: 'Booking created and court assigned!',
             classComplete: true,
@@ -242,8 +269,8 @@ export async function POST(request: NextRequest) {
       console.log('   ℹ️ No group option is complete yet. Race continues...');
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       bookingId,
       message: 'Booking created successfully',
       classComplete: false
@@ -253,7 +280,7 @@ export async function POST(request: NextRequest) {
     console.error('❌ Error creating booking:', error);
     console.error('❌ Error details:', error instanceof Error ? error.message : 'Unknown error');
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to create booking',
         details: error instanceof Error ? error.message : 'Unknown error'
       },

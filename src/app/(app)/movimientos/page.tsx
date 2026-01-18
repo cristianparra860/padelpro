@@ -200,7 +200,7 @@ const MovimientosPage: React.FC = () => {
   const availablePoints = totalPoints - blockedPoints;
 
   return (
-    <div className="p-3 sm:p-6 max-w-4xl mx-auto mb-20 sm:mb-6 pl-20 sm:pl-20 md:pl-24">
+    <div className="p-3 sm:p-6 max-w-4xl mx-auto mb-20 sm:mb-6 ml-40 sm:ml-52 md:ml-64 mr-8 sm:mr-12 md:mr-16">
       {/* Header */}
       <div className="mb-3">
         <Button

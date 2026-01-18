@@ -29,10 +29,10 @@ export default function AdminPage() {
                     setLoading(false);
                     return;
                 }
-                
+
                 const data = await response.json();
                 const userRole = data.user?.role;
-                
+
                 // Solo CLUB_ADMIN y SUPER_ADMIN pueden acceder
                 if (userRole === 'CLUB_ADMIN' || userRole === 'SUPER_ADMIN') {
                     setHasAccess(true);
@@ -57,7 +57,7 @@ export default function AdminPage() {
 
     useEffect(() => {
         if (hasAccess !== true) return;
-        
+
         // Forzar inicialización de datos mock
         try {
             const { performInitialization } = require('@/lib/mockDataSources/init');
@@ -68,7 +68,7 @@ export default function AdminPage() {
 
         // Obtener todos los clubs disponibles
         const allClubs = getMockClubs();
-        
+
         // Verificar si hay un club activo guardado
         let activeClubId: string | null = null;
         if (typeof window !== 'undefined') {
@@ -80,7 +80,7 @@ export default function AdminPage() {
         // Si hay un club activo guardado, verificar que aún exista
         if (activeClubId) {
             selectedClub = allClubs.find(c => c.id === activeClubId) || null;
-            
+
             // Si el club guardado no existe, limpiar localStorage
             if (!selectedClub && typeof window !== 'undefined') {
                 console.warn(`⚠️ Club guardado (${activeClubId}) no existe, limpiando localStorage`);
@@ -127,8 +127,8 @@ export default function AdminPage() {
                         <p className="text-sm text-muted-foreground mb-4">
                             Solo los usuarios con rol de <strong>Administrador del Club</strong> pueden acceder a esta sección.
                         </p>
-                        <Button 
-                            onClick={() => router.push('/dashboard')} 
+                        <Button
+                            onClick={() => router.push('/dashboard')}
                             className="w-full"
                         >
                             Volver al inicio
@@ -141,7 +141,7 @@ export default function AdminPage() {
 
     if (loading || hasAccess === null) {
         return (
-            <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 ml-20 overflow-x-hidden max-w-[calc(100vw-100px)]">
+            <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 ml-32 overflow-x-hidden max-w-[calc(100vw-140px)]">
                 {loading && (
                     <>
                         <Skeleton className="h-10 w-1/3" />
@@ -149,7 +149,7 @@ export default function AdminPage() {
                     </>
                 )}
                 <main className="flex-1">
-                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         {[...Array(8)].map((_, i) => (
                             <Skeleton key={i} className="h-20 w-full" />
                         ))}
@@ -161,7 +161,7 @@ export default function AdminPage() {
 
     if (!adminClub) {
         return (
-            <div className="flex flex-1 flex-col items-center justify-center p-4 md:p-6 ml-20">
+            <div className="flex flex-1 flex-col items-center justify-center p-4 md:p-6 ml-32">
                 <div className="text-center">
                     <Building className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
                     <h2 className="text-2xl font-semibold mb-2">No hay clubs disponibles</h2>
@@ -174,7 +174,7 @@ export default function AdminPage() {
     }
 
     return (
-        <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 ml-20 pr-4 overflow-x-hidden max-w-[calc(100vw-100px)]">
+        <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 ml-32 pr-4 overflow-x-hidden max-w-[calc(100vw-140px)]">
             <header>
                 <h1 className="font-headline text-3xl font-semibold">Panel de Administración del Club</h1>
                 <p className="text-muted-foreground">

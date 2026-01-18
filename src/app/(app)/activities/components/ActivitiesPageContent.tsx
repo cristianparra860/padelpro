@@ -292,6 +292,28 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
             case 'clases':
                 return (
                     <div className="space-y-4">
+                        {/* Botones HOY/MAÑANA - Alineados con el grid de tarjetas */}
+                        <div className="ml-0 md:ml-64 lg:ml-72 xl:ml-80 flex items-center gap-3">
+                            {/* Button Hoy */}
+                            <button
+                                onClick={() => handleDateChange(new Date())}
+                                className="group relative px-6 py-2 bg-black hover:bg-gray-900 text-white rounded-full text-xs font-bold uppercase tracking-widest shadow-[0_10px_20px_-5px_rgba(0,0,0,0.5)] hover:shadow-[0_15px_30px_-5px_rgba(0,0,0,0.6)] hover:-translate-y-0.5 transition-all duration-300 border-2 border-white ring-1 ring-gray-200/50"
+                            >
+                                Hoy
+                                {/* Glow effect */}
+                                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-gray-800 to-black opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10 blur-sm"></div>
+                            </button>
+
+                            {/* Button Mañana */}
+                            <button
+                                onClick={() => handleDateChange(new Date(Date.now() + 86400000))}
+                                className="group relative px-6 py-2 bg-black hover:bg-gray-900 text-white rounded-full text-xs font-bold uppercase tracking-widest shadow-[0_10px_20px_-5px_rgba(0,0,0,0.5)] hover:shadow-[0_15px_30px_-5px_rgba(0,0,0,0.6)] hover:-translate-y-0.5 transition-all duration-300 border-2 border-white ring-1 ring-gray-200/50"
+                            >
+                                Mañana
+                                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-gray-800 to-black opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10 blur-sm"></div>
+                            </button>
+                        </div>
+
                         <ClassesDisplay
                             selectedDate={selectedDate || new Date()}
                             clubId={currentClub?.id || "club-1"}
@@ -373,12 +395,18 @@ export default function ActivitiesPageContent({ currentUser, onCurrentUserUpdate
             <div className="flex-1 flex flex-col overflow-hidden overflow-x-hidden">
                 {/* Calendario desktop fijo - fuera del scroll */}
                 <div className="hidden md:block md:sticky md:top-0 md:z-30 md:bg-white md:border-b md:border-gray-100 md:shadow-sm">
-                    <DateSelector
-                        selectedDate={selectedDate || new Date()}
-                        onDateChange={handleDateChange}
-                        daysToShow={30}
-                        userBookings={userBookings}
-                    />
+                    {/* Header Combinado: Botones Hoy/Mañana y Calendario */}
+                    <div className="flex items-center w-full mb-1">
+                        {/* DateSelector - Flexible */}
+                        <div className="flex-1 min-w-0 overflow-hidden">
+                            <DateSelector
+                                selectedDate={selectedDate || new Date()}
+                                onDateChange={handleDateChange}
+                                daysToShow={30}
+                                userBookings={userBookings}
+                            />
+                        </div>
+                    </div>
                 </div>
 
                 <main className="flex-1 overflow-y-auto overflow-x-hidden px-6 md:px-6 pb-6 space-y-2 md:space-y-4 md:pt-4">

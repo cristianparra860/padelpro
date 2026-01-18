@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import ReactDOM from 'react-dom';
 import MatchGameCard from '@/components/match/MatchGameCard';
 import DateSelector from '@/components/admin/DateSelector';
 import type { User as UserType } from '@/types';
@@ -317,135 +318,141 @@ export default function MatchGamesPage() {
 
   return (
     <div className="relative">
-      {/* Barra lateral de filtros */}
-      <div className="hidden sm:block fixed left-4 top-[1020px] z-30 flex-col gap-1.5 items-start">
-        {/* Título Filtros */}
-        <div className="text-gray-700 font-bold text-sm uppercase tracking-wide mb-1 ml-2">
-          Filtros
-        </div>
+      {/* 🌀 PORTAL DE FILTROS A LA BARRA LATERAL */}
+      {mounted && document.getElementById('sidebar-filters-portal') && ReactDOM.createPortal(
+        <div className="flex flex-col gap-3 w-full animate-in fade-in slide-in-from-left-4 duration-300">
 
-        {/* Espacio extra para bajar los botones dos posiciones */}
-        <div style={{ height: '112px' }} />
-        {/* 🕐 Filtro de horario */}
-        <button
-          type="button"
-          onClick={() => setShowTimeFilterPanel(true)}
-          className={`rounded-3xl border-2 flex items-center gap-3 px-3.5 py-2.5 w-[198px] transition-all
-            ${timeSlotFilter !== 'all'
-              ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white border-purple-500 shadow-lg'
-              : 'bg-white text-gray-800 border-gray-300 hover:shadow-xl'}
-          `}
-          title="Filtrar por horario"
-        >
-          <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${timeSlotFilter !== 'all' ? 'bg-white border-purple-400 text-purple-600' : 'bg-white border-gray-300 text-gray-400'}`}>
-            <Clock className={`w-7 h-7 ${timeSlotFilter !== 'all' ? 'text-purple-600' : 'text-gray-400'}`} />
-          </div>
-          <div className="text-left flex-1">
-            <div className={`text-sm font-semibold ${timeSlotFilter !== 'all' ? 'text-white' : 'text-gray-800'}`}>
-              {timeSlotFilter === 'all' ? 'Todas las horas' :
-                timeSlotFilter === 'morning' ? 'Mañana' :
-                  timeSlotFilter === 'midday' ? 'Mediodía' : 'Tarde/Noche'}
+          {/* Separador visual */}
+          <div className="w-3/4 h-px bg-gray-200 mx-auto my-1 opacity-50"></div>
+
+          {/* 🕐 Filtro de horario */}
+          <button
+            type="button"
+            onClick={() => setShowTimeFilterPanel(true)}
+            className={`rounded-3xl hover:shadow-xl transition-all flex flex-col items-center gap-0.5 px-0.5 py-0.5 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-4 md:py-2.5 md:w-[170px] lg:w-[190px] xl:w-[210px]
+              ${timeSlotFilter !== 'all'
+                ? 'bg-white shadow-2xl scale-105 border-2 border-purple-100 ring-2 ring-purple-100'
+                : 'bg-white shadow-lg border-2 border-white hover:border-gray-200'}
+            `}
+            title="Filtrar por horario"
+          >
+            <div className={`rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all duration-300 w-8 h-8 md:w-12 md:h-12
+              ${timeSlotFilter !== 'all' ? 'bg-gradient-to-br from-purple-400 to-purple-600 text-white border-transparent' : 'bg-gray-50 text-gray-500 border-transparent group-hover:bg-white group-hover:border-gray-200'}`}>
+              <Clock className="w-5 h-5 md:w-7 md:h-7" />
             </div>
-            <div className={`text-xs ${timeSlotFilter !== 'all' ? 'text-purple-100' : 'text-gray-500'}`}>Filtrar por horario</div>
-          </div>
-        </button>
-
-        {/* 👥 Filtro de tipo de vista */}
-        <button
-          type="button"
-          onClick={() => setShowViewFilterPanel(true)}
-          className={`rounded-3xl border-2 flex items-center gap-3 px-3.5 py-2.5 w-[198px] transition-all
-            ${viewFilter !== 'all'
-              ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white border-purple-500 shadow-lg'
-              : 'bg-white text-gray-800 border-gray-300 hover:shadow-xl'}
-          `}
-          title="Filtrar por tipo de vista"
-        >
-          <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${viewFilter !== 'all' ? 'bg-white border-purple-400 text-purple-600' : 'bg-white border-gray-300 text-gray-400'}`}>
-            <Users className={`w-7 h-7 ${viewFilter !== 'all' ? 'text-purple-600' : 'text-gray-400'}`} />
-          </div>
-          <div className="text-left flex-1">
-            <div className={`text-sm font-semibold ${viewFilter !== 'all' ? 'text-white' : 'text-gray-800'}`}>
-              {viewFilter === 'all' ? 'Todas las partidas' :
-                viewFilter === 'onlyEmpty' ? 'Solo vacías' :
-                  viewFilter === 'onlyAvailable' ? 'Con espacio' : 'Mis partidas'}
+            <div className="text-center md:text-left md:flex-1 md:min-w-0 md:overflow-hidden">
+              <div className={`text-[10px] font-semibold md:text-sm truncate ${timeSlotFilter !== 'all' ? 'text-purple-700' : 'text-gray-500'}`}>
+                {timeSlotFilter === 'all' ? 'Horario' :
+                  timeSlotFilter === 'morning' ? 'Mañana' :
+                    timeSlotFilter === 'midday' ? 'Mediodía' : 'Tarde'}
+              </div>
+              <div className="hidden md:block text-xs text-gray-400 truncate">
+                {timeSlotFilter === 'all' ? 'Todas las horas' : 'Filtro activo'}
+              </div>
             </div>
-            <div className={`text-xs ${viewFilter !== 'all' ? 'text-purple-100' : 'text-gray-500'}`}>Estado de partida</div>
-          </div>
-        </button>
+          </button>
 
-        {/* Botón Guardar Filtros */}
-        <button
-          onClick={async () => {
-            if (!currentUser) return;
-            // GUARDAR filtros actuales
-            try {
-              const response = await fetch('/api/users/filter-preferences', {
-                method: 'POST',
-                headers: {
-                  'x-user-id': currentUser.id,
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                  timeSlot: timeSlotFilter,
-                  viewType: viewFilter,
-                  playerCounts: [],
-                  instructorIds: [],
-                  type: 'matches'
-                })
-              });
-              if (response.ok) {
-                setSavedFilters({
-                  timeSlot: timeSlotFilter,
-                  viewType: viewFilter
-                });
-                console.log('✅ Filtros de partidas guardados');
-              }
-            } catch (error) {
-              console.error('❌ Error al guardar filtros de partidas:', error);
-            }
-          }}
-          disabled={!currentUser || (timeSlotFilter === 'all' && viewFilter === 'all')}
-          className={`px-3.5 py-1.5 rounded-2xl font-medium text-xs transition-all shadow-md hover:shadow-lg w-full text-center ${(timeSlotFilter !== 'all' || viewFilter !== 'all')
-            ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white hover:scale-105'
-            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-            }`}
-        >
-          💾 Guardar búsqueda
-        </button>
+          {/* 👥 Filtro de tipo de vista */}
+          <button
+            type="button"
+            onClick={() => setShowViewFilterPanel(true)}
+            className={`rounded-3xl hover:shadow-xl transition-all flex flex-col items-center gap-0.5 px-0.5 py-0.5 w-[55px] sm:w-[80px] md:flex-row md:items-center md:gap-3 md:px-4 md:py-2.5 md:w-[170px] lg:w-[190px] xl:w-[210px]
+              ${viewFilter !== 'all'
+                ? 'bg-white shadow-2xl scale-105 border-2 border-indigo-100 ring-2 ring-indigo-100'
+                : 'bg-white shadow-lg border-2 border-white hover:border-gray-200'}
+            `}
+            title="Filtrar por tipo de vista"
+          >
+            <div className={`rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all duration-300 w-8 h-8 md:w-12 md:h-12
+              ${viewFilter !== 'all' ? 'bg-gradient-to-br from-indigo-400 to-indigo-600 text-white border-transparent' : 'bg-gray-50 text-gray-500 border-transparent group-hover:bg-white group-hover:border-gray-200'}`}>
+              <Users className="w-5 h-5 md:w-7 md:h-7" />
+            </div>
+            <div className="text-center md:text-left md:flex-1 md:min-w-0 md:overflow-hidden">
+              <div className={`text-[10px] font-semibold md:text-sm truncate ${viewFilter !== 'all' ? 'text-indigo-700' : 'text-gray-500'}`}>
+                {viewFilter === 'all' ? 'Estado' :
+                  viewFilter === 'onlyEmpty' ? 'Vacías' :
+                    viewFilter === 'onlyAvailable' ? 'Con sitio' : 'Mías'}
+              </div>
+              <div className="hidden md:block text-xs text-gray-400 truncate">
+                {viewFilter === 'all' ? 'Todas' : 'Filtro activo'}
+              </div>
+            </div>
+          </button>
 
-        {/* Botón Eliminar Filtros */}
-        <button
-          onClick={async () => {
-            if (!currentUser) return;
-            // BORRAR filtros guardados
-            try {
-              const response = await fetch('/api/users/filter-preferences', {
-                method: 'DELETE',
-                headers: {
-                  'x-user-id': currentUser.id
-                }
-              });
-              if (response.ok) {
-                // Resetear a valores por defecto
-                setTimeSlotFilter('all');
-                setViewFilter('all');
-                setSavedFilters(null);
-                console.log('✅ Filtros de partidas eliminados');
-              }
-            } catch (error) {
-              console.error('❌ Error al eliminar filtros de partidas:', error);
-            }
-          }}
-          disabled={!currentUser || !(savedFilters && (savedFilters.timeSlot !== 'all' || savedFilters.viewType !== 'all'))}
-          className={`px-3.5 py-1.5 rounded-2xl font-medium text-xs transition-all shadow-md hover:shadow-lg w-full text-center ${savedFilters && (savedFilters.timeSlot !== 'all' || savedFilters.viewType !== 'all')
-            ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white hover:scale-105'
-            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-            }`}
-        >
-          🗑️ Eliminar filtros
-        </button>
-      </div>
+          {/* Botones de Acción (Guardar/Eliminar) - Solo visibles si hay cambios */}
+          {(timeSlotFilter !== 'all' || viewFilter !== 'all') && (
+            <div className="flex flex-col gap-2 mt-1 w-[55px] sm:w-[80px] md:w-[170px] lg:w-[190px] xl:w-[210px]">
+              {/* Botón Guardar Filtros */}
+              <button
+                onClick={async () => {
+                  if (!currentUser) return;
+                  try {
+                    const response = await fetch('/api/users/filter-preferences', {
+                      method: 'POST',
+                      headers: {
+                        'x-user-id': currentUser.id,
+                        'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify({
+                        timeSlot: timeSlotFilter,
+                        viewType: viewFilter,
+                        playerCounts: [],
+                        instructorIds: [],
+                        type: 'matches'
+                      })
+                    });
+                    if (response.ok) {
+                      setSavedFilters({
+                        timeSlot: timeSlotFilter,
+                        viewType: viewFilter
+                      });
+                      console.log('✅ Filtros de partidas guardados');
+                      toast({ title: "Filtros guardados", className: "bg-green-600 text-white" });
+                    }
+                  } catch (error) {
+                    console.error('❌ Error al guardar filtros de partidas:', error);
+                  }
+                }}
+                className="bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded-xl py-1.5 text-xs font-semibold flex items-center justify-center gap-1 transition-colors"
+              >
+                💾 <span className="hidden md:inline">Guardar</span>
+              </button>
+
+              {/* Botón Eliminar Filtros */}
+              <button
+                onClick={async () => {
+                  if (!currentUser) return;
+                  try {
+                    const response = await fetch('/api/users/filter-preferences', {
+                      method: 'DELETE',
+                      headers: { 'x-user-id': currentUser.id }
+                    });
+                    if (response.ok) {
+                      setTimeSlotFilter('all');
+                      setViewFilter('all');
+                      setSavedFilters(null);
+                      console.log('✅ Filtros de partidas eliminados');
+                    }
+                  } catch (error) {
+                    console.error('❌ Error al eliminar filtros de partidas:', error);
+                  }
+                }}
+                disabled={!(savedFilters && (savedFilters.timeSlot !== 'all' || savedFilters.viewType !== 'all'))}
+                className={`border rounded-xl py-1.5 text-xs font-semibold flex items-center justify-center gap-1 transition-colors
+                    ${(savedFilters && (savedFilters.timeSlot !== 'all' || savedFilters.viewType !== 'all'))
+                    ? 'bg-red-50 hover:bg-red-100 text-red-600 border-red-200 cursor-pointer'
+                    : 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed hidden'
+                  }
+                  `}
+              >
+                🗑️ <span className="hidden md:inline">Limpiar</span>
+              </button>
+            </div>
+          )}
+
+        </div>,
+        document.getElementById('sidebar-filters-portal') as HTMLElement
+      )}
 
       {/* Panel de filtro de horario */}
       {showTimeFilterPanel && (
@@ -545,26 +552,30 @@ export default function MatchGamesPage() {
       </div>
 
       {/* Contenedor principal para tarjetas */}
-      {/* Contenedor principal para tarjetas */}
-      <div className="ml-0 md:ml-64 lg:ml-72 xl:ml-80 mr-0 md:mr-4 px-6 md:px-0 py-1 matchgames-scrollbar overflow-y-auto" style={{ maxHeight: 'calc(100vh - 120px)' }}>
+      <div className="ml-0 md:ml-[15rem] lg:ml-[17rem] xl:ml-[19rem] mr-0 md:mr-4 px-6 md:pl-4 md:pr-0 pt-6 pb-1 matchgames-scrollbar overflow-y-auto" style={{ maxHeight: 'calc(100vh - 120px)' }}>
 
-        <div className="mb-2">
-          {/* Selector de fecha */}
-          <div className="flex gap-2 mb-2">
-            <Button
-              variant={mounted && format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'default' : 'outline'}
-              onClick={() => setSelectedDate(new Date())}
-            >
-              Hoy
-            </Button>
-            <Button
-              variant={mounted && format(selectedDate, 'yyyy-MM-dd') === format(new Date(Date.now() + 86400000), 'yyyy-MM-dd') ? 'default' : 'outline'}
-              onClick={() => setSelectedDate(new Date(Date.now() + 86400000))}
-            >
-              Mañana
-            </Button>
-          </div>
+        <div className="mb-4 flex items-center gap-3 -mt-3">
+          {/* Button Hoy */}
+          <button
+            onClick={() => setSelectedDate(new Date())}
+            className="group relative px-6 py-2 bg-black hover:bg-gray-900 text-white rounded-full text-xs font-bold uppercase tracking-widest shadow-[0_10px_20px_-5px_rgba(0,0,0,0.5)] hover:shadow-[0_15px_30px_-5px_rgba(0,0,0,0.6)] hover:-translate-y-0.5 transition-all duration-300 border-2 border-white ring-1 ring-gray-200/50"
+          >
+            Hoy
+            {/* Glow effect */}
+            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-gray-800 to-black opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10 blur-sm"></div>
+          </button>
+
+          {/* Button Mañana */}
+          <button
+            onClick={() => setSelectedDate(new Date(Date.now() + 86400000))}
+            className="group relative px-6 py-2 bg-black hover:bg-gray-900 text-white rounded-full text-xs font-bold uppercase tracking-widest shadow-[0_10px_20px_-5px_rgba(0,0,0,0.5)] hover:shadow-[0_15px_30px_-5px_rgba(0,0,0,0.6)] hover:-translate-y-0.5 transition-all duration-300 border-2 border-white ring-1 ring-gray-200/50"
+          >
+            Mañana
+            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-gray-800 to-black opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10 blur-sm"></div>
+          </button>
         </div>
+
+
 
         {/* Lista de partidas */}
         {loading ? (
@@ -585,12 +596,13 @@ export default function MatchGamesPage() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-0 gap-y-4 md:gap-x-1 w-full max-w-full justify-items-center md:justify-items-start">
-            {filteredMatches.map(match => (
+            {filteredMatches.map((match, index) => (
               <MatchGameCard
                 key={match.id}
                 matchGame={match}
                 currentUser={currentUser}
                 onBookingSuccess={loadMatches}
+                index={index}
               />
             ))}
           </div>

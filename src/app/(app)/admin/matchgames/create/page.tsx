@@ -114,7 +114,7 @@ export default function CreateMatchGamePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 ml-20 pr-4 overflow-x-hidden max-w-[calc(100vw-100px)]">
+    <div className="min-h-screen bg-gray-50 p-4 ml-32 pr-4 overflow-x-hidden max-w-[calc(100vw-140px)]">
       <div className="max-w-7xl mx-auto">
         <Button
           onClick={() => router.back()}
@@ -128,7 +128,7 @@ export default function CreateMatchGamePage() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <List className="h-6 w-6 text-blue-600" />
-            Clases Gestionadas
+            Gestión de Partidas
           </h1>
         </div>
 

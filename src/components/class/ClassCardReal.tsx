@@ -1241,7 +1241,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
   }
 
   return (
-    <div className={`bg-white rounded-2xl shadow-[0_8px_16px_rgba(0,0,0,0.3)] border overflow-hidden w-full scale-100 md:scale-[0.88] relative ${isInscriptionSelected
+    <div className={`bg-white rounded-2xl shadow-[0_8px_16px_rgba(0,0,0,0.3)] border overflow-hidden w-[95%] mx-auto md:mx-0 md:w-[112%] md:-ml-[6%] scale-100 md:scale-[0.92] relative ${isInscriptionSelected
       ? 'border-4 border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.5)]'
       : 'border-gray-100'
       }`}>
@@ -1677,7 +1677,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
       </div>
 
       {/* Pricing Options */}
-      <div className="px-3 py-1.5 space-y-1">
+      <div className="px-3 pb-0 pt-1 space-y-0 relative">
         {/* 🚫 Mensaje de bloqueo REMOVED as per user request */}
 
         {[1, 2, 3, 4].filter(players => allowedPlayerCounts.includes(players)).map((players) => {
@@ -1807,7 +1807,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
             <div
               key={players}
               className={cn(
-                "flex items-center justify-between gap-2 p-1 rounded-lg transition-colors min-w-0 relative",
+                "flex items-center justify-between gap-1 px-1 py-1 rounded-lg transition-colors min-w-0 relative",
                 // 🆕 Resaltar la opción que el usuario reservó en modo agenda
                 isUserBookedOption
                   ? "bg-blue-100 border-2 border-blue-500 shadow-md"
@@ -2087,7 +2087,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
               </div>
 
               {/* Price or Credits - Desglosado */}
-              <div className="text-right flex-shrink-0 ml-auto mr-2 relative">
+              <div className="text-right flex-shrink-0 ml-auto mr-0 relative">
                 {/* Contenedor del precio */}
                 <div>
                   {hasAllCreditSlots && !isCancelled ? (
@@ -2104,7 +2104,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                   ) : hasAnyCreditSlot && !isCancelled ? (
                     // 💰+🎁 Algunas plazas con puntos, otras con euros (NO mostrar badge en canceladas)
                     <div className="flex flex-col items-end gap-0.5">
-                      <div className="text-base font-bold text-gray-900">
+                      <div className="text-sm font-bold text-gray-900">
                         € {pricePerPerson.toFixed(2)}
                       </div>
                       <div className="flex items-center gap-1">
@@ -2113,7 +2113,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
                     </div>
                   ) : (
                     // 💰 Mostrar precio normal en euros (siempre visible, incluso en canceladas)
-                    <div className="text-base font-bold text-gray-900">
+                    <div className="text-sm font-bold text-gray-900">
                       € {pricePerPerson.toFixed(2)}
                     </div>
                   )}
@@ -2125,11 +2125,11 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
       </div>
 
       {/* Available Courts - Indicadores de disponibilidad de pistas */}
-      <div className="px-3 py-1.5 bg-gray-50 border-t border-gray-100">
+      <div className="px-3 pt-0.5 pb-0 mt-0 bg-gray-50 border-t border-gray-100">
         <div className="text-center">
           {courtAssignment.isAssigned ? (
             <>
-              <div className="text-[10px] text-gray-500 text-center mb-1">Pista asignada:</div>
+              <div className="text-[10px] text-gray-500 text-center mb-0">Pista asignada:</div>
               <div className="flex items-center justify-center gap-1">
                 <div className="flex flex-col items-center">
                   <svg
@@ -2161,7 +2161,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
             </>
           ) : (
             <>
-              <div className="text-[10px] text-gray-500 text-center mb-1">
+              <div className="text-[10px] text-gray-500 text-center mb-0">
                 Disponibilidad de pistas
               </div>
               <div className="flex items-center justify-center gap-2">
@@ -2247,62 +2247,72 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
 
       {/* 💰 Footer con Información de Pago (Solo en Agenda Mode y Confirmada) */}
       {/* 🦶 Footer Unificado (Square Buttons) */}
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-        <div className="flex items-center gap-2">
-          {/* Botón Cancelar (Rojo Cuadrado) */}
-          {agendaMode && !isPastClass && !isCancelled && bookingId && onCancelBooking && (
-            <button
-              onClick={() => onCancelBooking && bookingId && onCancelBooking(bookingId)}
-              className="h-9 w-9 flex items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-              title="Cancelar"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
+      {(
+        (agendaMode && !isPastClass && !isCancelled && bookingId && onCancelBooking) || // Botón Cancelar
+        onHideFromHistory || // Botón Borrar
+        paidAmount !== undefined || // Pagado
+        (refundedPoints !== undefined && refundedPoints > 0 && isCancelled) || // Reembolso
+        (unlockedAmount !== undefined && unlockedAmount > 0) || // Desbloqueado
+        (blockedAmount !== undefined && blockedAmount > 0) // Bloqueado
+      ) && (
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+            <div className="flex items-center gap-2">
+              {/* Botón Cancelar (Rojo Cuadrado) */}
+              {agendaMode && !isPastClass && !isCancelled && bookingId && onCancelBooking && (
+                <button
+                  onClick={() => onCancelBooking && bookingId && onCancelBooking(bookingId)}
+                  className="h-9 w-9 flex items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                  title="Cancelar"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
 
-          {/* Botón Borrar (Gris Cuadrado) */}
-          {onHideFromHistory && (
-            <button
-              onClick={onHideFromHistory}
-              className="h-9 w-9 flex items-center justify-center rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors"
-              title="Borrar del historial"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
-          )}
-        </div>
+              {/* Botón Borrar (Gris Cuadrado) */}
+              {onHideFromHistory && (
+                <button
+                  onClick={onHideFromHistory}
+                  className="h-9 w-9 flex items-center justify-center rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors"
+                  title="Borrar del historial"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              )}
+            </div>
 
-        {/* Info Pago (Verde) / Reembolso (Naranja) / Desbloqueado (Azul) */}
-        <div className="flex items-center gap-2">
-          {paidAmount !== undefined && (
-            <div className="h-9 px-3 flex items-center justify-center bg-green-50 rounded-lg border border-green-100 text-green-700" title="Pagado">
-              <span className="text-xs font-medium mr-1">Pagado:</span>
-              <span className="text-sm font-bold">{paidAmount.toFixed(2)}€</span>
+            {/* Info Pago (Verde) / Reembolso (Naranja) / Desbloqueado (Azul) */}
+            <div className="flex items-center gap-2">
+              {paidAmount !== undefined && (
+                <div className="h-9 px-3 flex items-center justify-center bg-green-50 rounded-lg border border-green-100 text-green-700" title="Pagado">
+                  <span className="text-xs font-medium mr-1">Pagado:</span>
+                  <span className="text-sm font-bold">{paidAmount.toFixed(2)}€</span>
+                </div>
+              )}
+              {refundedPoints !== undefined && refundedPoints > 0 && isCancelled && (
+                <div className="h-9 px-3 flex items-center justify-center bg-orange-50 rounded-lg border border-orange-100 text-orange-700" title="Puntos Retornados">
+                  <span className="text-sm font-bold">{refundedPoints.toFixed(2)} pts</span>
+                </div>
+              )}
+              {unlockedAmount !== undefined && unlockedAmount > 0 && (
+                <div className="h-9 px-3 flex items-center justify-center bg-blue-50 rounded-lg border border-blue-100 text-blue-700" title="Saldo Desbloqueado">
+                  <span className="text-xs font-medium mr-1">Desbloqueado:</span>
+                  <span className="text-sm font-bold">{unlockedAmount.toFixed(2)}€</span>
+                </div>
+              )}
+              {blockedAmount !== undefined && blockedAmount > 0 && (
+                <div className="h-9 px-3 flex items-center justify-center bg-purple-50 rounded-lg border border-purple-100 text-purple-700" title="Saldo Bloqueado">
+                  <span className="text-xs font-medium mr-1">Bloqueado:</span>
+
+                  <span className="text-sm font-bold">{blockedAmount.toFixed(2)}€</span>
+                </div>
+              )}
             </div>
-          )}
-          {refundedPoints !== undefined && refundedPoints > 0 && isCancelled && (
-            <div className="h-9 px-3 flex items-center justify-center bg-orange-50 rounded-lg border border-orange-100 text-orange-700" title="Puntos Retornados">
-              <span className="text-sm font-bold">{refundedPoints.toFixed(2)} pts</span>
-            </div>
-          )}
-          {unlockedAmount !== undefined && unlockedAmount > 0 && (
-            <div className="h-9 px-3 flex items-center justify-center bg-blue-50 rounded-lg border border-blue-100 text-blue-700" title="Saldo Desbloqueado">
-              <span className="text-xs font-medium mr-1">Desbloqueado:</span>
-              <span className="text-sm font-bold">{unlockedAmount.toFixed(2)}€</span>
-            </div>
-          )}
-          {blockedAmount !== undefined && blockedAmount > 0 && (
-            <div className="h-9 px-3 flex items-center justify-center bg-purple-50 rounded-lg border border-purple-100 text-purple-700" title="Saldo Bloqueado">
-              <span className="text-xs font-medium mr-1">Bloqueado:</span>
-              <span className="text-sm font-bold">{blockedAmount.toFixed(2)}€</span>
-            </div>
-          )}
-        </div>
-      </div>
+          </div>
+        )}
 
 
       {/* Diálogo de Confirmación */}
@@ -2371,7 +2381,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </div >
   );
 };
 
