@@ -78,24 +78,34 @@ body {
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
   }
-  html, body, #__next, main {
+
+  html,
+  body,
+  #__next,
+  main {
     height: 100%;
   }
 }
 
 @layer utilities {
+
   /* Ocultar scrollbar en elementos con clase scrollbar-hide */
   .scrollbar-hide {
-    -ms-overflow-style: none;  /* IE y Edge */
-    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none;
+    /* IE y Edge */
+    scrollbar-width: none;
+    /* Firefox */
   }
+
   .scrollbar-hide::-webkit-scrollbar {
-    display: none;  /* Chrome, Safari y Opera */
+    display: none;
+    /* Chrome, Safari y Opera */
   }
-  
+
   /* Mejor experiencia de scroll táctil horizontal en móvil */
   .touch-pan-x {
     -webkit-overflow-scrolling: touch;
@@ -105,10 +115,13 @@ body {
 
   /* Animación de blink para plazas recicladas */
   @keyframes recycled-blink {
-    0%, 100% {
+
+    0%,
+    100% {
       opacity: 1;
       box-shadow: 0 0 10px rgba(234, 179, 8, 0.6), inset 0 4px 8px rgba(0, 0, 0, 0.3);
     }
+
     50% {
       opacity: 0.7;
       box-shadow: 0 0 20px rgba(234, 179, 8, 0.9), inset 0 4px 8px rgba(0, 0, 0, 0.3);
@@ -121,9 +134,12 @@ body {
 
   /* Animación de bounce sutil para botones activos */
   @keyframes bounce-subtle {
-    0%, 100% {
+
+    0%,
+    100% {
       transform: scale(1);
     }
+
     50% {
       transform: scale(1.05);
     }
@@ -134,7 +150,10 @@ body {
   }
 
   /* TEMPORAL FIX: Forzar que todos los botones y links sean clickeables */
-  button, a, [role="button"], [role="link"] {
+  button,
+  a,
+  [role="button"],
+  [role="link"] {
     pointer-events: auto !important;
     position: relative !important;
     z-index: 1 !important;
@@ -146,10 +165,12 @@ body {
       opacity: 0;
       transform: translateY(40px) scale(0.8);
     }
+
     60% {
       opacity: 0.8;
       transform: translateY(-10px) scale(1.02);
     }
+
     100% {
       opacity: 1;
       transform: translateY(0) scale(1);
@@ -157,7 +178,10 @@ body {
   }
 
   .bubble-appear {
-    opacity: 0; /* Inicialmente invisible */
+    opacity: 0;
+    /* Inicialmente invisible */
     animation: bubble-up 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    animation-fill-mode: both;
+    /* Mantener estado final y evitar restart */
   }
 }

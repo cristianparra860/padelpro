@@ -597,13 +597,20 @@ export default function MatchGamesPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-0 gap-y-4 md:gap-x-1 w-full max-w-full justify-items-center md:justify-items-start">
             {filteredMatches.map((match, index) => (
-              <MatchGameCard
+              <div
                 key={match.id}
-                matchGame={match}
-                currentUser={currentUser}
-                onBookingSuccess={loadMatches}
-                index={index}
-              />
+                className="bubble-appear"
+                style={{
+                  animationDelay: `${index * 100}ms`
+                }}
+              >
+                <MatchGameCard
+                  matchGame={match}
+                  currentUser={currentUser}
+                  onBookingSuccess={loadMatches}
+                  index={index}
+                />
+              </div>
             ))}
           </div>
         )}
