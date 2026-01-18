@@ -92,3 +92,4 @@ pnpm-debug.log*
 prisma/*.db
 prisma/*.db-journal
 >>>>>>> bbb914e2 (chore(db): seed script, ignore local SQLite, untrack dev.db)
+.env*.local
