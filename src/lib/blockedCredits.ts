@@ -4,43 +4,6 @@
 import { prisma } from '@/lib/prisma';
 
 /**
- * Recalcula y actualiza los puntos de fidelidad bloqueados de un usuario
- * basado en sus reservas pendientes pagadas con puntos.
- */
-export async function updateUserBlockedLoyaltyPoints(userId: string): Promise<number> {
-  try {
-    // Obtener todas las reservas pendientes pagadas con puntos
-    const pendingPointBookings = await prisma.booking.findMany({
-      where: {
-        userId,
-        status: 'PENDING',
-        paidWithPoints: true
-      },
-      select: {
-        pointsUsed: true
-      }
-    });
-
-    // Calcular el total de puntos bloqueados
-    const totalBlockedPoints = pendingPointBookings.reduce((sum, booking) => sum + booking.pointsUsed, 0);
-
-    // Actualizar el usuario
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        blockedPoints: totalBlockedPoints
-      }
-    });
-
-    return totalBlockedPoints;
-  } catch (error) {
-    console.error('Error updating blocked loyalty points:', error);
-    return 0;
-  }
-}
-
-
-/**
  * Calcula el saldo que debe estar bloqueado para un usuario.
  * 
  * NUEVA REGLA: Se bloquea solo el precio de la clase MÁS CARA entre todas las inscripciones
@@ -460,4 +423,37 @@ export async function deleteMatchGameIfEmpty(matchGameId: string): Promise<void>
   } else {
     console.log(`ℹ️ MatchGame ${matchGameId} tiene ${activeBookings} reservas activas - NO se elimina.`);
   }
+}
+
+/**
+ * Actualiza los puntos de fidelidad bloqueados del usuario.
+ * Se basa en las reservas PENDING que se pagan con puntos.
+ */
+export async function updateUserBlockedLoyaltyPoints(userId: string): Promise<number> {
+  const pendingBookings = await prisma.booking.findMany({
+    where: {
+      userId,
+      status: 'PENDING',
+      paidWithPoints: true,
+      timeSlot: {
+        courtId: null,
+        start: {
+          gt: new Date()
+        }
+      }
+    },
+    select: {
+      pointsUsed: true
+    }
+  });
+
+  const totalBlocked = pendingBookings.reduce((sum, b) => sum + (b.pointsUsed || 0), 0);
+
+  // Actualizar el campo blockedPoints (schema define blockedPoints, no blockedLoyaltyPoints)
+  await prisma.user.update({
+    where: { id: userId },
+    data: { blockedPoints: totalBlocked }
+  });
+
+  return totalBlocked;
 }

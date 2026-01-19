@@ -359,11 +359,6 @@ export default function ClubCalendarImproved({
             };
           });
 
-          console.log('📊 Formatted bookings for DateSelector:', formattedBookings);
-          console.log('📊 Total bookings:', formattedBookings.length);
-          console.log('📊 Pending bookings:', formattedBookings.filter((b: any) => b.status === 'PENDING').length);
-          console.log('📊 Confirmed bookings:', formattedBookings.filter((b: any) => b.status === 'CONFIRMED').length);
-
           setMonthlyUserBookings(formattedBookings);
         }
       } catch (error) {

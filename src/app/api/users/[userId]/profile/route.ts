@@ -8,19 +8,19 @@ export async function PUT(
 ) {
   try {
     const { userId } = params;
-    
+
     console.log('📝 Intentando actualizar perfil del usuario:', userId);
-    
+
     // Usar la función de auth existente
     const currentUser = await getCurrentUser(request);
-    
+
     if (!currentUser) {
       console.log('❌ No hay usuario autenticado');
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
     console.log('✅ Usuario autenticado:', currentUser.id);
-    
+
     // Verificar que el usuario solo pueda actualizar su propio perfil
     if (currentUser.id !== userId) {
       console.log('❌ Usuario intenta modificar perfil de otro usuario');
@@ -84,7 +84,7 @@ export async function PUT(
   } catch (error: any) {
     console.error('❌ Error updating user profile:', error);
     console.error('📋 Stack:', error.stack);
-    
+
     return NextResponse.json({
       error: 'Error al actualizar perfil',
       details: error.message

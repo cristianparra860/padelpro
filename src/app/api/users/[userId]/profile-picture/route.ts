@@ -17,7 +17,7 @@ export async function PUT(
     }
 
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-    
+
     if (decoded.userId !== userId) {
       return NextResponse.json({ error: 'No autorizado para actualizar este perfil' }, { status: 403 });
     }
@@ -55,9 +55,9 @@ export async function PUT(
   } catch (error: any) {
     console.error('❌ Error al actualizar foto de perfil:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Error al actualizar foto de perfil',
-        details: error.message 
+        details: error.message
       },
       { status: 500 }
     );

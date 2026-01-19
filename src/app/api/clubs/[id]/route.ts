@@ -9,27 +9,27 @@ export async function PATCH(
   try {
     const { id } = params;
     const body = await request.json();
-    
+
     // Validar openingHours (puede ser objeto con días de la semana o array legacy)
     let openingHoursJson = null;
-    
+
     if (body.openingHours) {
       // Nuevo formato: objeto con días de la semana
       if (typeof body.openingHours === 'object' && !Array.isArray(body.openingHours)) {
         const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-        const validFormat = days.every(day => 
-          body.openingHours[day] && 
-          Array.isArray(body.openingHours[day]) && 
+        const validFormat = days.every(day =>
+          body.openingHours[day] &&
+          Array.isArray(body.openingHours[day]) &&
           body.openingHours[day].length === 19
         );
-        
+
         if (!validFormat) {
           return NextResponse.json(
             { error: 'openingHours debe tener 7 días con 19 horas cada uno' },
             { status: 400 }
           );
         }
-        
+
         openingHoursJson = JSON.stringify(body.openingHours);
       }
       // Formato legacy: array de booleanos
@@ -61,8 +61,8 @@ export async function PATCH(
     // Parsear el JSON de vuelta a array para la respuesta
     const response = {
       ...updatedClub,
-      openingHours: updatedClub.openingHours 
-        ? JSON.parse(updatedClub.openingHours) 
+      openingHours: updatedClub.openingHours
+        ? JSON.parse(updatedClub.openingHours)
         : null
     };
 
@@ -82,7 +82,7 @@ export async function GET(
 ) {
   try {
     const { id } = params;
-    
+
     const club = await prisma.club.findUnique({
       where: { id }
     });
@@ -97,8 +97,8 @@ export async function GET(
     // Parsear el JSON de openingHours a array
     const response = {
       ...club,
-      openingHours: club.openingHours 
-        ? JSON.parse(club.openingHours) 
+      openingHours: club.openingHours
+        ? JSON.parse(club.openingHours)
         : null
     };
 

@@ -2,15 +2,26 @@
   "version": 2,
   "framework": "nextjs",
   "buildCommand": "prisma generate && next build",
-  "installCommand": "npm install --legacy-peer-deps",
+  "installCommand": "npm install",
+  "env": {
+    "DATABASE_URL": "@database_url",
+    "NODE_ENV": "production"
+  },
   "crons": [
     {
       "path": "/api/cron/generate-cards?daysRange=30",
-      "schedule": "0 0 * * *"
+      "schedule": "0 0 * * *",
+      "description": "Genera automáticamente las clases de los próximos 30 días cada día a las 00:00 UTC"
     },
     {
       "path": "/api/admin/generate-proposals",
-      "schedule": "0 1 * * *"
+      "schedule": "0 1 * * *",
+      "description": "Genera propuestas de clases para los próximos 7 días cada día a las 01:00 UTC"
+    },
+    {
+      "path": "/api/cron/generate-matches",
+      "schedule": "0 2 * * *",
+      "description": "Genera automáticamente partidas de 4 jugadores para los próximos 7 días cada día a las 02:00 UTC"
     }
   ]
 }

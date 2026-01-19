@@ -275,18 +275,15 @@ export function useActivityFilters(
       setSelectedDate(null);
     } else if (dateParam) {
       const newDate = startOfDay(new Date(dateParam));
-      setSelectedDate(prev => {
-        // Only update if the date actually changed to prevent loops
-        if (!prev || newDate.getTime() !== prev.getTime()) {
-          return newDate;
-        }
-        return prev;
-      });
+      if (!selectedDate || newDate.getTime() !== selectedDate.getTime()) {
+        setSelectedDate(newDate);
+      }
     } else {
-      setSelectedDate(prev => prev || startOfDay(new Date()));
+      if (!selectedDate) {
+        setSelectedDate(startOfDay(new Date()));
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, filterByGratisOnly, filterByLiberadasOnly, filterByPuntosOnly, matchIdFilter, matchShareCode]); // Removed selectedDate to prevent loop
+  }, [searchParams, filterByGratisOnly, filterByLiberadasOnly, filterByPuntosOnly, matchIdFilter, matchShareCode, selectedDate]);
 
   // --- Player Count Filter Handlers (con guardado de preferencias) ---
   const handleTogglePlayerCount = useCallback((count: number) => {

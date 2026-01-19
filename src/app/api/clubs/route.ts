@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 export async function GET(request: NextRequest) {
   try {
     console.log('📋 /api/clubs - Obteniendo clubes de la base de datos');
-    
+
     // Obtener clubes reales de la base de datos
     const clubs = await prisma.club.findMany({
       orderBy: {
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
         hasHeroImage: !!club.heroImage,
         heroImageLength: club.heroImage?.length || 0
       });
-      
+
       return {
         id: club.id,
         name: club.name,
@@ -51,12 +51,13 @@ export async function GET(request: NextRequest) {
     });
 
     console.log(`✅ Devolviendo ${formattedClubs.length} clubes`);
-    
+
     return NextResponse.json(formattedClubs);
   } catch (error) {
     console.error('Error fetching clubs:', error);
     return NextResponse.json(
       { error: 'Failed to fetch clubs' },
       { status: 500 }
-    );  }
+    );
+  }
 }

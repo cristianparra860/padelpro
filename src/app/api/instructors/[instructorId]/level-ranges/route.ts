@@ -8,19 +8,19 @@ export async function PUT(
 ) {
   try {
     const { instructorId } = params;
-    
+
     console.log('📝 Actualizando rangos de nivel del instructor:', instructorId);
-    
+
     // Verificar autenticación
     const currentUser = await getCurrentUser(request);
-    
+
     if (!currentUser) {
       console.log('❌ No hay usuario autenticado');
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
     console.log('✅ Usuario autenticado:', currentUser.id);
-    
+
     // Verificar que el usuario sea el instructor o admin
     const instructor = await prisma.instructor.findUnique({
       where: { id: instructorId },
@@ -91,7 +91,7 @@ export async function PUT(
   } catch (error: any) {
     console.error('❌ Error updating instructor level ranges:', error);
     console.error('📋 Stack:', error.stack);
-    
+
     return NextResponse.json({
       error: 'Error al actualizar rangos de nivel',
       details: error.message
@@ -105,7 +105,7 @@ export async function GET(
 ) {
   try {
     const { instructorId } = params;
-    
+
     const instructor = await prisma.instructor.findUnique({
       where: { id: instructorId },
       select: { levelRanges: true }
@@ -115,8 +115,8 @@ export async function GET(
       return NextResponse.json({ error: 'Instructor no encontrado' }, { status: 404 });
     }
 
-    const levelRanges = instructor.levelRanges 
-      ? JSON.parse(instructor.levelRanges) 
+    const levelRanges = instructor.levelRanges
+      ? JSON.parse(instructor.levelRanges)
       : [];
 
     return NextResponse.json({
@@ -126,7 +126,7 @@ export async function GET(
 
   } catch (error: any) {
     console.error('❌ Error getting instructor level ranges:', error);
-    
+
     return NextResponse.json({
       error: 'Error al obtener rangos de nivel',
       details: error.message

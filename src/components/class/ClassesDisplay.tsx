@@ -1661,25 +1661,18 @@ export function ClassesDisplay({
                 // 🎓 Los botones de conversión € → 🎁 solo se muestran en el Panel del Instructor
                 // No se pasan isInstructor ni instructorView aquí para evitar mostrar botones en vista principal
                 return (
-                  <div
-                    key={slot.id}
-                    className="bubble-appear w-full"
-                    style={{
-                      animationDelay: `${index * 100}ms`
-                    }}
-                  >
-                    <ClassCardReal
-                      classData={slot}
-                      currentUser={currentUser || null}
-                      onBookingSuccess={handleBookingSuccess}
-                      showPointsBonus={true}
-                      allowedPlayerCounts={localPlayerCounts}
-                      isInscriptionSelected={selectedInscriptionSlotIds.includes(slot.id)}
-                      creditsSlots={slot.creditsSlots || []}
-                      similarProposalsCount={similarProposalsCount}
-                      index={index}
-                    />
-                  </div>
+                  <ClassCardReal
+                    key={`slot-${slot.id}-refresh-${refreshKey}-bookings-${slot.bookings?.length || 0}-players-${localPlayerCounts.join('-')}`}
+                    classData={slot}
+                    currentUser={currentUser || null}
+                    onBookingSuccess={handleBookingSuccess}
+                    showPointsBonus={true}
+                    allowedPlayerCounts={localPlayerCounts}
+                    isInscriptionSelected={selectedInscriptionSlotIds.includes(slot.id)}
+                    creditsSlots={slot.creditsSlots || []}
+                    similarProposalsCount={similarProposalsCount}
+                    index={index}
+                  />
                 );
               })}
             </div>

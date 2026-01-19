@@ -2294,7 +2294,7 @@ const ClassCardReal: React.FC<ClassCardRealProps> = ({
               )}
               {refundedPoints !== undefined && refundedPoints > 0 && isCancelled && (
                 <div className="h-9 px-3 flex items-center justify-center bg-orange-50 rounded-lg border border-orange-100 text-orange-700" title="Puntos Retornados">
-                  <span className="text-sm font-bold">{refundedPoints.toFixed(2)} pts retornados</span>
+                  <span className="text-sm font-bold">{refundedPoints.toFixed(2)} pts</span>
                 </div>
               )}
               {unlockedAmount !== undefined && unlockedAmount > 0 && (

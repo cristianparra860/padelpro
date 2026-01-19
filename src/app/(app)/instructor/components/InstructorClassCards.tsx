@@ -46,25 +46,25 @@ export default function InstructorClassCards({ instructor, onlyWithBookings = fa
       try {
         const today = new Date();
         const endDate = addDays(today, 30);
-        
+
         // Consultar todas las clases del instructor en el rango de fechas
         const clubId = instructor.assignedClubId || 'padel-estrella-madrid';
-        
+
         const response = await fetch(
           `/api/timeslots?clubId=${clubId}&instructorId=${instructor.id}`
         );
-        
+
         if (!response.ok) return;
-        
+
         const data = await response.json();
         const slotsArray = Array.isArray(data) ? data : data.slots || [];
-        
+
         // Extraer bookings confirmados y cancelados de todas las clases
         const allBookings = slotsArray
-          .filter((slot: ApiTimeSlot) => 
-            slot.bookings && 
+          .filter((slot: ApiTimeSlot) =>
+            slot.bookings &&
             slot.bookings.length > 0 &&
-            slot.bookings.some((booking: any) => 
+            slot.bookings.some((booking: any) =>
               booking.status === 'CONFIRMED' || booking.status === 'CANCELLED'
             )
           )
@@ -73,7 +73,7 @@ export default function InstructorClassCards({ instructor, onlyWithBookings = fa
             date: new Date(slot.start),
             status: 'CONFIRMED' as const
           }));
-        
+
         console.log('📊 Instructor bookings loaded:', allBookings.length);
         setInstructorBookings(allBookings);
       } catch (error) {
@@ -90,10 +90,10 @@ export default function InstructorClassCards({ instructor, onlyWithBookings = fa
       try {
         // Cargar slots del día seleccionado donde el instructor está asignado
         const dateStr = format(selectedDate, 'yyyy-MM-dd');
-        
+
         // Buscar en todos los clubs si no tiene uno asignado
         const clubId = instructor.assignedClubId || 'club-1';
-        
+
         console.log('🔍 InstructorClassCards - Loading classes:', {
           instructorId: instructor.id,
           instructorName: instructor.name,
@@ -101,22 +101,22 @@ export default function InstructorClassCards({ instructor, onlyWithBookings = fa
           date: dateStr,
           onlyWithBookings
         });
-        
+
         // Usar el endpoint de timeslots con instructorId para obtener todas las clases
         // El instructorId en TimeSlots es una referencia a la tabla Instructor
         const response = await fetch(
           `/api/timeslots?date=${dateStr}&clubId=${clubId}&instructorId=${instructor.id}&limit=1000`
         );
-        
+
         if (!response.ok) {
           throw new Error('Error al cargar las clases');
         }
-        
+
         const data = await response.json();
-        
+
         // La API puede devolver un array directamente o un objeto con paginación
         const slotsArray = Array.isArray(data) ? data : data.slots || [];
-        
+
         console.log('📊 InstructorClassCards - Data received:', {
           totalSlots: slotsArray.length,
           instructorId: instructor.id,
@@ -131,17 +131,17 @@ export default function InstructorClassCards({ instructor, onlyWithBookings = fa
             bookings: slotsArray[0].bookings?.length || 0
           } : null
         });
-        
+
         // Filtrar según el modo
         let filteredClasses;
         if (onlyWithBookings) {
           // Solo clases con bookings (PENDING, CONFIRMED o CANCELLED)
           filteredClasses = slotsArray.filter(
-            (slot: ApiTimeSlot) => 
-              slot.instructorId === instructor.id && 
-              slot.bookings && 
+            (slot: ApiTimeSlot) =>
+              slot.instructorId === instructor.id &&
+              slot.bookings &&
               slot.bookings.length > 0 &&
-              slot.bookings.some((booking: any) => 
+              slot.bookings.some((booking: any) =>
                 booking.status === 'PENDING' || booking.status === 'CONFIRMED' || booking.status === 'CANCELLED'
               )
           );
@@ -154,7 +154,7 @@ export default function InstructorClassCards({ instructor, onlyWithBookings = fa
             (slot: ApiTimeSlot) => slot.instructorId === instructor.id
           );
         }
-        
+
         console.log('📊 Filtered classes:', {
           total: filteredClasses.length,
           proposals: filteredClasses.filter((s: ApiTimeSlot) => !s.courtId).length,
@@ -162,7 +162,7 @@ export default function InstructorClassCards({ instructor, onlyWithBookings = fa
           withBookings: filteredClasses.filter((s: ApiTimeSlot) => s.bookings && s.bookings.length > 0).length,
           withoutBookings: filteredClasses.filter((s: ApiTimeSlot) => !s.bookings || s.bookings.length === 0).length
         });
-        
+
         // Debug: verificar las fechas de cada slot
         console.table(filteredClasses.map(slot => ({
           id: slot.id.substring(0, 20),
@@ -171,7 +171,7 @@ export default function InstructorClassCards({ instructor, onlyWithBookings = fa
           startValid: slot.start && !isNaN(new Date(slot.start).getTime()),
           bookings: slot.bookings?.length || 0
         })));
-        
+
         setTimeSlots(filteredClasses);
       } catch (error) {
         console.error('Error loading instructor classes:', error);
@@ -192,7 +192,7 @@ export default function InstructorClassCards({ instructor, onlyWithBookings = fa
   const filteredSlots = onlyWithBookings ? timeSlots : timeSlots.filter((slot) => {
     const slotDate = new Date(slot.start);
     const now = new Date();
-    
+
     switch (activeTab) {
       case 'upcoming':
         return !isPast(slotDate) || format(slotDate, 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd');
@@ -299,7 +299,7 @@ export default function InstructorClassCards({ instructor, onlyWithBookings = fa
               </div>
             </div>
           </div>
-          
+
           {/* Tarjetas de clases */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredSlots.map((slot) => (

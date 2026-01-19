@@ -12,7 +12,7 @@ async function verifyAdmin(request: NextRequest) {
     const authHeader = request.headers.get('authorization');
     const tokenFromHeader = authHeader?.replace('Bearer ', '');
     const tokenFromCookie = request.cookies.get('auth_token')?.value;
-    
+
     const token = tokenFromHeader || tokenFromCookie;
 
     console.log('🔐 Verificando autenticación:', {
@@ -29,7 +29,7 @@ async function verifyAdmin(request: NextRequest) {
 
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
     console.log('✅ Token válido para userId:', decoded.userId);
-    
+
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       select: { role: true, clubId: true }
@@ -111,9 +111,9 @@ export async function GET(request: NextRequest) {
     console.error('❌ Error al obtener club:', error);
     console.error('❌ Error message:', error?.message);
     console.error('❌ Error stack:', error?.stack);
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Error al obtener información del club',
-      details: error?.message 
+      details: error?.message
     }, { status: 500 });
   }
 }
@@ -138,16 +138,16 @@ export async function PUT(request: NextRequest) {
     }
 
     console.log('📝 Actualizando club:', clubId);
-    console.log('📄 Datos recibidos:', { 
+    console.log('📄 Datos recibidos:', {
       address,
-      phone, 
-      email, 
-      website, 
-      hasLogo: !!logo, 
+      phone,
+      email,
+      website,
+      hasLogo: !!logo,
       logoLength: logo?.length,
       hasHeroImage: !!heroImage,
       heroImageLength: heroImage?.length,
-      description: description?.substring(0, 30) 
+      description: description?.substring(0, 30)
     });
 
     // Preparar datos para actualizar (convertir strings vacíos a null)
@@ -160,8 +160,8 @@ export async function PUT(request: NextRequest) {
     if (heroImage !== undefined) updateData.heroImage = heroImage;
     if (description !== undefined) updateData.description = description === '' ? null : description;
 
-    console.log('📄 Datos preparados:', { 
-      ...updateData, 
+    console.log('📄 Datos preparados:', {
+      ...updateData,
       logo: updateData.logo ? `(${updateData.logo.length} chars)` : 'null',
       heroImage: updateData.heroImage ? `(${updateData.heroImage.length} chars)` : 'null'
     });
@@ -185,9 +185,9 @@ export async function PUT(request: NextRequest) {
     console.error('❌ Error message:', error?.message);
     console.error('❌ Error stack:', error?.stack);
     console.error('❌ Error code:', error?.code);
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Error al actualizar información del club',
-      details: error?.message 
+      details: error?.message
     }, { status: 500 });
   }
 }

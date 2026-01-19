@@ -7,10 +7,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import ClubCalendarImproved from '@/components/admin/ClubCalendarImproved';
 import MatchGamesManager from './MatchGamesManager';
-import { 
-  Building2, 
-  Users, 
-  GraduationCap, 
+import {
+  Building2,
+  Users,
+  GraduationCap,
   Calendar,
   Settings,
   BarChart3,
@@ -52,14 +52,14 @@ const UnifiedAdminPanel: React.FC<UnifiedAdminPanelProps> = ({ currentLevel, clu
         console.error('Error cargando usuario:', error);
       }
     };
-    
+
     loadUser();
   }, []);
 
   useEffect(() => {
     const allClubs = getMockClubs();
     setClubs(allClubs);
-    
+
     if (clubId) {
       const club = allClubs.find(c => c.id === clubId);
       setSelectedClub(club || null);
@@ -72,9 +72,9 @@ const UnifiedAdminPanel: React.FC<UnifiedAdminPanelProps> = ({ currentLevel, clu
 
   if (currentLevel === 'club' && selectedClub) {
     return (
-      <ClubAdminView 
-        club={selectedClub} 
-        onBack={() => setSelectedClub(null)} 
+      <ClubAdminView
+        club={selectedClub}
+        onBack={() => setSelectedClub(null)}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         currentUser={currentUser}
@@ -174,8 +174,8 @@ const SuperAdminView: React.FC<{ clubs: Club[], onSelectClub: (club: Club) => vo
                     <span className="text-xs text-muted-foreground">
                       {club.adminEmail}
                     </span>
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       onClick={() => onSelectClub(club)}
                       className="text-xs"
                     >
@@ -193,8 +193,8 @@ const SuperAdminView: React.FC<{ clubs: Club[], onSelectClub: (club: Club) => vo
 };
 
 // Componente Club Admin
-const ClubAdminView: React.FC<{ 
-  club: Club, 
+const ClubAdminView: React.FC<{
+  club: Club,
   onBack: () => void,
   activeTab: string,
   setActiveTab: (tab: string) => void,
@@ -296,7 +296,7 @@ const ClubAdminView: React.FC<{
                 </Button>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -311,7 +311,7 @@ const ClubAdminView: React.FC<{
               </CardContent>
             </Card>
           </div>
-          
+
           <Card>
             <CardHeader>
               <CardTitle>Configuración de Tarifas</CardTitle>

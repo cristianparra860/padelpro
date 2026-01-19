@@ -1,13 +1,11 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { User, Club } from '@/types';
-import { Trophy, Calendar, CalendarDays, Wallet, ClipboardList, Power, GraduationCap, QrCode } from 'lucide-react';
+import { Trophy, Calendar, CalendarDays, Wallet, ClipboardList, Power, GraduationCap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { QRScanner } from '@/components/auth/QRScanner';
-import { useToast } from '@/hooks/use-toast';
 
 interface MobileHubProps {
     user: User | null;
@@ -17,31 +15,9 @@ interface MobileHubProps {
 
 export default function MobileHub({ user, club, onLogout }: MobileHubProps) {
     const router = useRouter();
-    const { toast } = useToast();
-    const [showQRScanner, setShowQRScanner] = useState(false);
 
     const creditFormatted = user?.credit ? (user.credit / 100).toFixed(2) + '€' : '0.00€';
     const pointsFormatted = user?.points ? user.points.toString() : '0';
-
-    const handleQRScan = async (qrData: string) => {
-        try {
-            console.log('QR Code scanned:', qrData);
-            // Process the QR code data (e.g., authenticate user)
-            // For now, just show a toast
-            toast({
-                title: "QR Escaneado",
-                description: `Código: ${qrData}`,
-            });
-            setShowQRScanner(false);
-        } catch (error) {
-            console.error('Error processing QR:', error);
-            toast({
-                title: "Error",
-                description: "No se pudo procesar el código QR",
-                variant: "destructive"
-            });
-        }
-    };
 
     const primaryItems = [
         {
@@ -189,9 +165,9 @@ export default function MobileHub({ user, club, onLogout }: MobileHubProps) {
                     </div>
                 </div>
 
-                {/* 3. Secondary Group: Row of smaller items (Reservas, Saldo, Puntos, QR, Salir) */}
+                {/* 3. Secondary Group: Row of smaller items (Reservas, Saldo, Puntos, Salir) */}
                 <div className="px-6 mt-6">
-                    <div className="grid grid-cols-5 gap-2">
+                    <div className="grid grid-cols-4 gap-2">
                         {secondaryItems.map((item, index) => (
                             <button
                                 key={index}
@@ -218,21 +194,6 @@ export default function MobileHub({ user, club, onLogout }: MobileHubProps) {
                             </button>
                         ))}
 
-                        {/* QR Scanner Button */}
-                        <button
-                            onClick={() => setShowQRScanner(true)}
-                            className="flex flex-col items-center gap-1 group"
-                        >
-                            <div className="w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-md ring-1 ring-blue-100 transition-all active:scale-90">
-                                <QrCode className="w-5 h-5" strokeWidth={2} />
-                            </div>
-                            <div className="flex flex-col items-center w-full">
-                                <span className="text-[10px] font-semibold text-gray-700 truncate w-full text-center drop-shadow-sm">
-                                    QR
-                                </span>
-                            </div>
-                        </button>
-
                         {/* Salir Button integrated in this row */}
                         <button
                             onClick={onLogout}
@@ -251,14 +212,6 @@ export default function MobileHub({ user, club, onLogout }: MobileHubProps) {
                 </div>
 
             </div>
-
-            {/* QR Scanner Modal */}
-            {showQRScanner && (
-                <QRScanner
-                    onScan={handleQRScan}
-                    onClose={() => setShowQRScanner(false)}
-                />
-            )}
         </div>
     );
 }

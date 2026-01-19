@@ -4,12 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Trophy, 
-  Plus, 
-  Trash2, 
-  Users, 
-  Clock, 
+import {
+  Trophy,
+  Plus,
+  Trash2,
+  Users,
+  Clock,
   Calendar,
   Loader2,
   RefreshCw,
@@ -57,7 +57,7 @@ export default function AdminMatchGamesPage() {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       const response = await fetch(`/api/matchgames?clubId=club-1&date=${dateStr}`);
       const data = await response.json();
-      
+
       if (response.ok) {
         setMatches(data.matchGames || []);
       } else {
@@ -111,7 +111,7 @@ export default function AdminMatchGamesPage() {
 
   const getStatusBadge = (match: MatchGame) => {
     const bookingsCount = match.bookings.filter(b => b.status !== 'CANCELLED').length;
-    
+
     if (match.courtNumber) {
       return <Badge className="bg-green-500">Pista {match.courtNumber} Asignada</Badge>;
     } else if (bookingsCount === match.maxPlayers) {
@@ -136,7 +136,7 @@ export default function AdminMatchGamesPage() {
               Administra las partidas de 4 jugadores del club
             </p>
           </div>
-          
+
           <div className="flex gap-2">
             <Button onClick={loadMatches} variant="outline" size="sm">
               <RefreshCw className="h-4 w-4 mr-2" />
@@ -184,7 +184,7 @@ export default function AdminMatchGamesPage() {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
@@ -198,7 +198,7 @@ export default function AdminMatchGamesPage() {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
@@ -212,7 +212,7 @@ export default function AdminMatchGamesPage() {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
@@ -252,7 +252,7 @@ export default function AdminMatchGamesPage() {
         <div className="space-y-4">
           {matches.map(match => {
             const activeBookings = match.bookings.filter(b => b.status !== 'CANCELLED');
-            
+
             return (
               <Card key={match.id} className="hover:shadow-lg transition-shadow">
                 <CardContent className="pt-6">
@@ -275,7 +275,7 @@ export default function AdminMatchGamesPage() {
                           </Badge>
                         )}
                       </div>
-                      
+
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                         <div>
                           <p className="text-sm text-gray-600">Precio/Jugador</p>
@@ -298,7 +298,7 @@ export default function AdminMatchGamesPage() {
                           </p>
                         </div>
                       </div>
-                      
+
                       {activeBookings.length > 0 && (
                         <div className="border-t pt-3">
                           <p className="text-sm font-semibold mb-2">Jugadores inscritos:</p>
@@ -313,7 +313,7 @@ export default function AdminMatchGamesPage() {
                         </div>
                       )}
                     </div>
-                    
+
                     <Button
                       onClick={() => handleDelete(match.id)}
                       variant="ghost"

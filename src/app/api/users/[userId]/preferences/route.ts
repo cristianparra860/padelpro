@@ -27,11 +27,11 @@ export async function GET(
     const preferences = {
       timeSlotFilter: user.prefTimeSlot || 'all',
       viewPreference: user.prefViewType || 'all',
-      playerCounts: user.prefPlayerCounts 
-        ? user.prefPlayerCounts.split(',').map(Number) 
+      playerCounts: user.prefPlayerCounts
+        ? user.prefPlayerCounts.split(',').map(Number)
         : [1, 2, 3, 4],
-      instructorIds: user.prefInstructorIds 
-        ? user.prefInstructorIds.split(',') 
+      instructorIds: user.prefInstructorIds
+        ? user.prefInstructorIds.split(',')
         : [],
     };
 
@@ -54,12 +54,12 @@ export async function PUT(
     const { timeSlotFilter, viewPreference, playerCounts, instructorIds } = body;
 
     // Convertir arrays a CSV strings
-    const prefPlayerCounts = Array.isArray(playerCounts) 
-      ? playerCounts.join(',') 
+    const prefPlayerCounts = Array.isArray(playerCounts)
+      ? playerCounts.join(',')
       : '1,2,3,4';
-    
-    const prefInstructorIds = Array.isArray(instructorIds) 
-      ? instructorIds.join(',') 
+
+    const prefInstructorIds = Array.isArray(instructorIds)
+      ? instructorIds.join(',')
       : '';
 
     const updatedUser = await prisma.user.update({

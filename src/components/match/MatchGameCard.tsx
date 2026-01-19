@@ -543,8 +543,12 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
   return (
     <div
       className={cn(
-        "w-full mb-6 mx-auto md:mx-0"
+        "w-full mb-6 mx-auto md:mx-0",
+        "bubble-appear"
       )}
+      style={{
+        animationDelay: `${index * 100}ms`
+      }}
     >
       <Card className="overflow-visible shadow-[0_12px_40px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.12)] transition-all duration-300 bg-white border-0 rounded-[32px] scale-100 md:scale-[0.8] md:origin-top">
         {/* Header con título PARTIDA */}
@@ -907,7 +911,7 @@ const MatchGameCard: React.FC<MatchGameCardProps> = ({
 
             {refundedPoints !== undefined && refundedPoints > 0 && (
               <div className="h-9 px-3 flex items-center justify-center bg-orange-50 rounded-lg border border-orange-100 text-orange-700" title="Puntos Retornados">
-                <span className="text-sm font-bold">{refundedPoints.toFixed(2)} pts retornados</span>
+                <span className="text-sm font-bold">{refundedPoints.toFixed(2)} pts</span>
               </div>
             )}
 

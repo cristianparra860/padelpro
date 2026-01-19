@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
 
     // 4️⃣ VERIFICAR QUE EL USUARIO TIENE SUFICIENTES PUNTOS
     const userQuery = await prisma.$queryRaw`
-      SELECT id, name, email, points, blockedPoints as blockedLoyaltyPoints, level
+      SELECT id, name, email, points, blockedLoyaltyPoints, level
       FROM User
       WHERE id = ${userId}
     ` as Array<{
@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
       await createTransaction({
         userId,
         type: 'points',
-        action: 'subtract',
+        action: 'deduct',
         amount: pointsCost,
         balance: userAfterCharge?.points || 0,
         concept: `Reserva de plaza reciclada - Clase ${new Date(slotTimestamp).toLocaleString('es-ES')}`,

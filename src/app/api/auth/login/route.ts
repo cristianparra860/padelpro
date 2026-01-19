@@ -93,13 +93,10 @@ export async function POST(request: NextRequest) {
     return response;
 
   } catch (error) {
-    console.error('💥 Error detallado en login:', error);
-    if (error instanceof Error) {
-      console.error('💥 Stack:', error.stack);
-      console.error('💥 Message:', error.message);
-    }
+    console.error('💥 Error en login:', error);
+
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : String(error) },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

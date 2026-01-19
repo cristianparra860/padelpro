@@ -1,0 +1,43 @@
+
+
+[2026-01-19T23:23:45.129Z] ERROR CRÍTICO:
+PrismaClientInitializationError: 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].timeSlot.findMany()` invocation in
+C:\Proyectos\padelpro\.next\dev\server\chunks\[root-of-the-server]__8583c236._.js:270:169
+
+  267 }
+  268 console.log('📝 Where conditions:', whereConditions);
+  269 // Execute Prisma query
+→ 270 let timeSlots = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].timeSlot.findMany(
+error: Error validating datasource `db`: the URL must start with the protocol `postgresql://` or `postgres://`.
+  -->  schema.prisma:10
+   | 
+ 9 |   provider = "postgresql"
+10 |   url      = env("DATABASE_URL")
+   | 
+
+Validation Error Count: 1
+    at ei.handleRequestError (C:\Proyectos\padelpro\node_modules\@prisma\client\runtime\library.js:121:7568)
+    at ei.handleAndLogRequestError (C:\Proyectos\padelpro\node_modules\@prisma\client\runtime\library.js:121:6593)
+    at ei.request (C:\Proyectos\padelpro\node_modules\@prisma\client\runtime\library.js:121:6300)
+    at async a (C:\Proyectos\padelpro\node_modules\@prisma\client\runtime\library.js:130:9551)
+    at async GET (C:\Proyectos\padelpro\.next\dev\server\chunks\[root-of-the-server]__8583c236._.js:270:25)
+    at async AppRouteRouteModule.do (C:\Proyectos\padelpro\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:5:37866)
+    at async AppRouteRouteModule.handle (C:\Proyectos\padelpro\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:5:45156)
+    at async responseGenerator (C:\Proyectos\padelpro\.next\dev\server\chunks\[root-of-the-server]__e5568eb7._.js:17605:38)
+    at async AppRouteRouteModule.handleResponse (C:\Proyectos\padelpro\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:1:187713)
+    at async handleResponse (C:\Proyectos\padelpro\.next\dev\server\chunks\[root-of-the-server]__e5568eb7._.js:17668:32)
+    at async Module.handler (C:\Proyectos\padelpro\.next\dev\server\chunks\[root-of-the-server]__e5568eb7._.js:17721:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Proyectos\padelpro\node_modules\next\dist\server\base-server.js:1422:9)
+    at async DevServer.renderPageComponent (C:\Proyectos\padelpro\node_modules\next\dist\server\base-server.js:1474:24)
+    at async DevServer.renderToResponseImpl (C:\Proyectos\padelpro\node_modules\next\dist\server\base-server.js:1524:32)
+    at async DevServer.pipeImpl (C:\Proyectos\padelpro\node_modules\next\dist\server\base-server.js:1018:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Proyectos\padelpro\node_modules\next\dist\server\next-server.js:395:17)
+    at async DevServer.handleRequestImpl (C:\Proyectos\padelpro\node_modules\next\dist\server\base-server.js:909:17)
+    at async C:\Proyectos\padelpro\node_modules\next\dist\server\dev\next-dev-server.js:387:20
+    at async Span.traceAsyncFn (C:\Proyectos\padelpro\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Proyectos\padelpro\node_modules\next\dist\server\dev\next-dev-server.js:383:24)
+    at async invokeRender (C:\Proyectos\padelpro\node_modules\next\dist\server\lib\router-server.js:248:21)
+    at async handleRequest (C:\Proyectos\padelpro\node_modules\next\dist\server\lib\router-server.js:447:24)
+    at async requestHandlerImpl (C:\Proyectos\padelpro\node_modules\next\dist\server\lib\router-server.js:496:13)
+    at async Server.requestListener (C:\Proyectos\padelpro\node_modules\next\dist\server\lib\start-server.js:226:13)
