@@ -65,58 +65,58 @@ export default function ClubsPage() {
           {clubs.map((club) => {
             // Convertir el club ID a slug (temporalmente hasta que añadamos campo slug a la BD)
             const slug = club.id.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
-            
+
             return (
-            <button
-              key={club.id}
-              onClick={() => router.push(`/${slug}/demo`)}
-              className="group relative bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100 hover:border-blue-300 transform hover:-translate-y-2"
-            >
-              {/* Header con gradiente */}
-              <div className="h-32 bg-gradient-to-br from-blue-500 to-purple-600 relative">
-                <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-all"></div>
-                <div className="absolute bottom-4 left-4 right-4">
-                  <h3 className="text-white font-bold text-xl truncate">
-                    {club.name}
-                  </h3>
-                </div>
-              </div>
-
-              {/* Contenido */}
-              <div className="p-6">
-                {club.location && (
-                  <div className="flex items-center gap-2 text-gray-600 mb-3">
-                    <MapPin className="w-4 h-4" />
-                    <span className="text-sm">{club.location}</span>
-                  </div>
-                )}
-
-                {club.description && (
-                  <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                    {club.description}
-                  </p>
-                )}
-
-                <div className="flex items-center gap-4 text-xs text-gray-500 mb-4">
-                  <div className="flex items-center gap-1">
-                    <Users className="w-3 h-3" />
-                    <span>Clases disponibles</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    <span>Reserva online</span>
+              <button
+                key={club.id}
+                onClick={() => router.push(`/${slug}/demo`)}
+                className="group relative bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100 hover:border-blue-300 transform hover:-translate-y-2"
+              >
+                {/* Header con gradiente */}
+                <div className="h-32 bg-gradient-to-br from-blue-500 to-purple-600 relative">
+                  <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-all"></div>
+                  <div className="absolute bottom-4 left-4 right-4">
+                    <h3 className="text-white font-bold text-xl truncate">
+                      {club.name}
+                    </h3>
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-gray-100">
-                  <span className="text-blue-600 font-semibold text-sm group-hover:text-purple-600 transition-colors">
-                    Acceder al club →
-                  </span>
+                {/* Contenido */}
+                <div className="p-6">
+                  {club.location && (
+                    <div className="flex items-center gap-2 text-gray-600 mb-3">
+                      <MapPin className="w-4 h-4" />
+                      <span className="text-sm">{club.location}</span>
+                    </div>
+                  )}
+
+                  {club.description && (
+                    <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+                      {club.description}
+                    </p>
+                  )}
+
+                  <div className="flex items-center gap-4 text-xs text-gray-500 mb-4">
+                    <div className="flex items-center gap-1">
+                      <Users className="w-3 h-3" />
+                      <span>Clases disponibles</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      <span>Reserva online</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-gray-100">
+                    <span className="text-blue-600 font-semibold text-sm group-hover:text-purple-600 transition-colors">
+                      Acceder al club →
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </button>
+              </button>
             );
-          })}}
+          })}
         </div>
 
         {clubs.length === 0 && !loading && (
