@@ -6,7 +6,7 @@ import { generateToken } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   console.log('🔐 /api/auth/login POST received');
-  
+
   try {
     const body = await request.json();
     const { email, password } = body;
@@ -93,10 +93,13 @@ export async function POST(request: NextRequest) {
     return response;
 
   } catch (error) {
-    console.error('💥 Error en login:', error);
-    
+    console.error('💥 Error detallado en login:', error);
+    if (error instanceof Error) {
+      console.error('💥 Stack:', error.stack);
+      console.error('💥 Message:', error.message);
+    }
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }
