@@ -11,10 +11,6 @@
     {
       "path": "/api/admin/generate-proposals",
       "schedule": "0 1 * * *"
-    },
-    {
-      "path": "/api/cron/generate-matches",
-      "schedule": "0 2 * * *"
     }
   ]
 }
