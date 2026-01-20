@@ -54,7 +54,7 @@
     "html5-qrcode": "^2.3.8",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.475.0",
-    "next": "15.3.3",
+    "next": "^15.4.1",
     "node-fetch": "^2.7.0",
     "patch-package": "^8.0.0",
     "qrcode": "^1.5.4",
