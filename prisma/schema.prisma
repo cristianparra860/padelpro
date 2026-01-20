@@ -7,6 +7,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  SUPER_ADMIN
+  CLUB_ADMIN
+  INSTRUCTOR
+  PLAYER
+}
+
 model Admin {
   id        String   @id
   email     String   @unique
@@ -372,7 +379,7 @@ model User {
   position          String?
   gender            String?
   clubId            String
-  role              String             @default("PLAYER")
+  role              Role               @default(PLAYER)
   preference        String             @default("NORMAL")
   visibility        String             @default("PUBLIC")
   bio               String?
