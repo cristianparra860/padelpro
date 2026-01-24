@@ -60,13 +60,13 @@ export function extractToken(request: NextRequest): string | null {
  */
 export async function getCurrentUser(request: NextRequest) {
   const token = extractToken(request);
-  
+
   if (!token) {
     return null;
   }
 
   const payload = verifyToken(token);
-  
+
   if (!payload) {
     return null;
   }
@@ -76,7 +76,7 @@ export async function getCurrentUser(request: NextRequest) {
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
       include: {
-        club: true
+        Club: true
       }
     });
 
@@ -86,7 +86,7 @@ export async function getCurrentUser(request: NextRequest) {
 
     // No incluir el password en el retorno
     const { password: _, ...userWithoutPassword } = user;
-    
+
     return userWithoutPassword;
   } catch (error) {
     console.error('❌ Error obteniendo usuario actual:', error);
@@ -99,7 +99,7 @@ export async function getCurrentUser(request: NextRequest) {
  */
 export async function requireAuth(request: NextRequest) {
   const user = await getCurrentUser(request);
-  
+
   if (!user) {
     return {
       error: 'Unauthorized',
@@ -115,7 +115,7 @@ export async function requireAuth(request: NextRequest) {
  */
 export async function requireRole(request: NextRequest, allowedRoles: string[]) {
   const authResult = await requireAuth(request);
-  
+
   if ('error' in authResult) {
     return authResult;
   }
