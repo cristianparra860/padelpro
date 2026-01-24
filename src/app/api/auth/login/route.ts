@@ -1,8 +1,11 @@
 // src/app/api/auth/login/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+// import { prisma } from '@/lib/prisma';
+import { PrismaClient } from '@prisma/client'; // Use local instance for stability
 import * as bcrypt from 'bcryptjs';
 import { generateToken } from '@/lib/auth';
+
+const prisma = new PrismaClient(); // Local instance
 
 export async function POST(request: NextRequest) {
   console.log('🔐 /api/auth/login POST received');
@@ -15,7 +18,6 @@ export async function POST(request: NextRequest) {
 
     // Validación básica
     if (!email || !password) {
-      console.error('❌ Validación falló: email y password requeridos');
       return NextResponse.json(
         { error: 'Email and password are required' },
         { status: 400 }
@@ -26,7 +28,7 @@ export async function POST(request: NextRequest) {
     const user = await prisma.user.findUnique({
       where: { email },
       include: {
-        club: true
+        Club: true
       }
     });
 
@@ -65,7 +67,7 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       email: user.email,
       role: user.role,
-      clubId: user.clubId
+      clubId: user.clubId || ''
     });
 
     console.log('🎫 Token JWT generado');
@@ -92,12 +94,18 @@ export async function POST(request: NextRequest) {
 
     return response;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('💥 Error en login:', error);
 
     return NextResponse.json(
-      { error: 'Internal server error' },
+      {
+        error: 'Internal server error',
+        debug_message: error.message,
+        debug_stack: error.stack
+      },
       { status: 500 }
     );
+  } finally {
+    await prisma.$disconnect();
   }
 }
