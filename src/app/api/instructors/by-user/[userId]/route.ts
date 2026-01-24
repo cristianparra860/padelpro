@@ -9,12 +9,12 @@ export async function GET(
 ) {
   try {
     const { userId } = await params;
-    
+
     console.log('🔍 Buscando instructor para usuario:', userId);
-    
+
     // Verificar autenticación
     const currentUser = await getCurrentUser(request);
-    
+
     if (!currentUser) {
       console.log('❌ No hay usuario autenticado');
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
@@ -23,7 +23,7 @@ export async function GET(
     const instructor = await prisma.instructor.findUnique({
       where: { userId },
       include: {
-        user: {
+        User: {
           select: {
             id: true,
             name: true,
@@ -32,7 +32,7 @@ export async function GET(
             level: true
           }
         },
-        club: {
+        Club: {
           select: {
             id: true,
             name: true
@@ -48,7 +48,7 @@ export async function GET(
         { status: 200 }
       );
     }
-    
+
     // Verificar permisos - permitir al propio instructor o admins
     const isOwnProfile = instructor.userId === currentUser.id;
     const isClubAdmin = currentUser.role === 'CLUB_ADMIN';

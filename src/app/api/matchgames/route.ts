@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
             ]
           },
           include: {
-            user: {
+            User: {
               select: {
                 id: true,
                 name: true,

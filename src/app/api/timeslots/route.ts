@@ -141,7 +141,7 @@ export async function GET(request: NextRequest) {
             ]
           },
           include: {
-            user: {
+            User: {
               select: {
                 id: true,
                 name: true,
@@ -167,7 +167,7 @@ export async function GET(request: NextRequest) {
           ]
         },
         include: {
-          user: {
+          User: {
             select: {
               id: true,
               name: true,
@@ -199,7 +199,7 @@ export async function GET(request: NextRequest) {
         id: true,
         name: true,
         profilePictureUrl: true,
-        user: {
+        User: {
           select: {
             id: true, // Needed to match userId with instructorId
             profilePictureUrl: true
@@ -384,7 +384,7 @@ export async function GET(request: NextRequest) {
         if (instructor) {
           instructorName = instructor.name; // El modelo Instructor tiene name directamente
           // Intentar obtener la foto del instructor, si no existe, usar la del usuario relacionado
-          instructorProfilePicture = instructor.profilePictureUrl || instructor.user?.profilePictureUrl || null;
+          instructorProfilePicture = instructor.profilePictureUrl || instructor.User?.profilePictureUrl || null;
         }
       }
 
@@ -541,7 +541,7 @@ export async function GET(request: NextRequest) {
         if (userId && slot.instructorId) {
           const instructor = instructorMap.get(slot.instructorId);
           // Verificar si el usuario actual es el dueÃ±o de la clase (instructor)
-          if (instructor && instructor.user && instructor.user.id === userId) {
+          if (instructor && instructor.User && instructor.User.id === userId) {
             console.log(`👨‍🏫 Instructor viewing own class: ${slot.id}`);
             return true;
           }
@@ -962,8 +962,8 @@ export async function POST(request: NextRequest) {
         creditsCost: 50
       },
       include: {
-        instructor: true,
-        club: true,
+        Instructor: true,
+        Club: true,
         bookings: true
       }
     });
