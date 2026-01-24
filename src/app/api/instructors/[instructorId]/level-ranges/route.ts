@@ -4,10 +4,10 @@ import { getCurrentUser } from '@/lib/auth';
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { instructorId: string } }
+  { params }: { params: Promise<{ instructorId: string }> }
 ) {
   try {
-    const { instructorId } = params;
+    const { instructorId } = await params;
 
     console.log('📝 Actualizando rangos de nivel del instructor:', instructorId);
 
@@ -101,10 +101,10 @@ export async function PUT(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { instructorId: string } }
+  { params }: { params: Promise<{ instructorId: string }> }
 ) {
   try {
-    const { instructorId } = params;
+    const { instructorId } = await params;
 
     const instructor = await prisma.instructor.findUnique({
       where: { id: instructorId },
