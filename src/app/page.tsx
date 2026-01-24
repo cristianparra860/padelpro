@@ -222,7 +222,7 @@ export default function LoginPage() {
 
             {/* Club Admins */}
             <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">PadelPro v2.0 (Live)</h1>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">PadelPro v2.1 (Debug)</h1>
               <p className="text-gray-600">Gestión profesional de clubes de pádel</p>
             </div>
             <div className="mb-4">
