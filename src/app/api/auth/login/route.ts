@@ -1,20 +1,13 @@
 // src/app/api/auth/login/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-// import { prisma } from '@/lib/prisma';
-import { PrismaClient } from '@prisma/client'; // Use local instance for stability
+import { prisma } from '@/lib/prisma';
 import * as bcrypt from 'bcryptjs';
 import { generateToken } from '@/lib/auth';
 
-const prisma = new PrismaClient(); // Local instance
-
 export async function POST(request: NextRequest) {
-  console.log('🔐 /api/auth/login POST received');
-
   try {
     const body = await request.json();
     const { email, password } = body;
-
-    console.log('📧 Login attempt for:', email);
 
     // Validación básica
     if (!email || !password) {
@@ -60,8 +53,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('✅ Login exitoso:', user.email);
-
     // Generar JWT token
     const token = generateToken({
       userId: user.id,
@@ -69,8 +60,6 @@ export async function POST(request: NextRequest) {
       role: user.role,
       clubId: user.clubId || ''
     });
-
-    console.log('🎫 Token JWT generado');
 
     // Retornar datos del usuario (sin password)
     const { password: _, ...userWithoutPassword } = user;
@@ -94,18 +83,12 @@ export async function POST(request: NextRequest) {
 
     return response;
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('💥 Error en login:', error);
 
     return NextResponse.json(
-      {
-        error: 'Internal server error',
-        debug_message: error.message,
-        debug_stack: error.stack
-      },
+      { error: 'Internal server error' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
