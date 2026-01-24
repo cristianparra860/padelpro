@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     // Buscar al usuario en la base de datos para datos actualizados
     const user = await prisma.user.findUnique({
       where: { id: authUser.id },
-      include: { club: true }
+      include: { Club: true }
     });
 
     if (!user) {
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       currentClubId: user.clubId || undefined,
       phone: user.phone || undefined,
       role: user.role,
-      club: user.club
+      club: user.Club
     };
 
     console.log('✅ Usuario autenticado cargado:', {

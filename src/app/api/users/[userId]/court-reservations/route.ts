@@ -29,9 +29,9 @@ export async function GET(
         }
       },
       include: {
-        court: {
+        Court: {
           include: {
-            club: true
+            Club: true
           }
         }
       },

@@ -70,7 +70,7 @@ export async function PUT(
       where: { id: userId },
       data: updateData,
       include: {
-        club: true
+        Club: true
       }
     });
 

@@ -13,7 +13,7 @@ export async function GET(
     const instructor = await prisma.instructor.findUnique({
       where: { id: instructorId },
       include: {
-        club: true
+        Club: true
       }
     });
 
@@ -33,11 +33,11 @@ export async function PUT(
   { params }: { params: Promise<{ instructorId: string }> }
 ) {
   console.log('🔵 PUT /api/instructors/[instructorId] - Inicio');
-  
+
   try {
     const { instructorId } = await params;
     console.log('   instructorId:', instructorId);
-    
+
     // Verificar autenticación
     let currentUser;
     try {
@@ -45,12 +45,12 @@ export async function PUT(
       console.log('   getCurrentUser resultado:', currentUser ? `Usuario: ${currentUser.id}` : 'null');
     } catch (authError: any) {
       console.error('   ❌ Error en getCurrentUser:', authError.message);
-      return NextResponse.json({ 
-        error: 'Error de autenticación', 
-        details: authError.message 
+      return NextResponse.json({
+        error: 'Error de autenticación',
+        details: authError.message
       }, { status: 500 });
     }
-    
+
     if (!currentUser) {
       console.log('   ❌ No autorizado - sin usuario');
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
@@ -65,9 +65,9 @@ export async function PUT(
       console.log('   instructor encontrado:', instructor ? 'SI' : 'NO');
     } catch (dbError: any) {
       console.error('   ❌ Error buscando instructor:', dbError.message);
-      return NextResponse.json({ 
-        error: 'Error de base de datos', 
-        details: dbError.message 
+      return NextResponse.json({
+        error: 'Error de base de datos',
+        details: dbError.message
       }, { status: 500 });
     }
 
@@ -78,7 +78,7 @@ export async function PUT(
         { status: 404 }
       );
     }
-    
+
     // Verificar permisos
     const isInstructor = instructor.userId === currentUser.id;
     const isClubAdmin = currentUser.role === 'CLUB_ADMIN' && currentUser.clubId === instructor.clubId;
@@ -96,27 +96,27 @@ export async function PUT(
       console.log('   body recibido:', JSON.stringify(body));
     } catch (jsonError: any) {
       console.error('   ❌ Error parseando JSON:', jsonError.message);
-      return NextResponse.json({ 
-        error: 'JSON inválido', 
-        details: jsonError.message 
+      return NextResponse.json({
+        error: 'JSON inválido',
+        details: jsonError.message
       }, { status: 400 });
     }
-    
+
     // Preparar datos para actualizar
     const updateData: any = {};
-    
+
     if (body.isAvailable !== undefined) {
       updateData.isAvailable = body.isAvailable;
     }
-    
+
     if (body.defaultRatePerHour !== undefined) {
       updateData.defaultRatePerHour = body.defaultRatePerHour;
     }
-    
+
     if (body.rateTiers !== undefined) {
       updateData.rateTiers = JSON.stringify(body.rateTiers);
     }
-    
+
     if (body.unavailableHours !== undefined) {
       console.log('   📅 Actualizando unavailableHours:', JSON.stringify(body.unavailableHours));
       updateData.unavailableHours = JSON.stringify(body.unavailableHours);
@@ -131,7 +131,7 @@ export async function PUT(
         where: { id: instructorId },
         data: updateData,
         include: {
-          user: {
+          User: {
             select: {
               id: true,
               name: true,
@@ -140,7 +140,7 @@ export async function PUT(
               level: true
             }
           },
-          club: {
+          Club: {
             select: {
               id: true,
               name: true
@@ -152,9 +152,9 @@ export async function PUT(
     } catch (updateError: any) {
       console.error('   ❌ Error actualizando instructor:', updateError.message);
       console.error('   Stack:', updateError.stack);
-      return NextResponse.json({ 
-        error: 'Error actualizando instructor', 
-        details: updateError.message 
+      return NextResponse.json({
+        error: 'Error actualizando instructor',
+        details: updateError.message
       }, { status: 500 });
     }
 
