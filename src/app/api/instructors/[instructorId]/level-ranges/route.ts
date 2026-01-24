@@ -24,7 +24,7 @@ export async function PUT(
     // Verificar que el usuario sea el instructor o admin
     const instructor = await prisma.instructor.findUnique({
       where: { id: instructorId },
-      include: { user: true }
+      include: { User: true }
     });
 
     if (!instructor) {
