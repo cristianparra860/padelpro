@@ -243,16 +243,13 @@ export default function LoginPage() {
 
             {/* Instructores */}
             <div className="mb-4">
-              <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-2">🟡 INSTRUCTORES</p>
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-2">🟡 INSTRUCTORES (Reales)</p>
               <div className="space-y-2">
                 {[
-                  { name: 'Pedro López', email: 'instructor@gmail.com', password: 'Pass123!' },
-                  { name: 'Ana González', email: 'david.collado@padelpro.com', password: 'Pass123!' },
-                  { name: 'Carlos Rodriguez', email: 'carlos@padelclub.com', password: 'Pass123!' },
-                  { name: 'Diego Martinez', email: 'alex.garcia@padelpro.com', password: 'Pass123!' },
-                  { name: 'Instructor 5', email: 'cristian.parra@padelpro.com', password: 'Pass123!' },
-                  { name: 'Instructor 6', email: 'instructor@padelpro.com', password: 'Pass123!' },
-                  { name: 'Maria Fernández', email: 'ana@padelclub.com', password: 'Pass123!' }
+                  { name: 'Ana Lopez', email: 'ana@padelclub.com', password: 'password123' },
+                  { name: 'Carlos Martinez', email: 'carlos@padelclub.com', password: 'password123' },
+                  { name: 'Instructor 3', email: 'pro3@padel.com', password: 'password123' },
+                  { name: 'Instructor 5', email: 'pro5@padel.com', password: 'password123' }
                 ].map((user, idx) => (
                   <button
                     key={idx}
@@ -273,13 +270,12 @@ export default function LoginPage() {
 
             {/* Jugadores */}
             <div>
-              <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-2">🟢 JUGADORES</p>
+              <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-2">🟢 JUGADORES (Reales)</p>
               <div className="space-y-2">
                 {[
-                  { name: 'Alex García', email: 'alex@example.com', password: 'Pass123!' },
-                  { name: 'Carlos Rodríguez', email: 'jugador1@gmail.com', password: 'Pass123!' },
-                  { name: 'Juan Martínez', email: 'jugador3@gmail.com', password: 'Pass123!' },
-                  { name: 'María González', email: 'jugador2@gmail.com', password: 'Pass123!' }
+                  { name: 'Alex Garcia', email: 'alex@example.com', password: 'password123' },
+                  { name: 'David Collado', email: 'david.collado@padelpro.com', password: 'password123' },
+                  { name: 'Cristian Parra', email: 'cristian.parra@padelpro.com', password: 'password123' }
                 ].map((user, idx) => (
                   <button
                     key={idx}
